@@ -14,9 +14,9 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         older pending ones: dropped, superseded), stopping at the first failure ("<step>: <reason>", the checkout reset,
         the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
         (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version),
-        rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, make publish-vps,
-        scenario.py publish, labpub.py all --if-changed, git commit (game.json, VERSION, docs/brawler_gold.md) + push
-        origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
+        rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, git commit
+        (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
+        push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
     labcfg.py ship-pending                          the requests waiting: id, fighter, revision, who, when
     labcfg.py ship FIGHTER [--rev N] [--note ...]   queue one from here (as a live send does)
     labcfg.py ship-done ID [--dropped] [--note "0.0.120, commit abc123"]   close a request by hand
@@ -101,16 +101,18 @@ def ship_one(c, f, row):
         logf.write(out + f'\n==== {step}: exit {r.returncode} in {time.time() - t0:.0f} s\n'); logf.flush()
         if r.returncode or (ok and not ok(out)):
             last = [x.strip() for x in out.splitlines() if x.strip()]
-            why = [x for x in last if x.startswith(('REFUSED', '- ', 'FAIL', 'error', 'fatal', 'bleed:'))] or last[-2:]
+            why = last[-1:] if 'Traceback' in out else ([x for x in last if x.startswith(('REFUSED', '- ', 'FAIL', 'error', 'fatal', 'bleed:'))] or last[-2:])
             raise Fail(f'{step}: ' + ' '.join(why)[:400])
         return out
 
     g = lambda *x: ['git', '-C', repo] + list(x)
     py = lambda name, *x: nice + [sys.executable, os.path.join(bl, name)] + list(x)
+    start = None
     try:
         run('reset', g('reset', '-q', '--hard', 'HEAD'))
         run('git pull', g('fetch', '-q', 'origin', 'brawler'))
         run('git pull', g('merge', '-q', '--ff-only', 'FETCH_HEAD'))
+        start = run('git pull', g('rev-parse', 'HEAD')).strip()
         v0 = open(vp).read().strip(); p = v0.split('.'); p[-1] = str(int(p[-1]) + 1); st['v'] = v1 = '.'.join(p)
         open(vp, 'w').write(v1 + '\n')                   # (first: arb_compile's build and gold section carry it)
         out = run('arb_compile', py('arb_compile.py', f, '--game', game))
@@ -128,16 +130,16 @@ def ship_one(c, f, row):
         run('bank_proof', py('bank_proof.py', game), ok=lambda o: 'ALL OK' in o)
         run('regress bleed', py('regress.py', game, os.path.join(c['logs'], f'{row["id"]}_regress.json'), '--bleed-only'),
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
-        run('publish-vps', ['make', '-C', game, 'publish-vps'])
+        paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
+        run('commit', g('add', '--', *paths))                # (before the publish: scenario.py publish finds the build
+        run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {f} shipped from the Assembly (rev {row["rev"]})' + FOOTER, '--', *paths))
+        run('publish-vps', ['make', '-C', game, 'publish-vps'])   # by its "Brawler 0.10.N" commit)
         run('scenario publish', py('scenario.py', 'publish'))
         run('labpub', py('labpub.py', 'all', '--if-changed'))
-        paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
-        run('commit', g('add', '--', *paths))
-        run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {f} shipped from the Assembly (rev {row["rev"]})' + FOOTER, '--', *paths))
         run('push', g('push', '-q', 'origin', 'HEAD:brawler'))
     except Fail as e:
         logf.write(f'\nFAILED: {e}\n'); logf.close()
-        subprocess.run(g('reset', '-q', '--hard', 'HEAD'))   # (VERSION / game.json as they were; a local commit kept)
+        subprocess.run(g('reset', '-q', '--hard', start or 'HEAD'))   # (the checkout as pulled; a local commit dropped)
         return 'failed', f'{e} (log {row["id"]}.log on the ship host)'
     logf.close()
     return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else '')
