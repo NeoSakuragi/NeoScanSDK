@@ -62,9 +62,18 @@
           q.media ? media(q.media) : null, h('div', { class: opts.some(o => o.media && [].concat(o.media).some(m => m.video || m.image)) ? 'dopts dgrid' : 'dopts' }, optEls), h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
       };
       const general = { id: 'general', title: 'Anything else for this topic?', options: [] };
+      // answered questions are hidden (Bruno 2026-10-12: "hide the questions that have been answered"); one button shows them
+      const done = q => ans[q.id] && ans[q.id].choice != null;
+      const nDone = set.sections.reduce((n, s) => n + s.questions.filter(done).length, 0);
+      const old = h('div', { class: 'danswered', hidden: true },
+        set.sections.map(s => s.questions.some(done) ? [h('h3', { class: 'dsec', text: s.title }), s.questions.filter(done).map(card)] : []));
+      const showOld = nDone ? h('button', { type: 'button', class: 'dshowold', text: `Show the ${nDone} answered question${nDone > 1 ? 's' : ''}` }) : null;
+      if (showOld) showOld.onclick = () => { old.hidden = !old.hidden; showOld.textContent = (old.hidden ? 'Show' : 'Hide') + ` the ${nDone} answered question${nDone > 1 ? 's' : ''}`; };
+      const open = set.sections.map(s => s.questions.some(q => !done(q)) ? [h('h3', { class: 'dsec', text: s.title }), s.questions.filter(q => !done(q)).map(card)] : []);
       parts.push(h('section', { class: 'dset' }, h('h2', { text: set.title }), h('p', { text: set.intro || '' }),
         set.fighter ? h('p', {}, h('a', { href: 'lab.html?tab=review&f=' + set.fighter + '&q=' + set.id, text: 'Answer these with the clips (recommended)' })) : null, status,
-        set.sections.map(s => [h('h3', { class: 'dsec', text: s.title }), s.questions.map(card)]), card(general)));
+        nDone === set.sections.reduce((n, s) => n + s.questions.length, 0) ? h('p', { text: 'Every question here is answered.' }) : null,
+        open, card(general), showOld, old));
       count();
     }
     col.replaceChildren(...parts);
