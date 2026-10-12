@@ -3883,7 +3883,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     bvx = v->vx; bvy = v->vy;
     if (a->state == S_SPECIAL) {                                 /* a special's body hit: KOF98's reaction (its reel's */
         kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* slide, the juggle rule: KM_HURT), */
-        if (!held) std_flight(v, reaction, bvx, bvy);            /* a free victim's flight the brawler's (note 20261011-223923) */
+        if (!held && !((bm_srcfly[a->ch->id] >> a->spec_ix) & 1))   /* a free victim's flight the brawler's (note 20261011-223923), */
+            std_flight(v, reaction, bvx, bvy);                   /* but a move listed in roster[].source_flight keeps its
+                                                                    source's (note 20261011-201729: the chase's slide) */
     }
     if (sr) src_react(v, a->facing, sr);                         /* or its source's (SF_SREACT): sent the way the
                                                                     attacker faces, facing it (Kizuna: the victim behind

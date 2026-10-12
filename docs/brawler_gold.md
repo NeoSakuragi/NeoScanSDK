@@ -310,6 +310,17 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   with gravity 2.69 decaying, 30 frames up, off screen) and now to 98 px in an even arc; 623C still juggles him after it.
   Roster table + frames: /data/tmp/scissors (sweep_after.json; recipe scenarios.json 20261011-223923-5d29).
 
+- **A chase keeps its source's flight** — `game.json roster[].source_flight` [special inputs] (note 20261011-201729-5d29, Kyo's
+  forward + C = EX 421D, game 0.10.67: 1 kick of 3 landed from close, 2 at 80 px, 3 only from ~120 px; the same at the
+  default knobs, so not the 80 % height). Cause: the standard arc above sends the victim of kick 1 away at 2 px a frame
+  while Kyo flies on at 4-8, so he overtakes it and kick 2's box (36 px ahead) passes behind it; KOF98 keeps 284's slide
+  (11.4 x 0.8125 down to 4.5 px a frame, up at 7, gravity 0.5): the victim stays just ahead of him and kicks 2 and 3 land
+  (KOF98 in our emulator, tools/kof96/capture/romspecials98: 3 / 3 / 2 hits at its near / close / mid placings, the
+  third whiffing from mid). Listed, the move's body hits keep kof_react's path (export_bm bm_srcfly, fighter.c
+  fighter_hit); the rest of the roster keeps the standard arc. Kyo, rise 3.58, 10 tries each: 3 / 3 hits at 20, 40, 80,
+  120, 130, 140 px and from his A chain at 30 / 50 / 70 px (was 1 / 2 / 3 at 40 / 80 / 120); past ~145 px kick 1 no
+  longer reaches (KOF's far: none). /data/tmp/kyo_triple (trace.json per run, sheet_g40_after.png).
+
 - **A move that leaves the fighter airborne with his air attack** — `game.json roster[].keeps_air_attack` [special
   inputs] (Bruno 2026-10-11, decisions set open-2026-10-11 `hanzo-air-shuriken`: "after the shuriken Blitz, Hanzo is
   still in the air and he can still execute a regular air attack"). The special's `bspec_t.sflags` SF_AIRATK (64,
