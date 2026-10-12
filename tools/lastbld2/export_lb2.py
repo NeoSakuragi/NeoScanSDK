@@ -14,8 +14,9 @@ model_lb2.py = the game's animation interpreter frame for frame, check_model.py)
 - boxes: the slots +$100 ($91 / $B5 records, [type][shift][x1][x2][y1][y2] << shift from the feet, art facing left: x
   negative = forward, y negative = up); type 1-$BF = attack, $C0+ = body ($34F26: cmpi #$C0) -> KOF keys '31' (the
   body union) and '11' (the attack union), centre / half extents.
-- palettes: a sprite definition's palette = its byte 0 + the player's base; ROM palette index = 464 + that (Moriya's
-  every definition: word 4 - byte 0 = 464, measured over all 1476), colour set k at + 56 k ($17378: the colour byte x 56).
+- palettes: a sprite definition's palette = its byte 0 + the player's base, loaded from ROM palette word 4 ($1023C:
+  Moriya's every definition: word 4 = byte 0 + 464, all 1476); the export's palette key = that ROM index; his own
+  set (slots $60-$97) at + 56 per colour set ($17378: the colour byte x 56), the common effects' (char 24) fixed.
 - physics: the walk / jump scripts' segments ($84: vx, vy, gravity in 8.8, x forward = -value).
 - specials, throws: handlers_lb2.py (the moves' descriptors and scripts as programs)."""
 import json, os, sys
@@ -71,25 +72,29 @@ class Builder:
     def pal(self, p):
         if p not in self.pals: self.pals.append(p)
         return self.pals.index(p)
-    def frame(self, fid):
-        if fid in self.index: return self.index[fid]
-        lay = L.frame_layers(self.ch, fid)
+    def frame(self, fid, ch=None):
+        """a frame record of character ch (default the fighter's; an effect object's: another table, e.g. 24 the
+        common effects) as brawler parts"""
+        ch = self.ch if ch is None else ch
+        key = fid if ch == self.ch else (ch, fid)
+        if key in self.index: return self.index[key]
+        lay = L.frame_layers(ch, fid)
         order = sorted(range(len(lay)), key=lambda k: (lay[k]['prio'], -k), reverse=True)   # P0 - prio, list order
         parts = []
-        for k in order: parts += self.layer(lay[k])
-        self.index[fid] = len(self.frames)
-        self.frames.append({'record': f'{self.ch}:{fid}', 'parts': parts, 'weapon': None, 'lb2': {'frame': fid,
+        for k in order: parts += self.layer(lay[k], ch)
+        self.index[key] = len(self.frames)
+        self.frames.append({'record': f'{ch}:{fid}', 'parts': parts, 'weapon': None, 'lb2': {'frame': fid, 'char': ch,
                             'layers': [[l['sid'], l['x'], l['y'], l['flips']] for l in lay]}})
-        return self.index[fid]
-    def layer(self, L_):
-        sd = L.sprite_def(self.ch, L_['sid'])
+        return self.index[key]
+    def layer(self, L_, ch=None):
+        sd = L.sprite_def(self.ch if ch is None else ch, L_['sid'])
         if sd is None or not sd['cols'] or not sd['rows']: return []
         cells, at = L.sprite_cells(sd)
         fl = L_['flips']
         hf, vf = fl & 1, fl >> 1 & 1
         x0 = -(sd['cols'] * 16 + L_['x']) if hf else L_['x']
         y0 = -(sd['rows'] * 16 + L_['y']) if vf else L_['y']
-        pal = sd['paladd'] + (at >> 8 if sd['fmt'] == 3 and at else 0)
+        pal = sd['w2'] + (at >> 8 if sd['fmt'] == 3 and at else 0)   # the key: its ROM palette index (word 4, $1023C)
         vis = cells[::-1] if hf else cells
         cols = []
         for ci, col in enumerate(vis):
@@ -144,13 +149,14 @@ def timeline(ch, a, mode=0, limit=600, loop=False):
         if loop and o.off == 0 and len(rows) > 1: break
     return rows, o.events
 
-def collapse(B, rows):
-    """frames -> steps: runs of the same frame id and boxes; the boxes' writes open a new hit"""
+def collapse(B, rows, cuts=()):
+    """frames -> steps: runs of the same frame id and boxes; the boxes' writes open a new hit; cuts: row indices where a
+    step must start anyway (an effect object born there, handlers_lb2.program)"""
     steps = []
-    for r in rows:
+    for k, r in enumerate(rows):
         bx = kof_boxes(r['boxes'])
         key = (r['frame'], json.dumps(bx, sort_keys=True))
-        if steps and steps[-1]['_key'] == key: steps[-1]['ticks'] += 1; continue
+        if steps and steps[-1]['_key'] == key and k not in cuts: steps[-1]['ticks'] += 1; continue
         steps.append({'_key': key, 'frame': B.frame(r['frame']), 'ticks': 0, 'flags': 0x100 if '11' in bx else 0,
                       'dx': 0, 'boxes': bx, 'lb2': [r['anim'], r['frame']], '_atk': [v for v in r['boxes'].values() if 0 < v[0] < 0xC0]})
     for i, s in enumerate(steps):                     # an attack continued by the next step (the same records): one hit
@@ -178,12 +184,15 @@ def physics(ch):
 WALK = {1: 2.125}                                 # [meas] play_lb2: 60 frames holding forward from vs.state, 2.125 px a frame
 
 def colours(B, ch):
-    """per colour set the palettes of every key B uses: ROM index PAL0 + key + 56 set ($FF9A: $A9000 + 32 index)"""
+    """per colour set the palettes of every key B uses (a key = the ROM palette index a definition loads, $1023C: word 4
+    of the definition): the fighter's own set (PAL0 + 96 .. + 151: slots $60-$97) + 56 per colour set ($17378), the
+    common effects' (char 24's: slots $98+, loaded with +$68 cleared, $2D542) as they are ($FF9A: $A9000 + 32 index)"""
     sets = []
+    own = range(PAL0[ch] + 96, PAL0[ch] + 96 + SET_STRIDE)
     for s in range(COLOURS):
         row = []
         for k in B.pals:
-            a = 0xA9000 + 32 * (PAL0[ch] + k + SET_STRIDE * s)
+            a = 0xA9000 + 32 * (k + (SET_STRIDE * s if k in own else 0))
             row.append([0] + [L.u16(a + 2 * q) for q in range(1, 16)])
         sets.append(row)
     return sets

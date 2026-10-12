@@ -27,7 +27,8 @@ def rom_render(cid, fid, pal0):
     ys, xs = np.nonzero(im); out = {}
     for y, x in zip(ys, xs):
         v = int(im[y, x]); p, q = v >> 4, v & 15
-        out[(int(x) - 256, int(y) - 300)] = L.u16(0xA9000 + 32 * (pal0 + p) + 2 * q)
+        base = pal0 if cid < 24 else 6177           # (char 24, the common effects: word 4 = byte 0 + 6177)
+        out[(int(x) - 256, int(y) - 300)] = L.u16(0xA9000 + 32 * (base + p) + 2 * q)
     return out
 
 def main(d='/data/tmp/lastbld2/exp', name='moriya'):
@@ -38,8 +39,8 @@ def main(d='/data/tmp/lastbld2/exp', name='moriya'):
     import export_lb2 as X
     same = 0; bad = []
     for i, fr in enumerate(ch['frames']):
-        fid = fr['lb2']['frame']
-        a = export_render(ex, ch, fr, tiles, ch['block_palettes']); b = rom_render(ch['id'], fid, X.PAL0[ch['id']])
+        fid = fr['lb2']['frame']; cid = fr['lb2'].get('char', ch['id'])
+        a = export_render(ex, ch, fr, tiles, ch['block_palettes']); b = rom_render(cid, fid, X.PAL0[ch['id']])
         if a == b: same += 1
         else: bad.append((i, fid, len(a), len(b), sum(1 for k in a if b.get(k) != a[k])))
     print(name, len(ch['frames']), 'frames', same, 'identical', bad[:10])

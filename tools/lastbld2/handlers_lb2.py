@@ -122,16 +122,71 @@ def standard_reacts(steps, base):
     import export_ss2 as X
     X.standard_reacts(steps, base)
 
+# ---- the effect objects a script spawns [code] ------------------------------------------------------------------------
+# $AE / $9A -> task OBJ LNK ($2D8F6): one more FRAME (word 4 = a frame id of the spawner's table) drawn at the spawner's
+# place + (x, y) while the spawner shows the step it was born on ($2D99E: its +$B8 / +$C6 unchanged, else it frees itself):
+# the trails of Ittou Tsukikage. Word 2's high byte + the spawner's +$62: drawn in front (+) / behind (-). -> a bproj_t
+# pinned for its step (follow 9, handlers98's step effects), one row looping.
+# $AD / $99, $AF / $A3 -> task CO-ANIM ($2D4EA / $2DB24): an ANIMATION (word 4) of character byte 1 (his own table, or 24 =
+# the common effects: the super flash) started at the spawner's place + (x, y), facing his way, playing on where it was
+# born (its own script's motion, boxes: Shingetsu's crescent, Oboro's streaks) -> a placed effect (bproj_t air PJ_PLACED),
+# its rows = model_lb2's play of that animation, its attack boxes live.
+# $AA / $B2 (CO-ZLINK $2DDC6) / $A7 / $B0 (CO-SLINK $2DC8E): character 25's animation + $76434[stage] & 7: the stage's
+# own dust: NOT imported (the brawler's stages are not LB2's).
+# The 22-byte forms pick their (word 4, x, y) triple by style ($2CE60 / $2D036: Power +4, Speed +10, EX +16).
+SPAWN_KIND = {0xAE: 'lnk', 0x9A: 'lnk', 0xAD: 'anim', 0x99: 'anim', 0xAF: 'anim', 0xA3: 'anim',
+              0xAA: 'dust', 0xB2: 'dust', 0xA7: 'dust', 0xB0: 'dust', 0xA8: 'other', 0xB1: 'other', 0xA9: 'other', 0xB3: 'other'}
+
+def spawn_info(op, b, mode=0):
+    s16 = lambda k: M.s16(b[k] << 8 | b[k + 1])
+    k = 4 + (6 * (0 if mode == 0 else 1) if len(b) == 22 else 0)
+    return {'kind': SPAWN_KIND.get(op, 'other'), 'op': op, 'char': b[1] & 31, 'prio': M.s8(b[2]), 'word': (b[k] << 8 | b[k + 1]),
+            'fwd': -s16(k + 2), 'up': -s16(k + 4)}
+
+def effect_object(B, ch, info):
+    import export_lb2 as X
+    base = {'loop': None, 'end': [], 'kind': 3, 'hit_kind': 1, 'react': 'knockdown', 'spawn_row': 0, 'spawn_x': 0,
+            'spawn_y': 0, 'child': None, 'sig': 0, 'next': None, 'stop': 0, 'rearm': 0,
+            **({'back': True} if info['prio'] < 0 else {}), 'lb2': info}
+    if info['kind'] == 'lnk':
+        fid = info['word'] & 0xFFF
+        return dict(base, rows=[[B.frame(fid), info['fwd'], info['up'], None, None, 0]], loop=0, follow=9, name=f'LNK{fid:X}')
+    ce = info['char']; a = info['word'] & 0x1FF
+    trows, _ = X.timeline(ce, a, limit=240)
+    rows = []
+    for r in trows:
+        atk = [v for v in r['boxes'].values() if 0 < v[0] < 0xC0]
+        box = X.kof_box(atk) if atk else None
+        rows.append([B.frame(r['frame'], ce), round(info['fwd'] + r['x']), round(info['up'] + r['h']), [1] + box if box else None, box, 0])
+    return dict(base, rows=rows, follow=0, placed=True, name=f'FX{ce}_{a:X}')
+
+def step_of(steps, k):
+    """the step (of collapse's list, before the clock adjustment) showing frame k of its state"""
+    t = 0
+    for i, s in enumerate(steps):
+        t += s['ticks'] + 1
+        if k < t: return i
+    return len(steps) - 1
+
 def program(B, ch, move, mode=0, name=''):
-    """-> (prims, states, anims_d, rows, segs) for a move"""
+    """-> (ops, states, anims_d, rows, segs, events, objects, step_fx) for a move"""
     import export_lb2 as X
     rows, ev = move_rows(ch, move, mode)
     segs, dx, dh = segments(rows, ev)
+    objects, okeys, step_fx = [], {}, []
     warps = {e[0]: e[2] for e in ev if e[1] == 'warp'}
     ops, states, anims_d = [], [], {}
     for i, (a, b) in enumerate(segs):
         n = b - a + 1
-        steps = X.collapse(B, rows[a:b + 1])
+        spf = {e[0] - a for e in ev if e[1] == 'spawn' and a <= e[0] <= b and SPAWN_KIND.get(e[2]) in ('lnk', 'anim')}
+        steps = X.collapse(B, rows[a:b + 1], spf)
+        for e in ev:                                  # its spawns: an object each (deduped), born as its step starts
+            if e[1] != 'spawn' or not a <= e[0] <= b: continue
+            info = spawn_info(e[2], e[3], mode)
+            if info['kind'] not in ('lnk', 'anim'): continue
+            key = (info['kind'], info['char'], info['word'], info['fwd'], info['up'], info['prio'])
+            if key not in okeys: okeys[key] = len(objects); objects.append(effect_object(B, ch, info))
+            step_fx.append((i, step_of(steps, e[0] - a), okeys[key]))
         steps[0]['ticks'] += 1                        # the brawler's clock: P_ANIM's frame advances once (handlers_ss2
         if steps[-1]['ticks']: steps[-1]['ticks'] -= 1   # rom_steps: the start frame shows the first step)
         k = f'{i}:{rows[a]["anim"]:x}.{a}'
@@ -154,7 +209,7 @@ def program(B, ch, move, mode=0, name=''):
         ops += [('dec',), ('br', 'cnt', 1, ('S', i)), ('br', 'always', 1, 'yield'),
                 ('label', ('S', i)), ('resume_at', ('E', i + 1)), ('br', 'always', 1, 'yield')]
     ops += [('label', ('E', len(segs))), ('label', 'END'), ('end',)]
-    return ops, states, anims_d, rows, segs, ev
+    return ops, states, anims_d, rows, segs, ev, objects, sorted(set(step_fx))
 
 def assemble(ops):
     lab, out = {}, []
@@ -181,7 +236,7 @@ def encode(o):
 def special(B, ch, name, inp):
     row, mode, sname = SPECIALS[name][inp]
     move = move_of(row)
-    ops, states, anims_d, rows, segs, ev = program(B, ch, move, mode, inp)
+    ops, states, anims_d, rows, segs, ev, objects, step_fx = program(B, ch, move, mode, inp)
     prims = [encode(o) for o in assemble(ops)]
     nh = sum(sum(openings(anims_d[s]['steps'])) for s in states)
     each = max(1, SPECIAL_DAMAGE // max(1, nh))
@@ -206,7 +261,7 @@ def special(B, ch, name, inp):
     opens = [i for i, r in enumerate(prow) if (i == 0 or prow[i - 1][:2] != r[:2]) and openings(anims_l[r[0]]['steps'])[r[1]]]
     apex = max(range(len(prow)), key=lambda i: prow[i][3]) if prow else 0
     snd = [[e[0], e[2]] for e in ev if e[1] == 'snd']
-    rom = {'states': states, 'anims': anims_d, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1,
+    rom = {'states': states, 'anims': anims_d, 'prims': prims, 'objects': objects, 'step_fx': step_fx, 'openings': {}, 'hit_kind': 1,
            'last_hit': opens[-1] if opens else -1, 'apex': apex if prow and prow[apex][3] > 0 else -1,
            'length': len(prow), 'voice_frames': True, 'now': True,
            'vtable': {'rows': [], 'ncol': 0, 'nvar': 0, 'default': 0, 'vanim': len(states), 'vobj': 0, 'vdmg': 0,
@@ -246,8 +301,10 @@ def lab_special(B, ch, entries):
             'row_steps': [[0, 0, 0, 0xFF]], 'marks': [''], 'projectiles': [], 'anims': [ids[0]], 'shape': [0, 0, False],
             'game_hits': 0, 'rom': rom, 'ss2': {'results': [], 'sounds': [], 'code_sounds': [], 'code_voices': []}}, bad
 
-# ---- win poses (the round end): filled from the code below (win_anims) ----
-WINS = {'moriya': []}
+# ---- win poses [meas]: the round's KO -> about 316 frames later the winner's move $65 (anim $65: Moriya sheathes, the
+# sword's flash; measured from vs.state, P2 KO'd by a stand B). The descriptor table's next ones ($66 [8016 0066], $67-$6E)
+# are other poses not reached by a plain KO in our captures: not taken
+WINS = {'moriya': [0x65]}
 def win_anims(B, ch, name):
     import export_lb2 as X
     out = {}
