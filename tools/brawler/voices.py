@@ -34,8 +34,10 @@ JSON = os.path.join(HERE, 'voices.json')
 GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
 MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
 SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
-BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850}       # the driver probe: frame after the game's $07 (tap core frames)
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850, 'lastbld2': 414}   # (LB2: its $07 at 413 in the tap core)       # the driver probe: frame after the game's $07 (tap core frames)
 CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
+NOP = {'lastbld2': 0x48}       # the byte a blocked command becomes in the probe: Garou's driver line replays a stale ring
+                               # slot on $00 (tools/kof98snd/games98.py garou nop); LB2's $48 = a type 0 (ignored) command
 P1 = 0x108100
 FX_PREFIX = 0x1A
 COMMON = {}                                                                # game -> driver words known common (below)
@@ -81,7 +83,7 @@ def write_wav(path, v, segments):
 def roster(names=None):
     g = json.load(open(GAME_JSON))
     out = []
-    for r in g['roster']:
+    for r in g['roster'] + [y for y in (g.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]:   # (+ Lab-only)
         game, name = r['bank'].split(':')
         if names and r['name'] not in names: continue
         if game in MAPPER: out.append((r['name'], game, name, CAST[game].index(name)))
@@ -217,7 +219,7 @@ class Log:
     def __init__(self): self.lines = []
     def write(self, t): self.lines += [l for l in t.split(chr(10)) if l]
 s = mk.Sound(rom={neo(game)!r}, work={os.path.join(OUT, 'save_' + game)!r})
-s.run({BLOCK[game]}); s.block = {BLOCK[game]}; s.run(20)
+s.run({BLOCK[game]}); s.block = {BLOCK[game]}; s.nop = {NOP.get(game, 0)}; s.run(20)
 base = s.save(); out = {{}}
 for w in {sorted(words)!r}:
     pre, cd = w >> 8, w & 255
@@ -751,7 +753,62 @@ def samsho2_list(rname, name, cid):
     return {'game': 'samsho2', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
                                                                           'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
+# ---- The Last Blade 2 (SNK's "Sound Driver(ROM)Ver 1.8 98/10/28": Garou's Ver 1.8 line, tools/kof98snd; read in the
+# code 2026-10-12, tools/lastbld2) ----
+# A script's command $8B [word] asks for sound index w ($2725E): w < $8000 -> the driver word = word $273BA[w] (prefix
+# << 8 | code: $17 effects (swings, hits, the flash), $1A / $1C the fighter's voice slots), queued at $10E138; w >= $8000 =
+# a pick ($2948E: table $294A6[w >> 8 & $3F]: a random one of the character's 4 per kind, then the same path). A move's
+# voices are its animations' $8B commands; the specials' are their programs' frames (handlers_lb2: sp['lb2']['sounds']).
+LB2_FX = (0x17,)
+def _lb2():
+    sys.path.insert(0, os.path.join(TOOLS, 'lastbld2')); import lb2, handlers_lb2, export_lb2
+    return lb2, handlers_lb2, export_lb2
+
+def lb2_word(L, i): return L.u16(0x273BA + 2 * i)
+
+def lastbld2_capture(rname, name, cid):
+    print(rname, ': The Last Blade 2 sounds are script data and the specials\' plays (voices.py list)', flush=True)
+
+def lastbld2_list(rname, name, cid):
+    L, H, X = _lb2()
+    uses = []
+    t = L.anim_table(cid)
+    for a in range(L.nanims(cid)):
+        if L.u32(t + 4 * a) == 0xFFFFFFFF: continue
+        try: items = L.parse(cid, a)
+        except Exception: continue
+        k = 0
+        for it in items:
+            if it[0] == 'frame': k += 1
+            elif it[0] == 'cmd' and it[2] == 0x8B:
+                i = it[3][2] << 8 | it[3][3]
+                if i < 0x8000 and lb2_word(L, i): uses.append((lb2_word(L, i), i, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k}))
+    B = X.Builder(cid)
+    for sp in H.specials(B, cid, name):
+        for f, i in sp['lb2']['sounds']:
+            if i < 0x8000 and lb2_word(L, i): uses.append((lb2_word(L, i), i, {'kind': 'special', 'input': sp['input'], 'at': f}))
+    words = {w for w, i, u in uses}
+    hits = probe('lastbld2', words); v = v_rom('lastbld2')
+    voices = {}
+    for w, i, u in uses:
+        if not hits.get(w): continue
+        h = hits[w]; key = tuple(map(tuple, h['segments']))
+        vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+        if i not in vo['indices']: vo['indices'].append(i)
+        if u not in vo['uses']: vo['uses'].append(u)
+    lst = sorted(voices.values(), key=lambda x: (int(x['cmd'], 16) >> 8 in LB2_FX, x['cmd']))
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+        vo['indices'] = [f'{x:03X}' for x in sorted(vo['indices'])]; vo['cmds'].sort()
+        if int(vo['cmd'], 16) >> 8 in LB2_FX: vo['channel'] = 'fx'
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'lastbld2', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
+                                                                           'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
+       'lastbld2': {'cast': {'moriya': 1}, 'capture': lastbld2_capture, 'list': lastbld2_list},
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5, 'rosa': 4}, 'capture': kizuna_capture, 'list': kizuna_list},
@@ -765,7 +822,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
          'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': [],
-         'samsho2': [*range(142, 150)]}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
+         'samsho2': [*range(142, 150)], 'lastbld2': []}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

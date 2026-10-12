@@ -195,6 +195,25 @@ GAMES = {
         block=478, send=500,  # the tap core (capture.Sound): the game's boot commands ($01 / $03 resets) end at 455, $07 at
                               # 461, its first song ($45) at 475 (measured)
     ),
+    'lastbld2': dict(
+        name='The Last Blade 2', rom='/data/roms/lastbld2.neo',
+        m1='/data/neogeo_dict/sound/lastbld2/lastbld2_m1.bin', dir='/data/neogeo_dict/sound/lastbld2',
+        id=b'Sound Driver(ROM)Ver 1.8 98/10/28',             # (2026-10-12) Garou's Ver 1.8 line ten months earlier: the same
+        sig=(0x3E, b'Sound Driver(ROM)Ver 1.8 98/10/28'),     # code moved by -2 / +3 bytes in places, the same RAM layout
+        songs=0x329E, song20=0x2BB0, banksets=0x2716,           # (guard $FD9B), the tables found by Garou's code references
+        notes=0x2BD6, fnum=0x2A76,                              # (tools/lastbld2, /data/neogeo_dict/lastbld2/README.md "Sound")
+        lv_fm=0x311D, lv_a=0x319D, lv_b=0x321D,
+        b_dn=0x2B38, b_rec=0x2E1E, fx6=0x2E32,
+        big_slot=7, guard=0xFD9B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
+        b_legato_keyon=True, fm_level_fx=True,                  # (Garou's two changes, checked by the captures)
+        types=0x3038,
+        nop=0x48,             # a blocked command becomes $48 (type 0: ignored), the $00 replay of Garou's line avoided
+        block=414, send=440,  # the tap core: the game's $07 at 413, its first song ($30) at 444 (measured)
+    ),
 }
 
 def game_of(data):
