@@ -1819,6 +1819,27 @@ def part_entry(m, cid, h, button, ex, state, sdm=False):
             if first and first[0] == 'anim' and first[1] is not None: break   # (its own state, another one)
     return None
 
+PART_FACTORS = ('fric', 'g')   # the motion factors a handler sets once and its later parts read (KOF keeps +$54 / +$5C)
+def part_factors(m, cid, h, button, ex, sdm, entry, prog):
+    """a PART alone keeps the motion factors its handler set before entering it (note 20261012-032513-5d29: Iori 214C's
+    second part $70F5E sets vx 8 and slides on `fricmove`, but the friction $EC00 was set once by the handler's first
+    part at $70EA4; alone it read 0: vx *= 0, no travel). The last `set` of each factor on the handler's path before the
+    entry (the full decode, in its order) is put at the part's start when the part does not set it before its first
+    animation; speeds are not inherited (the part sets its own, or plays the previous part's decayed one: not a constant).
+    Kyo's 236A parts set none (their travel is the animation's dx): unchanged. Edits prog in place (ops, pos)"""
+    full = decode(m, h, button, ex, cid=cid, sdm=sdm)
+    at = min([i for k, i in full['pos'].items() if isinstance(k, tuple) and k[0] == entry] or [0])
+    have = {}
+    for a_, op in full['ops'][:at]:
+        if op[0] == 'set' and op[1] in PART_FACTORS: have[op[1]] = (a_, op)
+    for a_, op in prog['ops']:
+        if op[0] in ('anim', 'adv'): break
+        if op[0] == 'set': have.pop(op[1], None)
+    add = list(have.values())
+    if not add: return
+    prog['ops'][:0] = add
+    for k in prog['pos']: prog['pos'][k] += len(add)
+
 def handler_hitkind(m, cid, h, button, ex, sdm=False):
     """the hit kind (+$1B8) a handler sets first: a part alone keeps it when it sets none (KOF: the field stays)"""
     return next((op[1] for _, op in decode(m, h, button, ex, cid=cid, sdm=sdm, nofollow=True)['ops'] if op[0] == 'hitkind'), 1)
@@ -1841,7 +1862,8 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
         h, pfields = pe                                # (+ the scratch fields its handler filled: Iori's 214A parts)
     else: pfields = None
     prog = decode(m, h, b, ex, fields=pfields, cid=cid, sdm=sdm, nofollow=part is not None)
-    nsig = sum(1 for a_, op in prog['ops'] if op[0] == 'vsig')
+    if part is not None: part_factors(m, cid, handler_of(cid, base, ex, m.game)[0], b, ex, sdm, h, prog)
+    nsig =sum(1 for a_, op in prog['ops'] if op[0] == 'vsig')
     vlists = victim_entries(m, victim_lists(m, prog['victim'], sdm, nsig), cid) if prog.get('victim') else []   # the caught
                                                        # victim's script (its lists for the fighter itself as the victim)
     vrel = victim_release(m, prog['victim'], sdm) if vlists else {}   # its routine's own release: a blow, its own flight
