@@ -279,6 +279,47 @@
        ]
       }
      ]
+    },
+    {
+     "title": "Krauser",
+     "questions": [
+      {
+       "id": "krauser-fwd-finisher",
+       "title": "Krauser: his forward finisher whiffs up close",
+       "context": "Krauser's forward finisher (stick forward on the 3rd hit) is his far C. Since 0.8.2 the game uses the real attack boxes, and far C only hits 56 to 120 px in front of him. A chain started 30 px away or closer leaves the victim about 27 px away when the finisher comes out, so the far C passes over him and misses. Started from 36 to 54 px, the whole chain connects, far C included.",
+       "media": [
+        {
+         "video": "decisions-media/open-2026-10-11/krauser-farc-whiff-30.mp4",
+         "caption": "Today, chain from 30 px: close C, far D, forward + far C misses"
+        },
+        {
+         "video": "decisions-media/open-2026-10-11/krauser-farc-hit-42.mp4",
+         "caption": "Today, chain from 42 px: the far C connects"
+        }
+       ],
+       "options": [
+        {
+         "label": "Use a closer move: close C (his starter punch, again as the 3rd hit)",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/krauser-fwd-closec-30.mp4",
+           "caption": "From 30 px: close C, far D, forward + close C connects"
+          }
+         ]
+        },
+        {
+         "label": "Use a closer move: body toss (his shoulder rush, the dash attack)",
+         "media": [
+          {
+           "video": "decisions-media/open-2026-10-11/krauser-fwd-bodytoss-30.mp4",
+           "caption": "From 30 px: close C, far D, forward + body toss connects"
+          }
+         ]
+        },
+        "Keep far C, it's fine (start the chain from further)"
+       ]
+      }
+     ]
     }
    ]
   },
