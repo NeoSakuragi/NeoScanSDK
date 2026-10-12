@@ -163,7 +163,7 @@
   function shipRow(r, cur) {
     const fs = fsOf(r);
     const start = t(r.started_at) || t(r.at), end = r.closed_at ? t(r.closed_at) : nowS();
-    const ver = r.version || (/(?:shipped|build) (\d\S*)/.exec(r.result || '') || [])[1] || '';
+    const ver = r.status === 'done' ? (/(?:shipped|build) (\d\S*)/.exec(r.result || '') || [])[1] || '' : r.version || '';   // (a "nothing changed" ship made no version)
     const res = r.status === 'done' ? (/^nothing changed/.test(r.result || '') ? 'nothing changed' : '✓ shipped') : r.status;
     const logBtn = h('button', { type: 'button', text: openLog === r.id ? 'Hide log' : 'Log', onclick: () => { openLog = openLog === r.id ? null : r.id; drawBuild(); } });
     return h('div', { class: 'ship' },

@@ -194,7 +194,10 @@ def cmd_all(a):
             try:
                 for f in fighters: make(f'LAB_PACK={f}', 'STRICT=1', 'SHELL_FROZEN=1', f'VERSION={sv}', env={'LAB_SHELL_VERSION': sv})
             except SystemExit as e:
+                # (STRICT: the fighter's change reaches the shell outside the slot, e.g. his routes: a new shell is needed.
+                #  VERSION touched: the pack builds made with the shell's VERSION are compiled again with the real one)
                 print(f'labpub all: a pack does not fit the published shell ({e}): the shell is rebuilt', flush=True); frozen = False
+                os.utime(os.path.join(GAME, 'VERSION'))
         if not frozen:
             make('LAB_SHELL=1')
             for f in fighters: make(f'LAB_PACK={f}', 'STRICT=1')
