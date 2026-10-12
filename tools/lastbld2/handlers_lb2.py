@@ -85,6 +85,90 @@ SPECIALS = {
 # the descriptor's teleports -> P_WARP (a = 0: at its target, b px short of it, turned to it; model_lb2.WARP)
 WARP_B = {9: 288, 10: 80, 11: -110}
 
+# ---- the follow-ups [code] (2026-10-12) -------------------------------------------------------------------------------
+# A FOLLOW-UP is another move the transition table starts from the state class the move's own script set ($92): while
+# that class holds, $A0000[row * 256 + class - 1] maps the next input row to a new move (the standing class 1 maps the
+# same rows to the plain moves). Rows: 9 A, $12 B, $1B C (the stick neutral; 9 rows a button), $77 / $78 the
+# recogniser's 236A / 236B results ($77 also 236C in the classes of $76BC4 sub-condition 6: 152 154 155 158 166 168).
+#   Ittou Tsukikage A: $90 (class 184) -$77-> $BD (class 185) -$77-> $BE: the three slashes (236A x3)
+#   Ittou Tsukikage B: $91 (class 173) -$78-> $BA (186) -$78-> $CA (187) -$78-> $9B: the four slashes (236B x4)
+#   Kassatsu Byakuya: $A5 / $A6 (class 144 from its slash $1C4) -9-> $D4 (145) -$12-> $D5 (146) -$1B-> $D6 (147): stage 1
+#     A B C; from $D6 -9-> $D7 (148) -$12-> $D8 (149) -$1B-> $D9 (150): stage 2 route 1 A B C; from $D9 -9-> $DA (151)
+#     -$12-> $DB (152) -$77-> $DC: stage 3 route 1 A B 236C (the other routes, not imported: $D6 -2C-> $E1 .. $EB, $D9 -C->
+#     $DD $DE $DF $E0)
+# The brawler plays a chain as a PRESSED SEQUENCE (game.json roster[].seq_press, docs/brawler_gold.md): each piece = the
+# move alone (its descriptor from its start: the model's play), its follow-up point (PF_EVENT, step flag $80) = the
+# first frame of its class window after its last attack frame in that window (the slash out whole; LB2 takes the next
+# input anywhere in the window), the window's last frame when it attacks to its end.
+# ON HIT [code]: the hit code ($3732C) reads the attacker's hit record, word [$7935E + 4 char] (bank 3) + ((attack box
+# type - $A0) * 64 + victim box type & 63) * 2 -> +$F4 / +$F6; $37424: byte 1 = the attacker's next move (unless the
+# word is $FFFF / $FF0x) -> +$198, started by $37DA6 ($2EA3E) the next frame. Kassatsu Midare Setsugekka's run ($A3 ->
+# anim $A2, box type $A3): every standing body type ($C0 / $C4: words $3DB1 / $3EB1) -> move $B1 = anim $A5, the
+# slashing sequence (measured: P1 move $B1 the frame after the run connects, P2 life 256 -> 224). -> roster[].hit_next.
+FOLLOW = {'moriya': {'236A': [0x77, 0x77], '236B': [0x78, 0x78, 0x78],
+                     '22A': [0x09, 0x12, 0x1B, 0x09, 0x12, 0x1B, 0x09, 0x12, 0x77]}}
+HIT_NEXT = {'moriya': {'641236B': 0xA3}}           # the special -> its attack box type (the hit record's row)
+FOLLOW_NAMES = {0xBD: 'Ittou Tsukikage (A, 2nd slash)', 0xBE: 'Ittou Tsukikage (A, 3rd slash)',
+                0xBA: 'Ittou Tsukikage (B, 2nd slash)', 0xCA: 'Ittou Tsukikage (B, 3rd slash)', 0x9B: 'Ittou Tsukikage (B, 4th slash)',
+                0xD4: 'Kassatsu Byakuya stage 1 (A)', 0xD5: 'Kassatsu Byakuya stage 1 (B)', 0xD6: 'Kassatsu Byakuya stage 1 (C)',
+                0xD7: 'Kassatsu Byakuya stage 2 route 1 (A)', 0xD8: 'Kassatsu Byakuya stage 2 route 1 (B)',
+                0xD9: 'Kassatsu Byakuya stage 2 route 1 (C)', 0xDA: 'Kassatsu Byakuya stage 3 route 1 (A)',
+                0xDB: 'Kassatsu Byakuya stage 3 route 1 (B)', 0xDC: 'Kassatsu Byakuya stage 3 route 1 (236C)',
+                0xB1: 'Kassatsu Midare Setsugekka (on hit)'}
+
+def classes(ch, move, mode):
+    rows, _ = move_rows(ch, move, mode)
+    return rows
+
+def window(rows, cls):
+    """the follow-up point of a move's rows for the transition from state class cls: frame index (module comment)"""
+    w = [k for k, r in enumerate(rows) if r['cls'] == cls]
+    atk = [k for k in w if any(0 < v[0] < 0xC0 for v in r_boxes(rows[k]))]
+    after = [k for k in w if not atk or k > atk[-1]]
+    return after[0] if after else w[-1]
+
+def r_boxes(r): return r['boxes'].values()
+
+def chain(ch, move, mode, seq_rows):
+    """[(move, follow-up frame of the move before it)]: the moves the rows start in turn from move (module comment)"""
+    out, cur = [], move
+    for row in seq_rows:
+        rows = classes(ch, cur, mode)
+        cands = [c for c in dict.fromkeys(r['cls'] for r in rows) if c != 1 and M.transition(row, c)
+                 and M.transition(row, c) != M.transition(row, 1)]
+        assert len(cands) == 1, (hex(cur), hex(row), cands)
+        nxt = M.transition(row, cands[0]); out.append((nxt, window(rows, cands[0]))); cur = nxt
+    return out
+
+def hit_next_move(ch, box_type, victim_types=(0xC0, 0xC4)):
+    t = L.u32(0x7935E + 4 * (ch & 31))
+    ws = {L.u16(t + ((box_type - 0xA0) * 64 + (v & 63)) * 2, 3) for v in victim_types}
+    nx = {w & 0xFF for w in ws if w != 0xFFFF and w >> 8 != 0xFF}
+    assert len(nx) == 1, ws
+    return nx.pop()
+
+_FP = {}
+def follow_pieces(name):
+    """-> (pieces {input: (move, style, name)}, events {input: follow-up frame index | 'all'}): every follow-up piece
+    ('236A>BD': the move $BD after 236A) and the follow-up point of each piece a next one follows (bases included)"""
+    if name in _FP: return _FP[name]
+    import export_lb2 as X
+    ch = X.CAST[name]
+    pieces, events = {}, {}
+    for base, seq in FOLLOW.get(name, {}).items():
+        row, mode, _ = SPECIALS[name][base]
+        prev = base
+        for mv, ev in chain(ch, move_of(row), mode, seq):
+            events[prev] = ev
+            inp = f'{base}>{mv:X}'; pieces[inp] = (mv, mode, FOLLOW_NAMES.get(mv, f'{SPECIALS[name][base][2]} follow-up ${mv:X}'))
+            prev = inp
+    for base, bt in HIT_NEXT.get(name, {}).items():
+        row, mode, _ = SPECIALS[name][base]
+        mv = hit_next_move(ch, bt)
+        events[base] = 'all'; pieces[f'{base}>{mv:X}'] = (mv, mode, FOLLOW_NAMES.get(mv, f'on hit ${mv:X}'))
+    _FP[name] = (pieces, events)
+    return _FP[name]
+
 def move_of(row, cls=1): return M.transition(row, cls)
 
 # ---- a move as frames (the model) -> program states --------------------------------------------------------------------
@@ -168,8 +252,9 @@ def step_of(steps, k):
         if k < t: return i
     return len(steps) - 1
 
-def program(B, ch, move, mode=0, name=''):
-    """-> (ops, states, anims_d, rows, segs, events, objects, step_fx) for a move"""
+def program(B, ch, move, mode=0, name='', event=None):
+    """-> (ops, states, anims_d, rows, segs, events, objects, step_fx) for a move; event: its follow-up point (a frame
+    index: the step starting there gets the event flag $80 = PF_EVENT; 'all': every step), follow_pieces"""
     import export_lb2 as X
     rows, ev = move_rows(ch, move, mode)
     segs, dx, dh = segments(rows, ev)
@@ -179,7 +264,12 @@ def program(B, ch, move, mode=0, name=''):
     for i, (a, b) in enumerate(segs):
         n = b - a + 1
         spf = {e[0] - a for e in ev if e[1] == 'spawn' and a <= e[0] <= b and SPAWN_KIND.get(e[2]) in ('lnk', 'anim')}
+        if isinstance(event, int) and a <= event <= b: spf = spf | {event - a}
         steps = X.collapse(B, rows[a:b + 1], spf)
+        if event == 'all':
+            for st in steps: st['flags'] |= 0x80
+        elif isinstance(event, int) and a <= event <= b:
+            steps[step_of(steps, event - a)]['flags'] |= 0x80
         for e in ev:                                  # its spawns: an object each (deduped), born as its step starts
             if e[1] != 'spawn' or not a <= e[0] <= b: continue
             info = spawn_info(e[2], e[3], mode)
@@ -234,9 +324,10 @@ def encode(o):
     return [P[n], 0, 0, 0]
 
 def special(B, ch, name, inp):
-    row, mode, sname = SPECIALS[name][inp]
-    move = move_of(row)
-    ops, states, anims_d, rows, segs, ev, objects, step_fx = program(B, ch, move, mode, inp)
+    pieces, events = follow_pieces(name)
+    if inp in pieces: move, mode, sname = pieces[inp]; row = None
+    else: row, mode, sname = SPECIALS[name][inp]; move = move_of(row)
+    ops, states, anims_d, rows, segs, ev, objects, step_fx = program(B, ch, move, mode, inp, events.get(inp))
     prims = [encode(o) for o in assemble(ops)]
     nh = sum(sum(openings(anims_d[s]['steps'])) for s in states)
     each = max(1, SPECIAL_DAMAGE // max(1, nh))
@@ -265,17 +356,17 @@ def special(B, ch, name, inp):
            'last_hit': opens[-1] if opens else -1, 'apex': apex if prow and prow[apex][3] > 0 else -1,
            'length': len(prow), 'voice_frames': True, 'now': True,
            'vtable': {'rows': [], 'ncol': 0, 'nvar': 0, 'default': 0, 'vanim': len(states), 'vobj': 0, 'vdmg': 0,
-                      'buttons': [], 'results': [row], 'hits': [nh]}}
+                      'buttons': [], 'results': [row if row is not None else -1], 'hits': [nh]}}
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'name': sname, 'base_input': inp,
             'row_boxes': rb, 'row_steps': rs, 'marks': [''] * len(script), 'projectiles': [],
             'anims': sorted({r['anim'] for r in rows}), 'shape': [max(r[1] for r in script), max(r[2] for r in script), False],
             'game_hits': len(opens), 'rom': rom,
             'lb2': {'row': row, 'move': move, 'style': mode, 'descriptor': M.descriptor(ch, move), 'sounds': snd,
                     'segments': segs},
-            'ss2': {'results': [row], 'sounds': [], 'code_sounds': [], 'code_voices': []}}
+            'ss2': {'results': [row] if row is not None else [], 'sounds': [], 'code_sounds': [], 'code_voices': []}}
 
 def specials(B, ch, name, lab=False, inputs=None):
-    return [special(B, ch, name, inp) for inp in SPECIALS[name]]
+    return [special(B, ch, name, inp) for inp in list(SPECIALS[name]) + list(follow_pieces(name)[0])]
 
 # ---- the Character Lab's LAB special: every animation of the dictionary as its own program block (export96 /
 # handlers_ss2.lab_special's twin): [P_LANIM j, P_RESUME, P_BR end yield, P_END]
@@ -358,9 +449,11 @@ def throws(B, ch, name):
 def check(name='moriya'):
     import export_lb2 as X
     ch = X.CAST[name]; B = X.Builder(ch); res = {}
-    for inp in SPECIALS[name]:
+    pieces = follow_pieces(name)[0]
+    for inp in list(SPECIALS[name]) + list(pieces):
         sp = special(B, ch, name, inp)
-        rows, ev = move_rows(ch, move_of(SPECIALS[name][inp][0]), SPECIALS[name][inp][1])
+        mv, mode = (pieces[inp][0], pieces[inp][1]) if inp in pieces else (move_of(SPECIALS[name][inp][0]), SPECIALS[name][inp][1])
+        rows, ev = move_rows(ch, mv, mode)
         warps = sorted(e[0] for e in ev if e[1] == 'warp')
         sc = sp['script']; n = min(len(sc), len(rows)); eq = 0; bad = None
         for k in range(n):

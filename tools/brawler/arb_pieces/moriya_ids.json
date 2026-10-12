@@ -2,7 +2,7 @@
  "fighter": "moriya",
  "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
  "next": {
-  "S": 15,
+  "S": 30,
   "T": 3
  },
  "pieces": {
@@ -132,6 +132,126 @@
    "name": "close + C+D",
    "move": "throw_d",
    "source": "export throws",
+   "assigned": "2026-10-12"
+  },
+  "S-015": {
+   "kind": "special",
+   "input": "22A>D4",
+   "name": "Kassatsu Byakuya stage 1 (A)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-016": {
+   "kind": "special",
+   "input": "22A>D5",
+   "name": "Kassatsu Byakuya stage 1 (B)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-017": {
+   "kind": "special",
+   "input": "22A>D6",
+   "name": "Kassatsu Byakuya stage 1 (C)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-018": {
+   "kind": "special",
+   "input": "22A>D7",
+   "name": "Kassatsu Byakuya stage 2 route 1 (A)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-019": {
+   "kind": "special",
+   "input": "22A>D8",
+   "name": "Kassatsu Byakuya stage 2 route 1 (B)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-020": {
+   "kind": "special",
+   "input": "22A>D9",
+   "name": "Kassatsu Byakuya stage 2 route 1 (C)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-021": {
+   "kind": "special",
+   "input": "22A>DA",
+   "name": "Kassatsu Byakuya stage 3 route 1 (A)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-022": {
+   "kind": "special",
+   "input": "22A>DB",
+   "name": "Kassatsu Byakuya stage 3 route 1 (B)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-023": {
+   "kind": "special",
+   "input": "22A>DC",
+   "name": "Kassatsu Byakuya stage 3 route 1 (236C)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-024": {
+   "kind": "special",
+   "input": "236A>BD",
+   "name": "Ittou Tsukikage (A, 2nd slash)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-025": {
+   "kind": "special",
+   "input": "236A>BE",
+   "name": "Ittou Tsukikage (A, 3rd slash)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-026": {
+   "kind": "special",
+   "input": "236B>9B",
+   "name": "Ittou Tsukikage (B, 4th slash)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-027": {
+   "kind": "special",
+   "input": "236B>BA",
+   "name": "Ittou Tsukikage (B, 2nd slash)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-028": {
+   "kind": "special",
+   "input": "236B>CA",
+   "name": "Ittou Tsukikage (B, 3rd slash)",
+   "air": false,
+   "source": "handlers_lb2.FOLLOW",
+   "assigned": "2026-10-12"
+  },
+  "S-029": {
+   "kind": "special",
+   "input": "641236B>B1",
+   "name": "Kassatsu Midare Setsugekka (on hit)",
+   "air": false,
+   "source": "handlers_lb2.HIT_NEXT",
    "assigned": "2026-10-12"
   }
  }

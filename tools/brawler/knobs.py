@@ -193,7 +193,7 @@ def derive_lb2(f, reg):
             ks.append(dict(id='travel', name='Travel speed', unit='px/frame', default=d, **rng(d),
                            rows=[{'kind': KIND['set'], 'a': REG['vx'], 'match': v, 'base': v}],
                            **{'from': f'P_SET vx {v / FX:g} (its fastest segment: LB2\'s script velocity, 8.8)'}, judgment=len(set(vxs)) > 1))
-        vys = [v for a, v in sets if a == 1 and v > 0]
+        vys = [v for a, v in sets if a == 1 and v > 0 and num(v / FX)]   # (a take-off of 1/65536: the script's airborne mark, no rise)
         if falls and vys:
             v = vys[0]; d = num(v / FX)
             ks.append(dict(id='rise', name='Rise speed', unit='px/frame up', default=d, **rng(d),

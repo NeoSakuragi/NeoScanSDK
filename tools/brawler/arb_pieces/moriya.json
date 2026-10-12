@@ -55,6 +55,87 @@
    "source": "handlers_lb2.SPECIALS",
    "name": "Kassatsu Byakuya (Speed super)"
   },
+  "22A>D4": {
+   "decoded": true,
+   "anims": [
+    "1C6"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 1 (A)"
+  },
+  "22A>D5": {
+   "decoded": true,
+   "anims": [
+    "1C7"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 1 (B)"
+  },
+  "22A>D6": {
+   "decoded": true,
+   "anims": [
+    "1C8"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 1 (C)"
+  },
+  "22A>D7": {
+   "decoded": true,
+   "anims": [
+    "1C9"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 2 route 1 (A)"
+  },
+  "22A>D8": {
+   "decoded": true,
+   "anims": [
+    "1CA"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 2 route 1 (B)"
+  },
+  "22A>D9": {
+   "decoded": true,
+   "anims": [
+    "1CB"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 2 route 1 (C)"
+  },
+  "22A>DA": {
+   "decoded": true,
+   "anims": [
+    "1CC"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 3 route 1 (A)"
+  },
+  "22A>DB": {
+   "decoded": true,
+   "anims": [
+    "1CD"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 3 route 1 (B)"
+  },
+  "22A>DC": {
+   "decoded": true,
+   "anims": [
+    "1CE"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya stage 3 route 1 (236C)"
+  },
   "22B": {
    "decoded": true,
    "anims": [
@@ -74,6 +155,24 @@
    "source": "handlers_lb2.SPECIALS",
    "name": "Ittou Tsukikage"
   },
+  "236A>BD": {
+   "decoded": true,
+   "anims": [
+    "C0"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage (A, 2nd slash)"
+  },
+  "236A>BE": {
+   "decoded": true,
+   "anims": [
+    "C1"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage (A, 3rd slash)"
+  },
   "236B": {
    "decoded": true,
    "anims": [
@@ -82,6 +181,33 @@
    "air": false,
    "source": "handlers_lb2.SPECIALS",
    "name": "Ittou Tsukikage"
+  },
+  "236B>9B": {
+   "decoded": true,
+   "anims": [
+    "B8"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage (B, 4th slash)"
+  },
+  "236B>BA": {
+   "decoded": true,
+   "anims": [
+    "BA"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage (B, 2nd slash)"
+  },
+  "236B>CA": {
+   "decoded": true,
+   "anims": [
+    "B7"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage (B, 3rd slash)"
   },
   "412A": {
    "decoded": true,
@@ -139,6 +265,15 @@
    "air": false,
    "source": "handlers_lb2.SPECIALS",
    "name": "Kassatsu Midare Setsugekka (desperation)"
+  },
+  "641236B>B1": {
+   "decoded": true,
+   "anims": [
+    "A5"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Midare Setsugekka (on hit)"
   },
   "64123AB": {
    "decoded": true,
@@ -982,7 +1117,9 @@
    "kind": "attack",
    "state": 165,
    "names": [],
-   "specials": []
+   "specials": [
+    "641236B>B1"
+   ]
   },
   "A7": {
    "kind": "pose",
@@ -1100,13 +1237,17 @@
    "kind": "attack",
    "state": 183,
    "names": [],
-   "specials": []
+   "specials": [
+    "236B>CA"
+   ]
   },
   "B8": {
    "kind": "attack",
    "state": 184,
    "names": [],
-   "specials": []
+   "specials": [
+    "236B>9B"
+   ]
   },
   "B9": {
    "kind": "attack",
@@ -1120,7 +1261,9 @@
    "kind": "attack",
    "state": 186,
    "names": [],
-   "specials": []
+   "specials": [
+    "236B>BA"
+   ]
   },
   "BB": {
    "kind": "attack",
@@ -1156,13 +1299,17 @@
    "kind": "attack",
    "state": 192,
    "names": [],
-   "specials": []
+   "specials": [
+    "236A>BD"
+   ]
   },
   "C1": {
    "kind": "attack",
    "state": 193,
    "names": [],
-   "specials": []
+   "specials": [
+    "236A>BE"
+   ]
   },
   "C3": {
    "kind": "attack",
@@ -2367,55 +2514,73 @@
    "kind": "attack",
    "state": 454,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D4"
+   ]
   },
   "1C7": {
    "kind": "attack",
    "state": 455,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D5"
+   ]
   },
   "1C8": {
    "kind": "attack",
    "state": 456,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D6"
+   ]
   },
   "1C9": {
    "kind": "attack",
    "state": 457,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D7"
+   ]
   },
   "1CA": {
    "kind": "attack",
    "state": 458,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D8"
+   ]
   },
   "1CB": {
    "kind": "attack",
    "state": 459,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>D9"
+   ]
   },
   "1CC": {
    "kind": "attack",
    "state": 460,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>DA"
+   ]
   },
   "1CD": {
    "kind": "attack",
    "state": 461,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>DB"
+   ]
   },
   "1CE": {
    "kind": "attack",
    "state": 462,
    "names": [],
-   "specials": []
+   "specials": [
+    "22A>DC"
+   ]
   },
   "1CF": {
    "kind": "attack",
@@ -3036,6 +3201,587 @@
     ],
     "from": "P_SET vx 1 (its fastest segment: LB2's script velocity, 8.8)",
     "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-015": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 3,
+    "min": 1,
+    "max": 9,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 196608,
+      "base": 196608
+     }
+    ],
+    "from": "P_SET vx 3 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-016": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2,
+    "min": 1,
+    "max": 6,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 131072,
+      "base": 131072
+     }
+    ],
+    "from": "P_SET vx 2 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-017": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2,
+    "min": 1,
+    "max": 6,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 131072,
+      "base": 131072
+     }
+    ],
+    "from": "P_SET vx 2 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-018": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2.5,
+    "min": 1,
+    "max": 7.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 163840,
+      "base": 163840
+     }
+    ],
+    "from": "P_SET vx 2.5 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-019": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 4,
+    "min": 1,
+    "max": 12,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 262144,
+      "base": 262144
+     }
+    ],
+    "from": "P_SET vx 4 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-020": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 3,
+    "min": 1,
+    "max": 9,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 196608,
+      "base": 196608
+     }
+    ],
+    "from": "P_SET vx 3 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-021": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 2,
+    "min": 1,
+    "max": 6,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 131072,
+      "base": 131072
+     }
+    ],
+    "from": "P_SET vx 2 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-022": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-023": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 28,
+    "min": 1,
+    "max": 84,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 1835008,
+      "base": 1835008
+     }
+    ],
+    "from": "P_SET vx 28 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-024": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 3.1875,
+    "min": 1,
+    "max": 9.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 208896,
+      "base": 208896
+     }
+    ],
+    "from": "P_SET vx 3.1875 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-025": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 4.3438,
+    "min": 1,
+    "max": 13.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 284672,
+      "base": 284672
+     }
+    ],
+    "from": "P_SET vx 4.34375 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "rise",
+    "name": "Rise speed",
+    "unit": "px/frame up",
+    "default": 6,
+    "min": 1,
+    "max": 18,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 1,
+      "match": 393216,
+      "base": 393216
+     }
+    ],
+    "from": "P_SET vy 6 (its take-off: LB2's script velocity)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-026": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-027": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5.5625,
+    "min": 1,
+    "max": 16.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 364544,
+      "base": 364544
+     }
+    ],
+    "from": "P_SET vx 5.5625 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-028": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 4.25,
+    "min": 1,
+    "max": 12.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 278528,
+      "base": 278528
+     }
+    ],
+    "from": "P_SET vx 4.25 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-029": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 8,
+    "min": 1,
+    "max": 24,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 524288,
+      "base": 524288
+     }
+    ],
+    "from": "P_SET vx 8 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
    },
    {
     "id": "damage",

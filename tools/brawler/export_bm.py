@@ -290,7 +290,8 @@ def played_inputs(n):
     another special of the pool plays it without them"""
     r = roster().get(n) or {}
     sp = r.get('specials') or []
-    return {v for v in (sp.values() if isinstance(sp, dict) else sp) if v} | ({r['fury']} if r.get('fury') else set())
+    return {w for v in (sp.values() if isinstance(sp, dict) else sp) if v for w in (v if isinstance(v, list) else [v])} | \
+        ({r['fury']} if r.get('fury') else set())
 
 def slot_inputs(slots):
     """the inputs a {slot: value} roster field names (blitz, air_specials): a value is an input, a move name, or a
@@ -1151,14 +1152,13 @@ def sequences(ch, name):
     r = roster().get(name) or {}
     press = r.get('seq_press') or []
     for lb in press:
-        assert any(isinstance(v, list) and f'{fd}.{k}' == lb for fd in ('air_specials', 'blitz') for k, v in (r.get(fd) or {}).items()), \
-            f'{name}: seq_press {lb}: no sequence there (a blitz / air_specials slot whose value is a list)'
+        assert any(isinstance(v, list) and f'{fd}.{k}' == lb for fd, k, v in seq_slots(r)), \
+            f'{name}: seq_press {lb}: no sequence there (a blitz / air_specials / specials slot whose value is a list)'
     out = []
-    for field in ('air_specials', 'blitz'):
-        for key, v in (r.get(field) or {}).items():
+    for field, key, v in seq_slots(r):
             if not isinstance(v, list): continue
             label = f'{field}.{key}'
-            btn = ('A' if field == 'blitz' or key.endswith('A') else 'AB') if label in press else None
+            btn = ('A' if field == 'blitz' or (field == 'air_specials' and key.endswith('A')) else 'AB') if label in press else None
             ck = (name, label, tuple(v), btn)
             if ck not in _SEQ:
                 assert len(v) >= 2, f'{name}: {label}: a sequence lists 2 pieces or more ({v})'
@@ -1172,6 +1172,15 @@ def sequences(ch, name):
                 _SEQ[ck] = ps
             out.append((label, _SEQ[ck]))
     return out
+
+
+def seq_slots(r):
+    """(field, key, value) of the roster slots a sequence may fill: air_specials, blitz and (2026-10-12, LB2 Moriya's
+    Tsukikage on its C slots) the six C specials (roster_export's list in SPECIAL_KEYS order; a C slot's press = C)"""
+    for field in ('air_specials', 'blitz'):
+        for key, v in (r.get(field) or {}).items(): yield field, key, v
+    sp = r.get('specials') or []
+    for key, v in (sp.items() if isinstance(sp, dict) else zip(build_tables.SPECIAL_KEYS, sp)): yield 'specials', key, v
 
 
 def together(name, label, ps):
@@ -1209,6 +1218,19 @@ def together(name, label, ps):
     return dict(h, rom=dict(r, prims=prims, objects=objs), seq_more=False, together=[p['input'] for p in ps])
 
 
+def hit_next_of(name, sp):
+    """the input of the piece a special continues with when its hit lands (game.json roster[].hit_next {input: piece};
+    2026-10-12, LB2 Moriya's Kassatsu Midare Setsugekka: the run's hit record starts move $B1, its slashing sequence):
+    None for any other special and for a sequence's copy"""
+    if sp.get('seq') or not rom_ok(sp): return None
+    return ((roster().get(name) or {}).get('hit_next') or {}).get(sp['input'])
+
+def hit_next_sp(ch, name, sp):
+    w = hit_next_of(name, sp)
+    nx = next((s for s in ch.get('specials', []) if s['input'] == w and rom_ok(s) and not s.get('seq')), None)
+    assert nx, f'{name}: hit_next {sp["input"]} -> {w}: no such special read from the ROM in its bank'
+    return nx
+
 def seq_head(ch, name, label):
     """the first piece of the sequence a slot plays (label 'air_specials.ddA'), None when the slot is no sequence"""
     return next((ps[0] for l, ps in sequences(ch, name) if l == label), None)
@@ -1221,7 +1243,7 @@ def named_specials(ch, name):
     slot), every unlocked special (arb_pieces/<f>_ids.json S- ids: the TRY blob names them by pool index, chainlab/
     tryit.js). Each read from the ROM (a program); the normal game's pools are unchanged by it"""
     have = ch.get('specials', [])
-    want = [w for w in ((roster().get(name) or {}).get('specials') or []) if w]
+    want = [w for w in ((roster().get(name) or {}).get('specials') or []) if w and not isinstance(w, list)]
     want += [w for w in ((roster().get(name) or {}).get('blitz') or {}).values() if w and not isinstance(w, list)]   # (a Blitz's piece: Haohmaru's uu 623C; a sequence's pieces: sequences())
     if any(sp['input'] == 'LAB' for sp in have):
         import piece_ids
@@ -1437,7 +1459,7 @@ def vl_c(n, k, sp):
          (16 if sp['input'] in roster().get(n, {}).get('invincible', ()) else 0) | \
          (32 if rom_ok(sp) and sp['rom'].get('sreact') else 0) | \
          (64 if any(same_special(k, sp['input']) for k in roster().get(n, {}).get('keeps_air_attack', ())) else 0) | \
-         (128 if sp.get('seq_more') else 0)   # SF_INV (TODO #202), SF_SREACT (TODO #136), SF_AIRATK, SF_SEQ
+         (128 if sp.get('seq_more') or hit_next_of(n, sp) else 0)   # SF_INV (TODO #202), SF_SREACT (TODO #136), SF_AIRATK, SF_SEQ
     if not vl and not fl: return v
     return (v or ', 0, 0, 0, 0, 0, 0, 0, 0') + f', {fl}, ' + (f'{n}_sp{k}_vl' if vl else '0')   # (sflags, then the lists)
 
@@ -1465,7 +1487,9 @@ def flash_c(sp):
 def pick_specials(ch, name):
     """[D, forward+D, down+D, up+D, down-forward+D, up-forward+D] as the roster says (game.json roster[].specials: KOF inputs; None = no special)"""
     out = []
-    for role, want in zip(ROLES, roster()[name]['specials']):
+    for role, key, want in zip(ROLES, build_tables.SPECIAL_KEYS, roster()[name]['specials']):
+        if isinstance(want, list):                   # a sequence: its first piece (sequences())
+            out.append(seq_head(ch, name, f'specials.{key}')); continue
         sp = next((sp for sp in special_pool(ch, name) if sp['input'] == want and not sp.get('seq')), None) if want else None
         assert sp or not want, f'{name}: no special {want} for {role}'
         out.append(sp)
@@ -2211,6 +2235,11 @@ def write_c(chars, outdir):
             if sp.get('seq_press') and not sp['parts']:   # a pressed sequence's piece: its press, the one link (seq_next)
                 cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + '{%d, %d, %d, %d, %d, %d, %d, %d}' % (
                     (0, 0) + link_c({'on': 'input', 'input': sp['seq_press']}) + (0, 0, 0xFFFF)) + '};')
+            elif hit_next_of(n, sp) and not sp['parts']:   # an on-hit continuation (roster[].hit_next): its hit, the one
+                to = spec_index(pool, hit_next_sp(ch, n, sp))  # link, `to` = the continuation's pool index (seq_next)
+                assert 0 < to < 0xFF, (n, sp['input'], to)
+                cs.append(f'static const bslink_t {n}_sp{k}_links[] = {{' + '{%d, %d, %d, %d, %d, %d, %d, %d}' % (
+                    (0, to) + link_c({'on': 'hit'}) + (0, 0, 0xFFFF)) + '};')
             if rom_ok(sp): cs.append(rom_c(n, k, sp, game, prog_voice_res(n, game, pool[k]['input'], vsug, vmp) if kof_prog(sp, game) or step_voiced(sp) else None))   # read from the ROM: played by its program
         assert len(sps) < 255, n
         for k, sp in enumerate(sps):                     # the Lab build's LAB special: its index and its animations' ids
@@ -2224,7 +2253,7 @@ def write_c(chars, outdir):
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
             f'{{{1 if prog_only(sp) else len(sp["script"])}, {rom_inv(sp) if rom_ok(sp) else rise_inv(sp)}, {len(sp["parts"])}, {len(played_projectiles(sp))}, {n}_sp{k}, {f"{n}_pj{k}" if played_projectiles(sp) else 0}, '
             + (f'{n}_sp{k}_prog, {n}_sp{k}_an, {f"{n}_pj{k}r" if sp["rom"]["objects"] else 0}, ' if rom_ok(sp) else '0, 0, 0, ')
-            + (f'{n}_sp{k}_parts, {n}_sp{k}_links, {len(sp["links"])}' if sp['parts'] else f'0, {n}_sp{k}_links, 1' if sp.get('seq_press') else '0, 0, 0')
+            + (f'{n}_sp{k}_parts, {n}_sp{k}_links, {len(sp["links"])}' if sp['parts'] else f'0, {n}_sp{k}_links, 1' if sp.get('seq_press') or hit_next_of(n, sp) else '0, 0, 0')
             + (', %d, %d, {0x%04X, 0x%04X}' % (*sp['backdrop']['rows'], *sp['backdrop']['colours']) if sp.get('backdrop') else
                ', 0, 0, {0x%04X, 0}' % sp['rom']['bighit_col'] if rom_ok(sp) and sp['rom'].get('bighit_col') is not None else ', 0, 0, {0, 0}')   # (SS2's big hit:
                                                          # its backdrop colour, fighter.c big_hit; TODO #193)

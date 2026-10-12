@@ -102,7 +102,8 @@ def main():
               f"hits {r['hits']:2} dmg {r['damage']:3} travel {r.get('travel')} top {r.get('top')} frames {r.get('frames')}  {r['result']}", flush=True)
 
     S = {p['input']: i for i, p in reg['pieces'].items() if p['kind'] == 'special'}
-    assert set(S) == {c[0] for c in CASES[f]}, ('every S- piece has a case', set(S) ^ {c[0] for c in CASES[f]})
+    assert {c[0] for c in CASES[f]} <= set(S) and all('>' in i for i in set(S) - {c[0] for c in CASES[f]}), \
+        ('every S- piece has a case (the follow-up pieces "236A>BD": followups_lb2_proof.py)', set(S) ^ {c[0] for c in CASES[f]})
     only = os.environ.get('ONLY')                      # (ONLY=input,input: those pieces alone, no throws)
     for inp, slot, key, dx, x0off, want in CASES[f]:
         if only and inp not in only.split(','): continue

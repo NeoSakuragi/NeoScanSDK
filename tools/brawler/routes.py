@@ -487,7 +487,7 @@ def chain_tree(name, base, cfg, has):
     def first(pred, src, avoid=()):
         return next((clean(nd) for nd in src if pred(nd) and nd['move'] not in avoid), None)
     tool = chain_base(base, has) if cfg.get('links') is not None else None   # a chain tool's chain: its finishers too
-    sp_in = {i: s for s, i in (cfg.get('specials') or {}).items() if i}      # a special input -> its slot (D .. ufD)
+    sp_in = {(i[0] if isinstance(i, list) else i): s for s, i in (cfg.get('specials') or {}).items() if i}   # a special input -> its slot (D .. ufD; a sequence: its first piece)
     def spec_slot(m):                                                        # a finisher named as a special (its input or
         return m if m in SPECIALS else sp_in.get(m)                          # its slot) -> the slot, else None
     def named(m, eff, w='strong'):                                  # take the piece its links would (chain_base)

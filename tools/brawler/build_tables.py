@@ -347,7 +347,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'together', 'seq_press', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'together', 'seq_press', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -1106,12 +1106,17 @@ def pack_base(M):
 def spec_map(g, build):
     """the pack's roster section: per roster fighter (bm_chars order) the special each role plays (D, forward+D, down+D,
     up+D, down-forward+D, up-forward+D) as an index in its pool (build/chainlab.json fighters[].pool, export_bm special_pool order), 0xFF = none"""
-    pools = {f['name']: [p['input'] for p in f['pool']] for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}
+    fl = json.load(open(os.path.join(build, 'chainlab.json')))['fighters']
+    pools = {f['name']: [None if p.get('seq') else p['input'] for p in f['pool']] for f in fl}   # (a sequence's pieces: by their slot)
+    seqs = {f['name']: {p['seq']: i for i, p in enumerate(f['pool']) if p.get('seq') and p['seq_i'] == 0} for f in fl}
     out = []
     for r in g['roster']:
         for k in SPECIAL_KEYS:
             want = r['specials'].get(k)
-            assert want is None or want in pools[r['name']], f"{r['name']}: no special {want} for {k} (its pool: {' '.join(pools[r['name']])})"
+            if isinstance(want, list):                                      # a SEQUENCE (export_bm.sequences): its first piece
+                assert f'specials.{k}' in seqs[r['name']], f"{r['name']}: specials.{k} {want}: no sequence in its pool"
+                out.append(seqs[r['name']][f'specials.{k}']); continue
+            assert want is None or want in pools[r['name']], f"{r['name']}: no special {want} for {k} (its pool: {' '.join(map(str, pools[r['name']]))})"
             out.append(0xFF if want is None else pools[r['name']].index(want))
     return bytes(out)
 

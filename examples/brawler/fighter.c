@@ -3071,12 +3071,24 @@ static void lab_cend(fighter_t *f);                              /* ("Lab: try i
  * source's follow-up point the piece enters (KOF's $0080 event step, PF_EVENT: where KOF's handler switches to its
  * follow-up, Aragami -> Konokizu -> Yanosabi), else at its end; not armed, the move ends with this piece. A sequence
  * without seq_press (no link): back to back, as before. */
+static uint8_t seq_owns(const fighter_t *f, uint8_t b) {        /* 1: a pressed sequence's piece whose next piece waits
+                                                                    for button b (game.json roster[].seq_press on a C slot,
+                                                                    2026-10-12 LB2 Moriya's Tsukikage: its C press is the
+                                                                    sequence's, never the ladder's cancel) */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    return (sp->sflags & SF_SEQ) && sp->nlinks && (sp->links[0].trig & LK_IN) && (sp->links[0].in & b);
+}
 static uint8_t seq_wait(const fighter_t *f) {                  /* 1: a pressed sequence's piece, not armed */
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     return (sp->sflags & SF_SEQ) && sp->nlinks && !(f->plink & 1);
 }
+/* An ON-HIT continuation (game.json roster[].hit_next, 2026-10-12: LB2 Moriya's Kassatsu Midare Setsugekka, whose run's
+ * hit record starts its slashing sequence): the special is flagged SF_SEQ with one LK_HIT link whose `to` names the
+ * continuation's pool index; its hit (f->landed) arms it (plink bit 0), then the continuation starts at the piece's
+ * follow-up point (PF_EVENT steps) or its end, as a pressed sequence's next piece; not hit: the move ends as it is. */
 static uint8_t seq_next(fighter_t *f) {
-    uint8_t k = f->spec_id, nx = f->spec_ix + 1;
+    const bspec_t *sq = &f->ch->specials[f->spec_ix];
+    uint8_t k = f->spec_id, nx = sq->nlinks && sq->links[0].to ? sq->links[0].to : f->spec_ix + 1;
     if (!(f->ch->specials[f->spec_ix].sflags & SF_SEQ) || f->state != S_SPECIAL || nx >= f->ch->nspec) return 0;
     if (seq_wait(f)) return 0;                                   /* (pressed: no press, the move ends here) */
     carry_drop(f); special_end(f); f->pflags = 0;
@@ -3634,9 +3646,11 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->state == S_SPECIAL && f->spec_id == BS_BLITZ && may_cancel(f) && f->scancel && (in->press & IN_A) && in->blitz &&
         !f->team && f->blz_slot < BZ_COUNT && (gblitz_can[f->ch->id][f->blz_slot] & (1 << (in->blitz - 1))))
         f->blz_buf = in->blitz;                                  /* a Blitz that landed: its quirk's Blitz (gblitz_can) */
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team)
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team &&
+        !seq_owns(f, IN_C))
         f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
-                                                                    landed: C buffers ANOTHER special (special_cancel) */
+                                                                    landed: C buffers ANOTHER special (special_cancel); a
+                                                                    pressed sequence's piece on C keeps its C (seq_owns) */
     if (f->mash && (f->state != S_SPECIAL || !--f->mash)) f->mash = 0;   /* the mash window (real frames, MASH_GAP) */
     if (f->state == S_SPECIAL && in->press && f->ch->specials[f->spec_ix].nlinks) special_input(f, in);   /* a follow-up
                                                                     (presses in hit-stop count) */
@@ -3991,6 +4005,9 @@ static void update(fighter_t *f, const intent_t *in) {
             if (!blitz_go(f, s, LH_CANCEL)) to_neutral(f, 0);
             break;
         }
+        if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->ch->specials[f->spec_ix].nlinks &&
+            (f->ch->specials[f->spec_ix].links[0].trig & LK_HIT) && f->landed) f->plink |= 1;   /* an on-hit continuation
+                                                                    (roster[].hit_next): its hit landed arms it */
         if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->ch->specials[f->spec_ix].nlinks && !seq_wait(f) &&
             (f->pflags & PF_EVENT) && seq_next(f)) break;        /* a pressed sequence, armed: its next piece from the
                                                                     piece's follow-up step (seq_wait, "seq_next") */

@@ -440,6 +440,26 @@ victim's own offsets (KOF's per-victim lists; other games' victims: posture anch
   sets none before its first animation; speeds are not inherited. Measured in our emulator (iori_round3_proof.py, each
   part left to finish, brawler / KOF98 px): Iori 214C 69.82 / 69.82, 69.82 / 69.82 (was 0), 115.5 / 115.5; Kyo 236A
   (same SEQUENCE path, travel from the animation's dx: unchanged) 32 / 32, 84 / 84, 26 / 26.
+- **A pressed sequence on a C slot, and the ON-HIT CONTINUATION** (2026-10-12, LB2 Moriya's follow-ups; Bruno: "Decode
+  the follow-ups"). (1) `roster[].specials.<D|fD|dD|uD|dfD|ufD>` may be a list too, a sequence like a Blitz's
+  (export_bm `seq_slots` / `sequences`, label `specials.fD`; build_tables `spec_map` points the slot at the sequence's
+  first piece, `pick_specials` likewise); in `seq_press` its press is C (link IN_C). Engine (fighter.c `seq_owns`): a
+  pressed piece whose next waits for C keeps its C press, the ladder (a special that landed: C buffers ANOTHER special)
+  does not take it; every other special unchanged. (2) `roster[].hit_next {input: piece}`: the special, when its hit
+  lands, continues with that piece (a special of its bank, by input). Export: the special gets SF_SEQ and ONE link
+  {from 0, to = the piece's pool index, LK_HIT, any, window whole}; engine: `f->landed` arms it (plink bit 0, every
+  frame of the program flow), `seq_next` takes `links[0].to` when it is not 0 (a pressed sequence's links keep 0: the
+  next pool entry, as before); the piece starts at the special's follow-up point (PF_EVENT steps) or at its end, not hit:
+  the move ends as it is. No new op, bspec_t / bslink_t unchanged, pack format 1; unset (every other fighter) the tables
+  are as before. The LB2 decode (tools/lastbld2/handlers_lb2 FOLLOW / HIT_NEXT): a follow-up = the move $A0000[row][the
+  state class the script set] (Tsukikage A $90 -> $BD -> $BE, B $91 -> $BA -> $CA -> $9B; Byakuya $A5 -> $D4 .. $DC,
+  stage 1 / 2 / 3 route 1), each move its own program and S- piece (S-015 .. S-029), its follow-up point the first
+  frame of its class window after its last attack frame there; Midare's run (box type $A3) -> its hit record (word
+  $7935E[char] + ((type - $A0) * 64 + body type) * 2, byte 1 = the next move, $37424 / $37DA6) -> move $B1 (anim $A5).
+  Set: Moriya fD [236A, 236A>BD, 236A>BE], ufD [236B, 236B>BA, 236B>CA, 236B>9B] (C pressed), blitz du (down,up + A:
+  Byakuya had no slot; the free Blitz) [22A, 22A>D4 .. 22A>DC] (A pressed), hit_next 641236B -> 641236B>B1 (his MAX).
+  Measured in our emulator (tools/lastbld2/followups_lb2_proof.py, his pack build vs Ryo): every piece plays in order
+  from its press and hits a standing dummy (3 / 4 / 10 pieces), Midare's run hit -> $B1 (24 hits), its whiff ends alone.
 - **The jump's back attack** — `roster[].air.back` (Iori's note 20261011-210422-5d29 and its reopen: "you jump
   regularly, then press back + A during the jump ... the special kick done with B in KOF98 for a cross-up, back + B in the
   air"): back + A in ANY jump (the stick held away from the fighter's facing at the press) plays that air move (its
