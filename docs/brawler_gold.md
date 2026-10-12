@@ -242,6 +242,19 @@ Cheng Fu's far D / body toss (14 px). The take-off and landing frames (height 0)
 New in round 2: a ROM special's catch box (and a captured special's grab reach) no longer takes a victim in the air by its
 own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays catchable as before.
 
+### Throws: the script owns the pair until the landing (Bruno 2026-10-12, decision card "Script until the landing")
+Replaces the 2026-10-08 release rule ("as soon as the victim goes out of the hands, give it back to the regular physics
+of the engine", fighter.c thrown_release). Every paired throw, every fighter: from the grab to the victim's LANDING ROW
+the decoded script owns the place and pose of both fighters (its flight included: the source's own path and postures,
+no re-derived parabola, no blowback pose pop); at the landing row the victim is the brawler's standard knocked-down body
+(fall, floor bounce, down, get-up) with the script's motion of that row. The release row only starts the thrown body
+that knocks down the enemies it touches. A throw without a landing row plays its script to the end and lies down there.
+One data switch: game.json `"throw_handoff": "landing"` (gamedata.h gthrow.handoff; `"release"` = the 2026-10-08 rule,
+kept behind it). Throws part 1 (docs/throws_audit.md "After") also: the pair placed once at the grab / throw start
+(no per-frame screen / wall / stage clamps on a held pair), the script's height as is (below the floor too), blows on a
+held victim = damage / sound / spark only, the start's swap as a short segment (game.json throw_swap), and each KOF
+victim's own offsets (KOF's per-victim lists; other games' victims: posture anchors).
+
 ## Engine features (generic, data driven: set by the importers, off by default)
 
 - **World-anchored (placed) effects** — `bproj_t.air` bit 2 (`PJ_PLACED`, fighter.h; note 20261011-205309-5d29, Kyo's

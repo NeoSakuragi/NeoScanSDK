@@ -17,11 +17,20 @@ Our emulator only (Geolith harness, `make AI_OFF=1` build), one core per process
     python3 throws_audit.py OUT static                                every roster throw's data vs the engine's rules: rows
         below the floor, reach, the hold -> row 0 jump per slot, the engine's re-derived flight vs the rows; KOF's per-victim
         throw lists vs the mirror match the brawler plays -> OUT/static.json
+    python3 throws_audit.py OUT compare BEFORE_DIR AFTER_DIR [AFTER2_DIR]   the conflicts measured per case in each run
+        (metrics(): start jump, teleport, pair separation, floating, offset error per phase, a list's attacker jump) ->
+        OUT/compare.json + a table on stdout
+
+The source path (since throws part 1, 2026-10-12): a KOF victim of the thrower's game is checked against ITS OWN list
+(build/bm_chars.c bm_vthr: the script's rows + the victim's deltas), any other against the script's rows (the mirror
+match: its posture anchors are the brawler's, not a source). THROWS_REF=<build dir> reads the data from another build
+(the before run analysed against the after build's source rows: `ana` with THROWS_REF).
 """
 import json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
+REF = os.environ.get('THROWS_REF') or os.path.join(GAME, 'build')     # the data (bm_chars.c / .h, bm_spec.c)
 FIELDS = ['state', 'srow', 'x', 'y', 'z', 'facing', 'shown_frame', 'frame_ovr', 'zfront', 'anim', 'freeze', 'throw_x0',
           'throw_id', 'vlist', 'vent', 'pstep', 'spec_ix', 'spec_id', 'pcatch', 'held', 'pflags', 'speed', 'acc']
 KEY = {'fwd': 'Ra', 'back': 'La', 'up': 'Ua'}
@@ -32,7 +41,7 @@ def _ints(s): return [int(v, 0) for v in re.findall(r'-?0x[0-9A-Fa-f]+|-?\d+', s
 
 
 def data():
-    c = open(os.path.join(GAME, 'build', 'bm_chars.c')).read()
+    c = open(os.path.join(REF, 'bm_chars.c')).read()
     rows = {m.group(1): [tuple(_ints(r)) for r in re.findall(r'\{([^{}]*)\}', m.group(2))]
             for m in re.finditer(r'static const bthrow_row_t (\w+)\[\] = \{(.*?)\};', c, re.S)}
     def th(ent):
@@ -48,9 +57,9 @@ def data():
     for m in re.finditer(r'static const bthrow_t (\w+)_xthrow = \{(.*?)\};', c, re.S):
         out.setdefault(m.group(1), {})['throw_x'] = th(m.group(2))
     vp = {m.group(1): _ints(m.group(2)) for m in re.finditer(r'static const uint16_t (\w+)_vposes\[VP_COUNT \+ 1\] = \{(.*?)\};', c, re.S)}
-    h = open(os.path.join(GAME, 'build', 'bm_chars.h')).read()
+    h = open(os.path.join(REF, 'bm_chars.h')).read()
     keys = re.search(r'enum \{ VP_COUNT = \d+ \};\s*/\* victim postures: (.*?) \*/', h).group(1).split()
-    s = open(os.path.join(GAME, 'build', 'bm_spec.c')).read()
+    s = open(os.path.join(REF, 'bm_spec.c')).read()
     ve = {m.group(1): [tuple(_ints(r)) for r in re.findall(r'\{([^{}]*)\}', m.group(2))]
           for m in re.finditer(r'static const bvent_t (\w+)\[\] = \{(.*?)\};', s, re.S)}
     vl = {}
@@ -60,7 +69,25 @@ def data():
             f = [x.strip() for x in r.split(',')]
             L.append(dict(n=int(f[0], 0), flags=int(f[1], 0), e=ve.get(f[2], []), vx=int(f[3], 0), vy=int(f[4], 0), g=int(f[5], 0)))
         vl[m.group(1)] = L
+    bc = [x.strip()[3:].lower() for x in re.search(r'enum \{ (BC_\w+(?:, BC_\w+)*), BC_COUNT \};', h).group(1).split(',')]
+    vr = {m.group(1): [tuple(_ints(r)) for r in re.findall(r'\{([^{}]*)\}', m.group(2))]
+          for m in re.finditer(r'static const bvrow_t (\w+)\[\] = \{(.*?)\};', c, re.S)}
+    for m in re.finditer(r'static const bvthr_t (\w+)_(throw_c|throw_d|throw_x)_vthr\[\] = \{(.*?)\};', c, re.S):
+        for e in re.findall(r'\{(\d+), 0, \d+, (\w+)\}', m.group(3)):
+            th = out.get(m.group(1), {}).get(m.group(2))
+            if th: th.setdefault('per_victim', {})[bc[int(e[0])]] = vr[e[1]]
     return out, vp, keys, vl
+
+
+def victim_rows(th, vic):
+    """the source path for this victim: the script's rows with its own list's deltas (bm_vthr), else the rows as they are"""
+    P = th.get('per_victim', {}).get(vic)
+    if not P: return th['rows'], False
+    R = []
+    for i, r in enumerate(th['rows']):
+        vp, fl, dx, dy = P[min(i, len(P) - 1)]
+        R.append((r[0], r[1], r[2], r[3] if vp == 0xFE else vp, (r[4] & ~1) | (fl & 1), r[5] + dx, r[6] + dy) + tuple(r[7:]))
+    return R, True
 
 
 # ---- one case in the brawler ----------------------------------------------------------------------------------------
@@ -131,7 +158,8 @@ def analyse(res, D, VP, VPK, VL):
     if t0:                                               # ---- a paired script (throw, extra paired throw, hold hit)
         tid = t0['t']['throw_id']
         key = {0: 'throw_c', 1: 'throw_d', 2: 'hold_hit', 3: 'hold_fin', 4: 'throw_x'}.get(tid)
-        th = D[who][key]; R = th['rows']; face = 1 if t0['t']['facing'] > 0 else -1
+        th = D[who][key]; R, own = victim_rows(th, vic); face = 1 if t0['t']['facing'] > 0 else -1
+        rep['own_rows'] = own
         x0 = t0['t']['throw_x0']
         if abs(x0) > 65536: x0 = (x0 - (1 << 32) if x0 & 0x80000000 else x0) / 65536   # (a raw 16.16 record)
         spd = th['speed'] / 256
@@ -155,16 +183,19 @@ def analyse(res, D, VP, VPK, VL):
             want_vf = None if fl & 32 or vpo == 0xFF else VP[vic][vpo] if vpo < len(VP[vic]) else None
             want_vface = face if fl & 1 else -face
             phase = 'held' if (th['rel'] == 0xFFFF or i < th['rel']) else ('flight' if th['land'] == 0xFFFF or i <= th['land'] else 'after')
-            e = dict(f=k, row=i, phase=phase, tstate=T['state'], vstate=Vv['state'], cam=r['cam'],
+            if i < SWAP and phase == 'held': phase = 'swap'
+            e = dict(f=k, row=i, phase=phase, tstate=T['state'], vstate=Vv['state'], cam=r['cam'], want_vy=want_vy, v_y=Vv['y'],
+                     v_x=Vv['x'], t_xw=T['x'],
                      t_x=round(T['x'] - want_t, 1) if T['state'] == 'THROW' else None,
                      t_y=round(T['y'] - ty, 1) if T['state'] == 'THROW' else None,
                      v_dx=round(Vv['x'] - want_v, 1), v_dy=round(Vv['y'] - want_vy, 1),
-                     v_off=round((Vv['x'] - T['x']) * face, 1), want_off=(tx + vx - tx) if T['state'] == 'THROW' else None,
+                     v_off=round((Vv['x'] - T['x']) * face, 1), want_off=vx if T['state'] == 'THROW' else None,
                      v_face_ok=(Vv['facing'] > 0) == (want_vface > 0),
                      v_frame=Vv['shown_frame'], want_vframe=want_vf, vpose=vpo, vkey=VPK[vpo] if vpo < len(VPK) else None,
                      t_frame=T['shown_frame'], want_tframe=tfr, vanim=Vv['anim'], vfreeze=Vv['freeze'], tfreeze=T['freeze'])
             rep['frames'].append(e)
             if k > th['nrows'] / spd + 40: break
+        rep['hold_v'] = (hold['v']['x'], hold['v']['y']); rep['hold_t'] = hold['t']['x']
     elif sp0:                                            # ---- a grab special: its victim lists
         ix = sp0['t']['spec_ix']; L = VL.get(f'{who}_sp{ix}', [])
         rep.update(special=ix, lists=[dict(n=l['n'], flags=l['flags']) for l in L])
@@ -212,6 +243,45 @@ def summary(rep):
                  y_below_floor=sum(f['vy'] < 0 for f in F), first=[(f['f'], f['vlist'], f['pstep'], f['off'], f.get('want_off'), f['dy'], f.get('want_dy'))
                                                                     for f in G if abs(f['off'] - f['want_off']) > 1.5 or abs(f['dy'] - f['want_dy']) > 1.5][:6])
     return s
+
+
+def metrics(rep):
+    """the audit's conflicts as numbers, one case (docs/throws_audit.md "After"): start_jump = the victim's / thrower's
+    largest move in one frame over the throw's first rows (the hold -> row 0 swap, the pair's placement: was one frame);
+    teleport = the largest one-frame jump of the victim off its source path (|d dx| + |d dy| between two frames, px);
+    sep = the largest pair separation error while both are in the script (victim - thrower vs the row's offset, px);
+    floating = the largest height above its source of a victim whose source row is below the floor (px); held / flight /
+    after = the largest |dx|, |dy| off the source per phase; swap rows apart (the swap segment, by design). A victim list:
+    off / dy entries off, the attacker's largest one-frame move, frames below the floor"""
+    F = rep['frames']; m = dict(case=rep['case'], victim=rep['victim'])
+    if 'throw' in rep:
+        m['own_rows'] = rep.get('own_rows')
+        hv, ht = rep.get('hold_v'), rep.get('hold_t')
+        vx = [hv[0]] + [f['v_x'] for f in F] if hv else [f['v_x'] for f in F]
+        tx = [ht] + [f['t_xw'] for f in F] if ht is not None else [f['t_xw'] for f in F]
+        n0 = max(SWAP, 1) + 1
+        m['start_jump_v'] = round(max(abs(b - a) for a, b in zip(vx[:n0], vx[1:n0 + 1])), 1)
+        m['start_jump_t'] = round(max(abs(b - a) for a, b in zip(tx[:n0], tx[1:n0 + 1])), 1)
+        steps = [abs(b['v_dx'] - a['v_dx']) + abs(b['v_dy'] - a['v_dy']) for a, b in zip(F, F[1:]) if b['phase'] != 'swap']
+        m['teleport'] = round(max(steps), 1) if steps else 0
+        S = [abs(f['v_off'] - f['want_off']) for f in F if f['tstate'] == 'THROW' and f['vstate'] == 'THROWN' and f['want_off'] is not None and f['phase'] != 'swap']
+        m['sep'] = round(max(S), 1) if S else 0
+        FL = [f['v_y'] - f['want_vy'] for f in F if f['want_vy'] < 0 and f['vstate'] == 'THROWN']
+        m['floating'] = round(max(FL), 1) if FL else 0
+        for ph in ('held', 'flight', 'after'):
+            P = [f for f in F if f['phase'] == ph]
+            if P: m[ph] = (round(max(abs(f['v_dx']) for f in P), 1), round(max(abs(f['v_dy']) for f in P), 1))
+    else:
+        G = [f for f in F if 'want_off' in f]
+        m['off_bad'] = sum(abs(f['off'] - f['want_off']) > 1.5 for f in G); m['dy_bad'] = sum(abs(f['dy'] - f['want_dy']) > 1.5 for f in G)
+        m['max_off'] = round(max((abs(f['off'] - f['want_off']) for f in G), default=0), 1)
+        m['max_dy'] = round(max((abs(f['dy'] - f['want_dy']) for f in G), default=0), 1)
+        m['attacker_jump'] = round(max((abs(b['t_x'] - a['t_x']) for a, b in zip(F, F[1:])), default=0), 1)
+        m['below_floor'] = sum(f['vy'] < 0 for f in F)
+    return m
+
+
+SWAP = 0                                                     # (main: game.json throw_swap.frames)
 
 
 # ---- the KOF98 source itself --------------------------------------------------------------------------------------------
@@ -421,8 +491,19 @@ def srcshots98(out, cid, key, case_spec, ks):
 
 
 def main():
+    global SWAP
     out, cmd = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)
+    SWAP = (json.load(open(os.path.join(GAME, 'game.json'))).get('throw_swap') or {}).get('frames', 0)
+    if cmd == 'compare':                                     # compare DIR DIR [DIR]: the metrics side by side
+        res = {}
+        for d in sys.argv[3:]:
+            for f in sorted(os.listdir(d)):
+                if f.startswith('rep_') and f.endswith('.json'):
+                    r = json.load(open(os.path.join(d, f))); res.setdefault(r['case'], {})[os.path.basename(d.rstrip('/'))] = metrics(r)
+        json.dump(res, open(os.path.join(out, 'compare.json'), 'w'), indent=1)
+        for c, v in res.items(): print(c, json.dumps(v))
+        return
     if cmd == 'one':                                         # (a child process: one core)
         case(sys.argv[3], out, shots=True); return
     if cmd == 'src98':
@@ -446,7 +527,7 @@ def main():
             res = json.load(open(os.path.join(out, spec.replace(':', '_') + '.json')))
             rep = analyse(res, D, VP, VPK, VL)
             json.dump(rep, open(os.path.join(out, 'rep_' + spec.replace(':', '_') + '.json'), 'w'), indent=1)
-            s = summary(rep); allrep[spec] = s
+            s = summary(rep); s['metrics'] = metrics(rep); allrep[spec] = s
             s['sheet'] = sheet(out, spec, rep, res['floor_top'])
             print(json.dumps(s), flush=True)
         p = os.path.join(out, 'summary.json')

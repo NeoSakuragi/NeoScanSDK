@@ -10,6 +10,7 @@
 #include <neo_bank.h>
 #include "bm_chars.h"
 #include "gamedata.h"
+#include "vthrow.h"
 
 /* banks (TODO #174, docs/rom_packer_rules.md "P ROM"): a fighter's bulk lives in its P2 bank (bm_bank[id], written by
  * tools/brawler/bank_pack.py): its frames (bframe_t, bpart_t, the tile numbers), its specials' script rows (bspec_row_t
@@ -591,6 +592,14 @@ typedef struct fighter {
      * fighter_step reads it), wpose = which (0 = BA_WIN, k = bm_wins[id].anims[k - 1]) */
     const banim_t *wan;
     uint8_t  wpose, wpad;
+    /* a paired throw's victim side (throws part 1, docs/throws_audit.md "After"; fighter.c vrow): vrw = its own rows
+     * (bvthr_t, vrn of them; 0: none), vanc 1 = no rows of its own: its posture anchors against its thrower's (bm_vanch);
+     * the start's swap segment (gthrow.swap_n rows, fighter.c throw_start): swdx / swdy = px from the script's row 0 to
+     * where it was held, swn = its rows (0: none) */
+    const bvrow_t *vrw;
+    uint16_t vrn;
+    int16_t  swdx, swdy;
+    uint8_t  swn, vanc;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */

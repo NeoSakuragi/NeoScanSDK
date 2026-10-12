@@ -367,7 +367,7 @@ def lab_special(m, cid, entries, add):
             'parts': [], 'links': [], 'flash': None, 'rom': rom}, bad
 
 def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None,
-           rom_more=None):
+           rom_more=None, throw_victims=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
@@ -376,6 +376,9 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
     anim_specials: {name: {"$NN": how}} animations played as specials of the pool (anim_special)
     slots: {name: {move: animation slot}} a move played from another slot of the fighter's animation table (the
     brawler's game.json roster[].moves '$XX': Robert's gold, his up finisher = MAX 236236B's kick $D4)
+    throw_victims: {name: [victim names]} the throws' rows for these victims too (KOF's per-victim lists, the brawler's
+    victim side: export_bm.victim_tables), under the throw's 'victims_all' (frame -1 = no frame, else 0: their frames
+    are their own export's)
     rom_more: {name: inputs} a ROM special on demand (handlers98.ROM_DEMAND: Robert's 6426A / C Haoh Shoukou Ken) is read
     only when named here (export_bm.rom_wanted: what the brawler plays or a Lab build offers); None = every one"""
     prom, crom = rom96.load(rom96.GAMES[game]['neo']); m = rom96.Mem(prom, game)
@@ -484,10 +487,11 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
     # throws for every victim exported here (throwscripts96.py): the thrower's own animation + a per-video-frame script
     have_throws = os.path.exists(os.path.join(HERE, 'capture', throwscripts96.TDIR.get(game, 'throws_' + game), 'tables.json'))
     if only is not None and not (only & {'throw_c', 'throw_d', 'air_throw'}): have_throws = False
-    found = throwscripts96.all_throws(m, mp, [cast.index(n) for n in names]) if have_throws else {}
+    tv = sorted({cast.index(v) for n in names for v in (throw_victims or {}).get(n, ()) if v in cast} - {cast.index(n) for n in names})
+    found = throwscripts96.all_throws(m, mp, [cast.index(n) for n in names] + tv) if have_throws else {}
     if only is None or only & {'throw_c', 'throw_d', 'throw_x'}:   # the pilot's throws read from the ROM (throwrom.py, TODO
         import throwrom                                         # #146): they replace the captured scripts (key by key: a
-        for cid, d in throwrom.all_throws(m, game, [cast.index(n) for n in names]).items():   # fighter's extra throw,
+        for cid, d in throwrom.all_throws(m, game, [cast.index(n) for n in names], tv).items():   # fighter's extra throw,
             found.setdefault(cid, {}).update(d)                 # throw_x, joins its captured ones)
     import throwrom
     for cid, d in found.items():
@@ -503,8 +507,10 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             timeline = [[adders[name](t[0]) if t[0] is not None else -1] + list(t[1:]) for t in b['timeline']]
             victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
                        for v, rows in b['victims'].items() if cast[v] in adders}
+            vall = {cast[v]: [[-1 if r[0] is None or r[0] < 0 else 0] + list(r[1:]) for r in rows]
+                    for v, rows in b['victims'].items() if cast[v] in (throw_victims or {}).get(name, ())}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
-                                 'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', []),
+                                 'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', []), 'victims_all': vall,
                                  'fx': throwrom.throw_fx(m, game, cid, sl)}   # the throw-start effect (TODO #166)
             if b.get('rom'):                                    # read from the ROM: its decoded points + conversion sheet
                 ch['throws'][key].update({k: b[k] for k in ('release', 'land', 'down', 'end', 'ret', 'sheet', 'body')}, rom=True)

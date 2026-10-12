@@ -955,6 +955,13 @@ def tables(g, build):
     c.append(f"const gchain_t gchain = {{ .window = {ch['window']}, .buffer = {ch['buffer']}, .juggle_cap = {ch['juggle_cap']}, "
              f".stun_player = {ch['stun_player']}, .guard_player = {ch['guard_player']}, .stun_light = {ch['stun_light']}, "
              f".stun_heavy = {ch['stun_heavy']} }};")
+    ho = g.get('throw_handoff', 'release')               # throws part 1 (docs/throws_audit.md "After", gamedata.h
+    assert ho in ('release', 'landing'), f"throw_handoff: 'release' or 'landing', not {ho!r}"   # gthrow_t)
+    sw = g.get('throw_swap', {})
+    for k in sw: assert k in ('about', 'frames', 'arc'), f'throw_swap: unknown field {k}'
+    assert 0 <= sw.get('frames', 0) <= 30 and 0 <= sw.get('arc', 0) <= 64, 'throw_swap: frames 0-30, arc 0-64 px'
+    c.append(f"const gthrow_t gthrow = {{ .handoff = {'TH_LANDING' if ho == 'landing' else 'TH_RELEASE'}, "
+             f".swap_n = {sw.get('frames', 0)}, .swap_arc = {sw.get('arc', 0)} }};")
     fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
     for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound', 'sound_max'), f'super_flash: unknown field {k}'
     assert 1 <= fl['start'] <= 255 and 1 <= fl['white'] <= fl['freeze'] <= 255 and len(fl['anchor']) == 2, 'super_flash values'

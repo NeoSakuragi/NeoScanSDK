@@ -59,6 +59,9 @@ enum { VPH_FREEZE = 1, VPH_MIRROR = 2 };   /* fighter_t.vph: a special's victim 
  * wspd / the fighter's KOF walk (fighter_t.wrate, walk_rate) so the feet keep their KOF stride on the floor */
 static uint16_t div16(uint32_t n, uint16_t d) { __asm__("divu.w %1,%0" : "+d"(n) : "d"(d)); return (uint16_t)n; }   /* (68000
                                                                     divu: quotient < 65536, no libgcc) */
+static int32_t muls16(int16_t a, int16_t b) { int32_t r = a; __asm__("muls.w %1,%0" : "+d"(r) : "d"(b)); return r; }   /* (68000
+                                                                    muls.w / mulu.w: no libgcc) */
+static uint32_t mulu16(uint16_t a, uint16_t b) { uint32_t r = a; __asm__("mulu.w %1,%0" : "+d"(r) : "d"(b)); return r; }
 static int32_t mul88(int32_t v, uint16_t k) {                    /* v * k / 256 (16.16 x 8.8; no 32-bit multiply) */
     uint32_t a = v < 0 ? (uint32_t)-v : (uint32_t)v, lo = (uint32_t)(uint16_t)a * (uint16_t)k;
     uint32_t r = (uint32_t)(uint16_t)(a >> 16) * (uint16_t)k + (lo >> 16);
@@ -1226,16 +1229,63 @@ static void show_pose(fighter_t *v, const bthrow_row_t *r) {
         else { v->frame_ovr = 0xFFFF; play_if_new(v, BA_HIT_STAND_LIGHT); }   /* no frame for it: the light hit pose */
     }
 }
+/* THE PAIR IS ONE BODY (throws part 1, docs/throws_audit.md "After"; Bruno: engine agnostic, data driven): from the grab
+ * to the hand-off the script owns the place and the pose of BOTH fighters. The pair is placed once (pair_fit: at the grab
+ * the hold, at the throw start the whole script, inside the screen and the stage), then nothing of the engine moves
+ * either of them: no screen edge (screen_keep), no wall (wall_update), no stage clamp, no push (script_owned); the
+ * script's height is the data's, below the floor included (the sources draw slammed / lying victims under their
+ * origin: no y >= 0 clamp, one floor rule with the victim lists); a blow on a held victim is damage, sound and spark
+ * only. The victim's offsets are its own (vrow: KOF's per-victim lists, else the posture anchors, vthrow.h). */
 static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face, const bthrow_row_t *r) {
     v->vx = x - v->x;                                            /* its motion: a thrown body knocks others its way */
-    v->x = x; v->y = y + FIX(r->vy); if (v->y < 0) v->y = 0;
+    v->x = x; v->y = y + FIX(r->vy);                             /* (no floor clamp: the script's height) */
     v->z = z;
     v->facing = (r->flags & 1) ? face : -face;
     v->zfront = (r->flags & 2) != 0;                             /* behind the grabber unless the data says otherwise */
 }
 static void thrown_place(fighter_t *v, const bthrow_row_t *r) {   /* a thrown victim's place from the throw's origin */
     place_at(v, v->throw_x0 + dir_mul(v->throw_face, FIX(r->tx + r->vx)), FIX(r->ty), v->z, v->throw_face, r);
-    clamp(v);
+}                                                                /* (no stage clamp: pair_fit placed the whole script) */
+static int16_t part16(int16_t d, uint8_t k, uint8_t n) {        /* d x k / n (68000: mulu.w, divu.w) */
+    uint16_t m = d < 0 ? -d : d;
+    m = div16(mulu16(m, k), n);
+    return d < 0 ? -(int16_t)m : (int16_t)m;
+}
+/* the victim's row i of a paired script: the thrower's script row with the victim's own side (its KOF list: bm_vthr;
+ * else its posture anchors against its thrower's: bm_vanch) and the start's swap segment (throw_start: over the first
+ * swn rows it travels from where it was held to the row's place, lifted gthrow.swap_arc px at the middle when it passes
+ * over the thrower: vanc bit 1); t: room for the copy */
+static const bthrow_row_t *vrow(const fighter_t *v, const bthrow_t *th, uint16_t i, bthrow_row_t *t) {
+    const bthrow_row_t *r = &th->rows[i];
+    if (!v->vrw && !(v->vanc & 1) && i >= v->swn) return r;
+    *t = *r;
+    if (v->vrw) {                                                /* its own list (KOF: +$C2 = table + victim id x size) */
+        const bvrow_t *p = &v->vrw[i < v->vrn ? i : v->vrn - 1];
+        if (p->vpose != 0xFE) t->vpose = p->vpose;
+        t->flags = (t->flags & ~1) | (p->flags & 1);
+        t->vx += p->dx; t->vy += p->dy;
+    } else if ((v->vanc & 1) && t->vpose < VP_COUNT && !(t->flags & 32) && v->thr_by) {   /* another game's victim: its */
+        const int8_t *a = bm_vanch[v->ch->id] + 2 * t->vpose, *m = bm_vanch[v->thr_by->ch->id] + 2 * t->vpose;   /* frame's */
+        if (a[0] != -128 && m[0] != -128) {                      /* centre where the mirror victim's was (-128: none) */
+            t->vx += (t->flags & 1) ? a[0] - m[0] : m[0] - a[0];   /* (ROM orientation: x < 0 = the way the frame faces) */
+            t->vy += a[1] - m[1];
+        }
+    }
+    if (i < v->swn) {                                            /* the swap segment */
+        uint8_t k = v->swn - i;
+        t->vx += part16(v->swdx, k, v->swn);
+        t->vy += part16(v->swdy, k, v->swn);
+        if (v->vanc & 2) t->vy += div16(mulu16(gthrow.swap_arc << 2, mulu16(i, k)), mulu16(v->swn, v->swn));
+    }
+    return t;
+}
+/* the hand-off row (game.json throw_handoff, gthrow.handoff): where a throw's script gives its victim back to the
+ * engine. TH_RELEASE: its release row; TH_LANDING: its landing row (the flight scripted; no landing row: the script to its
+ * end, the victim lies down there: victim_end). 0xFFFF: none (to the end) */
+static uint16_t hand_row(const bthrow_t *th) {
+    if (th->rel == 0xFFFF) return 0xFFFF;
+    if (gthrow.handoff != TH_LANDING) return th->rel;
+    return th->land < th->nrows && th->land > th->rel ? th->land : 0xFFFF;
 }
 static void place_victim(const fighter_t *a, fighter_t *v, const bthrow_row_t *r, int8_t face) {   /* face: the */
     place_at(v, a->x + dir_mul(face, FIX(r->vx)), a->y, a->z, face, r);   /* thrower's facing the offsets are in */
@@ -1246,6 +1296,68 @@ static uint16_t grab_frame(const fighter_t *a) {
     const bthrow_t *th = &a->ch->throws[BT_THROW_C];
     return th->gframe != 0xFFFF ? th->gframe : th->rows->tframe;
 }
+/* the pair's one placement (pair_fit, hold_fit, vlist_fit): the world shift s (px) that keeps both bodies inside the
+ * view (screen_keep's edges) and the stage over their whole script: x0 the pair's origin, [otl, oth] the attacker's and
+ * [ovl, ovh] the victim's offsets from it over the script (world px). The least move that fits; a script wider than
+ * the screen: centred (its overflow split between the two edges) */
+static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi);
+static int16_t fit_shift(const fighter_t *a, const fighter_t *v, int16_t x0, int16_t otl, int16_t oth, int16_t ovl, int16_t ovh) {
+    int16_t al, ah, vl, vh, lo, hi;
+    view_bounds(a, &al, &ah); view_bounds(v, &vl, &vh);
+    lo = al - (x0 + otl); if (vl - (x0 + ovl) > lo) lo = vl - (x0 + ovl);
+    hi = ah - (x0 + oth); if (vh - (x0 + ovh) < hi) hi = vh - (x0 + ovh);
+    if (lo > hi) return (int16_t)((lo + hi) >> 1);
+    return lo > 0 ? lo : hi < 0 ? hi : 0;
+}
+/* a paired script (throw_start): every row's thrower place up to its control return and every row's victim place (its
+ * own side, vrow), from the throw's origin: the pair moved once so the whole script plays inside the screen (it used
+ * to be clamped frame by frame, each body on its own: the victim's origin drifted, a teleport at the release) */
+static int16_t pair_fit(fighter_t *a, fighter_t *v, const bthrow_t *th) {
+    int16_t otl = 0x7FFF, oth = -0x7FFF, ovl = 0x7FFF, ovh = -0x7FFF, s;
+    uint16_t i, ret = th->ret < th->nrows ? th->ret : th->nrows;
+    bthrow_row_t tmp;
+    for (i = 0; i < th->nrows; i++) {
+        const bthrow_row_t *r = vrow(v, th, i, &tmp);
+        int16_t ot = (int16_t)dir_mul(a->throw_face, r->tx), ov = (int16_t)dir_mul(a->throw_face, r->tx + r->vx);
+        if (i < ret || !i) { if (ot < otl) otl = ot; if (ot > oth) oth = ot; }
+        if (ov < ovl) ovl = ov;
+        if (ov > ovh) ovh = ov;
+    }
+    s = fit_shift(a, v, INT(a->throw_x0), otl, oth, ovl, ovh);
+    a->x += FIX(s); a->throw_x0 += FIX(s); v->throw_x0 = a->throw_x0;
+    return s;
+}
+static void hold_fit(fighter_t *a, fighter_t *v) {             /* the hold: its hits' victim places (holds[0], [1]) */
+    int16_t ovl = 0x7FFF, ovh = -0x7FFF, s;
+    uint8_t k;
+    uint16_t i;
+    for (k = 0; k < 2; k++) {
+        const bthrow_t *th = &a->ch->holds[k];
+        for (i = 0; i < th->nrows; i++) {
+            int16_t ov = (int16_t)dir_mul(a->facing, th->rows[i].tx + th->rows[i].vx);
+            if (ov < ovl) ovl = ov;
+            if (ov > ovh) ovh = ov;
+        }
+    }
+    if (ovl > ovh) ovl = ovh = 0;
+    s = fit_shift(a, v, INT(a->x), 0, 0, ovl, ovh);
+    a->x += FIX(s);
+}
+/* owned by a script: the engine's placement rules (screen_keep, wall_update) leave it alone. A hold, a paired script's
+ * thrower (its rows playing) and its victim (in its script), a victim list's caught victim (its attacker places it every
+ * frame; the attacker itself stays under the rules, its victim moved with it: screen_keep) */
+static uint8_t script_owned(const fighter_t *f) {
+    const fighter_t *a;
+    switch (f->state) {
+    case S_GRAB: case S_GRABBED: return 1;
+    case S_THROW: return f->srow != 0;
+    case S_THROWN: return f->thr != 0;
+    case S_HITSTUN:
+        a = f->wall_by;
+        return a && a->state == S_SPECIAL && a->target == f && (a->pflags & PF_HOLD) && a->vlist && !(a->vlist & 0x80);
+    }
+    return 0;
+}
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
     enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0; a->xwait = 0;
@@ -1253,6 +1365,8 @@ static void grab(fighter_t *a, fighter_t *v) {
     a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
     enter(v, S_GRABBED); v->held = a; v->vx = v->vy = v->vz = 0; v->grab_hits = 0; v->thr = 0;   /* victim: presses mashed */
+    a->swn = v->swn = 0; v->vrw = 0; v->vanc = 0;                /* (no throw's victim side, no swap: the hold) */
+    hold_fit(a, v);                                              /* the pair placed once: the hold inside the screen */
     show_pose(v, h); place_victim(a, v, h, a->facing);
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
@@ -1277,24 +1391,31 @@ static void victim_end(fighter_t *v) {                           /* its script o
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
 }
-/* THE RELEASE (Bruno 2026-10-08, every throw: "as soon as the victim goes out of the hands, give it back to the regular
+/* (With game.json throw_handoff "release" only, the switch's other branch: Bruno 2026-10-12 chose "landing", thrown_land
+ * below; docs/brawler_gold.md "Throws: the script owns the pair until the landing".)
+ * THE RELEASE (Bruno 2026-10-08, every throw: "as soon as the victim goes out of the hands, give it back to the regular
  * physics of the engine"): a throw's script for its victim ends at its release row (bthrow_t.rel): from there it is an
  * ordinary knocked-down body (S_KNOCKDOWN with the velocity its script had at the release: it flies, lands, bounces,
  * lies and gets up as any knockdown), a thrown body (tb_by, spawn.body) until it touches the floor. Its impact rows
  * after the release (the landing) are no impacts any more: the throw's damage is shared by its impacts before the
  * release; a throw whose only impacts came after it (the landing: Ryo's / Geese's back throw, Billy Lee's) has its
  * release row as its impact. impacts_before: the impact rows before the release (all of them without one). */
+/* With throw_handoff "landing" (gthrow.handoff TH_LANDING) the script plays the flight: every impact row up to the
+ * hand-off (the landing) is an impact, the landing's own included (hand_row). */
 static uint16_t impacts_before(const bthrow_t *th) {
-    uint16_t i, n = 0, end = th->rel < th->nrows ? th->rel : th->nrows;
+    uint16_t i, n = 0, h = hand_row(th), end = th->rel < th->nrows ? th->rel : th->nrows;
+    if (gthrow.handoff == TH_LANDING) end = h < th->nrows ? h + 1 : th->nrows;
     for (i = 0; i < end; i++) if (th->rows[i].flags & 4) n++;
     return n;
 }
 static uint8_t thr_impact(const bthrow_t *th, uint16_t i, uint8_t moved) {   /* moved: the release is the impact */
+    if (gthrow.handoff == TH_LANDING) return (th->rows[i].flags & 4) && (hand_row(th) == 0xFFFF || i <= hand_row(th));
     if (th->rel == 0xFFFF || i < th->rel) return (th->rows[i].flags & 4) != 0;
     return i == th->rel && moved;
 }
 static uint8_t release_moved(const bthrow_t *th) {             /* its landing impact moves onto the release row */
     uint16_t i;
+    if (gthrow.handoff == TH_LANDING) return 0;                  /* (the landing plays: its impact stays there) */
     if (th->rel == 0xFFFF || impacts_before(th)) return 0;
     for (i = th->rel; i < th->nrows; i++) if (th->rows[i].flags & 4) return 1;
     return 0;
@@ -1305,7 +1426,8 @@ static uint8_t release_moved(const bthrow_t *th) {             /* its landing im
  * frame, a 600 px flight under the knockdown's gravity, which has no air drag; KOF's throw flights slow down.) */
 static void thrown_release(fighter_t *v, const bthrow_t *th) {
     uint16_t le = th->land < th->nrows && th->land > th->rel ? th->land : th->nrows - 1;   /* its landing row */
-    const bthrow_row_t *r = &th->rows[th->rel], *e = &th->rows[le];
+    bthrow_row_t t0, t1;
+    const bthrow_row_t *r = vrow(v, th, th->rel, &t0), *e = vrow(v, th, le, &t1);   /* (the victim's own side) */
     int16_t dx = (e->tx + e->vx) - (r->tx + r->vx), y0 = r->ty + r->vy;   /* px */
     uint16_t t = le > th->rel ? div16((uint32_t)(le - th->rel) << 8, th->speed ? th->speed : 0x100) : 1;   /* its flight, frames */
     int32_t vx, vy;
@@ -1328,16 +1450,42 @@ static void thrown_release(fighter_t *v, const bthrow_t *th) {
     }
     if (v->thr_by && v->thr_by != v) v->tb_by = v->thr_by;       /* a thrown body until it lands (combat) */
 }
+/* THE LANDING HAND-OFF (game.json throw_handoff "landing", gthrow.handoff TH_LANDING; docs/throws_audit.md plan 2): the
+ * script played the victim's flight (its release row only started the thrown body: combat, rows rel .. land); at its
+ * landing row h it is the brawler's knocked-down body there, with the script's own motion of that row (row h + 1 minus
+ * row h, at the script's speed): the standard fall, floor bounce, down and get-up from it */
+static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
+    bthrow_row_t t0, t1;
+    uint16_t k = h + 1 < th->nrows ? h + 1 : h, j = k == h && h ? h - 1 : h;
+    const bthrow_row_t *a = vrow(v, th, j, &t0), *b = vrow(v, th, k, &t1);
+    int16_t dx = (b->tx + b->vx) - (a->tx + a->vx), dy = (b->ty + b->vy) - (a->ty + a->vy);
+    uint16_t sp = th->speed ? th->speed : 0x100;
+    if (IS_THROW(v->throw_id) && v->thr_dmg > v->throw_dealt) {  /* (the impacts' division's rest) */
+        uint8_t d = v->thr_dmg - v->throw_dealt;
+        v->hp -= d; v->throw_dealt += d;
+        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);
+        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
+    }
+    thrown_place(v, vrow(v, th, h, &t0));
+    v->held = 0; v->thr = 0; v->zfront = 0; v->tb_by = 0;
+    enter(v, S_KNOCKDOWN);
+    v->vx = dir_mul(v->throw_face, muls16(dx, sp) << 8);   /* (16.16: px x 8.8 speed) */
+    v->vy = muls16(dy, sp) << 8;
+    if (v->vy > 0) v->vy = 0;                                    /* (it lands: down onto the floor from here) */
+    v->frame_ovr = 0xFFFF; play(v, BA_KNOCKDOWN_FLIGHT);
+}
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
  * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script), bit 2
  * when a hold finisher's last impact was passed (its knockdown) */
 static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i) {
     fighter_t *by = v->thr_by;
     uint8_t hit = 0, moved = IS_THROW(v->throw_id) && release_moved(th);
+    uint16_t h = IS_THROW(v->throw_id) ? hand_row(th) : 0xFFFF;  /* (the hand-off: game.json throw_handoff) */
+    bthrow_row_t tmp;
     if (i >= th->nrows) i = th->nrows - 1;
-    if (IS_THROW(v->throw_id) && th->rel != 0xFFFF && i > th->rel) i = th->rel;
+    if (h != 0xFFFF && i > h) i = h;
     for (; j <= i; j++) {
-        const bthrow_row_t *r = &th->rows[j];
+        const bthrow_row_t *r = vrow(v, th, j, &tmp);            /* (its own side) */
         if (r->vpose != 0xFF) show_pose(v, r);                   /* a pose set on a passed row still applies */
         if (IS_THROW(v->throw_id) ? !thr_impact(th, j, moved) : !(r->flags & 4)) continue;
         hit = 1;                                                 /* impact: the blow lands / the victim hits the floor */
@@ -1379,7 +1527,10 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
         spark_hit(INT(v->throw_x0) + dir_mul(v->throw_face, r->vx + r->tx), floor_top + INT(v->z) - r->ty - r->vy - 40, 1, v->throw_face);
     }
     v->srow = i + 1;
-    if (IS_THROW(v->throw_id) && th->rel != 0xFFFF && i == th->rel) { thrown_release(v, th); return hit | 2; }
+    if (h != 0xFFFF && i == h) {                                 /* the hand-off: the engine's body from here */
+        if (gthrow.handoff == TH_LANDING) thrown_land(v, th, h); else thrown_release(v, th);
+        return hit | 2;
+    }
     return hit;
 }
 static void start_node(fighter_t *f, uint8_t node, uint8_t how);
@@ -1414,6 +1565,7 @@ static uint8_t paired_update(fighter_t *f) {
     const bthrow_t *th = thr_of(f, f->throw_id);
     fighter_t *v = f->held;
     const bthrow_row_t *r;
+    bthrow_row_t tmp;
     uint16_t j = script_advance(f, th->nrows, 0), i = f->srow - 1;
     if (IS_THROW(f->throw_id)) voice_at(f, VK_THROW + (f->throw_id == BT_XTHROW ? 0 : f->throw_id), j, i);
     if (IS_THROW(f->throw_id) && th->fx_row != 0xFFFF && th->fx_row >= j && th->fx_row <= i && !mute) {   /* the throw
@@ -1438,14 +1590,16 @@ static uint8_t paired_update(fighter_t *f) {
         } else if (i >= th->nrows && IS_THROW(f->throw_id)) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
     if (i >= th->ret) {                                          /* the control return: the victim still in the script */
-        if (v && i < th->nrows) thrown_place(v, &th->rows[i]);   /* shows this row's place with its pose, then plays on */
-        return 0;                                                /* alone from it (throw_free); unplaced, it held last */
-    }                                                            /* row's place a frame: a hitch in its flight (#196) */
+        if (v && i < th->nrows) thrown_place(v, vrow(v, th, i, &tmp));   /* shows this row's place with its pose, then */
+        return 0;                                                /* plays on alone from it (throw_free); unplaced, it */
+    }                                                            /* held last row's place a frame: a hitch in its flight (#196) */
     r = &th->rows[i];
     f->frame_ovr = r->tframe;
-    f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx)); f->y = FIX(r->ty);
+    f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx + (i < f->swn ? part16(f->swdx, f->swn - i, f->swn) : 0)));   /* (the
+                                                                    start's glide: pair_fit's move, throw_start) */
+    f->y = FIX(r->ty);
     f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
-    if (v) place_victim(f, v, r, f->throw_face);
+    if (v) place_victim(f, v, vrow(v, th, i, &tmp), f->throw_face);
     return 1;
 }
 /* the fury a D press buys (down: down+D; "the meter"): the MAX (bchar_t.fury_max; none: the fury played as the MAX) in
@@ -1482,6 +1636,7 @@ static uint8_t lands_behind(const bthrow_t *th) {
     r = &th->rows[th->nrows - 1];
     return r->tx + r->vx < 0;
 }
+static void victim_side(fighter_t *f, fighter_t *v, uint8_t t);
 static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3); dir TD_*: the side wanted */
     const bthrow_t *th;
@@ -1499,7 +1654,33 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     v->grab_hits = impacts_before(th);                           /* its impacts share the throw's damage (the release */
     if (!v->grab_hits && release_moved(th)) v->grab_hits = 1;    /* rule: those before it, else the release row) */
     if (f->team) stat_throws++;
+    victim_side(f, v, t);
+    {                                                            /* the pair placed once, the swap segment (throws part 1) */
+        bthrow_row_t tmp;
+        const bthrow_row_t *r0 = vrow(v, th, 0, &tmp);
+        int16_t off0 = r0->tx + r0->vx;                          /* row 0's victim place, the throw's facing */
+        int16_t hdx = (int16_t)dir_mul(f->throw_face, INT(v->x) - INT(f->x)) - off0;   /* where it was held - row 0's */
+        int16_t hdy = INT(v->y) - r0->ty - r0->vy;
+        int16_t s = pair_fit(f, v, th);
+        if (gthrow.swap_n) {                                     /* both glide there over swap_n rows (vrow, */
+            v->swn = f->swn = gthrow.swap_n;                     /* paired_update): no one-frame jump */
+            v->swdx = hdx; v->swdy = hdy; f->swdx = -(int16_t)dir_mul(f->throw_face, s);
+            if ((off0 < 0) != (off0 + hdx < 0) && hdx) v->vanc |= 2;   /* (it passes over the thrower: lifted) */
+        }
+    }
     paired_update(f);                                            /* its first row now */
+}
+/* a throw's victim side (vthrow.h): its own KOF list for this thrower's throw (bm_vthr), else (a fighter of another game,
+ * or a list the export has not) its posture anchors against the thrower's (bm_vanch); the mirror match (the thrower's
+ * own fighter) and hold hits: the script's rows as they are */
+static void victim_side(fighter_t *f, fighter_t *v, uint8_t t) {
+    const bvthr_t *p;
+    uint8_t k = t == BT_XTHROW ? 2 : t;
+    v->vrw = 0; v->vrn = 0; v->vanc = 0; v->swn = 0; f->swn = 0;
+    if (!IS_THROW(t) || k > 2 || v->ch->id == f->ch->id) return;
+    for (p = bm_vthr[f->ch->id][k]; p && p->victim != 0xFF; p++)
+        if (p->victim == v->ch->id) { v->vrw = p->rows; v->vrn = p->n; return; }
+    v->vanc = bm_vanch[v->ch->id] && bm_vanch[f->ch->id];
 }
 static uint8_t pend_sthr;          /* the next start_special plays a throw's special (fighter_t.sthr; its index: xix) */
 static uint8_t lab_ix = 0xFF;      /* the next start_special plays this pool index ("Lab: try in game"), whatever its role */
@@ -1985,8 +2166,10 @@ static void chain_throw(fighter_t *f, uint8_t node, uint8_t how) {
     fighter_t *v = f->target;
     uint8_t t = cthrow_pick(f->ch);
     lab_note(f, LE_START, node, how, 0);
-    f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;
+    int32_t x = v->x, y = v->y;                                  /* (where it reels: the throw's swap takes it from */
+    f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;   /* there, throw_start) */
     grab(f, v);
+    v->x = x; v->y = y;
     throw_start(f, t, TD_BACK);                                  /* (none landing behind: played turned, the victim over
                                                                     to its back at the grab) */
     f->inv = INV_FURY; f->cthrow = 1; f->node = 0; f->chain_t = 0; f->buffered = 0;
@@ -2049,7 +2232,7 @@ static void thrown_update(fighter_t *v) {                        /* a thrown vic
     if (j > i) return;
     if (victim_rows(v, th, j, i) & 2) return;                    /* released: the engine's knockdown from here */
     if (i >= th->nrows) { victim_end(v); return; }
-    thrown_place(v, &th->rows[i]);
+    { bthrow_row_t tmp; thrown_place(v, vrow(v, th, i, &tmp)); }
 }
 
 /* ---- specials ------------------------------------------------------------------------------------------------------------
@@ -2738,6 +2921,7 @@ static void pan_advance(fighter_t *f) {
     f->pleft = f->pan->steps[f->pstep].ticks + 1;
     pan_enter(f, prev); pan_voices(f); pan_fx(f);
 }
+static void vlist_reach(const bspec_t *sp, int16_t *lo, int16_t *hi);
 static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     switch (c) {
     case PC_STEPEV: return f->pflags & PF_EVENT ? 1 : 0;        /* the step's KOF $0080, not consumed (tst) */
@@ -2756,7 +2940,12 @@ static uint8_t pcond(fighter_t *f, uint8_t c, int32_t v) {
     case PC_CNT: return f->pcnt < 0;
     case PC_HIT: return f->landed && f->pcatch != 2;            /* (a catch: KOF registers it after this frame's code) */
     case PC_OFF: return 0;
-    case PC_WALL: return INT(f->x) >= wall_hi || INT(f->x) <= wall_lo;   /* at a wall (KOF98 $18092: either side) */
+    case PC_WALL: {                                              /* at a wall (KOF98 $18092: either side); holding a */
+        int16_t lo = 0, hi = 0;                                  /* listed victim: the walls in by its lists' reach */
+        if (f->pflags & PF_HOLD) vlist_reach(&f->ch->specials[f->spec_ix], &lo, &hi);   /* (vlist_reach) */
+        if (f->facing < 0) { int16_t x = -lo; lo = -hi; hi = x; }
+        return INT(f->x) >= wall_hi - hi || INT(f->x) <= wall_lo - lo;
+    }
     case PC_HELD: return f->pheld;                               /* its button held (KOF and.b (fp): a charge) */
     case PC_CNTLE: return f->pcnt <= v;                          /* the counter at most v (KOF's charge level tests) */
     case PC_PASSED: { fighter_t *t = f->target ? f->target : f->popp; if (!t) return 0;   /* its opponent no longer ahead */
@@ -2889,28 +3078,32 @@ static void hold_apply(fighter_t *f) {                           /* a caught vic
  * A frame list (VL_FRAMES, TODO #213: Kizuna's command grabs, the victim's thrown animation decoded frame by frame,
  * tools/kizuna/rosa_kz.py) takes entry k on the k-th frame since the P_VPHASE VA_LIST that started it; its release
  * lays the victim down (VL_DOWN) or sends it into a source reaction (VL_SREACT: Kizuna's thrown flight). */
-/* the list's wall (vocabulary stage.wall "a victim list at the wall", TODO #216; KOF98 $255B0, the end of every list
- * place $25372): an entry that would put the victim at or past a wall ($18092 on the VICTIM: KOF's stage x 32 / 736,
- * the brawler's wall_lo / wall_hi) moves the ATTACKER instead, to the wall minus the list's farthest offset on that
- * side (the entries whose dx has this entry's sign), and places the victim again from there: every entry of the list
- * then fits inside the walls, the farthest one on the wall. Rugal's God Press slam: he stops at the wall, the slam's
- * list reaches 92 px ahead, so he stands 92 px from it (KOF: 736 -> 644) and the burst at +104 shows on screen. */
-static void vlist_wall(fighter_t *f, fighter_t *t, const bvlist_t *l, const bvent_t *e) {
-    int16_t x = INT(t->x);
-    int32_t off, w, d0;
-    uint8_t k, m = 0;
-    if (x > wall_lo && x < wall_hi) return;
-    for (k = 0; k < l->n; k++) {                                 /* the farthest entry on this entry's side */
-        int8_t d = l->e[k].dx;
-        if ((d < 0) != (e->dx < 0)) continue;
-        if (d < 0) d = -d;
-        if ((uint8_t)d > m) m = d;
-    }
-    off = dir_mul(f->facing, FIX(e->dx));                        /* (the victim's side of the attacker, world x) */
-    w = FIX(x >= wall_hi ? wall_hi : wall_lo);
-    d0 = (off >= 0 ? w - FIX(m) : w + FIX(m)) - f->x;
-    f->x += d0; f->throw_x0 += d0;                               /* (its objects' anchor moves with it) */
-    t->x = f->x + off;
+/* the lists' reach (throws part 1, docs/throws_audit.md "After": the pair is one body; was the per-entry wall move,
+ * TODO #216, KOF98 $255B0, which moved the ATTACKER up to 87 px in one frame mid-move): the farthest entry of the
+ * special's victim lists behind (lo, <= 0) and ahead (hi, >= 0) of the attacker, its facing's way. At the catch the pair
+ * is moved once so every entry plays inside the screen (vlist_fit); the walls a catch tests (PC_WALL: Rugal's God Press
+ * rush) are moved in by the reach on each side, so the rush stops where its slam's list fits (he stands 92 px from the
+ * wall, KOF's 736 -> 644, without the jump) */
+static void vlist_reach(const bspec_t *sp, int16_t *lo, int16_t *hi) {
+    const bvlist_t *l;
+    uint8_t k;
+    *lo = *hi = 0;
+    if (!sp->vlists) return;
+    for (l = sp->vlists; l->n; l++)
+        for (k = 0; k < l->n; k++) {
+            int16_t d = l->e[k].dx;
+            if (d < *lo) *lo = d;
+            if (d > *hi) *hi = d;
+        }
+}
+static void vlist_fit(fighter_t *f) {                          /* the catch: the pair placed once (fit_shift) */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    fighter_t *t = f->target;
+    int16_t lo, hi, s;
+    if (!t) return;
+    vlist_reach(sp, &lo, &hi);
+    s = f->facing > 0 ? fit_shift(f, t, INT(f->x), 0, 0, lo, hi) : fit_shift(f, t, INT(f->x), 0, 0, -hi, -lo);
+    f->x += FIX(s); f->throw_x0 += FIX(s); t->x += FIX(s);       /* (its objects' anchor moves with it) */
 }
 static void vlist_place(fighter_t *f, const bspec_t *sp);
 static void vlist_apply(fighter_t *f, const bspec_t *sp) {      /* KOF's victim routine (Yamazaki 236236C $6AF14, TODO
@@ -2947,9 +3140,8 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     if ((l->flags & VL_FRAMES) && f->vfr < 255) f->vfr++;
     e = &l->e[k < l->n ? k : l->n - 1];
     if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
-        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once) */
-        vlist_wall(f, t, l, e); clamp(t);                        /* (past a wall: the attacker steps back, KOF's rule) */
-    }
+        t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once; no clamp, no */
+    }                                                            /* wall: vlist_fit placed the pair at the catch) */
     if (l->flags & VL_FLY) {                                     /* it flies on its own (SS2's rage victims): its */
         if (f->vent == 0xFF) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* velocities */
         else { t->x += t->vx; t->y += t->vy; t->vy -= (int32_t)l->g << 8; if (t->y < 0) t->y = t->vy = 0; clamp(t); }
@@ -2965,8 +3157,15 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     if (f->vent == k) return;                                    /* (KOF: the flags act when the attacker's step changes) */
     f->vent = k;
     if (e->flags & VE_BLOW) {                                    /* the blow: the move's damage, its hit sound */
+        int32_t hx = t->x, hy = t->y;
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
+        if (!(e->flags & VE_REL)) {                              /* held on: damage, sound, spark only (throws part 1):
+                                                                    no reaction of the engine's (an entry above the
+                                                                    floor sent it into a fall frame, Rugal's God Press) */
+            if (t->state != S_HITSTUN) enter(t, S_HITSTUN);
+            t->x = hx; t->y = hy; t->vy = 0; t->kmode = 0;
+        }
         if ((e->flags & VE_REL) && vl_end(sp)->flags) snd_sfx(vl_end(sp)->flags);   /* the release's own sound (KOF's
                                                                     victim routine: Iori 624D's explosion $4D, note
                                                                     20261011-224757-5d29; the end entry's flags) */
@@ -3028,7 +3227,7 @@ static void form_swap(fighter_t *f) {
 static void vphase(fighter_t *f, uint8_t a, int16_t b) {
     fighter_t *t = f->vtgt ? f->vtgt : f->target;               /* (the one it took first: Kizuna's a3, the caught victim) */
     if (!t || (t->state != S_HITSTUN && t->state != S_KNOCKDOWN)) return;
-    if (a & VA_LIST) { f->target = t; t->vph = 0; f->vlist = (uint8_t)b; f->vent = 0xFF; f->vfr = 0; f->pflags |= PF_HOLD; return; }
+    if (a & VA_LIST) { f->target = t; t->vph = 0; f->vlist = (uint8_t)b; f->vent = 0xFF; f->vfr = 0; f->pflags |= PF_HOLD; vlist_fit(f); return; }
     f->vtgt = t; t->vph_by = f;
     if (a & VA_SNAP) { t->x = f->x; t->y = f->y; t->z = f->z; clamp(t); }
     if (a & VA_FREEZE) t->vph |= VPH_FREEZE;
@@ -3048,8 +3247,8 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     if (f->pcatch == 1) {                                        /* then its routine (+$19C); its victim runs the */
         f->pcatch = 0xFE; f->pres = f->phit;                     /* routine the catch gave it (+$1A0): the first */
         if (f->vlist & 0x80) {                                   /* (P_CATCH: the list it named, held by it from */
-            f->vlist &= 0x7F; f->vent = 0xFF; f->pflags |= PF_HOLD; f->phold = 0;   /* now: KOF's throw routine) */
-        } else if (sp->vlists && !(sp->vlists[0].flags & VL_CATCH)) { f->vlist = 1; f->vent = 0xFF; }   /* list of its
+            f->vlist &= 0x7F; f->vent = 0xFF; f->pflags |= PF_HOLD; f->phold = 0; vlist_fit(f);   /* now: KOF's throw routine) */
+        } else if (sp->vlists && !(sp->vlists[0].flags & VL_CATCH)) { f->vlist = 1; f->vent = 0xFF; vlist_fit(f); }   /* list of its
                                                                     script (bspec_t.vlists; VL_CATCH: P_CATCH's alone) */
     }
     if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
@@ -4345,6 +4544,7 @@ void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x) {
         if (!a) continue;
         if (v->state != S_HITSTUN && v->state != S_KNOCKDOWN) { v->wall_by = 0; v->dance = 0; continue; }   /* down (or
                                                                     free): over */
+        if (script_owned(v)) continue;                           /* a caught victim: its list places it (vlist_fit) */
         x = v->x < lo ? lo : v->x > hi ? hi : v->x;
         if (a->state != S_SPECIAL) { v->x = x; continue; }       /* its special over (or a projectile): the victim alone */
         if (x != v->x && a->target == v && v->state == S_HITSTUN) { a->x += x - v->x; a->throw_x0 += x - v->x; }   /* the
@@ -4374,15 +4574,22 @@ void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x) {
         fighter_t *f = fs[i];
         int16_t w;
         int32_t lo, hi, d;
-        if (f->state == S_OFF || f->state == S_PROJ) continue;
-        w = half_w(f);
+        if (f->state == S_OFF || f->state == S_PROJ || script_owned(f)) continue;   /* (a script's pair: placed once, */
+        w = half_w(f);                                           /* pair_fit) */
         lo = FIX(cam_x + SCREEN_IN + w); hi = FIX(cam_x + 320 - SCREEN_IN - w);
         if (!f->inb) { if (f->x >= lo && f->x <= hi) f->inb = 1; continue; }   /* (walking in: free until it is in) */
         d = f->x < lo ? lo - f->x : f->x > hi ? hi - f->x : 0;
         if (!d) continue;
         f->x += d;                                               /* (a script's anchor moves with it: a throw, a special's */
         if (f->state == S_THROW || f->state == S_THROWN || f->state == S_SPECIAL) f->throw_x0 += d;   /* program) */
-    }
+        if (f->state == S_SPECIAL && f->target && script_owned(f->target) && f->target->wall_by == f) f->target->x += d;
+    }                                                            /* (its caught victim with it: one body) */
+}
+static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi) {   /* screen_keep's edges this frame, the stage's */
+    int16_t cam = wall_lo - WALL_EDGE, w = half_w(f);            /* (wall_update keeps wall_lo: the camera + WALL_EDGE) */
+    *lo = cam + SCREEN_IN + w; *hi = cam + 320 - SCREEN_IN - w;
+    if (*lo < X_MIN) *lo = X_MIN;
+    if (*hi > X_MAX) *hi = X_MAX;
 }
 
 void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase, uint8_t team, int16_t x, int16_t z) {

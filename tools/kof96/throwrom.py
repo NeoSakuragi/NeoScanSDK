@@ -358,11 +358,18 @@ def build(m, game, cid, key, victim):
             'release': rel, 'land': land, 'down': down, 'end': end, 'ret': ret, 'sheet': sheet, 'rom': True, 'raw': rows[:nrows]}
 
 def all_throws(m, game, cids, victims=None):
-    """{thrower id: {key: built}} for the pilot fighters among cids (victim: the thrower itself, the brawler's mirror)"""
+    """{thrower id: {key: built}} for the pilot fighters among cids (victim: the thrower itself, the brawler's mirror);
+    victims: more victim ids, each its own walk (KOF's list for that victim: +$C2 = base + map[id] x size), their rows
+    added under 'victims' (the thrower's timeline and points stay the mirror's)"""
     out = {}
     for (g, cid), keys in PILOT.items():
         if g != game or cid not in cids: continue
-        out[cid] = {k: dict(build(m, game, cid, k, cid), inputs=INPUTS[k]) for k in keys}
+        out[cid] = {}
+        for k in keys:
+            b = dict(build(m, game, cid, k, cid), inputs=INPUTS[k])
+            for v in victims or ():
+                if v != cid: b['victims'][v] = build(m, game, cid, k, v)['victims'][v]
+            out[cid][k] = b
     return out
 
 # ---- the check: the walk against the captures (victim Yuri, the canonical captures) --------------------------------
