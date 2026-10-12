@@ -40,6 +40,7 @@ PACKED = {}                                             # per fighter its palett
 LAB = {}                                                # the Lab build (--lab NAME, make LAB_FIGHTER=NAME): {name: [(hex id,
                                                         # state)]} its dictionary's animations (arb_pieces/<name>.json)
 LABINFO = {}                                            # name -> (its LAB special's pool index, its $NN ids) (write_c)
+SRCFLY = {}                                             # bm_srcfly by fighter (roster[].source_flight), set by write_c
 ALIAS = {}                                              # the shell's slot: {'slot': its source fighter} (roster slot_of)
 LAB_GAMES = ('kof96', 'kof98', 'kof99', 'samsho2')      # the source games whose exporter writes a LAB special (export96 /
                                                         # handlers_ss2.lab_special)
@@ -1868,6 +1869,7 @@ def write_c(chars, outdir):
          f'enum {{ XT_FWD = {XT_FWD}, XT_PAIRED = {XT_PAIRED}, XT_NONE = {XT_NONE} }};',
          'extern const bxthr_t bm_xthr[BC_COUNT];   /* (revamp 3) by bchar_t.id (outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
+         'extern const uint32_t bm_srcfly[BC_COUNT];   /* (note 20261011-201729-5d29, game.json roster[].source_flight) by bchar_t.id: bit k = its specials[k] leaves the victims of its body hits on their source\'s reaction path (KOF98\'s slide and arc: fighter.c kof_react), not the brawler\'s standard arc (std_flight); the shell\'s slot 0 */',
          'extern const uint8_t bm_stage_end[BC_COUNT];   /* (note 20261011-115334-5d29, game.json roster[].stage_end_form) by bchar_t.id: the bm_chars index its stage-clear win animation turns it into (Super Billy\'s turn-back -> Billy Lee: the next stage starts as it, fighter_next_stage_ch), 0xFF = none */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
          'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) */',
@@ -2027,6 +2029,11 @@ def write_c(chars, outdir):
         for k, sp in enumerate(sps):                     # the Lab build's LAB special: its index and its animations' ids
             if sp['input'] == 'LAB' and rom_ok(sp) and sp['rom'].get('lab'): LABINFO[n] = (k, sp['rom']['lab_ids'])
         pooldata[n] = [special_info(sp, game) for sp in sps]
+        sf = roster().get(n, {}).get('source_flight', ())   # roster[].source_flight (note 20261011-201729-5d29): its
+        for i in sf:                                     # specials whose victims keep their source's flight
+            assert any(same_special(i, sp['input']) for sp in sps), f'{n}: source_flight {i} is not one of its specials'
+        SRCFLY[n] = sum(1 << k for k, sp in enumerate(sps) if n not in ALIAS and any(same_special(i, sp['input']) for i in sf))
+        assert SRCFLY[n] < 1 << 32, f'{n}: source_flight on a special past index 31'
         cs.append(f'const bspec_t {n}_specials[{max(1, len(sps))}] = {{' + (', '.join(
             f'{{{1 if prog_only(sp) else len(sp["script"])}, {rom_inv(sp) if rom_ok(sp) else rise_inv(sp)}, {len(sp["parts"])}, {len(played_projectiles(sp))}, {n}_sp{k}, {f"{n}_pj{k}" if played_projectiles(sp) else 0}, '
             + (f'{n}_sp{k}_prog, {n}_sp{k}_an, {f"{n}_pj{k}r" if sp["rom"]["objects"] else 0}, ' if rom_ok(sp) else '0, 0, 0, ')
@@ -2131,6 +2138,7 @@ def write_c(chars, outdir):
     c.append('const bseg_t bm_seg[BC_COUNT] = {' + ', '.join(f'{n}_seg' for _, n, _, _ in chars) + '};   /* (retiming) */')
     c.append('const bair_t bm_air[BC_COUNT] = {' + ', '.join(f'{n}_air' for _, n, _, _ in chars) + '};   /* (TODO #221) */')
     c.append('const bair_t bm_hsnd[BC_COUNT] = {' + ', '.join(f'{n}_hsnd' for _, n, _, _ in chars) + '};   /* (hit sounds) */')
+    c.append('const uint32_t bm_srcfly[BC_COUNT] = {' + ', '.join('0x%X' % SRCFLY.get(n, 0) for _, n, _, _ in chars) + '};   /* (note 20261011-201729-5d29) */')
     c.append('const uint8_t bm_stage_end[BC_COUNT] = {' + ', '.join(str(stage_end_c(chars, n)) for _, n, _, _ in chars) + '};   /* (note 20261011-115334-5d29) */')
     c.append('const bxthr_t bm_xthr[BC_COUNT] = {' + ', '.join(xthr_c(ch, n) for _, n, ch, _ in chars) + '};   /* (revamp 3) */')
     c += sreact_c()
