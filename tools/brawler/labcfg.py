@@ -4,17 +4,19 @@ tools/feedback/server.py, its /api/lab/ over ssh on localhost = authenticated by
 
 The VPS is the source of truth while Bruno tunes a fighter in the web Assembly; every PUT is a revision kept for good
 (LAB/config/<f>.history.jsonl). NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the
-Assembly saves IS the game. Every live send of a sheet queues a ship request (POST lab/ship/<f>); the WORKER ships it:
+Assembly saves goes to the Player's Character lab at once; the GAME (the Player's brawler, the VPS download) changes
+only when Bruno presses the sheet's "Ship to the game" (2026-10-12): a ship request (POST lab/ship/<f>) that THE SHIP
+SERVICE ships with no agent (docs/character_lab.md "Ship service"):
 
-    labcfg.py ship-worker [--once] [--fighter F] [--quiet 60] [--poll 20] [--no-publish] [--commit]
-        polls the queue; a fighter whose newest request is --quiet seconds old (no change since) is shipped once (his
-        older requests: dropped, "superseded"): status building -> VERSION bumped, arb_compile.py F (his sheet -> game.json,
-        build, bank_proof, every linked slot / knob / timing checked in our emulator) -> make publish-vps (the Player's
-        game; --no-publish: built only) [-> git commit of game.json, VERSION, docs/brawler_gold.md: --commit] -> done
-        "build 0.10.N" + what was left out. Refused / failed: VERSION and game.json as they were, the game rebuilt,
-        status failed with the plain reason (the sheet's "In the game" line shows it). Nothing changed: done, no build.
-        Run it on the desktop (the toolchain): `python3 tools/brawler/labcfg.py ship-worker --commit` in a terminal, or
-        `--once` from a loop tick.
+    labcfg.py ship-worker [--once] [--fighter F] [--conf /data/brawler-ship/ship.json] [--logs DIR]
+        brawler-ship.service (systemd --user), run from the ship checkout (conf "repo": a detached git worktree nobody
+        edits; every host path in the conf, tools/brawler/ship.example.json). Each request, one at a time (a fighter's
+        older pending ones: dropped, superseded), stopping at the first failure ("<step>: <reason>", the checkout reset,
+        the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
+        (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version),
+        rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, make publish-vps,
+        scenario.py publish, labpub.py all --if-changed, git commit (game.json, VERSION, docs/brawler_gold.md) + push
+        origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
     labcfg.py ship-pending                          the requests waiting: id, fighter, revision, who, when
     labcfg.py ship FIGHTER [--rev N] [--note ...]   queue one from here (as a live send does)
     labcfg.py ship-done ID [--dropped] [--note "0.0.120, commit abc123"]   close a request by hand
@@ -33,7 +35,7 @@ The blob is opaque here (its byte format: chainlab/lab.js liveBlob = the TRY blo
 hash = sha256 of the bytes, what the player polls. A revision sent by a Lab page ("Send to Player") has the JSON
 {name, lab_try: {page, try, chain}} (what the page played): `show` prints it, `export` refuses it (ship it with
 arb_compile.py / chain_save.py)."""
-import argparse, base64, datetime, hashlib, json, os, shlex, subprocess, sys, time
+import argparse, base64, datetime, hashlib, json, os, re, shlex, subprocess, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -45,7 +47,7 @@ def api(path, body=None, method=None, headers=()):
     cmd = f'curl -s -S --max-time 30 {shlex.quote(BASE + path)}'
     for h in headers: cmd += ' -H ' + shlex.quote(h)
     if body is not None: cmd += f" -X {method or 'POST'} -H 'Content-Type: application/json' --data-binary @-"
-    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', HOST, cmd], input=json.dumps(body) if body is not None else None,
+    r = subprocess.run((['ssh', '-o', 'BatchMode=yes', HOST, cmd] if HOST else ['sh', '-c', cmd]), input=json.dumps(body) if body is not None else None,
                        capture_output=True, text=True)
     if r.returncode: raise SystemExit('ssh/curl: ' + r.stderr.strip())
     out = json.loads(r.stdout)
@@ -63,61 +65,110 @@ def mark(i, status, note=''):
     return api('ship_done', {'id': i, 'status': status, 'note': note[:600]})['ship']
 
 
-def ship_one(a, f, row):
-    """one ship (the worker): VERSION bump, arb_compile.py F, publish, [commit] -> (status, note)"""
-    game = a.game; vp = os.path.join(game, 'VERSION'); v0 = open(vp).read()
-    p = v0.strip().split('.'); p[-1] = str(int(p[-1]) + 1); v1 = '.'.join(p)
-    mark(row['id'], 'building', f'building {v1}')
-    print(f'[ship #{row["id"]}] {f} rev {row["rev"]}: building {v1}', flush=True)
-    open(vp, 'w').write(v1 + '\n')
-    r = subprocess.run([sys.executable, os.path.join(HERE, 'arb_compile.py'), f, '--game', game], capture_output=True, text=True)
-    out = r.stdout + r.stderr
-    os.makedirs(a.logs, exist_ok=True)
-    log = os.path.join(a.logs, f'ship_{row["id"]}_{f}.log'); open(log, 'w').write(out)
-    lines = out.splitlines()
-    left = [x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
-    changed = not any(x.startswith('game.json roster changes: none') for x in lines)
-    if r.returncode or not changed:
-        open(vp, 'w').write(v0)                          # (VERSION as it was; arb_compile restored game.json itself)
-        if r.returncode:
-            why = [x.strip() for x in lines if x.strip().startswith('- ') or x.startswith('REFUSED')] or lines[-6:]
-            subprocess.run(['make', '-C', game, '-j2'], capture_output=True)   # (its rebuild had the bumped VERSION)
-            return 'failed', 'not in the game: ' + ' '.join(why)[:560] + f' (log {log})'
-        cur = v0.strip()
-        return 'done', f'nothing changed: the game already plays this sheet (build {cur})' + ('; left out: ' + '; '.join(left) if left else '')
-    note = f'build {v1}'
-    if a.no_publish: note += ' (built, not published: --no-publish)'
-    else:
-        pr = subprocess.run(['make', '-C', game, 'publish-vps'], capture_output=True, text=True)
-        if pr.returncode: return 'failed', f'built {v1} but the publish failed: ' + (pr.stderr or pr.stdout).strip()[-300:]
-        note += ' published'
-    if a.commit:
-        paths = [os.path.relpath(x, REPO) for x in (os.path.join(game, 'game.json'), vp, os.path.join(REPO, 'docs', 'brawler_gold.md'))]
-        subprocess.run(['git', '-C', REPO, 'add', '--'] + paths)
-        c = subprocess.run(['git', '-C', REPO, 'commit', '-q', '-m', f'Brawler {v1}: {f} shipped from the Assembly (ship #{row["id"]}, live config rev {row["rev"]})', '--'] + paths,
-                           capture_output=True, text=True)
-        if not c.returncode: note += ', committed'
-    if left: note += '; left out: ' + '; '.join(left)
-    return 'done', note
+FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
+          'Claude-Session: https://claude.ai/code/session_01XhxN754ESQrKXnzjnRdvPt\n')
+
+
+def ship_conf(path):
+    """the ship service's host config (JSON, outside the repo; tools/brawler/ship.example.json): repo (the ship checkout),
+    logs, jobs, nice, poll, lab_host (the feedback service over ssh; "" = curl on this host: the VPS itself), env (added
+    to every step: BRAWLER_CORE, PATH ...). Nothing in it is a secret: ssh / gh use the user's own keys."""
+    c = {'repo': REPO, 'logs': '/data/brawler-ship/logs', 'jobs': 4, 'nice': 10, 'poll': 30, 'lab_host': HOST, 'env': {}}
+    if path and os.path.exists(path): c.update(json.load(open(path)))
+    return c
+
+
+class Fail(Exception): pass
+
+
+def ship_one(c, f, row):
+    """one ship, in the ship checkout c['repo'] (nobody edits it) -> (status, note). Stops at the first failure ("<step>:
+    <reason>"; the checkout reset, nothing reaches the VPS before the checks pass). Every step's output: <logs>/<id>.log"""
+    repo = c['repo']; game = os.path.join(repo, 'examples', 'brawler'); bl = os.path.join(repo, 'tools', 'brawler')
+    vp = os.path.join(game, 'VERSION'); env = dict(os.environ, **c['env']); nice = ['nice', '-n', str(c['nice'])]
+    os.makedirs(c['logs'], exist_ok=True)
+    logf = open(os.path.join(c['logs'], f'{row["id"]}.log'), 'w')
+    st = {'v': None}
+
+    def run(step, cmd, cwd=repo, ok=None, timeout=3600):
+        mark(row['id'], 'building', f'building {st["v"] or "?"}: {step}')
+        print(f'[ship #{row["id"]}] {f}: {step}', flush=True)
+        logf.write(f'\n==== {step}: {" ".join(cmd)}\n'); logf.flush()
+        t0 = time.time()
+        try: r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+        except subprocess.TimeoutExpired: raise Fail(f'{step}: timed out after {timeout} s')
+        out = r.stdout + r.stderr
+        logf.write(out + f'\n==== {step}: exit {r.returncode} in {time.time() - t0:.0f} s\n'); logf.flush()
+        if r.returncode or (ok and not ok(out)):
+            last = [x.strip() for x in out.splitlines() if x.strip()]
+            why = [x for x in last if x.startswith(('REFUSED', '- ', 'FAIL', 'error', 'fatal', 'bleed:'))] or last[-2:]
+            raise Fail(f'{step}: ' + ' '.join(why)[:400])
+        return out
+
+    g = lambda *x: ['git', '-C', repo] + list(x)
+    py = lambda name, *x: nice + [sys.executable, os.path.join(bl, name)] + list(x)
+    try:
+        run('reset', g('reset', '-q', '--hard', 'HEAD'))
+        run('git pull', g('fetch', '-q', 'origin', 'brawler'))
+        run('git pull', g('merge', '-q', '--ff-only', 'FETCH_HEAD'))
+        v0 = open(vp).read().strip(); p = v0.split('.'); p[-1] = str(int(p[-1]) + 1); st['v'] = v1 = '.'.join(p)
+        open(vp, 'w').write(v1 + '\n')                   # (first: arb_compile's build and gold section carry it)
+        out = run('arb_compile', py('arb_compile.py', f, '--game', game))
+        lines = out.splitlines()
+        left = [x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
+        if any(x.startswith('game.json roster changes: none') for x in lines):
+            run('reset', g('reset', '-q', '--hard', 'HEAD'))
+            logf.close()
+            return 'done', f'nothing changed: the game already plays this sheet ({v0})'
+        bd = os.path.join(game, 'build')
+        for x in os.listdir(bd):
+            if x.endswith('.o'): os.remove(os.path.join(bd, x))
+        run('make sdk', nice + ['make', '-C', 'sdk'])
+        run('make', nice + ['make', f'-j{c["jobs"]}'], cwd=game)
+        run('bank_proof', py('bank_proof.py', game), ok=lambda o: 'ALL OK' in o)
+        run('regress bleed', py('regress.py', game, os.path.join(c['logs'], f'{row["id"]}_regress.json'), '--bleed-only'),
+            ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
+        run('publish-vps', ['make', '-C', game, 'publish-vps'])
+        run('scenario publish', py('scenario.py', 'publish'))
+        run('labpub', py('labpub.py', 'all', '--if-changed'))
+        paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
+        run('commit', g('add', '--', *paths))
+        run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {f} shipped from the Assembly (rev {row["rev"]})' + FOOTER, '--', *paths))
+        run('push', g('push', '-q', 'origin', 'HEAD:brawler'))
+    except Fail as e:
+        logf.write(f'\nFAILED: {e}\n'); logf.close()
+        subprocess.run(g('reset', '-q', '--hard', 'HEAD'))   # (VERSION / game.json as they were; a local commit kept)
+        return 'failed', f'{e} (log {row["id"]}.log on the ship host)'
+    logf.close()
+    return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else '')
 
 
 def ship_worker(a):
+    """THE SHIP SERVICE (brawler-ship.service, docs/character_lab.md "Ship service"): every poll s, the pending requests
+    (the Assembly's "Ship to the game"), one at a time; a fighter's older pending requests are superseded by his newest"""
+    global HOST
+    c = ship_conf(a.conf); HOST = c['lab_host']
+    if a.logs: c['logs'] = a.logs
+    me = os.path.abspath(__file__); mt = os.path.getmtime(me)
+    print(f'ship service: repo {c["repo"]}, logs {c["logs"]}, lab {HOST or "local"}, poll {c["poll"]} s', flush=True)
     while True:
-        rs = api('ship')['requests']
+        try: rs = api('ship')['requests']
+        except (SystemExit, Exception) as e: print('queue unreachable:', e, flush=True); rs = []
         pend = {}
         for r in rs:
             if r['status'] == 'pending' and (not a.fighter or r['fighter'] == a.fighter): pend.setdefault(r['fighter'], []).append(r)
-        for f, rows in sorted(pend.items()):
+        for f, rows in sorted(pend.items(), key=lambda kv: min(r['id'] for r in kv[1])):
             rows.sort(key=lambda r: r['id']); last = rows[-1]
-            age = (datetime.datetime.now(datetime.timezone.utc) - datetime.datetime.fromisoformat(last['at'].replace('Z', '+00:00'))).total_seconds()
-            if age < a.quiet: continue                   # (still being edited: the next poll)
             for r in rows[:-1]: mark(r['id'], 'dropped', f'superseded by #{last["id"]}')
-            try: st, note = ship_one(a, f, last)
-            except Exception as e: st, note = 'failed', f'the worker stopped: {type(e).__name__}: {e}'
-            mark(last['id'], st, note)
-            print(f'[ship #{last["id"]}] {f}: {st}: {note}', flush=True)
+            t0 = time.time()
+            try: stt, note = ship_one(c, f, last)
+            except Exception as e: stt, note = 'failed', f'the ship service stopped: {type(e).__name__}: {e}'
+            mark(last['id'], stt, note)
+            print(f'[ship #{last["id"]}] {f}: {stt}: {note} ({time.time() - t0:.0f} s)', flush=True)
+            if os.path.getmtime(me) != mt:               # (a pull changed this file: run the new one)
+                print('labcfg.py changed: restarting', flush=True); os.execv(sys.executable, [sys.executable] + sys.argv)
         if a.once: return
-        time.sleep(a.poll)
+        time.sleep(c['poll'])
 
 
 def record(f, rev):
@@ -140,9 +191,7 @@ def main():
     p = sp.add_parser('ship'); p.add_argument('fighter'); p.add_argument('--rev', type=int); p.add_argument('--note', default='')
     p = sp.add_parser('ship-done'); p.add_argument('id', type=int); p.add_argument('--dropped', action='store_true'); p.add_argument('--note', default='')
     p = sp.add_parser('ship-worker'); p.add_argument('--once', action='store_true'); p.add_argument('--fighter')
-    p.add_argument('--quiet', type=int, default=60); p.add_argument('--poll', type=int, default=20)
-    p.add_argument('--no-publish', action='store_true'); p.add_argument('--commit', action='store_true')
-    p.add_argument('--game', default=os.path.join(REPO, 'examples', 'brawler')); p.add_argument('--logs', default='/data/tmp/ship')
+    p.add_argument('--conf', default=os.environ.get('BRAWLER_SHIP_CONF', '/data/brawler-ship/ship.json')); p.add_argument('--logs')
     a = ap.parse_args()
 
     if a.cmd == 'ship-worker': return ship_worker(a)

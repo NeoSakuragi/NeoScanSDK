@@ -17,9 +17,10 @@
 //     clear, back to now, Ask in the Workshop. A pick that cannot go live says so on its row ("Can't go live: why").
 // Pre-filled with what the game plays now (review/<fighter>_arb.json, tools/brawler/arbitrage.py).
 // Answers: the decisions store, set "<fighter>-arb", one id per slot: choice 1 = his (pieces "anim-<hex>" in order,
-// knobs); id "presses" = the chain's length (its note = the count). NO STAGING (Bruno 2026-10-10): every live send also
-// queues a ship (POST lab/ship/<f>); the desktop's worker (labcfg.py ship-worker) ships it a minute after the last change
-// (the compiler builds, checks every slot and publishes, or says why it refused): the "In the game" line.
+// knobs); id "presses" = the chain's length (its note = the count). SHIP ON BRUNO'S WORD (2026-10-12): every change
+// saves the live config (the Player's Character lab plays it at once); the sheet's "Ship to the game" button queues a
+// ship (POST lab/ship/<f>) that the desktop's ship service (brawler-ship.service, labcfg.py ship-worker) builds, checks,
+// publishes and commits (docs/character_lab.md "Ship service"): the bar says queued / building / shipped / failed.
 // Renamed slots: an answer saved under an old id is read under its new one while the new id has none (OLD_IDS).
 // Piece ids (Workshop, review/<fighter>_workshop.json, tools/brawler/piece_ids.py): the picker offers the animations
 // ($NN, saved "anim-<hex>") and the UNLOCKED pieces (S- specials, T- throws, saved as their id: arb_compile.py links an
@@ -449,41 +450,44 @@
     window.arbPicker = def.id;
   }
 
-  // ---- NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the sheet saves IS the game. Every
-  // live send queues a ship (POST lab/ship/<f>, admin); the desktop's worker (tools/brawler/labcfg.py ship-worker) ships
-  // the fighter once his newest request is 60 s old: arb_compile -> build -> checks -> VERSION bump -> publish. The full
-  // line (⋯) says where the game is; the status bar its short form ("In game 0.10.31", "Building…", "NOT in game ✗").
+  // ---- SHIP ON BRUNO'S WORD (2026-10-12): live saves go to the Player's Character lab at once; the game (the Player's
+  // brawler, the VPS download) changes only when he presses "Ship to the game": POST lab/ship/<f> (admin; the server takes
+  // the live revision), the desktop's ship service (labcfg.py ship-worker as brawler-ship.service) builds it: pull, arb_compile,
+  // VERSION +1, make, bank_proof, bleed regress, publish, commit + push. The bar: Queued / Building 0.10.N / Shipped 0.10.N /
+  // FAILED (the reason in ⋯).
   const LAB_API = API + 'lab/';
   const gameLine = h('p', { class: 'ingame', 'aria-live': 'polite', text: 'In the game: …' });
+  const shipBtn = h('button', { type: 'button', class: 'shipbtn', text: 'Ship to the game' });
   const gameSay = (long, shortT, bad) => { gameLine.textContent = long; gameLine.classList.toggle('bad', !!bad); stGame.textContent = shortT; stGame.classList.toggle('bad', !!bad); };
-  async function shipQueue(rev) {
+  let shipBusy = false;
+  shipBtn.onclick = async () => {
+    if (shipBusy) return;
+    shipBusy = true; shipBtn.disabled = true; gameSay('Queuing the ship…', 'Queuing…');
     try {
       const r = await fetch(LAB_API + 'ship/' + f, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rev, note: 'the Assembly (auto)' }) });
-      if (!r.ok) { const j = await r.json().catch(() => ({})); gameSay('Not queued for the game: ' + (r.status === 403 ? 'it needs the Oros admin role' : j.error || 'HTTP ' + r.status), 'Not queued ✗', true); return; }
-    } catch (e) { gameSay('Not queued for the game: ' + e.message, 'Not queued ✗', true); return; }
-    gameStatus();
-  }
+        body: JSON.stringify({ note: 'Ship to the game (the Assembly)' }) });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); gameSay('Not queued: ' + (r.status === 403 ? 'it needs the Oros admin role' : j.error || 'HTTP ' + r.status), 'Not queued ✗', true); }
+    } catch (e) { gameSay('Not queued: ' + e.message, 'Not queued ✗', true); }
+    shipBusy = false; gameStatus();
+  };
   async function gameStatus() {
     let rs;
     try { const r = await fetch(LAB_API + 'ship?fighter=' + f, { cache: 'no-store', credentials: 'same-origin' }); if (!r.ok) return; rs = (await r.json()).requests || []; }
     catch (e) { return; }
     const mine = rs.filter(x => x.fighter === f && x.status !== 'dropped').sort((x, y) => y.id - x.id);
-    const cur = mine[0], done = mine.find(x => x.status === 'done');
-    const inGame = done ? (/build (\S+)/.exec(done.result || '') || [])[1] : null;
-    const notPub = inGame && /not published/.test(done.result || '');
-    const had = inGame ? (notPub ? `Built into the game as ${inGame}, not published yet` : `In the game: build ${inGame}`) + (/left out: (.*)/.exec(done.result || '') ? ' (left out: ' + /left out: (.*)/.exec(done.result)[1] + ')' : '') : 'In the game: nothing shipped from this sheet yet';
-    const hadS = inGame ? (notPub ? `Built ${inGame}, not published` : `In game ${inGame}`) : 'In game: nothing yet';
-    if (!cur) gameSay(had, hadS);
-    else if (cur.status === 'pending') gameSay(`Waiting to build (about a minute after your last change, request ${cur.id}). ${had}.`, 'Waiting to build…');
-    else if (cur.status === 'building') gameSay(`Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}… (request ${cur.id}). ${had}.`, `Building ${(/building (\S+)/.exec(cur.result || '') || [])[1] || ''}…`);
-    else if (cur.status === 'failed') gameSay(`NOT in the game (request ${cur.id}): ${(cur.result || '').replace(/^not in the game: /, '')}. ${had}.`, 'NOT in game ✗ (see ⋯)', true);
-    else gameSay(/^nothing changed/.test(cur.result || '') ? `In the game: ${cur.result}` : had, hadS);
+    const cur = mine[0], done = mine.find(x => x.status === 'done' && /(?:shipped|build) \d/.test(x.result || ''));
+    const inGame = done ? (/(?:shipped|build) (\d\S*)/.exec(done.result) || [])[1] : null;
+    const had = inGame ? `In the game: ${inGame}` : 'In the game: nothing shipped from this sheet yet';
+    const busy = cur && (cur.status === 'pending' || cur.status === 'building');
+    shipBtn.disabled = shipBusy || !!busy;
+    if (!cur) gameSay(had + '.', inGame ? 'In game ' + inGame : 'Not shipped yet');
+    else if (cur.status === 'pending') gameSay(`Queued (request ${cur.id}): the ship service takes it within 30 s. ${had}.`, 'Queued');
+    else if (cur.status === 'building') { const v = (/building (\S+)/.exec(cur.result || '') || [])[1] || ''; gameSay(`Building ${v} (request ${cur.id}): ${(cur.result || '').replace(/^building \S+:? ?/, '')}. ${had}.`, `Building ${v}…`); }
+    else if (cur.status === 'failed') gameSay(`FAILED (request ${cur.id}): ${(cur.result || '').replace(/^failed: /, '')}. Nothing changed in the game. ${had}.`, 'FAILED ✗ (⋯)', true);
+    else gameSay(cur === done ? `Shipped ${inGame} (request ${cur.id}).` : `In the game: ${cur.result || 'done'}`, inGame ? 'Shipped ' + inGame : 'Shipped');
   }
   gameStatus();
-  window.addEventListener('tryit-sent', e => { if (e.detail.f === f && e.detail.kind === 'sheet') shipQueue(e.detail.version); });   // (every
-  // live send of the sheet, by itself or "Send to Player": its revision goes to the game)
-  setInterval(() => { if (!document.hidden && document.body.contains(gameLine)) gameStatus(); }, 15000);
+  setInterval(() => { if (!document.hidden && document.body.contains(gameLine)) gameStatus(); }, 10000);
 
   // ---- "Try this sheet in game" (tryit.js): every slot of his answers (the slots still "now" keep the game's own move) on
   // his pack in the shell, live; the chain's presses (any piece each: a move, an animation, an S- piece) and their timing
@@ -533,7 +537,7 @@
   }
   const jump = h('nav', { class: 'ajump', 'aria-label': 'Sections' }, SECTIONS.map(s => h('button', { type: 'button', text: s.title,
     onclick: () => { secOpen(s.id, true); secEls[s.id].sec.scrollIntoView({ block: 'start' }); } })));
-  const bar = h('div', { class: 'abar' }, h('div', { class: 'arow' }, h('h1', { text: D.display }), stat, menuBtn), jump, menuBody);
+  const bar = h('div', { class: 'abar' }, h('div', { class: 'arow' }, h('h1', { text: D.display }), stat, shipBtn, menuBtn), jump, menuBody);
   const out = [bar, h('div', { class: 'livego' })];
   for (const s of SECTIONS) {
     const btn = h('button', { type: 'button', class: 'stog', 'aria-expanded': 'true' }, h('span', { text: '▾ ' }), s.title);

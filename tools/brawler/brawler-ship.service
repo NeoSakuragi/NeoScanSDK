@@ -1,0 +1,15 @@
+# The brawler's ship service (docs/character_lab.md "Ship service"): the Assembly's "Ship to the game" requests built,
+# checked, published and committed with no agent. Install: cp to ~/.config/systemd/user/, systemctl --user daemon-reload,
+# systemctl --user enable --now brawler-ship. Host paths: /data/brawler-ship/ship.json (tools/brawler/ship.example.json).
+[Unit]
+Description=Brawler ship service (Assembly -> game)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u /data/brawler-ship/repo/tools/brawler/labcfg.py ship-worker --conf /data/brawler-ship/ship.json
+Restart=on-failure
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=default.target

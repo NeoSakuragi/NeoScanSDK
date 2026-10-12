@@ -1,0 +1,13 @@
+{
+ "_": "the ship service's host config (labcfg.py ship-worker --conf, default /data/brawler-ship/ship.json): every host path here; no secrets (ssh / gh use the user's own keys). On the VPS itself: lab_host \"\" (curl locally).",
+ "repo": "/data/brawler-ship/repo",
+ "logs": "/data/brawler-ship/logs",
+ "jobs": 4,
+ "nice": 10,
+ "poll": 30,
+ "lab_host": "root@195.201.91.211",
+ "env": {
+  "BRAWLER_CORE": "/home/bruno/CLProjects/geolith/libretro/geolith_libretro.so",
+  "PATH": "/home/bruno/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ }
+}

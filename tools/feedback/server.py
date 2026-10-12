@@ -80,11 +80,11 @@ X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback
                                      engine, format, needs, data_sha, published]}]}; ETag, If-None-Match -> 304. THE PACK
                                      FORMAT (docs/character_lab.md): a pack loads into a shell of its format whose features
                                      cover its needs (the Player / the pages pick his newest such pack from `all`)
-  POST lab/ship/<f> {rev?, note?}   NO STAGING (Bruno 2026-10-10: "forget about staging, remove that step"): what the
-                                     Assembly saves IS the game. Every live send of a sheet queues {id, fighter, rev, hash, by,
-                                     at, note, status pending} in LAB/ship.json; the desktop's worker (labcfg.py ship-worker)
-                                     ships a fighter once his newest request is 60 s old (the older ones: dropped, superseded):
-                                     arb_compile -> build -> checks -> VERSION bump -> publish
+  POST lab/ship/<f> {rev?, note?}   the Assembly's "Ship to the game" button (2026-10-12): queues {id, fighter, rev, hash,
+                                     by, at, note, status pending} in LAB/ship.json; the ship service (labcfg.py ship-worker,
+                                     brawler-ship.service; docs/character_lab.md "Ship service") takes it within 30 s (a
+                                     fighter's older pending ones: dropped, superseded): pull, arb_compile, VERSION +1,
+                                     build, checks, publish, commit + push
   GET  lab/ship[?status=...][&fighter=f]  the queue; POST lab/ship_done {id, status building | done | failed | dropped,
                                      note?} (the worker; the sheet's "In the game" line reads it)
   POST lab/publish {kind shell|pack|face, fighter?, version, engine, src, sha256, display?, format?, features? (shell),

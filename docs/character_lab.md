@@ -289,25 +289,44 @@ the new one: 13 faces, Hanzo swapped in (practice), Iori's live config r5 + chai
 the shell's RAM map. Players 0.0.32 still load this set (same container, the legacy engine / ram fields); after a
 shell-only publish they refuse the packs (engine differs) until 0.0.33 is installed.
 
-## In the game: no staging (2026-10-10)
+## In the game: Ship to the game + the ship service (2026-10-12)
 
-Bruno (binding): "forget about staging for now, remove that step": what the Assembly saves IS the game. There is no
-"Ship to game" button. Every live send of a sheet also queues a ship request (`POST lab/ship/<f>` naming the revision);
-the desktop's **worker** ships a fighter once his newest request is 60 s old (no change since; his older requests:
-`dropped`, "superseded"):
+Bruno 2026-10-12: "Can it build, increase the revision, and deploy on the VPS for each new change that I deem ready to
+ship?" Live saves still go to the Player's Character lab at once (unchanged); the GAME (the Player's brawler, the VPS
+download) changes only on his word: the **"Ship to the game"** button in each fighter sheet's top bar (the Assembly,
+`lab.html?f=<fighter>&tab=assembly`) queues `POST lab/ship/<f>` (admin; the live revision). The 60 s auto-ship is gone.
+The bar says `Queued` / `Building 0.10.N…` / `Shipped 0.10.N` / `FAILED ✗`; ⋯ shows the full line (the step and its
+one-line reason). The button is disabled while a request of his is queued or building.
 
-    python3 tools/brawler/labcfg.py ship-worker [--commit] [--no-publish] [--once] [--fighter F] [--quiet 60]
+### Ship service
 
-status `building` -> VERSION bumped -> `arb_compile.py <f>` (the sheet -> his roster entry in game.json, build,
-bank_proof, every linked slot / knob / timing checked in our emulator; a dated "sheet round" in docs/brawler_gold.md) ->
-`make publish-vps` (the Player's game) -> [`--commit`: game.json, VERSION, brawler_gold.md committed] -> `done` "build
-0.10.N published" + what the compiler left unresolved ("left out: ..."). Refused or failed: VERSION and game.json as
-they were, the game rebuilt, `failed` with the plain reason. Nothing changed: `done` "nothing changed", no build. Run it
-in a terminal on the desktop (it polls every 20 s), or `--once` from a loop tick. The sheet's bottom line reads the
-queue every 15 s: "In the game: build 0.10.N", "Waiting to build…", "Building 0.10.N…", or "NOT in the game: why".
-`arb_compile.py`: a press the sheet does not answer keeps what the build plays (the generator's pick, the Assembly's
-"now"), so a partly answered chain compiles; a dictionary animation in a press ships as a spare move name (`moves
-"<name>": "$XX"`). Logs: /data/tmp/ship/ship_<id>_<f>.log.
+`brawler-ship.service` (systemd --user on brunux; unit `tools/brawler/brawler-ship.service`, nice 10,
+Restart=on-failure) runs `labcfg.py ship-worker --conf /data/brawler-ship/ship.json` from the **ship checkout**
+`/data/brawler-ship/repo` (a detached git worktree nobody edits; `geolith` + `tools/neosdk` symlinked in). Every host
+path is in the conf (`tools/brawler/ship.example.json`: repo, logs, jobs, nice, poll, lab_host, env BRAWLER_CORE /
+PATH); `lab_host ""` = the feedback service by local curl (the service running on the VPS itself). It polls every 30 s;
+one request at a time, a fighter's newer request supersedes his queued older one (`dropped`). Each request, stopping at
+the first failure (`failed`: "<step>: <reason>", the checkout reset; nothing reaches the VPS before the checks pass):
+
+reset + `git fetch origin brawler` + `merge --ff-only` -> VERSION +1 -> `arb_compile.py <f>` (sheet -> game.json, build,
+every linked slot checked; "game.json roster changes: none" = `done` "nothing changed", no new version) -> `rm build/*.o`,
+`make -C sdk`, `make -j4` -> `bank_proof.py` ALL OK -> `regress.py --bleed-only` (bleed True / True) -> `make
+publish-vps` -> `scenario.py publish` -> `labpub.py all --if-changed` -> `git commit` (game.json, VERSION,
+docs/brawler_gold.md: "Brawler 0.10.N: <f> shipped from the Assembly (rev R)") + `git push origin HEAD:brawler` ->
+`done` "shipped 0.10.N". The main tree's `brawler` then lags origin: `git pull --rebase` before committing there.
+
+    systemctl --user status brawler-ship            # state + last lines
+    systemctl --user stop brawler-ship              # stop (requests stay queued)
+    systemctl --user start brawler-ship             # start (enable --now: also at login)
+    systemctl --user restart brawler-ship           # after editing ship.json
+    journalctl --user -u brawler-ship -f            # the service's log
+    ls -t /data/brawler-ship/logs | head            # one log per request: <id>.log (every step's output)
+    python3 tools/brawler/labcfg.py ship-pending    # the queue; `ship F` queues one from the shell
+
+First setup on a host: `git worktree add --detach /data/brawler-ship/repo origin/brawler`, symlink `geolith` and
+`tools/neosdk` into it, copy ship.example.json to /data/brawler-ship/ship.json and fit it, a first `make -C sdk && make
+-C examples/brawler` there (full export), then install the unit. Needs: ssh key to root@195.201.91.211 (labcfg / arb_compile
+answers / publish), `gh auth` for the push, the ROM / dictionary inputs at their /data paths.
 
 ## The server API
 
@@ -328,7 +347,7 @@ at `brawler-lab/feedback-api/` (the Oros cookie), the Player at `/brawler/lab/` 
 |---|---|
 | `tools/brawler/arb_compile.py <f> [--dry-run] [--answers FILE] [--no-build] [--no-check] [--compare GAME_JSON]` | the sheet compiler (above); `arb_compile.py pieces <f>` regenerates the piece library `arb_pieces/<f>.json` (+ ids, + knobs) |
 | `tools/brawler/workshop.py list [f] / reply <f> <piece> "<text>" / unlock <f> <piece> / publish <f>` | the Workshop threads and unlocks |
-| `tools/brawler/labcfg.py list / show / history / revert / export / put / ship-pending / ship / ship-done / ship-worker` | the live configs, the ship queue and its worker (over ssh) |
+| `tools/brawler/labcfg.py list / show / history / revert / export / put / ship-pending / ship / ship-done / ship-worker` | the live configs, the ship queue and the ship service ("Ship service") |
 | `make lab-publish` = `tools/brawler/labpub.py all [--if-changed] [--only f,g] [--dry-run]` | THE ONE COMMAND: the shell + every fighter's pack, built and published where changed |
 | `tools/brawler/labpub.py list / publish-shell / publish-pack / publish-face / remove-*` | the shell / pack catalogue (format / features / needs from the files) |
 | `tools/brawler/lab_pack.py seal / make [--strict] / info / anchor / check / apply / abi` (`make LAB_SHELL=1`, `make LAB_PACK=<f>`) | the shell and the packs, the pack format |

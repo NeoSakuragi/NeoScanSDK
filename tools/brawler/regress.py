@@ -4,10 +4,13 @@
           see `near`)
   facing  every roster fighter (game.json's roster) (picked on the select screen) x 13 actions: per frame P1 state + facing + x, written to JSON for a
           comparison between builds
-    python3 regress.py GAME_DIR OUT.json   (GAME_DIR/brawler.neo, symbols from GAME_DIR/build/rom.elf)"""
+    python3 regress.py GAME_DIR OUT.json [--bleed-only]   (GAME_DIR/brawler.neo, symbols from GAME_DIR/build/rom.elf;
+          --bleed-only: stop after the bleed line, exit status 1 unless True / True: the ship service's gate)"""
 import sys, json, re
 import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from harness import Brawler
+BLEED_ONLY = '--bleed-only' in sys.argv
+if BLEED_ONLY: sys.argv.remove('--bleed-only')
 game, out = sys.argv[1], sys.argv[2]
 b = Brawler(rom=game + '/brawler.neo', game=game, tick_sync=True)   # reads / pokes at tick boundaries (TODO #178:
                                                                     # the frame's end falls mid-tick, where it moves with the build)
@@ -54,6 +57,8 @@ if not strict:
     for n in bleed:
         d = next((i for i, (a, c) in enumerate(zip(bleed[0], bleed[n])) if a != c), None); print(' ', n, 'first exact diff at', d)
 res['bleed_same'] = same; res['bleed_strict'] = strict; res['bleed_trace'] = bleed[0]
+if BLEED_ONLY:
+    json.dump(res, open(out, 'w')); sys.exit(0 if same and strict else 1)
 ACTIONS = [('walk_L', '20:L,10:-'), ('walk_R', '20:R,10:-'), ('run_R', '3:R,3:-,20:R,10:-'), ('run_L', '3:L,3:-,20:L,10:-'),
            ('A', '4:a,40:-'), ('down_A', '4:Da,40:-'), ('jump_up', '4:b,60:-'), ('jump_fwd', '4:Rb,60:-'), ('jump_back', '4:Lb,60:-'),
            ('C', '4:c,90:-'), ('fwd_C', '4:Rc,90:-'), ('down_C', '4:Dc,90:-'), ('up_C', '4:Uc,90:-')]   # C + the stick: the specials
