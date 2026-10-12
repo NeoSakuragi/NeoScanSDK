@@ -33,7 +33,8 @@
       try { const r = await fetch(API + 'decisions/' + set.id, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) ans = await r.json(); } catch (e) { /* offline */ }
       const total = set.sections.reduce((n, s) => n + s.questions.length, 0);
       const status = h('div', { class: 'dstatus' });
-      const count = () => { status.textContent = `${Object.values(ans).filter(a => a && a.choice != null).length} of ${total} answered`; };
+      const ids = new Set(set.sections.flatMap(s => s.questions.map(q => q.id)));   // (answers to removed questions don't count)
+      const count = () => { status.textContent = `${Object.entries(ans).filter(([k, a]) => ids.has(k) && a && a.choice != null).length} of ${total} answered`; };
       const card = q => {
         const a = ans[q.id] || {};
         const saved = h('div', { class: 'dsaved', text: a.at ? 'Saved' : '' });
