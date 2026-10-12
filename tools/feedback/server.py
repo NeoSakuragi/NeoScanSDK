@@ -749,7 +749,27 @@ def game_clean(req):
     return {'values': v}, None
 
 
-SECTIONS = {'levels': levels_clean, 'game': game_clean}
+def roster_clean(req):
+    """the Roster & select draft {selectable: {fighter: true | false} (only what differs from the game), layout?:
+    {fighter: {x, y, z, facing, pose, slot}} (the select layout editor's)}; the real checks: tools/brawler/roster.py merge"""
+    s = req.get('selectable') or {}
+    if not isinstance(s, dict) or len(s) > 64 or not all(FIGHTER.match(k) and isinstance(v, bool) for k, v in s.items()):
+        return None, 'selectable: {fighter: true | false}'
+    out = {'selectable': s}
+    L = req.get('layout')
+    if L is not None:
+        num = lambda x: isinstance(x, int) and not isinstance(x, bool) and -1024 <= x <= 1024
+        if not isinstance(L, dict) or len(L) > 64: return None, 'layout: {fighter: {x, y, z, facing, pose, slot}}'
+        for k, v in L.items():
+            if not FIGHTER.match(k) or not isinstance(v, dict) or set(v) != {'x', 'y', 'z', 'facing', 'pose', 'slot'} or \
+               not all(num(v[f]) for f in ('x', 'y', 'z', 'slot')) or v['facing'] not in ('left', 'right') or \
+               not (isinstance(v['pose'], list) and len(v['pose']) == 2 and all(num(p) for p in v['pose'])):
+                return None, 'layout %s: {x, y, z, facing, pose, slot}' % k[:40]
+        out['layout'] = L
+    return out, None
+
+
+SECTIONS = {'levels': levels_clean, 'game': game_clean, 'roster': roster_clean}
 
 
 def section_file(n): return os.path.join(LAB, n + '.json')

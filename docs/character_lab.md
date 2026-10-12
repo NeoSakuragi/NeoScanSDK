@@ -353,6 +353,24 @@ service's report), `labcfg.py SECTIONS` (name -> its tool: `<tool> merge GAME DR
 "<name>: ..." change lines or `REFUSED`, `<tool> state GAME` is reported after each ship), `ship_batch {<name>: true}`.
 A new section = one entry in each table + its tool.
 
+### The Factory's Roster & select (2026-10-12)
+
+The Characters tab's cast view starts with **Roster & select** (`factory/roster.js`, `tools/brawler/roster.py`, the
+third draft section `roster`: `{selectable: {f: bool}, layout?}`). One row per fighter: his face, place, stage-1 theme
+(his roster `music` when songs.json has it, else "stage song": no song is ever dropped to make room), boss lock, and a
+**Selectable** switch for a Lab-only fighter (`roster_benched` with `"lab": true`) or one the Factory brought from the
+Lab (`"from_lab": true`, the switch sends him back; a roster fighter game.json names elsewhere never goes). "Select
+layout…" opens the Lab's own select screen editor (`chainlab/selectscreen.js` hosted through `window.SelectHost`) on the
+build's `/brawler-factory/select.json` (the ship service runs `select_images.py` after each ship); a fighter not in the
+build yet is a grey block at the free place; "Save to the draft". `roster.py merge`: the entry moved between `roster`
+(its end) and `roster_benched` (text kept, the move is byte-reversible), a face (`make_hud.py`'s square / portrait),
+at most 25 selectable (`main.c NA` = `build_tables.MAX_SLOTS`: SEL_SPR 57 + 25 x 12 + the barriers' 21 = 378 of 381
+sprites), every selectable fighter exactly one place (`build_tables.select_layout`), the stick's right / left walks
+reach everyone (`select_stick`), a fighter without a place takes `free_place` (the street spot farthest from every
+fighter's feet, x 40-728 on the three rows; its slot after the fighter before it along the street) -> `roster: moriya
+selectable`, `select: moriya at place 10 of 25 (x 728, y 210)`. C ROM / P bank room: the ship's build + `bank_proof.py`
+(the page shows the room left from the last build: `roster.py state`).
+
 ## The server API
 
 The pages and the Player talk to the feedback service (`tools/feedback/server.py`, unit `brawler-feedback`): the pages

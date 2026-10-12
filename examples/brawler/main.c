@@ -147,8 +147,10 @@ static void mark(uint8_t sec) {
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
 #define FIGHT_SPRS (NF * MAX_COLS + NPJ * PJ_COLS)   /* a fight's blocks: a fighter's MAX_COLS, the projectile pool's
                                         PJ_SPRS = NPJ * PJ_COLS shared by width (block_w) */
-#define NA 24                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
-                                        fighter: the group photo) */
+#define NA 25                        /* sprite blocks: NE in a fight, NA actors on the select screen (a block per roster
+                                        fighter: the group photo); 25 = the most the select screen's sprites hold
+                                        (SEL_SPR 57 + 25 x 12 + the barriers' 21 = 378 of 381; build_tables.MAX_SLOTS,
+                                        the Factory's Roster & select: LB2's Moriya the 25th, 2026-10-12) */
 #define SEL_COLS 12                  /* sprites per block on the select screen (MAX_COLS in a fight): NA blocks of 12 =
                                         sprites SEL_SPR 57-344 there (16 until NA 20, Billy Lee; 15 until NA 21, Genjuro; NA 22:
                                         Kuroko; 14 at NA 23: SS2's Hanzo; 13 at NA 24: Rosa, TODO #213; 12 with the Neo Geo

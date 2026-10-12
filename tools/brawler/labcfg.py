@@ -15,7 +15,7 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
         (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version), each
         draft section asked for (SECTIONS: "levels" -> levels.py merge, stage names / backgrounds / songs; "game" ->
-        gamecfg.py merge, the game-wide numbers and texts),
+        gamecfg.py merge, the game-wide numbers and texts; "roster" -> roster.py merge, who is selectable + the select layout),
         rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, git commit
         (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
         push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
@@ -80,8 +80,8 @@ FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
 # the Factory's draft sections (the feedback service lab/<name>, server.py SECTIONS): name -> its tool, whose `merge GAME
 # DRAFT.json` checks the draft against the game and writes it into game.json ("<name>: ..." change lines, or REFUSED) and
 # whose `state GAME` is what the page shows of the game (reported after each ship: lab/<name>_game)
-SECTIONS = {'levels': 'levels.py', 'game': 'gamecfg.py'}
-PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'game': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
+SECTIONS = {'levels': 'levels.py', 'game': 'gamecfg.py', 'roster': 'roster.py'}
+PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'game': 'compile', 'roster': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
          'regress bleed': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
 STATE = {'state': 'idle'}                                # what the heartbeat says (ship_one updates it)
 
@@ -194,6 +194,12 @@ def levels_report(c):
                            capture_output=True, text=True, env=env, timeout=1800)
         if r.returncode: print('levels previews failed:', (r.stderr or r.stdout).strip()[-300:], flush=True)
     except (SystemExit, Exception) as e: print('levels previews failed:', e, flush=True)
+    try:                                                 # Roster & select's editor: the build's select screen as data
+        sj = os.path.join(c['logs'], 'select.json')
+        subprocess.run(['nice', '-n', str(c['nice']), sys.executable, os.path.join(c['repo'], 'tools', 'brawler', 'chainlab', 'select_images.py'), game, sj],
+                       capture_output=True, text=True, env=env, timeout=600, check=True)
+        if HOST: subprocess.run(['rsync', '-a', sj, f'{HOST}:{c.get("factory_dest", "/data/brawler-factory")}/select.json'], check=True, capture_output=True)
+    except (SystemExit, Exception) as e: print('select.json failed:', e, flush=True)
     for n, tool in SECTIONS.items():
         try:
             st = subprocess.run([sys.executable, os.path.join(c['repo'], 'tools', 'brawler', tool), 'state', game], capture_output=True, text=True, check=True).stdout

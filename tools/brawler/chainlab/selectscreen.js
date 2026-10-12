@@ -9,7 +9,10 @@
  * is the whole street (KOF95's stage 2, its layers as composited, scrolled sideways), a fighter goes anywhere along it,
  * and the camera's view for the selected fighter (what the screen shows with him highlighted) is a rectangle on it,
  * that screen drawn below as the game draws it. Save = the feedback service (feedback-api/select_layout, server.py), which
- * tools/brawler/select_layout.py pulls into game.json "select_layout" for the build. */
+ * tools/brawler/select_layout.py pulls into game.json "select_layout" for the build.
+ * Hosted (window.SelectHost, the Brawler Factory's Roster & select, 2026-10-12): {col, data (select.json's URL),
+ * prepare(D) -> the layout to edit (the draft's; fighters not in the build yet added to D as placeholders), save(L)
+ * (async: the roster draft), active() (its keys)}: no tab, no browser draft, no "Load saved". */
 (async function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -21,19 +24,22 @@
     return e;
   };
   const clone = x => JSON.parse(JSON.stringify(x));
-  const col = $('selcol'), tabBtn = $('tabSelect');
-  if (!col || !tabBtn) return;
+  const host = window.SelectHost || null;
+  const col = host ? host.col : $('selcol'), tabBtn = host ? null : $('tabSelect');
+  if (!col || (!host && !tabBtn)) return;
   let D;
-  try { D = await (await fetch('select.json', { cache: 'no-cache' })).json(); } catch (e) { tabBtn.disabled = true; return; }
+  try { D = await (await fetch(host ? host.data : 'select.json', { cache: 'no-cache' })).json(); } catch (e) { if (tabBtn) tabBtn.disabled = true; else col.textContent = 'select.json could not be read'; return; }
   R.prepare(D);
+  const HOSTL = host ? host.prepare(D) : null;  // (the placeholders added to D before the layout is read)
   const API = 'feedback-api/select_layout';
   const GAME = clone(D.layout);                  // the build's layout (select.json)
   const DRAFT = 'brawlerlab.select.' + D.version;
   let L = clone(GAME), sel = null, cursor = null, unlocked = false, last = null, street = null, scale = 2, saved = null, S = null, arrows = 'cursor';
   let stickMode = D.stick || 'positions';        // game.json select.stick (the build's): 'positions', or 'order' = the list's override
-  try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d && Object.keys(d).length === Object.keys(GAME).length && Object.keys(d).every(n => GAME[n])) L = d; } catch (e) { /* none */ }
+  if (HOSTL) L = clone(HOSTL);
+  else try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d && Object.keys(d).length === Object.keys(GAME).length && Object.keys(d).every(n => GAME[n])) L = d; } catch (e) { /* none */ }
   const undo = [];
-  const keep = () => { try { localStorage.setItem(DRAFT, JSON.stringify(L)); } catch (e) { /* private window */ } };
+  const keep = () => { if (host) return; try { localStorage.setItem(DRAFT, JSON.stringify(L)); } catch (e) { /* private window */ } };
   const snapshot = () => { undo.push(JSON.stringify(L)); if (undo.length > 100) undo.shift(); };
   const disp = n => D.fighters[n].name;
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -62,7 +68,7 @@
     h('div', { class: 'box' },
       h('h2', {}, h('span', {}, 'Select screen: the street in front of the Neo Geo Land'),
         h('span', { class: 'note' }, `build ${D.version} · the whole street (${SWW} px; scroll it sideways) · drag a fighter anywhere along it; arrow keys nudge the selected one 1 px (Shift: 8 px)`), h('span', { class: 'sp' }),
-        h('button', { id: 'selSave', onclick: save }, 'Save'), h('button', { onclick: loadSaved }, 'Load saved'),
+        h('button', { id: 'selSave', onclick: save }, host ? 'Save to the draft' : 'Save'), host ? null : h('button', { onclick: loadSaved }, 'Load saved'),
         h('button', { onclick: () => { snapshot(); L = clone(GAME); edited(); } }, 'Load current game layout'),
         h('button', { onclick: () => { if (undo.length) { L = JSON.parse(undo.pop()); edited(); } } }, 'Undo')),
       h('div', { class: 'in' },
@@ -280,7 +286,7 @@
   };
   view.onpointerup = view.onpointercancel = () => { if (drag && drag.moved) keep(); drag = null; };
   addEventListener('keydown', e => {                // the arrows nudge (before the game's keys: app.js)
-    if (window.labTabName !== 'select' || !sel) return;
+    if ((host ? !host.active() : window.labTabName !== 'select') || !sel) return;
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.code];
     if (!d) return;
@@ -292,6 +298,11 @@
   // ---- save / load (the feedback service, behind the same Oros login as the Lab) ------------------------------------------
   async function save() {
     status.textContent = 'saving…';
+    if (host) {
+      try { await host.save(clone(L)); saved = { layout: clone(L), saved: 'the draft' }; draw(); status.textContent = 'saved to the draft: Ship pending changes (the Build tab) puts it in the game'; }
+      catch (e) { status.textContent = 'Save failed: ' + e.message; }
+      return;
+    }
     try {
       const r = await fetch(API, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ layout: L, game_version: D.version }) });
       const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
@@ -313,6 +324,7 @@
 
   // ---- the tab ----------------------------------------------------------------------------------------------------------
   let pausedByUs = false;
+  if (host) { window.selectTab = { get layout() { return L; }, draw, get stick() { return S; } }; draw(); return; }
   tabBtn.onclick = () => window.labTab('select');
   window.addEventListener('labtab', e => {
     const on = e.detail === 'select';
