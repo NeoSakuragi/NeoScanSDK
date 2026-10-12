@@ -1,0 +1,283 @@
+#!/usr/bin/env python3
+"""The Last Blade 2's special moves and throws as brawler programs (bprim_t, fighter.c prog_update), read from the ROM.
+
+LB2 keeps a special's logic in DATA [code]: the recogniser's result is a row of the move table ($A0000[row * 256 +
+state class - 1]), the move is a descriptor (bank 2, $76554[char] + 16 move: animation numbers and control words), and
+each animation is a bytecode script (frames + ticks per style, velocities / accelerations with their frame counts,
+landings and button waits, boxes, sounds, effect objects). model_lb2.py plays that data exactly as the 68000 code does
+(check_model.py: every special's frame, x and height equal to the game's in our emulator). A special's program is
+generated from that play: one program state per run of frames whose motion is one velocity + one acceleration (the
+script's segments), its steps the frames shown in it; each state = P_ANIM, the velocities, a frame count, then per
+frame P_MOVE / P_ADD (x: v += a before the move, LB2's $2BC9C order) and P_FALL (height), P_DEC, the next state when
+the count runs out. `check` plays every program with the brawler's own player (handlers_ss2.Play, a port of fighter.c
+prog_update) against the model, frame by frame. Each button version is its own special (input '214A', '214B' ...: one
+S- piece each). Throws: the paired script of the thrower's animation and the victim's own thrown animation.
+
+Labels: [code] read in the disassembly (/data/tmp/lastbld2/*.dis), [meas] measured in our emulator."""
+import json, os, sys
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, '..', 'samsho2'))
+import lb2 as L, model_lb2 as M
+import handlers_ss2 as HS                       # the brawler's op numbers (bm_chars.h P_* / PC_*) and its player (Play)
+
+P, REG, PC = HS.P, HS.REG, HS.PC
+R_HEAVY, R_KNOCKDOWN, R_LAUNCH = HS.R_HEAVY, HS.R_KNOCKDOWN, HS.R_LAUNCH
+SPECIAL_DAMAGE = HS.SPECIAL_DAMAGE
+
+# ---- the recogniser ($3144A) ---------------------------------------------------------------------------------------
+# per character long $76C14[char] -> per button class ($76B74[buttons >> 4]: A 1, B 2, C 3, D 4, A+B 5) a linked list of
+# entries [long next][type: window $76C04 (0 23, 1 39, 2 15, 3 19 frames)][pattern bytes]: a byte with low nibble F is
+# an op (high nibble, $76B84: 0 charge [frames][dirs], 1 desperation (Power / EX, gauge full, life < 65), 2 super
+# (gauge full, or life < 65), 3 Speed / EX gauge full, 4 [cls] state class ==, 5 [h] height <=, 6 on the ground,
+# 7 always, 8 [cls] state class !=, 9 [x] (a sound), 10 [cls] class <, 11 [cls] class >=, 12 [k] sub-condition $76BC4,
+# 13 gauge >= 64, 14 refused, 15 [row] matched: the result row); else a stick direction (1 up, 2 down, 4 back, 8
+# forward once turned to the opponent), the most recent first.
+DIRS = {0: '5', 1: '8', 2: '2', 4: '4', 8: '6', 5: '7', 6: '1', 9: '9', 10: '3'}
+BUTTON_CLASS = {1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'AB'}
+
+def commands(ch):
+    """[(buttons, input numpad oldest first, ops [(op, arg)], row)] of the character's recogniser lists"""
+    t = L.u32(0x76C14 + 4 * (ch & 31)); out = []
+    for bc, bn in BUTTON_CLASS.items():
+        a = L.u32(t + 4 * bc)
+        for _ in range(64):
+            if not a: break
+            nxt = L.u32(a); q = a + 5; dirs, ops, row = [], [], None
+            for _ in range(40):
+                c = L.u8(q); q += 1
+                if c & 15 == 15:
+                    op = c >> 4
+                    if op == 15: row = L.u8(q); break
+                    if op == 14: break
+                    arg = None
+                    if op == 0: arg = (L.u8(q), L.u8(q + 1)); q += 2
+                    elif op in (4, 5, 8, 9, 10, 11, 12): arg = L.u8(q); q += 1
+                    ops.append((op, arg))
+                else: dirs.append(c & 15)
+            if row is not None:
+                out.append((bn, ''.join(DIRS.get(d, '?') for d in reversed(dirs)), ops, row))
+            a = nxt
+    return out
+
+# ---- Moriya's specials (SNK's names: snk.fandom.com "Moriya Minakata/Move List", read through its API 2026-10-12;
+# /data/neogeo_dict/lastbld2/moriya_movelist_wiki.txt). input -> (row, style, name). The rows from the recogniser
+# lists (commands(1)); the move = $A0000[row][class 1] (standing), its descriptor and animations [code]:
+#   236A  row $77 -> move $90 [801B 8001 9002 00B6]: Ittou Tsukikage, A (the first slash; again 236A x2 from its window)
+#   236B  row $78 -> $91 [801B 8001 9002 00B9]      623A row $79 -> $92 [8001 9002 00B4]: Ittou Shingetsu
+#   623B  row $7A -> $93 [8001 9004 00B5]: Ittou Shingetsu Ri
+#   214A/B/C rows $7B-$7D -> $94-$96 [8001 0092 (A2C6 9CC5: farther than 176 / 96 px -> moves $C6 / $C5) 8001 0094]:
+#         Ittou Oboro (high / mid / low); the stand-by: anim $92's segment $84xx holds while the button is held
+#   412A/B/C rows $7E-$80 -> $97-$99 [8001 00B3 8009 / 800A / 800B 00AF / 00B0]: Taitou Hogetsu, the teleport (sub-ops
+#         9 / 10 / 11: placed 288 short of / 80 short of / 110 past the opponent: P_WARP)
+#   64123AB row $86 -> $9F [8001 800D 00A0 8001 00A1]: Kassatsu Izayoi Gekka (super: gauge full or life < 65)
+#   641236B row $8A -> $A3 [8001 801B 800D 00A2]: Kassatsu Midare Setsugekka (desperation: Power / EX, gauge, low life)
+#   22A / 22B rows $8C / $8D -> $A5 / $A6 [800D 8001 01C1 01C4 / 01C2 01C5]: Kassatsu Byakuya (Speed / EX's super)
+SPECIALS = {
+    'moriya': {
+        '236A': (0x77, 0, 'Ittou Tsukikage, A'), '236B': (0x78, 0, 'Ittou Tsukikage, B'),
+        '623A': (0x79, 0, 'Ittou Shingetsu'), '623B': (0x7A, 0, 'Ittou Shingetsu Ri'),
+        '214A': (0x7B, 0, 'Ittou Oboro, A (high)'), '214B': (0x7C, 0, 'Ittou Oboro, B (mid)'), '214C': (0x7D, 0, 'Ittou Oboro, C (low)'),
+        '412A': (0x7E, 0, 'Taitou Hogetsu, A (back)'), '412B': (0x7F, 0, 'Taitou Hogetsu, B (forward)'), '412C': (0x80, 0, 'Taitou Hogetsu, C (behind)'),
+        '64123AB': (0x86, 0, 'Kassatsu Izayoi Gekka (super)'), '641236B': (0x8A, 0, 'Kassatsu Midare Setsugekka (desperation)'),
+        '22A': (0x8C, 1, 'Kassatsu Byakuya, A (Speed super)'), '22B': (0x8D, 1, 'Kassatsu Byakuya, B (Speed super)'),
+    }}
+# the descriptor's teleports -> P_WARP (a = 0: at its target, b px short of it, turned to it; model_lb2.WARP)
+WARP_B = {9: 288, 10: 80, 11: -110}
+
+def move_of(row, cls=1): return M.transition(row, cls)
+
+# ---- a move as frames (the model) -> program states --------------------------------------------------------------------
+def move_rows(ch, move, mode=0):
+    """model rows of a move from its first frame to the frame before neutral (anim 0 again: the descriptor's end)"""
+    o = M.Obj(ch, mode, opp_dx=0); o.start_move(move)
+    rows = []
+    for _ in range(900):
+        r = o.frame()
+        if rows and r['anim'] == 0 and getattr(o, 'done', False): break
+        rows.append(r)
+    return rows, o.events
+
+def segments(rows, events):
+    """runs of frames with one motion (constant velocity + acceleration in x and in height) and no teleport inside:
+    [(first, last)]"""
+    warps = {e[0] for e in events if e[1] == 'warp'}
+    x = [0.0] + [r['x'] for r in rows]; h = [0.0] + [r['h'] for r in rows]
+    dx = [x[k + 1] - x[k] for k in range(len(rows))]; dh = [h[k + 1] - h[k] for k in range(len(rows))]
+    segs, s = [], 0
+    for k in range(1, len(rows)):
+        n = k - s
+        cut = k in warps
+        if not cut and n >= 2:
+            ax0, ah0 = dx[s + 1] - dx[s], dh[s + 1] - dh[s]
+            cut = abs((dx[k] - dx[k - 1]) - ax0) > 1e-6 or abs((dh[k] - dh[k - 1]) - ah0) > 1e-6
+        if cut: segs.append((s, k - 1)); s = k
+    segs.append((s, len(rows) - 1))
+    return segs, dx, dh
+
+def openings(steps): return HS.openings(steps)
+
+def standard_reacts(steps, base):
+    sys.path.insert(0, os.path.join(HERE, '..', 'samsho2'))
+    import export_ss2 as X
+    X.standard_reacts(steps, base)
+
+def program(B, ch, move, mode=0, name=''):
+    """-> (prims, states, anims_d, rows, segs) for a move"""
+    import export_lb2 as X
+    rows, ev = move_rows(ch, move, mode)
+    segs, dx, dh = segments(rows, ev)
+    warps = {e[0]: e[2] for e in ev if e[1] == 'warp'}
+    ops, states, anims_d = [], [], {}
+    for i, (a, b) in enumerate(segs):
+        n = b - a + 1
+        steps = X.collapse(B, rows[a:b + 1])
+        steps[0]['ticks'] += 1                        # the brawler's clock: P_ANIM's frame advances once (handlers_ss2
+        if steps[-1]['ticks']: steps[-1]['ticks'] -= 1   # rom_steps: the start frame shows the first step)
+        k = f'{i}:{rows[a]["anim"]:x}.{a}'
+        anims_d[k] = {'mode': 'hold', 'steps': steps, 'lb2': [rows[a]['anim'], a, b]}
+        states.append(k)
+        vx = dx[a]; ax = (dx[a + 1] - dx[a]) if n > 1 else 0.0
+        vh = dh[a]; ah = (dh[a + 1] - dh[a]) if n > 1 else 0.0
+        air = any(rows[j]['h'] > 0 for j in range(a, b + 1)) or (a and rows[a - 1]['h'] > 0)
+        ops.append(('label', ('E', i)))
+        if a in warps: ops.append(('warp', 0, WARP_B[warps[a]], 0))
+        ops.append(('anim', i))
+        ops += [('set', 'vx', round(vx * 65536)), ('set', 'cnt', n - 1)]
+        if air: ops += [('set', 'vy', round(vh * 65536)), ('set', 'g', round(-ah * 65536))]
+        ops.append(('resume',))
+        # every frame of the state: v += a then the move (x); the height's P_FALL moves then accelerates, so its vy
+        # starts at the first frame's displacement
+        ops.append(('move',))
+        if ax: ops.append(('add', 'vx', round(ax * 65536)))
+        if air: ops.append(('fall',))
+        ops += [('dec',), ('br', 'cnt', 1, ('S', i)), ('br', 'always', 1, 'yield'),
+                ('label', ('S', i)), ('resume_at', ('E', i + 1)), ('br', 'always', 1, 'yield')]
+    ops += [('label', ('E', len(segs))), ('label', 'END'), ('end',)]
+    return ops, states, anims_d, rows, segs, ev
+
+def assemble(ops):
+    lab, out = {}, []
+    for o in ops:
+        if o[0] == 'label': lab[o[1]] = len(out)
+        else: out.append(o)
+    res = []
+    for o in out:
+        if o[0] == 'br': res.append(('br', o[1], o[2], -1 if o[3] == 'yield' else lab[o[3]]))
+        elif o[0] in ('jmp', 'resume_at'): res.append((o[0], lab[o[1]]))
+        else: res.append(o)
+    return res
+
+def encode(o):
+    n = o[0]
+    if n == 'anim': return [P['anim'], o[1], 0, 0]
+    if n in ('set', 'add'): return [P[n], REG[o[1]], 0, o[2]]
+    if n == 'br': return [P['br'], PC[o[1]] | (0x80 if o[2] else 0), o[3], 0]
+    if n in ('jmp', 'resume_at'): return [P[n], 0, o[1], 0]
+    if n == 'fall': return [P['fall'], 1, 0, 0]
+    if n == 'warp': return [P['warp'], o[1], o[2], o[3]]
+    return [P[n], 0, 0, 0]
+
+def special(B, ch, name, inp):
+    row, mode, sname = SPECIALS[name][inp]
+    move = move_of(row)
+    ops, states, anims_d, rows, segs, ev = program(B, ch, move, mode, inp)
+    prims = [encode(o) for o in assemble(ops)]
+    nh = sum(sum(openings(anims_d[s]['steps'])) for s in states)
+    each = max(1, SPECIAL_DAMAGE // max(1, nh))
+    hitting = [j for j, s in enumerate(states) if any(openings(anims_d[s]['steps']))]
+    for p in prims:
+        if p[0] == P['anim']:
+            j = p[1]; react = R_KNOCKDOWN if hitting and j == hitting[-1] else R_HEAVY
+            p[2] = each | react << 8
+    for j, s in enumerate(states):
+        standard_reacts(anims_d[s]['steps'], R_KNOCKDOWN if hitting and j == hitting[-1] else R_HEAVY)
+    # the brawler's player on it: length, apex, its rows (the Lab's script)
+    anims_l = [{'steps': anims_d[s]['steps'], 'hold': True} for s in states]
+    pl = HS.Play([tuple(p) for p in prims], anims_l)
+    prow = []
+    while len(prow) < 900:
+        r = pl.frame()
+        if r is None: break
+        prow.append(r)
+    script = [[anims_l[r[0]]['steps'][r[1]]['frame'], int(r[2]), int(r[3]), []] for r in prow] or [[0, 0, 0, []]]
+    rb = [anims_l[r[0]]['steps'][r[1]]['boxes'] for r in prow] or [{}]
+    rs = [[r[0], r[1], anims_l[r[0]]['steps'][r[1]]['flags'], 0xFF] for r in prow] or [[0, 0, 0, 0xFF]]
+    opens = [i for i, r in enumerate(prow) if (i == 0 or prow[i - 1][:2] != r[:2]) and openings(anims_l[r[0]]['steps'])[r[1]]]
+    apex = max(range(len(prow)), key=lambda i: prow[i][3]) if prow else 0
+    snd = [[e[0], e[2]] for e in ev if e[1] == 'snd']
+    rom = {'states': states, 'anims': anims_d, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1,
+           'last_hit': opens[-1] if opens else -1, 'apex': apex if prow and prow[apex][3] > 0 else -1,
+           'length': len(prow), 'voice_frames': True, 'now': True,
+           'vtable': {'rows': [], 'ncol': 0, 'nvar': 0, 'default': 0, 'vanim': len(states), 'vobj': 0, 'vdmg': 0,
+                      'buttons': [], 'results': [row], 'hits': [nh]}}
+    return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'name': sname, 'base_input': inp,
+            'row_boxes': rb, 'row_steps': rs, 'marks': [''] * len(script), 'projectiles': [],
+            'anims': sorted({r['anim'] for r in rows}), 'shape': [max(r[1] for r in script), max(r[2] for r in script), False],
+            'game_hits': len(opens), 'rom': rom,
+            'lb2': {'row': row, 'move': move, 'style': mode, 'descriptor': M.descriptor(ch, move), 'sounds': snd,
+                    'segments': segs},
+            'ss2': {'results': [row], 'sounds': [], 'code_sounds': [], 'code_voices': []}}
+
+def specials(B, ch, name, lab=False, inputs=None):
+    return [special(B, ch, name, inp) for inp in SPECIALS[name]]
+
+# ---- the Character Lab's LAB special: every animation of the dictionary as its own program block (export96 /
+# handlers_ss2.lab_special's twin): [P_LANIM j, P_RESUME, P_BR end yield, P_END]
+def lab_special(B, ch, entries):
+    import export_lb2 as X
+    anims, states, ids, prims, bad = {}, [], [], [], []
+    for x, a in entries:
+        try:
+            st = X.anim_steps(B, ch, a)
+            if not st: raise ValueError('no steps')
+        except Exception as e:
+            bad.append((x, str(e)[:60])); continue
+        o = sum(openings(st))
+        standard_reacts(st, R_KNOCKDOWN if o else R_HEAVY)
+        k = f'L{len(states)}:{a}'; anims[k] = {'mode': 'hold', 'steps': st, 'lb2': a}
+        prims += [[P['lanim'], max(1, SPECIAL_DAMAGE // o) if o else 0, R_KNOCKDOWN if o else R_HEAVY, len(states) << 8],
+                  [P['resume'], 0, 0, 0], [P['br'], PC['end'], -1, 0], [P['end'], 0, 0, 0]]
+        states.append(k); ids.append(int(x, 16))
+    s0 = anims[states[0]]['steps']
+    rom = {'states': states, 'anims': anims, 'prims': prims, 'objects': [], 'openings': {}, 'hit_kind': 1, 'last_hit': -1,
+           'apex': -1, 'length': 0, 'vtable': {}, 'lab': True, 'lab_ids': ids, 'now': True}
+    return {'input': 'LAB', 'condition': 'normal', 'version': 'whiff', 'script': [[s0[0]['frame'], 0, 0, []]], 'row_boxes': [{}],
+            'row_steps': [[0, 0, 0, 0xFF]], 'marks': [''], 'projectiles': [], 'anims': [ids[0]], 'shape': [0, 0, False],
+            'game_hits': 0, 'rom': rom, 'ss2': {'results': [], 'sounds': [], 'code_sounds': [], 'code_voices': []}}, bad
+
+# ---- win poses (the round end): filled from the code below (win_anims) ----
+WINS = {'moriya': []}
+def win_anims(B, ch, name):
+    import export_lb2 as X
+    out = {}
+    for k, a in enumerate(WINS.get(name, [])):
+        out['win' if k == 0 else f'win_{k + 1}'] = {'slot': a, 'mode': 'hold', 'steps': X.anim_steps(B, ch, a)}
+    return out
+
+# ---- throws ----
+def throws(B, ch, name):
+    return {}
+
+# ---- check: the programs against the model, frame by frame ------------------------------------------------------------
+def check(name='moriya'):
+    import export_lb2 as X
+    ch = X.CAST[name]; B = X.Builder(ch); res = {}
+    for inp in SPECIALS[name]:
+        sp = special(B, ch, name, inp)
+        rows, ev = move_rows(ch, move_of(SPECIALS[name][inp][0]), SPECIALS[name][inp][1])
+        warps = sorted(e[0] for e in ev if e[1] == 'warp')
+        sc = sp['script']; n = min(len(sc), len(rows)); eq = 0; bad = None
+        for k in range(n):
+            fid = B.frames[sc[k][0]]['lb2']['frame']
+            ok = fid == rows[k]['frame'] and (warps or abs(sc[k][1] - int(rows[k]['x'])) <= 1) and abs(sc[k][2] - int(rows[k]['h'])) <= 1
+            eq += ok
+            if not ok and bad is None: bad = (k, fid, sc[k][1], sc[k][2], rows[k]['frame'], round(rows[k]['x'], 1), round(rows[k]['h'], 1))
+        res[inp] = dict(model=len(rows), program=len(sc), equal=eq, first_bad=bad, states=len(sp['rom']['states']))
+        print(inp, res[inp])
+    return res
+
+if __name__ == '__main__':
+    if sys.argv[1:2] == ['commands']:
+        for c in commands(int(sys.argv[2]) if len(sys.argv) > 2 else 1): print(c, hex(move_of(c[3])))
+    else: check()
