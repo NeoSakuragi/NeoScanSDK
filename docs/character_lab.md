@@ -341,6 +341,18 @@ after each shipped version the service runs `levels.py previews` (missing MP3s, 
 cached in /data/brawler-ship/previews, rsync'd to the VPS /data/brawler-factory/songs/) and posts `levels.py state` to
 `lab/levels_game` (what the page shows as "the game"). In-game check: `levels_check.py GAME_DIR OUT`.
 
+### The Factory's Game tab and the draft sections (2026-10-12)
+
+`/brawler-factory/?tab=game` (`factory/game.js`): the game-wide numbers and texts of game.json that recompile with no
+token (`tools/brawler/gamecfg.py`: Meter, Combat (damage tiers, Blitz, chain window / buffer / juggle limit / stuns, the
+super flash), Physics (walk / run, jump timings), Throws (throw_swap, throw_handoff), Texts (each fighter's ending story,
+the thanks line)), each with its range (build_tables.py's asserts + their cross rules), its default (the value of
+2026-10-12), "changed from", reset. Levels and Game are both a **draft section**, one mechanism: `server.py SECTIONS`
+(name -> its shape check; `GET|POST lab/<name>`, `LAB/<name>.json` + `.history.jsonl`, `POST lab/<name>_game` = the ship
+service's report), `labcfg.py SECTIONS` (name -> its tool: `<tool> merge GAME DRAFT.json` writes it into game.json with
+"<name>: ..." change lines or `REFUSED`, `<tool> state GAME` is reported after each ship), `ship_batch {<name>: true}`.
+A new section = one entry in each table + its tool.
+
 ## The server API
 
 The pages and the Player talk to the feedback service (`tools/feedback/server.py`, unit `brawler-feedback`): the pages

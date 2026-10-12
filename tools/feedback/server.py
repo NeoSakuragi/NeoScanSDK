@@ -697,59 +697,87 @@ def lab_ship_batch(req, by):
     ({fighters: [f...]}) or none ({rebuild: true}: no data change, the engine as pushed); revs = each fighter's live rev"""
     fs = req.get('fighters') or []
     if not isinstance(fs, list) or not all(isinstance(x, str) and FIGHTER.match(x) for x in fs): return None, 'fighters: a list of fighter names'
-    lv = (levels_load().get('draft') or {}).get('rev') if req.get('levels') else None   # (the Levels draft: its revision)
-    if req.get('levels') and not lv: return None, 'no levels draft to ship'
-    if not fs and not lv and not req.get('rebuild'): return None, 'no fighter to ship (give fighters, levels: true, or rebuild: true)'
+    secs = {}                                            # the Factory's draft sections asked for ({levels: true, game: true}): their revisions
+    for n in SECTIONS:
+        if not req.get(n): continue
+        secs[n] = (section_load(n).get('draft') or {}).get('rev')
+        if not secs[n]: return None, 'no %s draft to ship' % n
+    if not fs and not secs and not req.get('rebuild'): return None, 'no fighter to ship (give fighters, a section (%s): true, or rebuild: true)' % ', '.join(SECTIONS)
     revs = {f: (lab_current(f) or {'version': 0})['version'] for f in fs}
     with lab_lock:
         rows = lab_ships()
-        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': '+'.join(fs + (['levels'] if lv else [])) or 'rebuild', 'fighters': fs, 'revs': revs,
-               'kind': 'batch' if fs or lv else 'rebuild', 'rev': 0, 'hash': '', 'by': by, 'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
-        if lv: row['levels'] = lv
+        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': '+'.join(fs + list(secs)) or 'rebuild', 'fighters': fs, 'revs': revs,
+               'kind': 'batch' if fs or secs else 'rebuild', 'rev': 0, 'hash': '', 'by': by, 'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
+        row.update(secs)                                 # (row[section] = the draft revision shipped)
         rows.append(row); lab_ship_save(rows)
     log('lab ship batch', row['id'], row['fighter'], 'by', by)
     return row, None
 
 
-LEVELS = os.path.join(LAB, 'levels.json')                    # the Factory's Levels: {draft: {rev, stages, by, at}, game: {...}}
+# THE FACTORY'S DRAFT SECTIONS (Levels, Game: one mechanism): a section = a part of game.json the Factory edits as a
+# draft. LAB/<name>.json = {draft: {rev, <its fields>, by, at}, game: <the ship service's report of the game>}; every
+# draft revision kept (<name>.json.history.jsonl). Each section: a shape check here (its clean function), its real
+# check against the game by the ship service (tools/brawler/labcfg.py SECTIONS: <tool> merge -> game.json).
 LEVEL_NAME = re.compile(r'^[A-Z0-9 .!-]{1,12}$')               # (tools/brawler/levels.py NAME)
 SONG_NAME = re.compile(r'^[A-Z0-9_]{1,32}$')
+KNOB_ID = re.compile(r'^[a-z_]+(\.[a-z0-9_*]+){0,4}$')         # (tools/brawler/gamecfg.py: a game.json path)
 
 
-def levels_load():
-    try: return json.load(open(LEVELS))
+def levels_clean(req):
+    """the Levels draft {stages: [{name, background, music}...]}"""
+    st = req.get('stages')
+    if not isinstance(st, list) or not 1 <= len(st) <= 32: return None, 'stages: a list of {name, background, music}'
+    clean = []
+    for i, x in enumerate(st):
+        if not isinstance(x, dict) or not isinstance(x.get('name'), str) or not LEVEL_NAME.match(x['name']):
+            return None, 'stage %d: name: 1-12 characters A-Z 0-9 space . ! -' % (i + 1)
+        if not isinstance(x.get('background'), int) or not isinstance(x.get('music'), str) or not SONG_NAME.match(x['music']):
+            return None, 'stage %d: background (a number) and music (a song name)' % (i + 1)
+        clean.append({'name': x['name'], 'background': x['background'], 'music': x['music']})
+    return {'stages': clean}, None
+
+
+def game_clean(req):
+    """the Game draft {values: {knob id: a number, a word / line, or a story's 4-5 sentences}} (only what differs from
+    the game; ranges checked by gamecfg.py merge)"""
+    v = req.get('values')
+    if not isinstance(v, dict) or len(v) > 200: return None, 'values: {knob id: value}'
+    ok = lambda x: (isinstance(x, (int, float)) and not isinstance(x, bool)) or (isinstance(x, str) and len(x) <= 200)
+    for k, x in v.items():
+        if not KNOB_ID.match(k): return None, '%s: not a knob id' % k[:60]
+        if not (ok(x) or (isinstance(x, list) and len(x) <= 5 and all(isinstance(s, str) and len(s) <= 200 for s in x))): return None, '%s: bad value' % k
+    return {'values': v}, None
+
+
+SECTIONS = {'levels': levels_clean, 'game': game_clean}
+
+
+def section_file(n): return os.path.join(LAB, n + '.json')
+
+
+def section_load(n):
+    try: return json.load(open(section_file(n)))
     except (OSError, ValueError): return {}
 
 
-def levels_save(d):
-    os.makedirs(LAB, exist_ok=True)
-    with open(LEVELS + '.part', 'w') as o: json.dump(d, o, indent=1, ensure_ascii=False)
-    os.replace(LEVELS + '.part', LEVELS)
-
-
-def levels_put(req, by, game=False):
-    """the page's draft {stages: [{name, background, music}...]} (a new revision, checked in shape here, against the
-    game by the ship service: tools/brawler/levels.py), or the ship service's report of the game (levels.py state:
-    what the build plays, its backgrounds and songs)"""
+def section_put(n, req, by, game=False):
+    """the page's draft (a new revision, its shape checked by SECTIONS[n]), or the ship service's report of the game
+    (<tool> state: what the build plays)"""
+    p = section_file(n)
     with lab_lock:
-        d = levels_load()
+        d = section_load(n)
         if game:
-            if not isinstance(req.get('stages'), list): return None, 'game: levels.py state'
+            if not isinstance(req, dict): return None, 'game: the section tool\'s state'
             d['game'] = dict(req, at=now())
         else:
-            st = req.get('stages')
-            if not isinstance(st, list) or not 1 <= len(st) <= 32: return None, 'stages: a list of {name, background, music}'
-            clean = []
-            for i, x in enumerate(st):
-                if not isinstance(x, dict) or not isinstance(x.get('name'), str) or not LEVEL_NAME.match(x['name']):
-                    return None, 'stage %d: name: 1-12 characters A-Z 0-9 space . ! -' % (i + 1)
-                if not isinstance(x.get('background'), int) or not isinstance(x.get('music'), str) or not SONG_NAME.match(x['music']):
-                    return None, 'stage %d: background (a number) and music (a song name)' % (i + 1)
-                clean.append({'name': x['name'], 'background': x['background'], 'music': x['music']})
-            d['draft'] = {'rev': ((d.get('draft') or {}).get('rev') or 0) + 1, 'stages': clean, 'by': by, 'at': now()}
-            with open(LEVELS + '.history.jsonl', 'a') as hf: hf.write(json.dumps(d['draft'], ensure_ascii=False) + '\n')
-        levels_save(d)
-    log('lab levels', 'game' if game else 'draft rev %d' % d['draft']['rev'], 'by', by)
+            clean, err = SECTIONS[n](req)
+            if err: return None, err
+            d['draft'] = dict(clean, rev=((d.get('draft') or {}).get('rev') or 0) + 1, by=by, at=now())
+            with open(p + '.history.jsonl', 'a') as hf: hf.write(json.dumps(d['draft'], ensure_ascii=False) + '\n')
+        os.makedirs(LAB, exist_ok=True)
+        with open(p + '.part', 'w') as o: json.dump(d, o, indent=1, ensure_ascii=False)
+        os.replace(p + '.part', p)
+    log('lab', n, 'game' if game else 'draft rev %d' % d['draft']['rev'], 'by', by)
     return d, None
 
 
@@ -1167,7 +1195,7 @@ class H(http.server.BaseHTTPRequestHandler):
             except (OSError, ValueError): beat = None
             return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi or fi in (x.get('fighters') or []))],
                                     'daemon': beat, 'now': now()})
-        if parts == ['levels']: return self.reply(200, levels_load())
+        if len(parts) == 1 and parts[0] in SECTIONS: return self.reply(200, section_load(parts[0]))   # a Factory draft section + the game's
         if len(parts) == 2 and parts[0] == 'ship_log' and parts[1].isdigit():
             p = os.path.join(SHIP_LOGS, parts[1] + '.log')
             if not os.path.exists(p): return self.reply(404, {'error': 'no log for request ' + parts[1]})
@@ -1203,10 +1231,11 @@ class H(http.server.BaseHTTPRequestHandler):
             if req is None: return
             row, err = lab_ship(parts[1], req, user) if parts[0] == 'ship' else lab_ship_mark(req, user)
             return self.reply(400, {'error': err}) if err else self.reply(200, {'ship': row})
-        if parts in (['levels'], ['levels_game']):            # the Factory's Levels draft / the ship service's game report
+        sec = parts[0][:-5] if len(parts) == 1 and parts[0].endswith('_game') else parts[0] if len(parts) == 1 else None
+        if sec in SECTIONS:                                  # a Factory draft section (levels, game) / the ship service's game report
             req = self.json_body(1 << 16)
             if req is None: return
-            d, err = levels_put(req, user, parts == ['levels_game'])
+            d, err = section_put(sec, req, user, parts[0] != sec)
             return self.reply(400, {'error': err}) if err else self.reply(200, d)
         if parts == ['ship_batch']:
             req = self.json_body(1 << 14)

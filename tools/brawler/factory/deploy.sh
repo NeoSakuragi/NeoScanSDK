@@ -1,7 +1,7 @@
 #!/bin/bash
 # The Brawler Factory -> canneji.duckdns.org/brawler-factory/ (behind the Oros login, as /brawler-lab/: auth_request
 # /jlpt-auth, 401 -> its login.html, a copy of the Lab's). Files on the box: /data/brawler-factory/ (index.html,
-# factory.css, factory.js; songs/: the Levels tab's song previews, written by the ship service: levels.py). Everything else the page uses is the Lab's (its <base> is /brawler-lab/): this also sends the
+# factory.css, factory.js, game.js; songs/: the Levels tab's song previews, written by the ship service: levels.py). Everything else the page uses is the Lab's (its <base> is /brawler-lab/): this also sends the
 # Lab's arbitrage.js (the Assembly sheet the Factory embeds). The nginx block (between the "brawler-factory" markers in
 # sites-enabled/kanji, after the /brawler-lab/ block) is written once, checked with nginx -t, else removed again.
 #   tools/brawler/factory/deploy.sh
@@ -9,7 +9,7 @@ set -e
 HERE=$(cd "$(dirname "$0")" && pwd)
 HOST=root@195.201.91.211
 ssh -o BatchMode=yes $HOST 'mkdir -p /data/brawler-factory/songs && cp /data/brawler-lab/login.html /data/brawler-factory/login.html'
-rsync -a "$HERE/index.html" "$HERE/factory.css" "$HERE/factory.js" $HOST:/data/brawler-factory/
+rsync -a "$HERE/index.html" "$HERE/factory.css" "$HERE/factory.js" "$HERE/game.js" $HOST:/data/brawler-factory/
 rsync -a "$HERE/../chainlab/arbitrage.js" $HOST:/data/brawler-lab/
 ssh -o BatchMode=yes $HOST 'set -e; F=/etc/nginx/sites-enabled/kanji
 grep -q ">>> brawler-factory" $F && exit 0

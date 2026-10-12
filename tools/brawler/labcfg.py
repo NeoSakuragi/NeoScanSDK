@@ -13,8 +13,9 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         edits; every host path in the conf, tools/brawler/ship.example.json). Each request, one at a time (a fighter's
         older pending ones: dropped, superseded), stopping at the first failure ("<step>: <reason>", the checkout reset,
         the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
-        (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version), levels.py
-        merge (a request with "levels": the Factory's Levels draft -> game.json stage names / backgrounds / songs),
+        (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version), each
+        draft section asked for (SECTIONS: "levels" -> levels.py merge, stage names / backgrounds / songs; "game" ->
+        gamecfg.py merge, the game-wide numbers and texts),
         rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, git commit
         (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
         push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
@@ -76,7 +77,11 @@ def api_raw(path, data):
 FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
           'Claude-Session: https://claude.ai/code/session_01XhxN754ESQrKXnzjnRdvPt\n')
 # the Factory's Build tab shows a ship as these phases (each step of ship_one belongs to one)
-PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
+# the Factory's draft sections (the feedback service lab/<name>, server.py SECTIONS): name -> its tool, whose `merge GAME
+# DRAFT.json` checks the draft against the game and writes it into game.json ("<name>: ..." change lines, or REFUSED) and
+# whose `state GAME` is what the page shows of the game (reported after each ship: lab/<name>_game)
+SECTIONS = {'levels': 'levels.py', 'game': 'gamecfg.py'}
+PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'game': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
          'regress bleed': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
 STATE = {'state': 'idle'}                                # what the heartbeat says (ship_one updates it)
 
@@ -138,16 +143,17 @@ def ship_one(c, fighters, row):
             lines = out.splitlines()
             left += [f + ': ' + x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
             changes += [f + ': ' + x.split(':', 1)[1].strip() for x in lines if x.startswith('game.json roster changes:') and not x.startswith('game.json roster changes: none')]
-        if row.get('levels'):                            # the Factory's Levels draft (lab/levels), as it is now
-            dp = os.path.join(c['logs'], f'{row["id"]}_levels.json')
-            json.dump(api('levels').get('draft') or {}, open(dp, 'w'))
-            out = run('levels', py('levels.py', 'merge', game, dp))
-            changes += [x for x in out.splitlines() if x.startswith('levels: stage ')]
-        if (fighters or row.get('levels')) and not changes:
+        secs = [n for n in SECTIONS if row.get(n)]
+        for n in secs:                                   # the Factory's draft sections (lab/<n>: levels, game), as they are now
+            dp = os.path.join(c['logs'], f'{row["id"]}_{n}.json')
+            json.dump(api(n).get('draft') or {}, open(dp, 'w'))
+            out = run(n, py(SECTIONS[n], 'merge', game, dp))
+            changes += [x for x in out.splitlines() if x.startswith(n + ': ') and x != n + ': no change']
+        if (fighters or secs) and not changes:
             run('reset', g('reset', '-q', '--hard', 'HEAD'))
             logf.write('\nnothing changed\n'); up(); logf.close()
             return 'done', f'nothing changed: the game already plays this sheet ({v0})', None, []
-        if not fighters and not row.get('levels'): changes = ['rebuild: no data change (the engine as pushed)']
+        if not fighters and not secs: changes = ['rebuild: no data change (the engine as pushed)']
         bd = os.path.join(game, 'build')
         for x in os.listdir(bd):
             if x.endswith('.o'): os.remove(os.path.join(bd, x))
@@ -158,7 +164,7 @@ def ship_one(c, fighters, row):
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
         paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
         what = (', '.join(fighters) + ' shipped from the Assembly' + (f' (rev {row["rev"]})' if row.get('rev') else '')) if fighters else 'rebuild (no data change)'
-        if row.get('levels'): what = (what + ' + ' if fighters else '') + f'levels shipped from the Factory (draft rev {row["levels"]})'
+        if secs: what = (what + ' + ' if fighters else '') + ', '.join(f'{n} (draft rev {row[n]})' for n in secs) + ' shipped from the Factory'
         run('commit', g('add', '--', *paths))                # (before the publish: scenario.py publish finds the build
         run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {what}' + FOOTER, '--', *paths))
         run('publish-vps', ['make', '-C', game, 'publish-vps'])   # by its "Brawler 0.10.N" commit)
@@ -176,8 +182,9 @@ def ship_one(c, fighters, row):
 
 
 def levels_report(c):
-    """the Factory's Levels: the songs' 20 s previews (only those not cached yet, played by the ship checkout's ROM in our
-    emulator) to the VPS, then what the game plays now (levels.py state) to the feedback service. Never fails a ship"""
+    """the Factory's sections: the Levels songs' 20 s previews (only those not cached yet, played by the ship checkout's
+    ROM in our emulator) to the VPS, then what the game plays now (each section tool's state) to the feedback service.
+    Never fails a ship"""
     game = os.path.join(c['repo'], 'examples', 'brawler'); lv = os.path.join(c['repo'], 'tools', 'brawler', 'levels.py')
     env = dict(os.environ, **c['env'])
     try:
@@ -185,9 +192,12 @@ def levels_report(c):
                            + (['--host', HOST, '--dest', c.get('previews_dest', '/data/brawler-factory/songs')] if HOST else []),
                            capture_output=True, text=True, env=env, timeout=1800)
         if r.returncode: print('levels previews failed:', (r.stderr or r.stdout).strip()[-300:], flush=True)
-        st = subprocess.run([sys.executable, lv, 'state', game], capture_output=True, text=True, check=True).stdout
-        api('levels_game', json.loads(st))
-    except (SystemExit, Exception) as e: print('levels report failed:', e, flush=True)
+    except (SystemExit, Exception) as e: print('levels previews failed:', e, flush=True)
+    for n, tool in SECTIONS.items():
+        try:
+            st = subprocess.run([sys.executable, os.path.join(c['repo'], 'tools', 'brawler', tool), 'state', game], capture_output=True, text=True, check=True).stdout
+            api(n + '_game', json.loads(st))
+        except (SystemExit, Exception) as e: print(n, 'report failed:', e, flush=True)
 
 
 def beat_loop(poll):
