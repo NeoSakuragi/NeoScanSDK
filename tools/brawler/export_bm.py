@@ -1867,10 +1867,12 @@ VBASE = {}                                         # (fighter, throw) -> (game, 
 def victim_tables(chars, pkeys, ptable):
     """the victim side of every paired throw (vthrow.h; docs/throws_audit.md "After"): bm_vthr = per thrower and throw its
     victims' own rows, for every victim of its game in the build (identical tables shared); bm_vanch = every fighter's
-    posture anchors (the fallback for a victim without rows: another game's). The Lab shell's slot has neither (a pack
-    swaps another fighter in: the script's rows as they are). -> C lines, a report"""
+    posture anchors (the fallback for a victim without rows: another game's). The Lab shell's slot (a pack swaps another
+    fighter in) is in none of the shell's tables, so no address outside the slot depends on who fills it: its own rows
+    as a thrower and as a victim are its pack's, slot_vthr in .labslot (slot_tables). -> C lines, a report"""
     ids = {n: i for i, (_, n, _, _) in enumerate(chars)}
-    bank = {r['bank']: r['name'] for r in roster().values()}
+    bank = {r['bank']: r['name'] for r in roster().values() if r['name'] not in ALIAS}   # (the slot shares its source's
+                                                                                        #  bank: the roster fighter's)
     tabs, out, per, rep_ = {}, [], {}, {'pairs': 0, 'clamped': 0}
     for _, n, _, _ in chars:
         if n in ALIAS: continue
@@ -1906,6 +1908,7 @@ def victim_tables(chars, pkeys, ptable):
             if lst:
                 out.append(f'static const bvthr_t {n}_{t}_vthr[] = {{' + ', '.join(lst) + ', {0xFF, 0, 0, 0}};')
                 per[(n, k)] = f'{n}_{t}_vthr'
+    if ALIAS: out += slot_tables(chars, pkeys, ids, bank, rep_)
     out.append('const bvthr_t *const bm_vthr[BC_COUNT][3] = {' + ', '.join(
         '{' + ', '.join(per.get((n, k), '0') for k in range(3)) + '}' for _, n, _, _ in chars) + '};')
     for _, n, _, _ in chars:
@@ -1915,6 +1918,68 @@ def victim_tables(chars, pkeys, ptable):
     rep_.update(tables=len(tabs), rows=sum(len(k_) for k_ in tabs),
                 bytes=4 * sum(len(k_) for k_ in tabs) + 8 * (rep_['pairs'] + len(per)) + 12 * len(chars) + 2 * len(pkeys) * nf * VICTIM_ANCHORS + 4 * len(chars))
     return out, rep_
+
+VSLOT_MAGIC = 0x56534C54                          # 'VSLT': vthrow.h bvslot_t (main.c lab_slot_init checks it)
+LAB_VMAP_MAX = 64                                  # labslot.h: the pack build's fighter ids lab_vmap resolves
+
+
+def rkey(bank_spec):
+    """a roster fighter's key in the Lab builds (vthrow.h bm_rkey): its bank spec's CRC-32 (never 0: 0 = the slot)"""
+    import zlib
+    return zlib.crc32(bank_spec.encode()) or 1
+
+
+def slot_tables(chars, pkeys, ids, bank, rep_):
+    """the Lab slot's victim side (vthrow.h bvslot_t slot_vthr; docs/character_lab.md "The pack format"): its rows
+    as a thrower against every victim of its game (row[k]: bvthr_t lists, as bm_vthr's) and as a victim of every
+    thrower of its game (col: bvcol_t, per thrower and throw), all in .labslot (the slot_ prefix: bank_pack.py); the
+    fighters they name are this build's ids, resolved to the shell's at power-on by their keys (keys[id] = bm_rkey of
+    this build: main.c lab_slot_init -> lab_vmap). The mirror match (its source fighter) plays the script's rows, as in
+    the roster. Its header's word at +12 points here (lab_pack.py seal); 0 (a pack from before): the script's rows"""
+    slot, f = next(iter(ALIAS.items()))
+    fb = roster()[f]['bank']; fgame, fname = fb.split(':')
+    assert len(chars) <= LAB_VMAP_MAX, f'{len(chars)} fighters, lab_vmap resolves {LAB_VMAP_MAX}'
+    out, tabs = [], {}
+    def table(cl):
+        key = tuple(cl)
+        if key not in tabs:
+            tabs[key] = f'slot_vr{len(tabs)}'
+            out.append(f'static const bvrow_t {tabs[key]}[] = {{' + ', '.join(f'{{{vp}, {fl}, {dx}, {dy}}}' for vp, fl, dx, dy in cl) + '};')
+        return tabs[key]
+    def clamp(rows):
+        cl = [(vp, fl, max(-128, min(127, dx)), max(-128, min(127, dy))) for vp, fl, dx, dy in rows]
+        rep_['clamped'] += sum(1 for a, b in zip(rows, cl) if a != b)
+        return cl
+    row = []
+    for k, t in enumerate(THROWS + [THROW_X]):                # its row: the slot throws
+        if (slot, t) not in VBASE: row.append('0'); continue
+        game, th, base = VBASE[(slot, t)]; lst = []
+        for vname in sorted(th.get('victims_all') or {}):
+            vn = bank.get(f'{game}:{vname}', vname)
+            if vn not in ids or vn in ALIAS or vn == f: continue
+            cl = clamp(victim_rows(game, th, pkeys, vname, base))
+            lst.append(f'{{{ids[vn]}, 0, {len(cl)}, {table(cl)}}}'); rep_['slot_pairs'] = rep_.get('slot_pairs', 0) + 1
+        if lst:
+            out.append(f'static const bvthr_t slot_{t}_vthr[] = {{' + ', '.join(lst) + ', {0xFF, 0, 0, 0}};'); row.append(f'slot_{t}_vthr')
+        else: row.append('0')
+    col = []
+    for _, n, _, _ in chars:                                  # its column: thrown by the others of its game
+        if n in ALIAS or n == f: continue
+        for k, t in enumerate(THROWS + [THROW_X]):
+            if (n, t) not in VBASE: continue
+            game, th, base = VBASE[(n, t)]
+            if game != fgame or fname not in (th.get('victims_all') or {}): continue
+            cl = clamp(victim_rows(game, th, pkeys, fname, base))
+            col.append(f'{{{ids[n]}, {k}, {len(cl)}, {table(cl)}}}'); rep_['slot_pairs'] = rep_.get('slot_pairs', 0) + 1
+    out.append('static const bvcol_t slot_vcol[] = {' + ', '.join(col + ['{0xFF, 0xFF, 0, 0}']) + '};')
+    out.append('static const uint32_t slot_vkeys[] = {' + ', '.join(
+        '0' if n in ALIAS else f'0x{rkey(roster()[n]["bank"]):08X}' for _, n, _, _ in chars) + '};')
+    out.append(f'const bvslot_t slot_vthr = {{0x{VSLOT_MAGIC:08X}, {len(chars)}, {{0, 0, 0}}, slot_vkeys, {{{", ".join(row)}}}, slot_vcol}};')
+    out.append('const uint32_t bm_rkey[BC_COUNT] = {' + ', '.join(
+        '0' if n in ALIAS else f'0x{rkey(roster()[n]["bank"]):08X}' for _, n, _, _ in chars) + '};')
+    rep_['slot_rows'] = sum(len(k_) for k_ in tabs); rep_['slot_bytes'] = 4 * rep_['slot_rows'] + 8 * (len(col) + 1) + 8 * len(row)
+    return out
+
 
 def write_c(chars, outdir):
     pkeys, ptable = poses(chars); PKEYS[:] = pkeys

@@ -1674,11 +1674,35 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
 /* a throw's victim side (vthrow.h): its own KOF list for this thrower's throw (bm_vthr), else (a fighter of another game,
  * or a list the export has not) its posture anchors against the thrower's (bm_vanch); the mirror match (the thrower's
  * own fighter) and hold hits: the script's rows as they are */
+#ifdef LAB_SHELL
+/* the Lab slot's own rows (vthrow.h bvslot_t, its pack's: lab_vslot), the shell's tables have none for it: as the
+ * thrower its row's lists, as the victim its column (a thrower whose script's row count changed since: none) */
+static uint8_t lab_victim_side(const fighter_t *f, fighter_t *v, uint8_t k) {
+    const uint8_t sid = BC_COUNT - 1;
+    if (!lab_vslot) return 0;
+    if (f->ch->id == sid) {
+        const bvthr_t *p;
+        for (p = lab_vslot->row[k]; p && p->victim != 0xFF; p++)
+            if (p->victim < LAB_VMAP_MAX && lab_vmap[p->victim] == v->ch->id) { v->vrw = p->rows; v->vrn = p->n; return 1; }
+    } else if (v->ch->id == sid) {
+        const bvcol_t *c;
+        for (c = lab_vslot->col; c && c->thrower != 0xFF; c++)
+            if (c->k == k && c->thrower < LAB_VMAP_MAX && lab_vmap[c->thrower] == f->ch->id) {
+                if (c->n == v->thr->nrows) { v->vrw = c->rows; v->vrn = c->n; }
+                return 1;
+            }
+    }
+    return 0;
+}
+#endif
 static void victim_side(fighter_t *f, fighter_t *v, uint8_t t) {
     const bvthr_t *p;
     uint8_t k = t == BT_XTHROW ? 2 : t;
     v->vrw = 0; v->vrn = 0; v->vanc = 0; v->swn = 0; f->swn = 0;
     if (!IS_THROW(t) || k > 2 || v->ch->id == f->ch->id) return;
+#ifdef LAB_SHELL
+    if (lab_victim_side(f, v, k)) return;
+#endif
     for (p = bm_vthr[f->ch->id][k]; p && p->victim != 0xFF; p++)
         if (p->victim == v->ch->id) { v->vrw = p->rows; v->vrn = p->n; return; }
     v->vanc = bm_vanch[v->ch->id] && bm_vanch[f->ch->id];

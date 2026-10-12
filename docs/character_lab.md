@@ -211,6 +211,22 @@ elements in the robert / kim / iori / hanzo_ss2 builds): no address of the shell
   the source reactions (`bm_sreact`) and the shared effect palettes (`bm_sfx_pals`): the "shared ids" (below).
 Everything else a pack's data points at is its own (the slot's sections, its bank).
 
+**The slot's throws, victim side** (2026-10-12, after 0.10.70's per-victim offsets, `examples/brawler/vthrow.h`): the
+thrower x victim tables (`bm_vthr`) never name the slot, as a thrower or as a victim, so no address outside the slot
+depends on who fills it (0.10.70 broke STRICT: the slot took its source fighter's bank spec in the victim lookup, so the
+roster's copy of the slot fighter lost its victim rows and every table after them moved, per slot fighter). The slot's
+own rows are its pack's, in `.labslot`: `slot_vthr` (`bvslot_t`, export_bm.py `slot_tables`): its row (his throws
+against every victim of his game) and his column (his rows as the victim of every thrower of his game), naming the
+pack build's fighter ids with their keys (`bm_rkey`: the bank spec's CRC-32), resolved to the shell's ids at power-on
+(`main.c lab_vslot_init` -> `lab_vmap`; a fighter the shell does not have: none); a thrower whose script's row count
+changed since the pack: the script's rows. The header's word at +12 (4 zeros before) points to it: a pack from before
+it has 0 there and plays the script's rows, as it always did, so the format stays 1 (its structs are guarded apart:
+`lab_pack.py VTHR_ABI`). The mirror match (the slot vs its source fighter) plays the script's rows, as in the roster.
+Proven 2026-10-12: the shell + all 15 Lab packs pass `--strict` (the slot's tables: 4-23 KB of .labslot; the KOF ones
+41-50 pairs, SS2 / Kizuna none, as in the roster); `tools/brawler/labthrow_proof.py` (our emulator): Terry's pack in
+the shell throws Ryo forward / back and is thrown by him frame for frame as the roster's Terry, from .labslot rows
+(`--old`: the header word zeroed, the script's rows both ways); the Player's game byte-identical.
+
 **The regions** (the shell's ANCHOR says where; `lab_pack.py anchor lab-shell.neo` prints it):
 
 | Region | Where | Kind |

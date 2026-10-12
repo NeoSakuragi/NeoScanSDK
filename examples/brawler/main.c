@@ -53,6 +53,22 @@ blab_t lab_bm_lab;
 gretime_t lab_gretime_rom[LAB_RT_MAX];
 uint16_t lab_portrait_pal[BC_COUNT][16];
 uint8_t lab_slot_ok;
+const bvslot_t *lab_vslot;
+uint8_t lab_vmap[LAB_VMAP_MAX];
+/* the slot's victim side (vthrow.h bvslot_t, the header's word at +12, an address in .labslot): its fighter ids
+   resolved to this shell's by their keys (bm_rkey); none (0, or not a VSLT block): the script's rows */
+static void lab_vslot_init(const uint8_t *h) {
+    const uint32_t a = (uint32_t)h[12] << 24 | (uint32_t)h[13] << 16 | h[14] << 8 | h[15];
+    const bvslot_t *s = (const bvslot_t *)a;
+    uint8_t i, j;
+    lab_vslot = 0;
+    for (i = 0; i < LAB_VMAP_MAX; i++) lab_vmap[i] = 0xFF;
+    if (a < LABSLOT_AT || a >= 0x100000 || (a & 1) || s->magic != VSLOT_MAGIC || s->nkey > LAB_VMAP_MAX) return;
+    for (i = 0; i < s->nkey; i++)
+        for (j = 0; s->keys[i] && j < BC_COUNT - 1; j++)
+            if (bm_rkey[j] == s->keys[i]) { lab_vmap[i] = j; break; }
+    lab_vslot = s;
+}
 /* the header's tables, in lab_pack.py HDR_ARRAYS order: each [u16 element size][the slot's element] (even), then
    [u16 sizeof blab_t][bm_lab], then the slot's retime rows (gretime_t, its 16) */
 static const struct { void *ram; const void *rom; uint16_t esz; } lab_arrs[] = {
@@ -77,7 +93,7 @@ void lab_slot_init(void) {
     for (k = 0; k < LAB_NARR; k++) lab_copy(lab_arrs[k].ram, lab_arrs[k].rom, lab_arrs[k].esz * BC_COUNT);
     lab_copy(&lab_bm_lab, &bm_lab, sizeof lab_bm_lab);
     for (n = 0; gretime_rom[n].fighter != 0xFF; n++) {}       /* the ROM's rows (+ the end row) */
-    lab_slot_ok = 0;
+    lab_slot_ok = 0; lab_vslot = 0;
     if (n + 1 > LAB_RT_MAX || n < 16) { lab_copy(lab_gretime_rom, gretime_rom, sizeof(gretime_t)); lab_gretime_rom[0].fighter = 0xFF; return; }
     lab_copy(lab_gretime_rom, gretime_rom, (n + 1) * sizeof(gretime_t));
     if (h[0] != 'N' || h[1] != 'G' || h[2] != 'S' || h[3] != 'H' || (h[4] << 8 | h[5]) != LAB_FORMAT ||
@@ -97,6 +113,7 @@ void lab_slot_init(void) {
     for (k = n - 16; k < n; k++) if (lab_gretime_rom[k].fighter != 0xFE) lab_gretime_rom[k].fighter = sid;
     lab_bm_chars[sid].id = sid;                                /* the ids: this shell's */
     if (lab_bm_lab.fighter != 0xFF) lab_bm_lab.fighter = sid;
+    lab_vslot_init(h);
     lab_slot_ok = 1;
 }
 #undef LABSLOT_NO_REMAP

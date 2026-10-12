@@ -205,6 +205,17 @@ def abi(B):
             'fixed': [LABANCHOR_AT, LABHDR_AT, LABHDR_SIZE, LABSLOT_AT, SLOT_TILE_FIRST, SLOT_TILES, SLOT_V_AT, SLOT_V, SLOT_RT_ROWS]}
 
 
+# the slot's victim side (vthrow.h, the header's word at +12, 2026-10-12): an optional block a format-1 shell finds by
+# its pointer (0 in a pack from before: the script's rows, as those packs always played), so format 1 stands; its
+# structs are guarded here (a changed layout = a new format, as abi's)
+VTHR_ABI = {1: '577eab430baa18b6'}
+
+
+def vthr_signature():
+    b = _struct_bodies(open(os.path.join(GAME, 'vthrow.h')).read(), ['bvrow_t', 'bvthr_t', 'bvcol_t', 'bvslot_t'])
+    return hashlib.sha256(json.dumps(b, sort_keys=True).encode()).hexdigest()[:16]
+
+
 def abi_signature(B): return hashlib.sha256(json.dumps(abi(B), sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -215,6 +226,7 @@ def check_abi(B):
     ops, kn = ops_of(B), knobs_of()
     bad = []
     if FORMATS.get(FORMAT) != sig: bad.append(f'the slot ABI signature is {sig}, format {FORMAT} is {FORMATS.get(FORMAT)}')
+    if VTHR_ABI.get(FORMAT) != vthr_signature(): bad.append(f'the victim side structs (vthrow.h) signature is {vthr_signature()}, format {FORMAT} is {VTHR_ABI.get(FORMAT)}')
     if ops[:len(BASE_OPS[FORMAT])] != BASE_OPS[FORMAT]: bad.append('the program ops were renumbered (P_* in export_bm.py: append new ones only)')
     if kn[:len(BASE_KNOBS[FORMAT])] != BASE_KNOBS[FORMAT]: bad.append('the knob kinds were renumbered (fighter.h KN_*: append new ones only)')
     if bad:
@@ -282,7 +294,8 @@ def needs(B, E, S):
 # ---- seal: the header + the anchor into a build's ELF -------------------------------------------------------------------
 def header(B, E, S):
     """the slot header (labslot.h): 'NGSH', u16 format, u16 tables (+ bm_lab), u8 the build's slot id, u8 retime rows,
-    u16 bytes, 4 zeros, then [u16 element size][the slot's element] per HDR_ARRAYS table, [u16][bm_lab], the 16 rows"""
+    u16 bytes, u32 its victim side (vthrow.h bvslot_t slot_vthr in .labslot; 0 = none: the script's rows, as every pack
+    from before it, whose header has 4 zeros there), then [u16 element size][the slot's element] per HDR_ARRAYS table, [u16][bm_lab], the 16 rows"""
     nbc = nbc_of(B); sid = nbc - 1
     body = b''
     for n in HDR_ARRAYS:
@@ -293,7 +306,9 @@ def header(B, E, S):
     rows = E.read(a + (nrow - 1 - SLOT_RT_ROWS) * GRETIME_ROW, SLOT_RT_ROWS * GRETIME_ROW)
     assert E.read(a + (nrow - 1) * GRETIME_ROW, 1) == b'\xFF', 'gretime_rom: its last row is not the end row'
     body += rows
-    hdr = b'NGSH' + struct.pack('>HHBBH4x', FORMAT, len(HDR_ARRAYS) + 1, sid, SLOT_RT_ROWS, 16 + len(body)) + body
+    vs = S.get('slot_vthr', (0, 0, ''))[0]
+    assert vs == 0 or LABSLOT_AT <= vs < 0x100000, f'slot_vthr at {vs:#x}: not in .labslot'
+    hdr = b'NGSH' + struct.pack('>HHBBHI', FORMAT, len(HDR_ARRAYS) + 1, sid, SLOT_RT_ROWS, 16 + len(body), vs) + body
     assert len(hdr) <= LABHDR_SIZE, f'the slot header: {len(hdr)} bytes, the format keeps {LABHDR_SIZE}'
     return hdr + bytes(LABHDR_SIZE - len(hdr))
 

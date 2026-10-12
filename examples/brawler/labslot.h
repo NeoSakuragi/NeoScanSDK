@@ -18,6 +18,8 @@
 
 #define LAB_FORMAT  1          /* the pack format (lab_pack.py FORMAT): the header's layout, the tables' element sizes */
 #define LABHDR_AT   0xE0000    /* the slot header (Makefile LABHDR_AT; lab_pack.py), then .labslot */
+#define LABSLOT_AT  0xE0400    /* .labslot (Makefile LABSLOT_AT; lab_pack.py) */
+#define LAB_VMAP_MAX 64        /* the pack build's fighter ids lab_vmap resolves (export_bm.py LAB_VMAP_MAX) */
 #define LAB_RT_MAX  96         /* gretime_rom rows the RAM copy holds (the shell's rows + the slot's 16 + the end row) */
 
 extern bchar_t lab_bm_chars[BC_COUNT];
@@ -42,6 +44,9 @@ extern const gkcat_t *lab_gkcat_rom[BC_COUNT];
 extern blab_t lab_bm_lab;
 extern gretime_t lab_gretime_rom[LAB_RT_MAX];
 extern uint16_t lab_portrait_pal[BC_COUNT][16];
+extern const bvslot_t *lab_vslot;   /* the slot's victim side (vthrow.h bvslot_t; its header's word at +12): 0 = none,
+                                        the script's rows (a pack from before it) */
+extern uint8_t lab_vmap[LAB_VMAP_MAX];   /* the pack build's fighter id -> this shell's (0xFF: not in this shell) */
 extern uint8_t lab_slot_ok;    /* 1: the header was taken (0: the shell's own tables for the slot, its header refused) */
 void lab_slot_init(void);
 #endif
