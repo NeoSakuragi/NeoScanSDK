@@ -656,3 +656,7 @@ Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots 
 
 ### KYO: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.70)
 Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+
+### RALF: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `ralf-arb`, build 0.10.73)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
+- chain timing: hit-stops 7 9 12 (roster chain.hitstop / retime, the build checked)
