@@ -170,6 +170,42 @@ def derive_ss2(f, reg):
     return out
 
 
+def derive_lb2(f, reg):
+    """an LB2 fighter's knobs (Character Lab 2026-10-12), each S- piece's program as handlers_lb2 writes it (one state
+    per motion segment of LB2's script, each opening with its P_SET vx / vy): its forward speed (the largest forward P_SET
+    vx of a program that moves: the segment's script velocity, 8.8 -> 16.16), its rise (the first upward P_SET vy of an
+    airborne one), its damage"""
+    sys.path.insert(0, os.path.join(TOOLS, 'lastbld2'))
+    import export_lb2 as XL, handlers_lb2 as HL
+    from animdict import LB2_CAST
+    ch = LB2_CAST[f]; B = XL.Builder(ch)
+    sps = {sp['input']: sp for sp in HL.specials(B, ch, f)}
+    P = HL.P; out = {}
+    for pid, p in sorted(reg['pieces'].items()):
+        if p['kind'] != 'special' or p.get('gone') or p['input'] not in sps: continue
+        r = sps[p['input']]['rom']
+        sets = [(o[1], o[3]) for o in r['prims'] if o[0] == P['set'] and o[1] in (0, 1)]
+        moves = any(o[0] == P['move'] for o in r['prims']); falls = any(o[0] == P['fall'] for o in r['prims'])
+        ks = []
+        vxs = [v for a, v in sets if a == 0 and v > 0]
+        if moves and vxs:
+            v = max(vxs); d = num(v / FX)
+            ks.append(dict(id='travel', name='Travel speed', unit='px/frame', default=d, **rng(d),
+                           rows=[{'kind': KIND['set'], 'a': REG['vx'], 'match': v, 'base': v}],
+                           **{'from': f'P_SET vx {v / FX:g} (its fastest segment: LB2\'s script velocity, 8.8)'}, judgment=len(set(vxs)) > 1))
+        vys = [v for a, v in sets if a == 1 and v > 0]
+        if falls and vys:
+            v = vys[0]; d = num(v / FX)
+            ks.append(dict(id='rise', name='Rise speed', unit='px/frame up', default=d, **rng(d),
+                           rows=[{'kind': KIND['set'], 'a': REG['vy'], 'match': v, 'base': v}],
+                           **{'from': f'P_SET vy {v / FX:g} (its take-off: LB2\'s script velocity)'}, judgment=len(set(vys)) > 1))
+        ks.append(dict(id='damage', name='Damage', unit='%', default=100, min=10, max=300, step=10,
+                       rows=[{'kind': KIND['dmg'], 'a': 0, 'match': 0, 'base': 256}],
+                       **{'from': 'every hit it deals (the export\'s per-hit damage x the tier)'}, judgment=True))
+        out[pid] = ks
+    return out
+
+
 def hit_budget(f, reg, out):
     """the projectile hit budget's knobs (game.json roster[].proj_hits, export_bm.proj_hits): a piece whose special has
     one gets "Hits per target" (KN_PVPER) and "Hits in all" (KN_PVMAX) with its values as defaults, in place of its
@@ -201,6 +237,7 @@ def derive(f, reg=None):
 
 def derive_src(f, reg):
     if any(p.get('source') == 'handlers_ss2.SPECIALS' for p in reg['pieces'].values()): return derive_ss2(f, reg)
+    if any(p.get('source') == 'handlers_lb2.SPECIALS' for p in reg['pieces'].values()): return derive_lb2(f, reg)
     import export96, handlers98, rom96
     game = handlers98.ROM_GAME.get(f, 'kof98')
     cast = {'kof97': export96.CAST97, 'kof98': export96.CAST98, 'kof99': export96.CAST99}.get(game, export96.CAST)

@@ -1728,6 +1728,7 @@ VICTIM_POSES['kizuna'] = json.load(open(os.path.join(HERE, '..', 'kizuna', 'vict
 VICTIM_POSES['whp'] = json.load(open(os.path.join(HERE, '..', 'whp', 'victim_poses_whp.json')))['poses']   # Hanzou's throws (TODO whp6)
 VICTIM_POSES['samsho2'] = json.load(open(os.path.join(HERE, '..', 'samsho2', 'victim_poses_ss2.json')))['poses']   # SS2's throws
 VICTIM_POSES['doubledr'] = json.load(open(os.path.join(HERE, '..', 'doubledr', 'victim_poses_dd.json')))['poses']   # Billy Lee's throws (TODO #194)
+VICTIM_POSES['lastbld2'] = json.load(open(os.path.join(HERE, '..', 'lastbld2', 'victim_poses_lb2.json')))['poses']   # LB2 Moriya's throw
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
           'launched': 'air', 'horizontal': 'air', 'curled': 'air',

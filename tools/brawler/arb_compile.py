@@ -139,7 +139,9 @@ def fetch_dict(f, path=None):
     return json.load(open(p))
 
 
-def roster_of(G, f): return next(r for r in G['roster'] if r['name'] == f)
+def roster_of(G, f):
+    """the fighter's game.json entry: the roster's, or a Lab-only one's (roster_benched "lab": true)"""
+    return next(r for r in G['roster'] + [y for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')] if r['name'] == f)
 
 
 # ============================================================================================ the piece library
@@ -230,6 +232,23 @@ def native_ss2(f, D):
     return names, {}, specs
 
 
+LB2_THROW_INPUTS = {'throw_c': 'hold + forward + A (LB2: close + forward / back + C+D, Samidare)',
+                    'throw_d': 'hold + back + A (LB2: the same throw, Samidare: LB2 gives him one)'}
+
+def native_lb2(f, D):
+    """The Last Blade 2 (export_lb2 / handlers_lb2, Character Lab 2026-10-12): MOVES (the brawler's move -> LB2
+    animation, whole: a move name of that animation), the specials as programs from LB2's move data, each button version
+    its own piece (its own input: 214A / 214B / 214C ...), with the animations its program plays"""
+    sys.path.insert(0, os.path.join(TOOLS, 'lastbld2'))
+    import export_lb2 as XL
+    names, specs = {}, {}
+    for mv, a in XL.MOVES.items(): names.setdefault(H(a), []).append(mv)
+    for sp in D.get('specials', []):
+        specs[sp['input']] = {'decoded': True, 'anims': list(dict.fromkeys(H(a) for a in sp['anims'])), 'air': False,
+                              'source': 'handlers_lb2.SPECIALS', **({'name': sp['name']} if sp.get('name') else {})}
+    return names, {}, specs
+
+
 def build_pieces(f, G, D, old=None):
     """the fighter's piece library: animation id -> class facts; specials; spare names (see the module doc). `old`: the
     previous library, whose hand-added fields (an entry's anim_special / note) are kept"""
@@ -238,6 +257,7 @@ def build_pieces(f, G, D, old=None):
     if game in ('kof96', 'kof97', 'kof98', 'kof99'): names, hop, specs = native_kof(game, f, D)
     elif game == 'kizuna': names, hop, specs = native_kizuna(f, D)
     elif game == 'samsho2': names, hop, specs = native_ss2(f, D)
+    elif game == 'lastbld2': names, hop, specs = native_lb2(f, D)
     else: raise SystemExit(f'{f}: bank {r["bank"]}: no piece library for {game} yet (the arbitration sheets need an animation dictionary: animdict.DICTS)')
     for a in D['anims']:                                   # the dictionary's captured specials (decoded or not)
         if a['kind'] == 'effect-only': continue
@@ -278,7 +298,7 @@ def build_pieces(f, G, D, old=None):
             'spare_names': [n for n in SPARE if n not in native],
             'handled': (old or {}).get('handled') or {},
             'specials': dict(sorted(specs.items())), 'anims': anims,
-            **({'throw_inputs': SS2_THROW_INPUTS} if game == 'samsho2' else {}),
+            **({'throw_inputs': SS2_THROW_INPUTS} if game == 'samsho2' else {'throw_inputs': LB2_THROW_INPUTS} if game == 'lastbld2' else {}),
             'knobs': (old or {}).get('knobs') or {}}            # (knobs.py derive: refreshed by load_pieces)
 
 

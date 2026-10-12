@@ -10,6 +10,8 @@
           table at bank 2 $200002[id], the fighter's own state -> slot map, palettes from bank 2 (colour set A)
   samsho2 SS2 fighters (Hanzo, 2026-10-10): every animation of his table, SS2's own move list (recogniser + action table),
           the specials decoded as programs (handlers_ss2), the throws (samsho2() below)
+  lastbld2 LB2 fighters (Moriya, 2026-10-12): every animation of his table played by LB2's interpreter (model_lb2), the
+          move table / descriptors' names, the specials as programs (handlers_lb2), the throw (lastbld2() below)
 
     python3 tools/brawler/animdict.py OUT [GAME_DIR] [FIGHTER ...]   -> OUT/review/<fighter>_anims.json + sheets
 
@@ -30,7 +32,7 @@ REPO = os.path.dirname(TOOLS)
 for p in (os.path.join(TOOLS, 'kof96'), os.path.join(TOOLS, 'kizuna'), os.path.join(TOOLS, 'neosdk')):
     if p not in sys.path: sys.path.insert(0, p)
 
-DICTS = {'kim': 'kizuna', 'krauser': 'kof96', 'robert': 'kof98', 'iori': 'kof98', 'terry': 'kof98', 'ryo': 'kof98', 'ralf': 'kof98', 'yamazaki': 'kof98', 'billy': 'kof98', 'kyo': 'kof98', 'mai': 'kof98', 'yashiro': 'kof98', 'hanzo_ss2': 'samsho2', 'haohmaru': 'samsho2', 'genjuro': 'samsho2'}   # the fighters with a dictionary and its source
+DICTS = {'kim': 'kizuna', 'krauser': 'kof96', 'robert': 'kof98', 'iori': 'kof98', 'terry': 'kof98', 'ryo': 'kof98', 'ralf': 'kof98', 'yamazaki': 'kof98', 'billy': 'kof98', 'kyo': 'kof98', 'mai': 'kof98', 'yashiro': 'kof98', 'hanzo_ss2': 'samsho2', 'haohmaru': 'samsho2', 'genjuro': 'samsho2', 'moriya': 'lastbld2'}   # the fighters with a dictionary and its source
 FPS = 59.18
 PER_SHEET = 16
 
@@ -494,6 +496,146 @@ def samsho2(out, game, name):
     return stats
 
 
+# ============================================================================================ The Last Blade 2
+# LB2 fighters (Moriya, Character Lab 2026-10-12; tools/lastbld2, study /data/neogeo_dict/lastbld2/README.md): EVERY
+# animation of the fighter's table ($76134[char]: Moriya $210000, 513 offsets, the null ones left out), each played by
+# model_lb2 (LB2's own interpreter: a frame word shows its $81 ticks, Power style) and drawn from the ROM by the decoder
+# that equals LB2's VRAM (lb2.render_frame), colour set A, facing left as the art is drawn. Ids = the animation number in
+# hex. Per animation: steps (frames shown), the boxes in force (the slots +$100: [type][shift][x1][x2][y1][y2] << shift,
+# type < $C0 attack), the sounds ($8B), and the moves that play it, read from LB2's own data: the move table $A0000 from
+# the standing class (normals by button and stick), the move descriptors (bank 2), the recogniser's specials
+# (handlers_lb2.SPECIALS, SNK's names), the throw and the victim's thrown animation.
+LB2_CAST = {'moriya': 1}
+
+def lb2_names(name, ch):
+    sys.path.insert(0, os.path.join(TOOLS, 'lastbld2'))
+    import export_lb2 as XL, handlers_lb2 as HL, model_lb2 as ML
+    moves, exported = {}, {}
+    put = lambda d, a, v: d.setdefault(a, []).append(v) if v not in d.get(a, []) else None
+    DIRN = {0: '', 1: 'up + ', 2: 'down + ', 3: 'forward + ', 4: 'back + ', 6: 'down-forward + ', 8: 'down-back + '}
+    for b, bn in ((9, 'A'), (0x12, 'B'), (0x1B, 'C'), (0x24, 'D'), (0x3F, 'B+C'), (0x51, 'C+D')):
+        for d, dn in DIRN.items():
+            for cls, where in ((1, ''), (7, 'jump ')):
+                mv = ML.transition(b + d, cls)
+                if not mv: continue
+                for w in ML.descriptor(ch, mv):
+                    if not w & 0x8000 and w: put(moves, w & 0x1FF, f'{where}{dn}{bn}'); break
+    for mv, a in XL.MOVES.items(): put(exported, a, mv)
+    for mv, lab in ((0x00, 'idle'), (0x04, 'walk forward'), (0x05, 'walk back'), (0x06, 'crouch'), (0x0C, 'jump up'),
+                    (0x0D, 'jump forward'), (0x0E, 'jump back'), (0x11, 'run'), (0x47, 'landing'), (0x100, 'reaction: high hit'),
+                    (0x101, 'reaction: low hit'), (0x10F, 'reaction: knockdown flight'), (0x119, 'reaction: landing'),
+                    (0x11D, 'reaction: lying'), (0x16, 'get up'), (0x23, 'D (repel)')):
+        put(moves, mv, lab)
+    B = XL.Builder(ch)
+    sps = HL.specials(B, ch, name)
+    for sp in sps:
+        lab = sp['input'] + (' ' + sp['name'] if sp.get('name') else '')
+        for a in sp['anims']: put(moves, a, lab); put(exported, a, sp['input'])
+    for k, th in HL.throws(B, ch, name).items():
+        put(moves, th['lb2']['move'], f"throw ({th['name']}, close + C+D)"); put(exported, th['lb2']['move'], k)
+        put(moves, th['lb2']['victim_move'], f"thrown ({th['name']}: the victim)")
+    return moves, exported, sps
+
+
+def lastbld2(out, game, name):
+    """an LB2 fighter's dictionary (DICTS[name] == 'lastbld2'); the same JSON as kof96()"""
+    sys.path.insert(0, os.path.join(TOOLS, 'lastbld2'))
+    import lb2 as L, export_lb2 as XL
+    import build_tables as BT
+    KZ = kizuna_dict()
+    G = json.load(open(os.path.join(game, 'game.json')))
+    ros = BT.fighter(G, name)
+    ch = LB2_CAST[name]
+    lut = np.zeros((4096 * 2, 4), np.uint8)
+    for p in range(256):
+        for k in range(16):
+            if XL.PAL0[ch] + p < 2000: lut[p * 16 + k] = L.color(L.u16(0xA9000 + 32 * (XL.PAL0[ch] + p) + 2 * k)) + (255,)
+    lut[0::16] = 0
+    W, H, X0, Y0 = 512, 400, 256, 330
+    rcache = {}
+    def render(fid):
+        if fid in rcache: return rcache[fid]
+        img = L.render_frame(ch, fid, np.zeros((H, W), np.uint16), X0, Y0)
+        ys, xs = np.nonzero(img & 15)
+        if not len(ys): rcache[fid] = None; return None
+        t, b, l, r = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+        crop = img[t:b, l:r]
+        res = (np.ascontiguousarray(lut[crop]), int(X0 - l), int(Y0 - t), {int(p) for p in np.unique(crop[(crop & 15) > 0] >> 4)})
+        rcache[fid] = res; return res
+    def box_px(v):                                    # forward = -art x, up = -art y
+        typ, s, x1, x2, y1, y2 = v
+        return ['a' if 0 < typ < 0xC0 else 'h', typ, -(x2 << s), -(x1 << s), -(y2 << s), -(y1 << s)]
+    moves, exported, sps = lb2_names(name, ch)
+    t = L.anim_table(ch)
+    seen = {}
+    for a in range(L.nanims(ch)):
+        off = L.u32(t + 4 * a)
+        if off == 0xFFFFFFFF: continue
+        seen.setdefault(t + off, []).append(a)
+    anims, sheets, cur = [], [], None
+    for k, (addr, slots) in enumerate(seen.items()):
+        if k // PER_SHEET >= len(sheets): cur = KZ.Sheet(); sheets.append(cur)
+        a0 = slots[0]
+        e = {'id': f'{a0:X}', 'n': a0, 'sheet': k // PER_SHEET, 'slots': slots, 'addr': f'{addr:06X}', 'states': list(slots)}
+        try: rows, ev = XL.timeline(ch, a0, limit=400)
+        except Exception as x:
+            e.update(status='broken', error=str(x)[:80], steps=[], frames=0, f=[], desc='broken (does not parse)', moves=[], exported=[])
+            anims.append(e); continue
+        st, used = [], set()
+        for r in rows:
+            bx = [box_px(v) for v in r['boxes'].values()]
+            if st and st[-1]['fr'] == r['frame'] and st[-1]['b'] == bx: st[-1]['t'] += 1; continue
+            try: rd = render(r['frame'])
+            except Exception: rd = None
+            d = -1
+            if rd is not None: d = cur.add(rd[0], rd[1], rd[2]); used |= rd[3]
+            snd = next((f'{e_[2]:04X}' for e_ in ev if e_[1] == 'snd' and e_[0] == r['f']), None)
+            st.append({'a': f"{r['frame']:04X}", 'd': d, 't': 1, 'b': bx, 's': snd, 'm': None, 'fr': r['frame']})
+        fr = [i for i, s in enumerate(st) for _ in range(s['t'])]
+        atk = any(b[0] == 'a' for s in st for b in s['b'])
+        drawn = any(s['d'] >= 0 for s in st)
+        mv = list(dict.fromkeys(x for s_ in slots for x in moves.get(s_, [])))
+        exl = list(dict.fromkeys(x for s_ in slots for x in exported.get(s_, [])))
+        travel = round(rows[-1]['x']) if rows else 0
+        rises = any(r['h'] > 0 for r in rows)
+        if not drawn: kind = 'empty'
+        elif not (used & {96, 112}): kind = 'effect-only'
+        elif atk: kind = 'attack'
+        elif any(x.startswith(('reaction', 'thrown')) for x in mv): kind = 'reaction'
+        elif any(x.startswith(('walk', 'jump', 'run', 'landing')) for x in mv): kind = 'movement'
+        else: kind = 'pose'
+        e.update(status='ok' if drawn else 'empty', steps=st, frames=sum(s['t'] for s in st), f=fr, end='end',
+                 attack=atk, body=any(b[0] == 'h' for s in st for b in s['b']), travel=travel, rises=rises, kind=kind, moves=mv,
+                 move_keys=[], reactions=[], exported=exl, pals=sorted(used), sounds=sorted({s['s'] for s in st if s['s']}))
+        fl = set()
+        if atk:
+            if any(re.search(r'(^| )A$', x) for x in mv): fl |= {'weapon', 'light'}
+            if any(re.search(r'(^| )B$', x) for x in mv): fl |= {'weapon', 'heavy'}
+            if any(re.search(r'(^| )C$', x) for x in mv): fl |= {'kick', 'light'}
+            if any(re.match(r'^\d', x) for x in mv): fl.add('heavy')
+            if 'heavy' in fl and 'light' in fl: fl -= {'light', 'heavy'}; fl.add('medium')
+        if any(x.startswith('throw (') for x in mv): fl |= {'throw', 'heavy'}
+        e['suggest'] = sorted(fl)
+        e['desc'] = KZ.desc(e)
+        anims.append(e)
+    names = []
+    for k, sh in enumerate(sheets):
+        fn = f'review/{name}_anims_{k}.png'
+        names.append({'src': fn, 'cells': sh.save(os.path.join(out, fn))})
+    data = {'fighter': name, 'display': (ros.get('display') or name.upper()), 'game': 'lastbld2',
+            'source': f"The Last Blade 2 (character {ch} {L.CHARS[ch]}, animation table $76134[{ch}] -> ${t:06X}: {L.nanims(ch)} entries, {len(anims)} distinct animations)",
+            'drawn': 'drawn from the ROM at full size (LB2 shows its fighters 1:1 up close), facing left, colour set A',
+            'zoom': None, 'scale': ros.get('scale', 1), 'fps': FPS, 'count': len(anims), 'sheets': names, 'anims': anims,
+            'specials': [{'input': sp['input'], 'name': sp.get('name'), 'condition': sp['condition'], 'anims': sp['anims']} for sp in sps]}
+    json.dump(data, open(os.path.join(out, 'review', f'{name}_anims.json'), 'w'), separators=(',', ':'))
+    c = lambda f: sum(1 for a in anims if f(a))
+    stats = {'animations': len(anims), 'rendered': c(lambda a: a['status'] == 'ok'), 'attack': c(lambda a: a.get('attack')),
+             'used': c(lambda a: a.get('moves')), 'exported': c(lambda a: a.get('exported')), 'empty': c(lambda a: a['status'] == 'empty'),
+             'broken': c(lambda a: a['status'] == 'broken'), 'drawings': sum(len(s.imgs) for s in sheets)}
+    print(name, 'anim dict:', stats)
+    return stats
+
+
 def suggest(e, slots, btn_of, knock, proj_slots):
     """my guess at Bruno's flags (anims_core.js FLAGS) from KOF's buttons: A / B light, C / D heavy (a super heavy),
     A / C punch, B / D kick; C+D heavy kick; a projectile special's object, a knockdown the capture saw, a throw"""
@@ -531,6 +673,7 @@ def build(out, game=None, names=None):
     for n in names or DICTS:
         if DICTS[n] == 'kizuna': res[n] = kizuna_dict().build(out, game)
         elif DICTS[n] == 'samsho2': res[n] = samsho2(out, game, n)
+        elif DICTS[n] == 'lastbld2': res[n] = lastbld2(out, game, n)
         else: res[n] = kof96(out, game, n)
     return res
 

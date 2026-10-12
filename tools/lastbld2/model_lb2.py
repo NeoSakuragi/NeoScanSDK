@@ -48,7 +48,7 @@ class Obj:
         self.opp_dx = opp_dx                         # the opponent's distance ahead (distance ops), None: far
         self.cls = 1; self.desc = []; self.di = 0; self.ended = False
         self.boxes = {}; self.push = None; self.events = []; self.f = 0
-        self.flip = 0; self.x0 = 0.0
+        self.flip = 0; self.x0 = 0.0; self.turned = 0
     # ---- the descriptor ($2EA3E / $2EB26) ----
     def start_move(self, move):
         self.move = move; self.desc = descriptor(self.ch, move); self.di = 0; self.boxes = {}
@@ -68,7 +68,7 @@ class Obj:
     def set_anim(self, a):
         self.anim = a; self.base = L.anim_addr(self.ch, a); self.off = 0
         self.step = 0; self.tick = 0; self.ticks = 1; self.seg = -1; self.segend = 0; self.segoff = 0
-        self.loop = None; self.ended = False; self.dx_disp = 0
+        self.loop = None; self.ended = False; self.disp = (0, 0); self.newword = True
         self.vx = self.vh = self.ax = self.ah = 0.0 if self.h <= 0 else self.vx
         self.readnext = True
     # ---- the frame ----
@@ -79,7 +79,7 @@ class Obj:
         self.read()
         self.seg_count()
         out = dict(f=self.f, anim=self.anim, frame=self.fid, step=self.step, x=self.x, h=self.h,
-                   boxes=dict(self.boxes), push=self.push, cls=self.cls)
+                   boxes=dict(self.boxes), push=self.push, cls=self.cls, disp=self.disp, turned=self.turned)
         self.tick_end()
         self.f += 1
         return out
@@ -108,10 +108,12 @@ class Obj:
             w = L.u16(self.base + self.off)
             if w >> 8 in (0x97, 0x9F): self.off += 2; continue
             break
-        self.tick = self.ticks; self.step = self.segend + 1; self.readnext = True
+        self.tick = self.ticks; self.step = self.segend + 1; self.readnext = True; self.newword = True
     def jump_noreset(self): self.jump()
     def read(self):
-        """$2BE36: run the commands up to the frame word at +$7C"""
+        """$2BE36: run the commands up to the frame word at +$7C (a new word: the drawing offset +$4A / +$4C cleared
+        first, $2BE24)"""
+        if self.newword: self.disp = (0, 0); self.newword = False
         for _ in range(200):
             a = self.base + self.off; w = L.u16(a)
             if w == 0xFFFF:
@@ -129,8 +131,10 @@ class Obj:
         ln = L.CMDLEN[op]; adv = True
         w = lambda k: s16(b[k] << 8 | b[k + 1])
         if op == 0x81: self.ticks = self.m(b, 1); self.tick = self.ticks
-        elif op == 0x82: self.events.append((self.f, 'face', b[1]))
-        elif op == 0x83: self.events.append((self.f, 'disp', w(2), w(4)))
+        elif op == 0x82:                                  # $2C4B4: 0 turn around, 1 / 2 face toward / away from the opponent
+            self.events.append((self.f, 'face', b[1]))
+            if b[1] == 0: self.turned ^= 1
+        elif op == 0x83: self.disp = (w(2), w(4)); self.events.append((self.f, 'disp', w(2), w(4)))   # +$4A / +$4C (art px)
         elif op in (0x84, 0x85, 0x9B, 0x9C, 0x9D, 0x9E):
             gate = {0x84: True, 0x85: True, 0x9B: self.mode in (1, 3), 0x9C: self.mode in (1, 3), 0x9D: self.mode == 2, 0x9E: self.mode == 2}[op]
             if gate and (op in (0x85, 0x9C, 0x9E) or self.seg == -1):
@@ -192,7 +196,7 @@ class Obj:
                     if not self.loop[0]: self.tick = 1; return
                 self.off = self.loop[1]; self.step = self.loop[2]; self.tick = self.ticks; return
             self.tick = 1; return
-        self.tick = self.ticks; self.step += 1; self.off += 2
+        self.tick = self.ticks; self.step += 1; self.off += 2; self.newword = True
 
 def play_move(ch, move, n=400, mode=0, opp_dx=None, held=0):
     o = Obj(ch, mode, opp_dx=opp_dx, held=held); o.start_move(move)

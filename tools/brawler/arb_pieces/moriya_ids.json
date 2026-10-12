@@ -1,0 +1,138 @@
+{
+ "fighter": "moriya",
+ "about": "Piece ids (tools/brawler/piece_ids.py): S-NNN = a decoded special version, T-NNN = a decoded throw / grab; per fighter, in decode order, never renumbered or reused. The source of truth for arb_compile.py and the Workshop page (brawler-lab/workshop.html?f=<fighter>). Animations keep their $NN.",
+ "next": {
+  "S": 15,
+  "T": 3
+ },
+ "pieces": {
+  "S-001": {
+   "kind": "special",
+   "input": "214A",
+   "name": "Ittou Oboro (high), A version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-002": {
+   "kind": "special",
+   "input": "214B",
+   "name": "Ittou Oboro (mid), B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-003": {
+   "kind": "special",
+   "input": "214C",
+   "name": "Ittou Oboro (low), C version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-004": {
+   "kind": "special",
+   "input": "22A",
+   "name": "Kassatsu Byakuya (Speed super), A version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-005": {
+   "kind": "special",
+   "input": "22B",
+   "name": "Kassatsu Byakuya (Speed super), B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-006": {
+   "kind": "special",
+   "input": "236A",
+   "name": "Ittou Tsukikage, A version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-007": {
+   "kind": "special",
+   "input": "236B",
+   "name": "Ittou Tsukikage, B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-008": {
+   "kind": "special",
+   "input": "412A",
+   "name": "Taitou Hogetsu (back), A version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-009": {
+   "kind": "special",
+   "input": "412B",
+   "name": "Taitou Hogetsu (forward), B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-010": {
+   "kind": "special",
+   "input": "412C",
+   "name": "Taitou Hogetsu (behind), C version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-011": {
+   "kind": "special",
+   "input": "623A",
+   "name": "Ittou Shingetsu, A version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-012": {
+   "kind": "special",
+   "input": "623B",
+   "name": "Ittou Shingetsu Ri, B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-013": {
+   "kind": "special",
+   "input": "641236B",
+   "name": "Kassatsu Midare Setsugekka (desperation), B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "S-014": {
+   "kind": "special",
+   "input": "64123AB",
+   "name": "Kassatsu Izayoi Gekka (super), A+B version",
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "assigned": "2026-10-12"
+  },
+  "T-001": {
+   "kind": "throw",
+   "input": "hold + forward + A (LB2: close + forward / back + C+D, Samidare)",
+   "name": "close + C+D",
+   "move": "throw_c",
+   "source": "export throws",
+   "assigned": "2026-10-12"
+  },
+  "T-002": {
+   "kind": "throw",
+   "input": "hold + back + A (LB2: the same throw, Samidare: LB2 gives him one)",
+   "name": "close + C+D",
+   "move": "throw_d",
+   "source": "export throws",
+   "assigned": "2026-10-12"
+  }
+ }
+}

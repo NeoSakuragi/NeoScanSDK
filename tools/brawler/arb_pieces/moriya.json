@@ -1,0 +1,3061 @@
+{
+ "fighter": "moriya",
+ "bank": "lastbld2:moriya",
+ "game": "lastbld2",
+ "dictionary": "The Last Blade 2 (character 1 moriya, animation table $76134[1] -> $210000: 513 entries, 382 distinct animations)",
+ "about": "arb_compile.py piece library: per animation id (the dictionary's, = the sheet's pieces) its brawler move names (names), the specials whose program plays it (specials; decoded ones in \"specials\" below), hop_of (a later state of a hop: not playable alone), state (what anim_specials \"$NN\" address), anim_special (the reaction when played as an animation special: known = linkable, class c) and note. handled: {slot: {pieces, note, by}} sheet answers with a typed note that an agent has implemented (the same pieces + note are not listed again; a changed answer is). knobs: {S- id: [knob]} each decoded special's key parameters (tools/brawler/knobs.py: id, name, unit, the ROM default, min / max / step, the engine rows a value gives, from, judgment). Regenerated from the ROM tables + the dictionary + game.json; anim_special / note / handled entries added by hand are kept.",
+ "spare_names": [
+  "atk_cd_close",
+  "atk_ab_far",
+  "atk_ab_close",
+  "atk_cd_crouch",
+  "atk_ab_crouch",
+  "cmd_fwd_c",
+  "cmd_fwd_cd"
+ ],
+ "handled": {},
+ "specials": {
+  "214A": {
+   "decoded": true,
+   "anims": [
+    "92",
+    "94"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Oboro (high)"
+  },
+  "214B": {
+   "decoded": true,
+   "anims": [
+    "97",
+    "9E"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Oboro (mid)"
+  },
+  "214C": {
+   "decoded": true,
+   "anims": [
+    "9A",
+    "9F"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Oboro (low)"
+  },
+  "22A": {
+   "decoded": true,
+   "anims": [
+    "1C1",
+    "1C4"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya (Speed super)"
+  },
+  "22B": {
+   "decoded": true,
+   "anims": [
+    "1C2",
+    "1C5"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Byakuya (Speed super)"
+  },
+  "236A": {
+   "decoded": true,
+   "anims": [
+    "B6"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage"
+  },
+  "236B": {
+   "decoded": true,
+   "anims": [
+    "B9"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Tsukikage"
+  },
+  "412A": {
+   "decoded": true,
+   "anims": [
+    "AF",
+    "B3"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Taitou Hogetsu (back)"
+  },
+  "412B": {
+   "decoded": true,
+   "anims": [
+    "AF",
+    "B3"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Taitou Hogetsu (forward)"
+  },
+  "412C": {
+   "decoded": true,
+   "anims": [
+    "AE",
+    "B0"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Taitou Hogetsu (behind)"
+  },
+  "623A": {
+   "decoded": true,
+   "anims": [
+    "B4"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Shingetsu"
+  },
+  "623B": {
+   "decoded": true,
+   "anims": [
+    "B5"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Ittou Shingetsu Ri"
+  },
+  "641236B": {
+   "decoded": true,
+   "anims": [
+    "A2"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Midare Setsugekka (desperation)"
+  },
+  "64123AB": {
+   "decoded": true,
+   "anims": [
+    "A0",
+    "A1"
+   ],
+   "air": false,
+   "source": "handlers_lb2.SPECIALS",
+   "name": "Kassatsu Izayoi Gekka (super)"
+  }
+ },
+ "anims": {
+  "0": {
+   "kind": "pose",
+   "state": 0,
+   "names": [
+    "idle"
+   ],
+   "specials": []
+  },
+  "1": {
+   "kind": "pose",
+   "state": 1,
+   "names": [],
+   "specials": []
+  },
+  "2": {
+   "kind": "pose",
+   "state": 2,
+   "names": [],
+   "specials": []
+  },
+  "3": {
+   "kind": "pose",
+   "state": 3,
+   "names": [],
+   "specials": []
+  },
+  "4": {
+   "kind": "movement",
+   "state": 4,
+   "names": [
+    "walk_fwd"
+   ],
+   "specials": []
+  },
+  "5": {
+   "kind": "movement",
+   "state": 5,
+   "names": [
+    "walk_back"
+   ],
+   "specials": []
+  },
+  "6": {
+   "kind": "pose",
+   "state": 6,
+   "names": [],
+   "specials": []
+  },
+  "7": {
+   "kind": "pose",
+   "state": 7,
+   "names": [],
+   "specials": []
+  },
+  "8": {
+   "kind": "pose",
+   "state": 8,
+   "names": [],
+   "specials": []
+  },
+  "9": {
+   "kind": "pose",
+   "state": 9,
+   "names": [],
+   "specials": []
+  },
+  "A": {
+   "kind": "pose",
+   "state": 10,
+   "names": [],
+   "specials": []
+  },
+  "B": {
+   "kind": "pose",
+   "state": 11,
+   "names": [],
+   "specials": []
+  },
+  "C": {
+   "kind": "movement",
+   "state": 12,
+   "names": [
+    "jump_up_rise",
+    "jump_up_fall"
+   ],
+   "specials": []
+  },
+  "D": {
+   "kind": "movement",
+   "state": 13,
+   "names": [
+    "jump_fwd_rise",
+    "jump_fwd_fall"
+   ],
+   "specials": []
+  },
+  "E": {
+   "kind": "movement",
+   "state": 14,
+   "names": [
+    "jump_back_rise",
+    "jump_back_fall"
+   ],
+   "specials": []
+  },
+  "F": {
+   "kind": "pose",
+   "state": 15,
+   "names": [],
+   "specials": []
+  },
+  "10": {
+   "kind": "pose",
+   "state": 16,
+   "names": [],
+   "specials": []
+  },
+  "11": {
+   "kind": "movement",
+   "state": 17,
+   "names": [
+    "run"
+   ],
+   "specials": []
+  },
+  "12": {
+   "kind": "pose",
+   "state": 18,
+   "names": [],
+   "specials": []
+  },
+  "13": {
+   "kind": "pose",
+   "state": 19,
+   "names": [],
+   "specials": []
+  },
+  "14": {
+   "kind": "pose",
+   "state": 20,
+   "names": [],
+   "specials": []
+  },
+  "15": {
+   "kind": "pose",
+   "state": 21,
+   "names": [],
+   "specials": []
+  },
+  "16": {
+   "kind": "pose",
+   "state": 22,
+   "names": [
+    "getup"
+   ],
+   "specials": []
+  },
+  "17": {
+   "kind": "pose",
+   "state": 23,
+   "names": [],
+   "specials": []
+  },
+  "18": {
+   "kind": "pose",
+   "state": 24,
+   "names": [],
+   "specials": []
+  },
+  "19": {
+   "kind": "pose",
+   "state": 25,
+   "names": [],
+   "specials": []
+  },
+  "1A": {
+   "kind": "pose",
+   "state": 26,
+   "names": [],
+   "specials": []
+  },
+  "1B": {
+   "kind": "pose",
+   "state": 27,
+   "names": [],
+   "specials": []
+  },
+  "1C": {
+   "kind": "pose",
+   "state": 28,
+   "names": [],
+   "specials": []
+  },
+  "1D": {
+   "kind": "pose",
+   "state": 29,
+   "names": [],
+   "specials": []
+  },
+  "1E": {
+   "kind": "pose",
+   "state": 30,
+   "names": [],
+   "specials": []
+  },
+  "1F": {
+   "kind": "pose",
+   "state": 31,
+   "names": [],
+   "specials": []
+  },
+  "20": {
+   "kind": "pose",
+   "state": 32,
+   "names": [],
+   "specials": []
+  },
+  "21": {
+   "kind": "pose",
+   "state": 33,
+   "names": [],
+   "specials": []
+  },
+  "22": {
+   "kind": "pose",
+   "state": 34,
+   "names": [],
+   "specials": []
+  },
+  "23": {
+   "kind": "pose",
+   "state": 35,
+   "names": [],
+   "specials": []
+  },
+  "24": {
+   "kind": "pose",
+   "state": 36,
+   "names": [],
+   "specials": []
+  },
+  "25": {
+   "kind": "movement",
+   "state": 37,
+   "names": [],
+   "specials": []
+  },
+  "26": {
+   "kind": "pose",
+   "state": 38,
+   "names": [],
+   "specials": []
+  },
+  "27": {
+   "kind": "attack",
+   "state": 39,
+   "names": [],
+   "specials": []
+  },
+  "28": {
+   "kind": "pose",
+   "state": 40,
+   "names": [],
+   "specials": []
+  },
+  "29": {
+   "kind": "pose",
+   "state": 41,
+   "names": [],
+   "specials": []
+  },
+  "2A": {
+   "kind": "pose",
+   "state": 42,
+   "names": [],
+   "specials": []
+  },
+  "30": {
+   "kind": "attack",
+   "state": 48,
+   "names": [
+    "cmd_fwd_a"
+   ],
+   "specials": []
+  },
+  "31": {
+   "kind": "attack",
+   "state": 49,
+   "names": [
+    "atk_a_close",
+    "atk_a_far"
+   ],
+   "specials": []
+  },
+  "32": {
+   "kind": "attack",
+   "state": 50,
+   "names": [],
+   "specials": []
+  },
+  "33": {
+   "kind": "attack",
+   "state": 51,
+   "names": [],
+   "specials": []
+  },
+  "34": {
+   "kind": "attack",
+   "state": 52,
+   "names": [
+    "atk_b_close",
+    "atk_b_far"
+   ],
+   "specials": []
+  },
+  "35": {
+   "kind": "attack",
+   "state": 53,
+   "names": [
+    "atk_c_close",
+    "atk_c_far"
+   ],
+   "specials": []
+  },
+  "36": {
+   "kind": "attack",
+   "state": 54,
+   "names": [
+    "atk_d_close",
+    "atk_d_far"
+   ],
+   "specials": []
+  },
+  "37": {
+   "kind": "attack",
+   "state": 55,
+   "names": [
+    "atk_a_crouch"
+   ],
+   "specials": []
+  },
+  "38": {
+   "kind": "attack",
+   "state": 56,
+   "names": [
+    "atk_b_crouch"
+   ],
+   "specials": []
+  },
+  "39": {
+   "kind": "attack",
+   "state": 57,
+   "names": [
+    "atk_c_crouch"
+   ],
+   "specials": []
+  },
+  "3A": {
+   "kind": "attack",
+   "state": 58,
+   "names": [
+    "atk_d_crouch",
+    "cmd_df_c"
+   ],
+   "specials": []
+  },
+  "3B": {
+   "kind": "attack",
+   "state": 59,
+   "names": [
+    "atk_a_jump",
+    "atk_a_jump_diag"
+   ],
+   "specials": []
+  },
+  "3C": {
+   "kind": "movement",
+   "state": 60,
+   "names": [
+    "atk_b_jump",
+    "atk_d_jump",
+    "atk_d_jump_diag",
+    "atk_b_jump_diag"
+   ],
+   "specials": []
+  },
+  "3D": {
+   "kind": "movement",
+   "state": 61,
+   "names": [
+    "atk_c_jump",
+    "atk_c_jump_diag"
+   ],
+   "specials": []
+  },
+  "3E": {
+   "kind": "attack",
+   "state": 62,
+   "names": [],
+   "specials": [],
+   "throws": [
+    "throw_c",
+    "throw_d"
+   ]
+  },
+  "3F": {
+   "kind": "pose",
+   "state": 63,
+   "names": [],
+   "specials": []
+  },
+  "40": {
+   "kind": "attack",
+   "state": 64,
+   "names": [],
+   "specials": []
+  },
+  "41": {
+   "kind": "attack",
+   "state": 65,
+   "names": [],
+   "specials": []
+  },
+  "42": {
+   "kind": "attack",
+   "state": 66,
+   "names": [],
+   "specials": []
+  },
+  "43": {
+   "kind": "attack",
+   "state": 67,
+   "names": [],
+   "specials": []
+  },
+  "44": {
+   "kind": "attack",
+   "state": 68,
+   "names": [],
+   "specials": []
+  },
+  "47": {
+   "kind": "movement",
+   "state": 71,
+   "names": [
+    "land"
+   ],
+   "specials": []
+  },
+  "49": {
+   "kind": "attack",
+   "state": 73,
+   "names": [],
+   "specials": []
+  },
+  "4A": {
+   "kind": "attack",
+   "state": 74,
+   "names": [],
+   "specials": []
+  },
+  "4B": {
+   "kind": "attack",
+   "state": 75,
+   "names": [],
+   "specials": []
+  },
+  "4C": {
+   "kind": "attack",
+   "state": 76,
+   "names": [],
+   "specials": []
+  },
+  "4D": {
+   "kind": "attack",
+   "state": 77,
+   "names": [],
+   "specials": []
+  },
+  "50": {
+   "kind": "pose",
+   "state": 80,
+   "names": [],
+   "specials": []
+  },
+  "51": {
+   "kind": "pose",
+   "state": 81,
+   "names": [],
+   "specials": []
+  },
+  "52": {
+   "kind": "pose",
+   "state": 82,
+   "names": [],
+   "specials": []
+  },
+  "53": {
+   "kind": "pose",
+   "state": 83,
+   "names": [],
+   "specials": []
+  },
+  "54": {
+   "kind": "pose",
+   "state": 84,
+   "names": [],
+   "specials": []
+  },
+  "55": {
+   "kind": "pose",
+   "state": 85,
+   "names": [],
+   "specials": []
+  },
+  "56": {
+   "kind": "pose",
+   "state": 86,
+   "names": [],
+   "specials": []
+  },
+  "57": {
+   "kind": "pose",
+   "state": 87,
+   "names": [],
+   "specials": []
+  },
+  "58": {
+   "kind": "pose",
+   "state": 88,
+   "names": [],
+   "specials": []
+  },
+  "59": {
+   "kind": "pose",
+   "state": 89,
+   "names": [],
+   "specials": []
+  },
+  "5B": {
+   "kind": "pose",
+   "state": 91,
+   "names": [],
+   "specials": []
+  },
+  "5C": {
+   "kind": "pose",
+   "state": 92,
+   "names": [],
+   "specials": []
+  },
+  "5D": {
+   "kind": "pose",
+   "state": 93,
+   "names": [],
+   "specials": []
+  },
+  "60": {
+   "kind": "pose",
+   "state": 96,
+   "names": [],
+   "specials": []
+  },
+  "61": {
+   "kind": "pose",
+   "state": 97,
+   "names": [],
+   "specials": []
+  },
+  "65": {
+   "kind": "pose",
+   "state": 101,
+   "names": [],
+   "specials": []
+  },
+  "66": {
+   "kind": "pose",
+   "state": 102,
+   "names": [],
+   "specials": []
+  },
+  "69": {
+   "kind": "pose",
+   "state": 105,
+   "names": [],
+   "specials": []
+  },
+  "6C": {
+   "kind": "pose",
+   "state": 108,
+   "names": [],
+   "specials": []
+  },
+  "75": {
+   "kind": "pose",
+   "state": 117,
+   "names": [],
+   "specials": []
+  },
+  "76": {
+   "kind": "pose",
+   "state": 118,
+   "names": [],
+   "specials": []
+  },
+  "77": {
+   "kind": "pose",
+   "state": 119,
+   "names": [],
+   "specials": []
+  },
+  "78": {
+   "kind": "pose",
+   "state": 120,
+   "names": [],
+   "specials": []
+  },
+  "79": {
+   "kind": "pose",
+   "state": 121,
+   "names": [],
+   "specials": []
+  },
+  "7A": {
+   "kind": "pose",
+   "state": 122,
+   "names": [],
+   "specials": []
+  },
+  "7B": {
+   "kind": "pose",
+   "state": 123,
+   "names": [],
+   "specials": []
+  },
+  "7C": {
+   "kind": "pose",
+   "state": 124,
+   "names": [],
+   "specials": []
+  },
+  "7D": {
+   "kind": "pose",
+   "state": 125,
+   "names": [],
+   "specials": []
+  },
+  "7E": {
+   "kind": "pose",
+   "state": 126,
+   "names": [],
+   "specials": []
+  },
+  "80": {
+   "kind": "pose",
+   "state": 128,
+   "names": [],
+   "specials": []
+  },
+  "81": {
+   "kind": "pose",
+   "state": 129,
+   "names": [],
+   "specials": []
+  },
+  "82": {
+   "kind": "pose",
+   "state": 130,
+   "names": [],
+   "specials": []
+  },
+  "83": {
+   "kind": "pose",
+   "state": 131,
+   "names": [],
+   "specials": []
+  },
+  "84": {
+   "kind": "pose",
+   "state": 132,
+   "names": [],
+   "specials": []
+  },
+  "90": {
+   "kind": "attack",
+   "state": 144,
+   "names": [
+    "cmd_df_d"
+   ],
+   "specials": []
+  },
+  "91": {
+   "kind": "attack",
+   "state": 145,
+   "names": [
+    "body_toss",
+    "cmd_fwd_b"
+   ],
+   "specials": []
+  },
+  "92": {
+   "kind": "pose",
+   "state": 146,
+   "names": [],
+   "specials": [
+    "214A"
+   ]
+  },
+  "93": {
+   "kind": "pose",
+   "state": 147,
+   "names": [],
+   "specials": []
+  },
+  "94": {
+   "kind": "attack",
+   "state": 148,
+   "names": [],
+   "specials": [
+    "214A"
+   ]
+  },
+  "95": {
+   "kind": "attack",
+   "state": 149,
+   "names": [],
+   "specials": []
+  },
+  "96": {
+   "kind": "attack",
+   "state": 150,
+   "names": [],
+   "specials": []
+  },
+  "97": {
+   "kind": "attack",
+   "state": 151,
+   "names": [],
+   "specials": [
+    "214B"
+   ]
+  },
+  "98": {
+   "kind": "attack",
+   "state": 152,
+   "names": [],
+   "specials": []
+  },
+  "99": {
+   "kind": "attack",
+   "state": 153,
+   "names": [],
+   "specials": []
+  },
+  "9A": {
+   "kind": "attack",
+   "state": 154,
+   "names": [],
+   "specials": [
+    "214C"
+   ]
+  },
+  "9B": {
+   "kind": "attack",
+   "state": 155,
+   "names": [],
+   "specials": []
+  },
+  "9C": {
+   "kind": "attack",
+   "state": 156,
+   "names": [],
+   "specials": []
+  },
+  "9D": {
+   "kind": "pose",
+   "state": 157,
+   "names": [],
+   "specials": []
+  },
+  "9E": {
+   "kind": "pose",
+   "state": 158,
+   "names": [],
+   "specials": [
+    "214B"
+   ]
+  },
+  "9F": {
+   "kind": "pose",
+   "state": 159,
+   "names": [],
+   "specials": [
+    "214C"
+   ]
+  },
+  "A0": {
+   "kind": "pose",
+   "state": 160,
+   "names": [],
+   "specials": [
+    "64123AB"
+   ]
+  },
+  "A1": {
+   "kind": "attack",
+   "state": 161,
+   "names": [],
+   "specials": [
+    "64123AB"
+   ]
+  },
+  "A2": {
+   "kind": "attack",
+   "state": 162,
+   "names": [],
+   "specials": [
+    "641236B"
+   ]
+  },
+  "A4": {
+   "kind": "pose",
+   "state": 164,
+   "names": [],
+   "specials": []
+  },
+  "A5": {
+   "kind": "attack",
+   "state": 165,
+   "names": [],
+   "specials": []
+  },
+  "A7": {
+   "kind": "pose",
+   "state": 167,
+   "names": [],
+   "specials": []
+  },
+  "A8": {
+   "kind": "pose",
+   "state": 168,
+   "names": [],
+   "specials": []
+  },
+  "A9": {
+   "kind": "pose",
+   "state": 169,
+   "names": [],
+   "specials": []
+  },
+  "AA": {
+   "kind": "pose",
+   "state": 170,
+   "names": [],
+   "specials": []
+  },
+  "AB": {
+   "kind": "pose",
+   "state": 171,
+   "names": [],
+   "specials": []
+  },
+  "AC": {
+   "kind": "pose",
+   "state": 172,
+   "names": [],
+   "specials": []
+  },
+  "AD": {
+   "kind": "pose",
+   "state": 173,
+   "names": [],
+   "specials": []
+  },
+  "AE": {
+   "kind": "pose",
+   "state": 174,
+   "names": [],
+   "specials": [
+    "412C"
+   ]
+  },
+  "AF": {
+   "kind": "pose",
+   "state": 175,
+   "names": [],
+   "specials": [
+    "412A",
+    "412B"
+   ]
+  },
+  "B0": {
+   "kind": "pose",
+   "state": 176,
+   "names": [],
+   "specials": [
+    "412C"
+   ]
+  },
+  "B1": {
+   "kind": "pose",
+   "state": 177,
+   "names": [],
+   "specials": []
+  },
+  "B2": {
+   "kind": "pose",
+   "state": 178,
+   "names": [],
+   "specials": []
+  },
+  "B3": {
+   "kind": "pose",
+   "state": 179,
+   "names": [],
+   "specials": [
+    "412A",
+    "412B"
+   ]
+  },
+  "B4": {
+   "kind": "attack",
+   "state": 180,
+   "names": [],
+   "specials": [
+    "623A"
+   ]
+  },
+  "B5": {
+   "kind": "attack",
+   "state": 181,
+   "names": [],
+   "specials": [
+    "623B"
+   ]
+  },
+  "B6": {
+   "kind": "attack",
+   "state": 182,
+   "names": [],
+   "specials": [
+    "236A"
+   ]
+  },
+  "B7": {
+   "kind": "attack",
+   "state": 183,
+   "names": [],
+   "specials": []
+  },
+  "B8": {
+   "kind": "attack",
+   "state": 184,
+   "names": [],
+   "specials": []
+  },
+  "B9": {
+   "kind": "attack",
+   "state": 185,
+   "names": [],
+   "specials": [
+    "236B"
+   ]
+  },
+  "BA": {
+   "kind": "attack",
+   "state": 186,
+   "names": [],
+   "specials": []
+  },
+  "BB": {
+   "kind": "attack",
+   "state": 187,
+   "names": [],
+   "specials": []
+  },
+  "BC": {
+   "kind": "attack",
+   "state": 188,
+   "names": [],
+   "specials": []
+  },
+  "BD": {
+   "kind": "pose",
+   "state": 189,
+   "names": [],
+   "specials": []
+  },
+  "BE": {
+   "kind": "pose",
+   "state": 190,
+   "names": [],
+   "specials": []
+  },
+  "BF": {
+   "kind": "attack",
+   "state": 191,
+   "names": [],
+   "specials": []
+  },
+  "C0": {
+   "kind": "attack",
+   "state": 192,
+   "names": [],
+   "specials": []
+  },
+  "C1": {
+   "kind": "attack",
+   "state": 193,
+   "names": [],
+   "specials": []
+  },
+  "C3": {
+   "kind": "attack",
+   "state": 195,
+   "names": [],
+   "specials": []
+  },
+  "C5": {
+   "kind": "pose",
+   "state": 197,
+   "names": [],
+   "specials": []
+  },
+  "C6": {
+   "kind": "pose",
+   "state": 198,
+   "names": [],
+   "specials": []
+  },
+  "CD": {
+   "kind": "effect-only",
+   "state": 205,
+   "names": [],
+   "specials": []
+  },
+  "CE": {
+   "kind": "effect-only",
+   "state": 206,
+   "names": [],
+   "specials": []
+  },
+  "CF": {
+   "kind": "effect-only",
+   "state": 207,
+   "names": [],
+   "specials": []
+  },
+  "D0": {
+   "kind": "effect-only",
+   "state": 208,
+   "names": [],
+   "specials": []
+  },
+  "D1": {
+   "kind": "effect-only",
+   "state": 209,
+   "names": [],
+   "specials": []
+  },
+  "D2": {
+   "kind": "effect-only",
+   "state": 210,
+   "names": [],
+   "specials": []
+  },
+  "D3": {
+   "kind": "effect-only",
+   "state": 211,
+   "names": [],
+   "specials": []
+  },
+  "D4": {
+   "kind": "effect-only",
+   "state": 212,
+   "names": [],
+   "specials": []
+  },
+  "D5": {
+   "kind": "effect-only",
+   "state": 213,
+   "names": [],
+   "specials": []
+  },
+  "D6": {
+   "kind": "effect-only",
+   "state": 214,
+   "names": [],
+   "specials": []
+  },
+  "D7": {
+   "kind": "effect-only",
+   "state": 215,
+   "names": [],
+   "specials": []
+  },
+  "D8": {
+   "kind": "effect-only",
+   "state": 216,
+   "names": [],
+   "specials": []
+  },
+  "D9": {
+   "kind": "effect-only",
+   "state": 217,
+   "names": [],
+   "specials": []
+  },
+  "DA": {
+   "kind": "effect-only",
+   "state": 218,
+   "names": [],
+   "specials": []
+  },
+  "DB": {
+   "kind": "effect-only",
+   "state": 219,
+   "names": [],
+   "specials": []
+  },
+  "DC": {
+   "kind": "effect-only",
+   "state": 220,
+   "names": [],
+   "specials": []
+  },
+  "DD": {
+   "kind": "effect-only",
+   "state": 221,
+   "names": [],
+   "specials": []
+  },
+  "DE": {
+   "kind": "effect-only",
+   "state": 222,
+   "names": [],
+   "specials": []
+  },
+  "100": {
+   "kind": "reaction",
+   "state": 256,
+   "names": [
+    "hit_stand_light"
+   ],
+   "specials": []
+  },
+  "101": {
+   "kind": "reaction",
+   "state": 257,
+   "names": [
+    "hit_stand_heavy",
+    "trip"
+   ],
+   "specials": []
+  },
+  "102": {
+   "kind": "pose",
+   "state": 258,
+   "names": [],
+   "specials": []
+  },
+  "103": {
+   "kind": "pose",
+   "state": 259,
+   "names": [],
+   "specials": []
+  },
+  "104": {
+   "kind": "pose",
+   "state": 260,
+   "names": [],
+   "specials": []
+  },
+  "105": {
+   "kind": "pose",
+   "state": 261,
+   "names": [],
+   "specials": []
+  },
+  "106": {
+   "kind": "pose",
+   "state": 262,
+   "names": [],
+   "specials": []
+  },
+  "107": {
+   "kind": "pose",
+   "state": 263,
+   "names": [],
+   "specials": []
+  },
+  "108": {
+   "kind": "pose",
+   "state": 264,
+   "names": [],
+   "specials": []
+  },
+  "109": {
+   "kind": "pose",
+   "state": 265,
+   "names": [],
+   "specials": []
+  },
+  "10A": {
+   "kind": "pose",
+   "state": 266,
+   "names": [],
+   "specials": []
+  },
+  "10B": {
+   "kind": "pose",
+   "state": 267,
+   "names": [],
+   "specials": []
+  },
+  "10C": {
+   "kind": "pose",
+   "state": 268,
+   "names": [],
+   "specials": []
+  },
+  "10D": {
+   "kind": "pose",
+   "state": 269,
+   "names": [],
+   "specials": []
+  },
+  "10E": {
+   "kind": "pose",
+   "state": 270,
+   "names": [],
+   "specials": []
+  },
+  "10F": {
+   "kind": "reaction",
+   "state": 271,
+   "names": [
+    "hit_air",
+    "blowback",
+    "blowback_n",
+    "knockdown_flight"
+   ],
+   "specials": []
+  },
+  "110": {
+   "kind": "pose",
+   "state": 272,
+   "names": [],
+   "specials": []
+  },
+  "111": {
+   "kind": "pose",
+   "state": 273,
+   "names": [],
+   "specials": []
+  },
+  "112": {
+   "kind": "pose",
+   "state": 274,
+   "names": [],
+   "specials": []
+  },
+  "113": {
+   "kind": "pose",
+   "state": 275,
+   "names": [],
+   "specials": []
+  },
+  "114": {
+   "kind": "pose",
+   "state": 276,
+   "names": [],
+   "specials": []
+  },
+  "115": {
+   "kind": "pose",
+   "state": 277,
+   "names": [],
+   "specials": []
+  },
+  "116": {
+   "kind": "pose",
+   "state": 278,
+   "names": [],
+   "specials": []
+  },
+  "117": {
+   "kind": "pose",
+   "state": 279,
+   "names": [],
+   "specials": []
+  },
+  "118": {
+   "kind": "pose",
+   "state": 280,
+   "names": [],
+   "specials": []
+  },
+  "119": {
+   "kind": "reaction",
+   "state": 281,
+   "names": [
+    "knockdown_bounce",
+    "knockdown_fall"
+   ],
+   "specials": []
+  },
+  "11A": {
+   "kind": "pose",
+   "state": 282,
+   "names": [],
+   "specials": []
+  },
+  "11B": {
+   "kind": "pose",
+   "state": 283,
+   "names": [],
+   "specials": []
+  },
+  "11C": {
+   "kind": "pose",
+   "state": 284,
+   "names": [],
+   "specials": []
+  },
+  "11D": {
+   "kind": "reaction",
+   "state": 285,
+   "names": [
+    "down"
+   ],
+   "specials": []
+  },
+  "11E": {
+   "kind": "pose",
+   "state": 286,
+   "names": [],
+   "specials": []
+  },
+  "11F": {
+   "kind": "pose",
+   "state": 287,
+   "names": [],
+   "specials": []
+  },
+  "120": {
+   "kind": "pose",
+   "state": 288,
+   "names": [],
+   "specials": []
+  },
+  "121": {
+   "kind": "pose",
+   "state": 289,
+   "names": [],
+   "specials": []
+  },
+  "122": {
+   "kind": "pose",
+   "state": 290,
+   "names": [],
+   "specials": []
+  },
+  "123": {
+   "kind": "pose",
+   "state": 291,
+   "names": [],
+   "specials": []
+  },
+  "124": {
+   "kind": "pose",
+   "state": 292,
+   "names": [],
+   "specials": []
+  },
+  "125": {
+   "kind": "pose",
+   "state": 293,
+   "names": [],
+   "specials": []
+  },
+  "126": {
+   "kind": "pose",
+   "state": 294,
+   "names": [],
+   "specials": []
+  },
+  "127": {
+   "kind": "pose",
+   "state": 295,
+   "names": [],
+   "specials": []
+  },
+  "128": {
+   "kind": "pose",
+   "state": 296,
+   "names": [],
+   "specials": []
+  },
+  "129": {
+   "kind": "pose",
+   "state": 297,
+   "names": [],
+   "specials": []
+  },
+  "12A": {
+   "kind": "pose",
+   "state": 298,
+   "names": [],
+   "specials": []
+  },
+  "12B": {
+   "kind": "pose",
+   "state": 299,
+   "names": [],
+   "specials": []
+  },
+  "12C": {
+   "kind": "pose",
+   "state": 300,
+   "names": [],
+   "specials": []
+  },
+  "12D": {
+   "kind": "pose",
+   "state": 301,
+   "names": [],
+   "specials": []
+  },
+  "12E": {
+   "kind": "pose",
+   "state": 302,
+   "names": [],
+   "specials": []
+  },
+  "12F": {
+   "kind": "pose",
+   "state": 303,
+   "names": [],
+   "specials": []
+  },
+  "130": {
+   "kind": "pose",
+   "state": 304,
+   "names": [],
+   "specials": []
+  },
+  "131": {
+   "kind": "pose",
+   "state": 305,
+   "names": [],
+   "specials": []
+  },
+  "132": {
+   "kind": "pose",
+   "state": 306,
+   "names": [],
+   "specials": []
+  },
+  "133": {
+   "kind": "pose",
+   "state": 307,
+   "names": [],
+   "specials": []
+  },
+  "134": {
+   "kind": "pose",
+   "state": 308,
+   "names": [],
+   "specials": []
+  },
+  "135": {
+   "kind": "pose",
+   "state": 309,
+   "names": [],
+   "specials": []
+  },
+  "136": {
+   "kind": "pose",
+   "state": 310,
+   "names": [],
+   "specials": []
+  },
+  "137": {
+   "kind": "pose",
+   "state": 311,
+   "names": [],
+   "specials": []
+  },
+  "138": {
+   "kind": "pose",
+   "state": 312,
+   "names": [],
+   "specials": []
+  },
+  "139": {
+   "kind": "pose",
+   "state": 313,
+   "names": [],
+   "specials": []
+  },
+  "13A": {
+   "kind": "pose",
+   "state": 314,
+   "names": [],
+   "specials": []
+  },
+  "13B": {
+   "kind": "pose",
+   "state": 315,
+   "names": [],
+   "specials": []
+  },
+  "13C": {
+   "kind": "pose",
+   "state": 316,
+   "names": [],
+   "specials": []
+  },
+  "13D": {
+   "kind": "pose",
+   "state": 317,
+   "names": [],
+   "specials": []
+  },
+  "13E": {
+   "kind": "pose",
+   "state": 318,
+   "names": [],
+   "specials": []
+  },
+  "13F": {
+   "kind": "pose",
+   "state": 319,
+   "names": [],
+   "specials": []
+  },
+  "140": {
+   "kind": "pose",
+   "state": 320,
+   "names": [],
+   "specials": []
+  },
+  "141": {
+   "kind": "pose",
+   "state": 321,
+   "names": [],
+   "specials": []
+  },
+  "142": {
+   "kind": "pose",
+   "state": 322,
+   "names": [],
+   "specials": []
+  },
+  "145": {
+   "kind": "reaction",
+   "state": 325,
+   "names": [],
+   "specials": []
+  },
+  "146": {
+   "kind": "pose",
+   "state": 326,
+   "names": [],
+   "specials": []
+  },
+  "14A": {
+   "kind": "pose",
+   "state": 330,
+   "names": [],
+   "specials": []
+  },
+  "14B": {
+   "kind": "pose",
+   "state": 331,
+   "names": [],
+   "specials": []
+  },
+  "14C": {
+   "kind": "pose",
+   "state": 332,
+   "names": [],
+   "specials": []
+  },
+  "14F": {
+   "kind": "pose",
+   "state": 335,
+   "names": [],
+   "specials": []
+  },
+  "150": {
+   "kind": "pose",
+   "state": 336,
+   "names": [],
+   "specials": []
+  },
+  "151": {
+   "kind": "pose",
+   "state": 337,
+   "names": [],
+   "specials": []
+  },
+  "152": {
+   "kind": "pose",
+   "state": 338,
+   "names": [],
+   "specials": []
+  },
+  "154": {
+   "kind": "pose",
+   "state": 340,
+   "names": [],
+   "specials": []
+  },
+  "155": {
+   "kind": "pose",
+   "state": 341,
+   "names": [],
+   "specials": []
+  },
+  "156": {
+   "kind": "pose",
+   "state": 342,
+   "names": [],
+   "specials": []
+  },
+  "157": {
+   "kind": "pose",
+   "state": 343,
+   "names": [],
+   "specials": []
+  },
+  "158": {
+   "kind": "pose",
+   "state": 344,
+   "names": [],
+   "specials": []
+  },
+  "159": {
+   "kind": "pose",
+   "state": 345,
+   "names": [],
+   "specials": []
+  },
+  "15A": {
+   "kind": "pose",
+   "state": 346,
+   "names": [],
+   "specials": []
+  },
+  "15B": {
+   "kind": "pose",
+   "state": 347,
+   "names": [],
+   "specials": []
+  },
+  "15D": {
+   "kind": "pose",
+   "state": 349,
+   "names": [],
+   "specials": []
+  },
+  "15E": {
+   "kind": "pose",
+   "state": 350,
+   "names": [],
+   "specials": []
+  },
+  "15F": {
+   "kind": "pose",
+   "state": 351,
+   "names": [],
+   "specials": []
+  },
+  "160": {
+   "kind": "pose",
+   "state": 352,
+   "names": [],
+   "specials": []
+  },
+  "161": {
+   "kind": "pose",
+   "state": 353,
+   "names": [],
+   "specials": []
+  },
+  "162": {
+   "kind": "pose",
+   "state": 354,
+   "names": [],
+   "specials": []
+  },
+  "165": {
+   "kind": "pose",
+   "state": 357,
+   "names": [],
+   "specials": []
+  },
+  "166": {
+   "kind": "pose",
+   "state": 358,
+   "names": [],
+   "specials": []
+  },
+  "167": {
+   "kind": "pose",
+   "state": 359,
+   "names": [],
+   "specials": []
+  },
+  "168": {
+   "kind": "pose",
+   "state": 360,
+   "names": [],
+   "specials": []
+  },
+  "169": {
+   "kind": "pose",
+   "state": 361,
+   "names": [],
+   "specials": []
+  },
+  "16B": {
+   "kind": "pose",
+   "state": 363,
+   "names": [],
+   "specials": []
+  },
+  "16C": {
+   "kind": "pose",
+   "state": 364,
+   "names": [],
+   "specials": []
+  },
+  "16D": {
+   "kind": "pose",
+   "state": 365,
+   "names": [],
+   "specials": []
+  },
+  "16E": {
+   "kind": "pose",
+   "state": 366,
+   "names": [],
+   "specials": []
+  },
+  "16F": {
+   "kind": "pose",
+   "state": 367,
+   "names": [],
+   "specials": []
+  },
+  "170": {
+   "kind": "pose",
+   "state": 368,
+   "names": [],
+   "specials": []
+  },
+  "171": {
+   "kind": "pose",
+   "state": 369,
+   "names": [],
+   "specials": []
+  },
+  "172": {
+   "kind": "pose",
+   "state": 370,
+   "names": [],
+   "specials": []
+  },
+  "173": {
+   "kind": "pose",
+   "state": 371,
+   "names": [],
+   "specials": []
+  },
+  "174": {
+   "kind": "pose",
+   "state": 372,
+   "names": [],
+   "specials": []
+  },
+  "175": {
+   "kind": "pose",
+   "state": 373,
+   "names": [],
+   "specials": []
+  },
+  "177": {
+   "kind": "pose",
+   "state": 375,
+   "names": [],
+   "specials": []
+  },
+  "178": {
+   "kind": "pose",
+   "state": 376,
+   "names": [],
+   "specials": []
+  },
+  "179": {
+   "kind": "pose",
+   "state": 377,
+   "names": [],
+   "specials": []
+  },
+  "17A": {
+   "kind": "pose",
+   "state": 378,
+   "names": [],
+   "specials": []
+  },
+  "17B": {
+   "kind": "empty",
+   "state": 379,
+   "names": [],
+   "specials": []
+  },
+  "17C": {
+   "kind": "pose",
+   "state": 380,
+   "names": [],
+   "specials": []
+  },
+  "17D": {
+   "kind": "pose",
+   "state": 381,
+   "names": [],
+   "specials": []
+  },
+  "180": {
+   "kind": "pose",
+   "state": 384,
+   "names": [],
+   "specials": []
+  },
+  "181": {
+   "kind": "pose",
+   "state": 385,
+   "names": [],
+   "specials": []
+  },
+  "182": {
+   "kind": "pose",
+   "state": 386,
+   "names": [],
+   "specials": []
+  },
+  "183": {
+   "kind": "pose",
+   "state": 387,
+   "names": [],
+   "specials": []
+  },
+  "184": {
+   "kind": "pose",
+   "state": 388,
+   "names": [],
+   "specials": []
+  },
+  "185": {
+   "kind": "pose",
+   "state": 389,
+   "names": [],
+   "specials": []
+  },
+  "186": {
+   "kind": "pose",
+   "state": 390,
+   "names": [],
+   "specials": []
+  },
+  "187": {
+   "kind": "pose",
+   "state": 391,
+   "names": [],
+   "specials": []
+  },
+  "188": {
+   "kind": "pose",
+   "state": 392,
+   "names": [],
+   "specials": []
+  },
+  "189": {
+   "kind": "pose",
+   "state": 393,
+   "names": [],
+   "specials": []
+  },
+  "18A": {
+   "kind": "pose",
+   "state": 394,
+   "names": [],
+   "specials": []
+  },
+  "18B": {
+   "kind": "pose",
+   "state": 395,
+   "names": [],
+   "specials": []
+  },
+  "18C": {
+   "kind": "pose",
+   "state": 396,
+   "names": [],
+   "specials": []
+  },
+  "18D": {
+   "kind": "pose",
+   "state": 397,
+   "names": [],
+   "specials": []
+  },
+  "18E": {
+   "kind": "pose",
+   "state": 398,
+   "names": [],
+   "specials": []
+  },
+  "18F": {
+   "kind": "pose",
+   "state": 399,
+   "names": [],
+   "specials": []
+  },
+  "190": {
+   "kind": "pose",
+   "state": 400,
+   "names": [],
+   "specials": []
+  },
+  "191": {
+   "kind": "pose",
+   "state": 401,
+   "names": [],
+   "specials": []
+  },
+  "192": {
+   "kind": "pose",
+   "state": 402,
+   "names": [],
+   "specials": []
+  },
+  "193": {
+   "kind": "pose",
+   "state": 403,
+   "names": [],
+   "specials": []
+  },
+  "195": {
+   "kind": "pose",
+   "state": 405,
+   "names": [],
+   "specials": []
+  },
+  "196": {
+   "kind": "pose",
+   "state": 406,
+   "names": [],
+   "specials": []
+  },
+  "197": {
+   "kind": "pose",
+   "state": 407,
+   "names": [],
+   "specials": []
+  },
+  "198": {
+   "kind": "pose",
+   "state": 408,
+   "names": [],
+   "specials": []
+  },
+  "199": {
+   "kind": "pose",
+   "state": 409,
+   "names": [],
+   "specials": []
+  },
+  "19B": {
+   "kind": "pose",
+   "state": 411,
+   "names": [],
+   "specials": []
+  },
+  "19C": {
+   "kind": "pose",
+   "state": 412,
+   "names": [],
+   "specials": []
+  },
+  "19D": {
+   "kind": "pose",
+   "state": 413,
+   "names": [],
+   "specials": []
+  },
+  "19E": {
+   "kind": "pose",
+   "state": 414,
+   "names": [],
+   "specials": []
+  },
+  "19F": {
+   "kind": "pose",
+   "state": 415,
+   "names": [],
+   "specials": []
+  },
+  "1A0": {
+   "kind": "pose",
+   "state": 416,
+   "names": [],
+   "specials": []
+  },
+  "1A1": {
+   "kind": "pose",
+   "state": 417,
+   "names": [],
+   "specials": []
+  },
+  "1A2": {
+   "kind": "pose",
+   "state": 418,
+   "names": [],
+   "specials": []
+  },
+  "1A3": {
+   "kind": "pose",
+   "state": 419,
+   "names": [],
+   "specials": []
+  },
+  "1A4": {
+   "kind": "pose",
+   "state": 420,
+   "names": [],
+   "specials": []
+  },
+  "1A5": {
+   "kind": "pose",
+   "state": 421,
+   "names": [],
+   "specials": []
+  },
+  "1A6": {
+   "kind": "pose",
+   "state": 422,
+   "names": [],
+   "specials": []
+  },
+  "1A7": {
+   "kind": "pose",
+   "state": 423,
+   "names": [],
+   "specials": []
+  },
+  "1A9": {
+   "kind": "pose",
+   "state": 425,
+   "names": [],
+   "specials": []
+  },
+  "1AA": {
+   "kind": "pose",
+   "state": 426,
+   "names": [],
+   "specials": []
+  },
+  "1AB": {
+   "kind": "pose",
+   "state": 427,
+   "names": [],
+   "specials": []
+  },
+  "1B0": {
+   "kind": "pose",
+   "state": 432,
+   "names": [],
+   "specials": []
+  },
+  "1B1": {
+   "kind": "pose",
+   "state": 433,
+   "names": [],
+   "specials": []
+  },
+  "1B2": {
+   "kind": "pose",
+   "state": 434,
+   "names": [],
+   "specials": []
+  },
+  "1B3": {
+   "kind": "pose",
+   "state": 435,
+   "names": [],
+   "specials": []
+  },
+  "1B4": {
+   "kind": "pose",
+   "state": 436,
+   "names": [],
+   "specials": []
+  },
+  "1B5": {
+   "kind": "pose",
+   "state": 437,
+   "names": [],
+   "specials": []
+  },
+  "1B6": {
+   "kind": "pose",
+   "state": 438,
+   "names": [],
+   "specials": []
+  },
+  "1B7": {
+   "kind": "pose",
+   "state": 439,
+   "names": [],
+   "specials": []
+  },
+  "1B8": {
+   "kind": "pose",
+   "state": 440,
+   "names": [],
+   "specials": []
+  },
+  "1B9": {
+   "kind": "pose",
+   "state": 441,
+   "names": [],
+   "specials": []
+  },
+  "1BA": {
+   "kind": "pose",
+   "state": 442,
+   "names": [],
+   "specials": []
+  },
+  "1BB": {
+   "kind": "pose",
+   "state": 443,
+   "names": [],
+   "specials": []
+  },
+  "1BC": {
+   "kind": "pose",
+   "state": 444,
+   "names": [],
+   "specials": []
+  },
+  "1BD": {
+   "kind": "pose",
+   "state": 445,
+   "names": [],
+   "specials": []
+  },
+  "1BE": {
+   "kind": "pose",
+   "state": 446,
+   "names": [],
+   "specials": []
+  },
+  "1BF": {
+   "kind": "pose",
+   "state": 447,
+   "names": [],
+   "specials": []
+  },
+  "1C1": {
+   "kind": "attack",
+   "state": 449,
+   "names": [],
+   "specials": [
+    "22A"
+   ]
+  },
+  "1C2": {
+   "kind": "attack",
+   "state": 450,
+   "names": [],
+   "specials": [
+    "22B"
+   ]
+  },
+  "1C3": {
+   "kind": "pose",
+   "state": 451,
+   "names": [],
+   "specials": []
+  },
+  "1C4": {
+   "kind": "attack",
+   "state": 452,
+   "names": [],
+   "specials": [
+    "22A"
+   ]
+  },
+  "1C5": {
+   "kind": "attack",
+   "state": 453,
+   "names": [],
+   "specials": [
+    "22B"
+   ]
+  },
+  "1C6": {
+   "kind": "attack",
+   "state": 454,
+   "names": [],
+   "specials": []
+  },
+  "1C7": {
+   "kind": "attack",
+   "state": 455,
+   "names": [],
+   "specials": []
+  },
+  "1C8": {
+   "kind": "attack",
+   "state": 456,
+   "names": [],
+   "specials": []
+  },
+  "1C9": {
+   "kind": "attack",
+   "state": 457,
+   "names": [],
+   "specials": []
+  },
+  "1CA": {
+   "kind": "attack",
+   "state": 458,
+   "names": [],
+   "specials": []
+  },
+  "1CB": {
+   "kind": "attack",
+   "state": 459,
+   "names": [],
+   "specials": []
+  },
+  "1CC": {
+   "kind": "attack",
+   "state": 460,
+   "names": [],
+   "specials": []
+  },
+  "1CD": {
+   "kind": "attack",
+   "state": 461,
+   "names": [],
+   "specials": []
+  },
+  "1CE": {
+   "kind": "attack",
+   "state": 462,
+   "names": [],
+   "specials": []
+  },
+  "1CF": {
+   "kind": "attack",
+   "state": 463,
+   "names": [],
+   "specials": []
+  },
+  "1D0": {
+   "kind": "attack",
+   "state": 464,
+   "names": [],
+   "specials": []
+  },
+  "1D1": {
+   "kind": "attack",
+   "state": 465,
+   "names": [],
+   "specials": []
+  },
+  "1D2": {
+   "kind": "attack",
+   "state": 466,
+   "names": [],
+   "specials": []
+  },
+  "1D3": {
+   "kind": "attack",
+   "state": 467,
+   "names": [],
+   "specials": []
+  },
+  "1D4": {
+   "kind": "attack",
+   "state": 468,
+   "names": [],
+   "specials": []
+  },
+  "1D5": {
+   "kind": "attack",
+   "state": 469,
+   "names": [],
+   "specials": []
+  },
+  "1D6": {
+   "kind": "attack",
+   "state": 470,
+   "names": [],
+   "specials": []
+  },
+  "1D7": {
+   "kind": "attack",
+   "state": 471,
+   "names": [],
+   "specials": []
+  },
+  "1D8": {
+   "kind": "attack",
+   "state": 472,
+   "names": [],
+   "specials": []
+  },
+  "1D9": {
+   "kind": "attack",
+   "state": 473,
+   "names": [],
+   "specials": []
+  },
+  "1DA": {
+   "kind": "attack",
+   "state": 474,
+   "names": [],
+   "specials": []
+  },
+  "1DB": {
+   "kind": "attack",
+   "state": 475,
+   "names": [],
+   "specials": []
+  },
+  "1DC": {
+   "kind": "attack",
+   "state": 476,
+   "names": [],
+   "specials": []
+  },
+  "1DD": {
+   "kind": "attack",
+   "state": 477,
+   "names": [],
+   "specials": []
+  },
+  "1E0": {
+   "kind": "pose",
+   "state": 480,
+   "names": [],
+   "specials": []
+  },
+  "1E1": {
+   "kind": "pose",
+   "state": 481,
+   "names": [],
+   "specials": []
+  },
+  "1E2": {
+   "kind": "pose",
+   "state": 482,
+   "names": [],
+   "specials": []
+  },
+  "1E3": {
+   "kind": "pose",
+   "state": 483,
+   "names": [],
+   "specials": []
+  },
+  "1E4": {
+   "kind": "pose",
+   "state": 484,
+   "names": [],
+   "specials": []
+  },
+  "1E5": {
+   "kind": "pose",
+   "state": 485,
+   "names": [],
+   "specials": []
+  },
+  "1E6": {
+   "kind": "pose",
+   "state": 486,
+   "names": [],
+   "specials": []
+  },
+  "1E7": {
+   "kind": "pose",
+   "state": 487,
+   "names": [],
+   "specials": []
+  },
+  "1E8": {
+   "kind": "pose",
+   "state": 488,
+   "names": [],
+   "specials": []
+  },
+  "200": {
+   "kind": "pose",
+   "state": 512,
+   "names": [],
+   "specials": []
+  }
+ },
+ "throw_inputs": {
+  "throw_c": "hold + forward + A (LB2: close + forward / back + C+D, Samidare)",
+  "throw_d": "hold + back + A (LB2: the same throw, Samidare: LB2 gives him one)"
+ },
+ "knobs": {
+  "S-001": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-002": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-003": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-004": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 24,
+    "min": 1,
+    "max": 72,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 1572864,
+      "base": 1572864
+     }
+    ],
+    "from": "P_SET vx 24 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-005": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 8.75,
+    "min": 1,
+    "max": 26.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 573440,
+      "base": 573440
+     }
+    ],
+    "from": "P_SET vx 8.75 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-006": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 3.625,
+    "min": 1,
+    "max": 11.0,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 237568,
+      "base": 237568
+     }
+    ],
+    "from": "P_SET vx 3.625 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-007": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 11.4688,
+    "min": 1,
+    "max": 34.5,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 751616,
+      "base": 751616
+     }
+    ],
+    "from": "P_SET vx 11.4688 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-008": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5.25,
+    "min": 1,
+    "max": 15.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 344064,
+      "base": 344064
+     }
+    ],
+    "from": "P_SET vx 5.25 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-009": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 5.25,
+    "min": 1,
+    "max": 15.75,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 344064,
+      "base": 344064
+     }
+    ],
+    "from": "P_SET vx 5.25 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-010": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 110,
+    "min": 1,
+    "max": 330,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 7208960,
+      "base": 7208960
+     }
+    ],
+    "from": "P_SET vx 110 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-011": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-012": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 28,
+    "min": 1,
+    "max": 84,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 1835008,
+      "base": 1835008
+     }
+    ],
+    "from": "P_SET vx 28 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-013": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 12.75,
+    "min": 1,
+    "max": 38.25,
+    "step": 0.25,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 835584,
+      "base": 835584
+     }
+    ],
+    "from": "P_SET vx 12.75 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": true
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ],
+  "S-014": [
+   {
+    "id": "travel",
+    "name": "Travel speed",
+    "unit": "px/frame",
+    "default": 1,
+    "min": 1,
+    "max": 4,
+    "step": 1,
+    "rows": [
+     {
+      "kind": 1,
+      "a": 0,
+      "match": 65536,
+      "base": 65536
+     }
+    ],
+    "from": "P_SET vx 1 (its fastest segment: LB2's script velocity, 8.8)",
+    "judgment": false
+   },
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "from": "every hit it deals (the export's per-hit damage x the tier)",
+    "judgment": true
+   }
+  ]
+ }
+}

@@ -75,12 +75,12 @@ def commands(ch):
 #   22A / 22B rows $8C / $8D -> $A5 / $A6 [800D 8001 01C1 01C4 / 01C2 01C5]: Kassatsu Byakuya (Speed / EX's super)
 SPECIALS = {
     'moriya': {
-        '236A': (0x77, 0, 'Ittou Tsukikage, A'), '236B': (0x78, 0, 'Ittou Tsukikage, B'),
+        '236A': (0x77, 0, 'Ittou Tsukikage'), '236B': (0x78, 0, 'Ittou Tsukikage'),
         '623A': (0x79, 0, 'Ittou Shingetsu'), '623B': (0x7A, 0, 'Ittou Shingetsu Ri'),
-        '214A': (0x7B, 0, 'Ittou Oboro, A (high)'), '214B': (0x7C, 0, 'Ittou Oboro, B (mid)'), '214C': (0x7D, 0, 'Ittou Oboro, C (low)'),
-        '412A': (0x7E, 0, 'Taitou Hogetsu, A (back)'), '412B': (0x7F, 0, 'Taitou Hogetsu, B (forward)'), '412C': (0x80, 0, 'Taitou Hogetsu, C (behind)'),
+        '214A': (0x7B, 0, 'Ittou Oboro (high)'), '214B': (0x7C, 0, 'Ittou Oboro (mid)'), '214C': (0x7D, 0, 'Ittou Oboro (low)'),
+        '412A': (0x7E, 0, 'Taitou Hogetsu (back)'), '412B': (0x7F, 0, 'Taitou Hogetsu (forward)'), '412C': (0x80, 0, 'Taitou Hogetsu (behind)'),
         '64123AB': (0x86, 0, 'Kassatsu Izayoi Gekka (super)'), '641236B': (0x8A, 0, 'Kassatsu Midare Setsugekka (desperation)'),
-        '22A': (0x8C, 1, 'Kassatsu Byakuya, A (Speed super)'), '22B': (0x8D, 1, 'Kassatsu Byakuya, B (Speed super)'),
+        '22A': (0x8C, 1, 'Kassatsu Byakuya (Speed super)'), '22B': (0x8D, 1, 'Kassatsu Byakuya (Speed super)'),
     }}
 # the descriptor's teleports -> P_WARP (a = 0: at its target, b px short of it, turned to it; model_lb2.WARP)
 WARP_B = {9: 288, 10: 80, 11: -110}
@@ -255,9 +255,47 @@ def win_anims(B, ch, name):
         out['win' if k == 0 else f'win_{k + 1}'] = {'slot': a, 'mode': 'hold', 'steps': X.anim_steps(B, ch, a)}
     return out
 
-# ---- throws ----
+# ---- throws [code]+[meas] -----------------------------------------------------------------------------------------------
+# C+D (or forward / back + C+D) from standing = move $3F [D800 003F]: control word op $2C ($30184) runs throw test 0
+# ($76A24[0] = $30670): the opponent within word $76AE4[char] px (40 for everyone, $30436: on the ground, not already
+# thrown, its body box $C0 / $C4 near) -> the thrower's move $3E (anim $3E) and the VICTIM's move $76AA4[thrower's char]
+# (Moriya: $145) in the victim's OWN table (every character has a "thrown by X" move for each thrower), the victim
+# turned to face the thrower ($3021A eori #1 +$41) at the thrower's place. Its descriptor [$145 $11D $16 0]: the thrown
+# animation (drawing offsets $83 while held, then the $84 flight $8000: 8 px a frame, 8.81 px up, gravity 0.53, to the
+# landing: the damage, measured life 256 -> 228 at the landing frame), lying ($11D), getting up ($16). SNK's name:
+# Samidare (close back / forward + C+D, snk.fandom.com "Moriya Minakata/Move List").
+THROW = {'moriya': {'move': 0x3E, 'victim': 0x145, 'name': 'Samidare', 'range': 40}}
+
+def throw(B, ch, name):
+    import export_lb2 as X
+    t = THROW[name]
+    trows, _ = move_rows(ch, t['move'])
+    steps = X.collapse(B, trows)
+    timeline = [[B.frame(r['frame']), 0, 0, r['turned']] for r in trows]
+    vrows, _ = move_rows(ch, t['victim'])
+    rows, rel, land = [], None, None
+    for i, r in enumerate(vrows):
+        if r['anim'] == t['victim']:
+            # the victim faces the thrower: its forward = the thrower's backward; its drawing offset is the art's
+            dx = round(r['disp'][0] - r['x']); dy = round(-r['disp'][1] + r['h'])
+            if rel is None and r['h'] > 0: rel = i
+            if rel is not None and land is None and r['h'] <= 0 and i > rel: land = i
+            rows.append([B.frame(r['frame']), dx, dy, r['turned'], 0, f"{t['victim']}.{r['step']}", None])
+        else:                                         # lying ($11D), then the get-up ($16): the brawler's own postures
+            rows.append([-1, round(-r['x']), 0, r['turned'], 0, f"{r['anim']}.{r['step']}", 'down' if r['anim'] == 0x11D else 'getup'])
+    return {'slot': t['move'], 'inputs': f"close + forward / back + C+D ({t['name']})", 'table': [], 'hold': False,
+            'rom': True, 'timeline': timeline, 'victims': {name: rows}, 'impacts': [land] if land is not None else [],
+            'release': rel, 'land': land, 'ret': len(timeline),
+            'anim': {'slot': t['move'], 'mode': 'hold', 'steps': steps},
+            'lb2': {'move': t['move'], 'victim_move': t['victim'], 'range': t['range']}, 'turned': False, 'grab_frame': None,
+            'name': t['name']}
+
 def throws(B, ch, name):
-    return {}
+    """throw_c / throw_d (the brawler's forward / back + A in the hold): Moriya has one throw (Samidare, both
+    directions in LB2), both slots play it (Genjuro SS2's rule)"""
+    if name not in THROW: return {}
+    th = throw(B, ch, name)
+    return {'throw_c': th, 'throw_d': json.loads(json.dumps(th))}
 
 # ---- check: the programs against the model, frame by frame ------------------------------------------------------------
 def check(name='moriya'):

@@ -1,0 +1,6 @@
+{"_doc": "The Last Blade 2 victim postures (export_bm.VICTIM_POSES['lastbld2'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the thrown animation of handlers_lb2.throw: Samidare's victim plays its OWN animation $145 (325; the thrower's character's frames for it here: Moriya thrown by Moriya), steps as model_lb2 plays it (frames 767 767 765 766 918 919 810-818). Read by eye from the frames (2026-10-12, /data/tmp/lastbld2/thrown.png).",
+ "poses": {"325.0": ["grabbed", 0], "325.1": ["grabbed", 0], "325.2": ["bent_back", -15], "325.3": ["bent_back", -15],
+           "325.4": ["launched", -45], "325.5": ["horizontal", -90], "325.6": ["horizontal", -90],
+           "325.7": ["inverted_diagonal", -150], "325.8": ["inverted_diagonal", -150], "325.9": ["inverted", 180],
+           "325.10": ["inverted", 180], "325.11": ["inverted_diagonal", -150], "325.12": ["lying", -90],
+           "325.13": ["lying", -90], "325.14": ["lying", -90], "325.15": ["lying", -90]}}
