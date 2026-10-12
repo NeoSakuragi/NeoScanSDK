@@ -122,6 +122,16 @@ typedef struct {
 } gchain_t;
 extern const gchain_t gchain;
 
+/* ---- layer 2: throws (throws part 1, docs/throws_audit.md "After"; game.json "throw_handoff", "throw_swap"; fighter.c
+ * "hold and throws"): handoff = where a paired throw gives its victim back to the engine: TH_RELEASE (the release row:
+ * from there an ordinary knocked-down body, Bruno's 2026-10-08 rule) or TH_LANDING (the script plays the flight too, to
+ * its landing row; the release row only starts the thrown body that hits others); swap_n / swap_arc = the throw start's
+ * swap segment: over its first swap_n rows the victim travels from where it was held to the script's row 0 place (a
+ * turned play, a grab drawn turned), lifted swap_arc px at its middle ---- */
+typedef struct { uint8_t handoff, swap_n, swap_arc, pad; } gthrow_t;
+enum { TH_RELEASE, TH_LANDING };
+extern const gthrow_t gthrow;
+
 /* ---- layer 2: the super flash (fx.super_flash, TODO #139; game.json "super_flash"): an engine rule, every fury (D) and
  * MAX fury (down+D) of every fighter: from the fury's frame `start` the game freezes except the attacker for `freeze`
  * frames, the stage is hidden, the backdrop `white_col` for `white` frames then `dark_col`; the concentration (the

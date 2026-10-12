@@ -40,7 +40,7 @@ types = {}
 text = ''
 for s in SRC:
     t = open(os.path.join(build, s)).read(); text += t
-    for typ, name in re.findall(r'^(?:static |extern )?const (\w+) (\w+)\s*[\[=;]', t, re.M): types[name] = typ
+    for typ, name in re.findall(r'^(?:static |extern )?const (\w+) (?:\*const )?(\w+)\s*[\[=;]', t, re.M): types[name] = typ
 prefixes = re.findall(r'\{(?:"[^"]*"|slot_name), \d+, \d+, (\w+)_pals, ', text)          # bm_chars[] in BC_* order
 nbc = len(re.search(r'enum \{ (BC_\w+(?:, BC_\w+)*), BC_COUNT \}', open(os.path.join(build, 'bm_chars.h')).read()).group(1).split(','))
 assert len(prefixes) == nbc, (len(prefixes), nbc)

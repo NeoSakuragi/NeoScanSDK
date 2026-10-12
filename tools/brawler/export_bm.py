@@ -364,7 +364,8 @@ def build(specs, outdir):
                                anim_specials={n: roster()[n]['anim_specials'] for n in names if roster().get(n, {}).get('anim_specials')},
                                slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()},
                                lab={n: LAB[n] for n in names if n in LAB} or None,   # (the Lab build: export96.lab_special)
-                               rom_more={n: rom_wanted(n) for n in names})
+                               rom_more={n: rom_wanted(n) for n in names},
+                               throw_victims={n: [v for v in games.get(game, []) if v != n] for n in names})   # (victim_tables)
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
@@ -431,6 +432,7 @@ def build(specs, outdir):
                 if name in th.get('victims', {}) and src(rn) != name:   # name (poses(): Billy Lee = doubledr:billy)
                     th['victims'][src(rn)] = th['victims'].pop(name)
             chars.append((game, rn, ex['characters'][name], start - SRC_BASE))
+            TMPS[rn] = (tmp, name)
     tile_next = TILE_BASE + len(c1) // 64
     assert tile_next <= 0x100000, f'{tile_next} tiles: past the 20-bit tile number'
     chars.sort(key=lambda c: len(specs) if c[1] in ALIAS else specs.index(roster()[c[1]]['bank'] if c[1] in roster() else f'{c[0]}:{c[1]}'))   # (the slot: last)   # bm_chars in the command line's order, the order
@@ -1429,6 +1431,7 @@ def vl_c(n, k, sp):
     return (v or ', 0, 0, 0, 0, 0, 0, 0, 0') + f', {fl}, ' + (f'{n}_sp{k}_vl' if vl else '0')   # (sflags, then the lists)
 
 PKEYS = []                                         # the victim postures (poses(): VP_* order), set by write_c
+TMPS = {}                                          # roster name -> (its export dir, its export name): posture anchors
 SHARED = {}                                        # the game-wide numbered tables a fighter's data indexes (write_c): the
 SLOT_USES = {'sfx_pal': set(), 'sreact': set()}    # victim postures (whole: bchar_t.vposes is indexed by them), the source
                                                    # reactions, the shared effect palettes; the slot's own uses (lab_pack.py
@@ -1561,7 +1564,7 @@ def throw_rows(game, n, th, pkeys, front=None):
         ret = len(th['timeline'])
     if th.get('rom') and th.get('body'): rel, land = th['body']   # a second release (Ralf's 426B slam): the body from it
     nrows = max(len(th['timeline']), len(rows)) if th.get('rom') else len(th['timeline'])
-    out = []
+    out, num = [], []
     for i in range(nrows):
         tf, tx, ty, *turned = th['timeline'][min(i, len(th['timeline']) - 1)]
         r = rows[min(i, len(rows) - 1)]
@@ -1572,8 +1575,58 @@ def throw_rows(game, n, th, pkeys, front=None):
         else: vp = pkeys.index(v) if vf is not None and vf >= 0 and v in pkeys else 255
         fl |= same | (2 if front and front[0] <= i < front[1] else 0) | (4 if i in imp else 0) | (8 if turned and turned[0] else 0) | (16 if i in froze else 0)
         out.append(f'{{{tf if tf is not None and tf >= 0 else 0}, {tx}, {ty}, {vp}, {fl}, {vx}, {vy}}}')
+        num.append((vp, fl, vx, vy))
     nn = lambda x: 0xFFFF if x is None else x
-    return out, {'ret': min(ret, nrows), 'rel': nn(rel), 'land': nn(land)}
+    return out, {'ret': min(ret, nrows), 'rel': nn(rel), 'land': nn(land), 'rows': num}
+
+def victim_rows(game, th, pkeys, vname, base):
+    """the victim side of a throw for victim vname (vthrow.h bvrow_t): its own list's rows (export96 victims_all: KOF's
+    per-victim list, or the thrower's code walked for it) against the script's (base: throw_rows' numeric rows, the
+    mirror match): per row its posture (0xFE: the script row's, a BA_* flight), its facing bit, the px to add"""
+    rows = th['victims_all'][vname]; out = []
+    for i, (vp_m, fl_m, vx_m, vy_m) in enumerate(base):
+        vf, vx, vy, same, _front, key = rows[min(i, len(rows) - 1)][:6]
+        v = vocab(game, key)
+        vp = 0xFE if fl_m & 32 else pkeys.index(v) if vf is not None and vf >= 0 and v in pkeys else 255
+        out.append((vp, same & 1, vx - vx_m, vy - vy_m))
+    return out
+
+_ANCH = {}
+# The posture-anchor fallback (another game's victim: its frame's centre placed where the source's victim frame had its
+# centre) is OFF: checked on the 18,513 KOF rows that have their ground truth (each KOF victim's own list), the anchors'
+# offsets are further from the truth than the mirror rows' (mean |dx| + |dy| 20.0 px vs 12.0; x only 13.3, y only
+# 18.7; measured with the tables on, docs/throws_audit.md "After"): a frame's pixel centre is not what KOF's
+# lists align. Such a victim plays the script's rows as they are until a better anchor measures better (the engine path,
+# fighter.c vrow, stays: True writes the tables)
+VICTIM_ANCHORS = False
+def posture_anchors(n, ptable_n):
+    """a fighter's posture anchors (vthrow.h bm_vanch): per posture, the centre of the opaque pixels of its frame for it,
+    px from the feet, ROM orientation (x < 0 = the way it faces, y < 0 = up); -128 = no frame"""
+    out = []
+    for f in ptable_n: out += frame_centre(n, f)
+    return out
+
+def frame_centre(n, f):
+    """[x, y] the centre of the opaque pixels of fighter n's frame f (its export), px from the feet, ROM orientation;
+    [-128, -128]: none"""
+    if f is None or f < 0: return [-128, -128]
+    if n not in _ANCH: _ANCH[n] = HP.load(*TMPS[n])
+    hch, hreg = _ANCH[n]
+    if True:
+        sx = sy = cnt = 0                                 # (every opaque pixel of its parts, as head_point.pens
+        for p in hch['frames'][f]['parts']:               #  places them, no canvas: a lying frame passes its edges)
+            rows = len(p['tiles'][0]); top = -p['dy'] - rows * 16 if p['vflip'] else p['dy']
+            for c_, col in enumerate(p['tiles']):
+                for r_, t_ in enumerate(col):
+                    if not t_: continue
+                    pen = HP.tile(hreg, t_)
+                    if p['hflip']: pen = pen[:, ::-1]
+                    rr = r_
+                    if p['vflip']: pen = pen[::-1]; rr = rows - 1 - r_
+                    ys, xs = HP.np.nonzero(pen)
+                    cnt += len(xs); sx += float(xs.sum()) + len(xs) * (p['dx'] + 16 * c_); sy += float(ys.sum()) + len(ys) * (top + 16 * rr)
+        if not cnt: return [-128, -128]
+        return [max(-127, min(127, int(round(sx / cnt)))), max(-127, min(127, int(round(sy / cnt))))]
 
 # The throw-start effect (fx.throw_start, TODO #166 a): every throw shows KOF96/98's effect (state 61 of the shared
 # effects bank, make_sparks.py build_flash -> throwfx.h) with its sound, on the row and at the offset its own
@@ -1683,7 +1736,8 @@ def poses(chars):
     nearest angle, else the nearest angle of the same family (FAMILY), else the family's brawler animation
     (FALLBACK_MOVE: heavy hit, blowback, knockdown fall, down)."""
     keys = sorted({vocab(g, r[5]) for g, _, ch, _ in chars for t in ch.get('throws', {}).values()
-                   for rows in t['victims'].values() for r in rows if r[0] >= 0 and vocab(g, r[5])})
+                   for rows in list(t['victims'].values()) + list((t.get('victims_all') or {}).values())
+                   for r in rows if r[0] >= 0 and vocab(g, r[5])})
     table = {}
     for gv, n, chv, _ in chars:
         m = {}
@@ -1808,6 +1862,60 @@ def seg_table(segs):
         head.append(1 + len(segs) + len(data)); data += [len(sg)] + sg
     return head + data
 
+VBASE = {}                                         # (fighter, throw) -> (game, its export throw, its numeric rows): write_c
+
+def victim_tables(chars, pkeys, ptable):
+    """the victim side of every paired throw (vthrow.h; docs/throws_audit.md "After"): bm_vthr = per thrower and throw its
+    victims' own rows, for every victim of its game in the build (identical tables shared); bm_vanch = every fighter's
+    posture anchors (the fallback for a victim without rows: another game's). The Lab shell's slot has neither (a pack
+    swaps another fighter in: the script's rows as they are). -> C lines, a report"""
+    ids = {n: i for i, (_, n, _, _) in enumerate(chars)}
+    bank = {r['bank']: r['name'] for r in roster().values()}
+    tabs, out, per, rep_ = {}, [], {}, {'pairs': 0, 'clamped': 0}
+    for _, n, _, _ in chars:
+        if n in ALIAS: continue
+        for k, t in enumerate(THROWS + [THROW_X]):
+            if (n, t) not in VBASE: continue
+            game, th, base = VBASE[(n, t)]
+            lst = []
+            for vname in sorted(th.get('victims_all') or {}):
+                vn = bank.get(f'{game}:{vname}', vname)
+                if vn not in ids or vn in ALIAS or vn == n: continue
+                rows = victim_rows(game, th, pkeys, vname, base)
+                cl = [(vp, fl, max(-128, min(127, dx)), max(-128, min(127, dy))) for vp, fl, dx, dy in rows]
+                rep_['clamped'] += sum(1 for a, b in zip(rows, cl) if a != b)
+                key = tuple(cl)
+                if key not in tabs:
+                    tabs[key] = f'bm_vr{len(tabs)}'
+                    out.append(f'static const bvrow_t {tabs[key]}[] = {{' + ', '.join(f'{{{vp}, {fl}, {dx}, {dy}}}' for vp, fl, dx, dy in cl) + '};')
+                lst.append(f'{{{ids[vn]}, 0, {len(cl)}, {tabs[key]}}}'); rep_['pairs'] += 1
+            # the source's own victim frame per row (the mirror match: the thrower's frames), its centre: the anchor
+            # another game's victim is placed against (victim 0xFE; the thrower's posture frames are borrowed, not the
+            # source's: SS2's frames sit far from their origin, differently per throw)
+            src_rows = th['victims'].get(src(n)) or next(iter(th['victims'].values())) if VICTIM_ANCHORS else []
+            sa = []
+            for i, (vp_m, fl_m, _, _) in enumerate(base if VICTIM_ANCHORS else []):
+                vf = src_rows[min(i, len(src_rows) - 1)][0]
+                x, y = frame_centre(n, vf) if not fl_m & 32 and vp_m < 255 else (-128, -128)
+                sa.append((0xFE, 0, x, y))
+            key = tuple(sa)
+            if sa and key not in tabs:
+                tabs[key] = f'bm_vr{len(tabs)}'
+                out.append(f'static const bvrow_t {tabs[key]}[] = {{' + ', '.join(f'{{{vp}, {fl}, {dx}, {dy}}}' for vp, fl, dx, dy in sa) + '};')
+            if sa: lst.append(f'{{0xFE, 0, {len(sa)}, {tabs[key]}}}')
+            if lst:
+                out.append(f'static const bvthr_t {n}_{t}_vthr[] = {{' + ', '.join(lst) + ', {0xFF, 0, 0, 0}};')
+                per[(n, k)] = f'{n}_{t}_vthr'
+    out.append('const bvthr_t *const bm_vthr[BC_COUNT][3] = {' + ', '.join(
+        '{' + ', '.join(per.get((n, k), '0') for k in range(3)) + '}' for _, n, _, _ in chars) + '};')
+    for _, n, _, _ in chars:
+        if n not in ALIAS and VICTIM_ANCHORS: out.append(f'static const int8_t {n}_vanch[VP_COUNT * 2] = {{' + ', '.join(map(str, posture_anchors(n, ptable[n]))) + '};')
+    out.append('const int8_t *const bm_vanch[BC_COUNT] = {' + ', '.join('0' if n in ALIAS or not VICTIM_ANCHORS else f'{n}_vanch' for _, n, _, _ in chars) + '};')
+    nf = sum(1 for _, n, _, _ in chars if n not in ALIAS)
+    rep_.update(tables=len(tabs), rows=sum(len(k_) for k_ in tabs),
+                bytes=4 * sum(len(k_) for k_ in tabs) + 8 * (rep_['pairs'] + len(per)) + 12 * len(chars) + 2 * len(pkeys) * nf * VICTIM_ANCHORS + 4 * len(chars))
+    return out, rep_
+
 def write_c(chars, outdir):
     pkeys, ptable = poses(chars); PKEYS[:] = pkeys
     SREACTS.clear(); SR_BASE.clear()
@@ -1883,7 +1991,7 @@ def write_c(chars, outdir):
          + ', '.join(f'{g} {k}' for g, k in sfx_keys) + ' (main.c loads them at SFX_PAL, fighter.h; a part\'s pal | 0x80 = one of them) */',
          'extern const uint16_t bm_sfx_pals[];',
          'extern const int8_t bm_head[BC_COUNT][2];   /* the head of each fighter\'s select pose (BA_WATCH), px from the feet, facing left (head_point.py; game.json roster[].watch.head): where the select cursor points */\n#endif']
-    c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n',
+    c = ['/* Generated by tools/brawler/export_bm.py. Do not edit. */\n#include "bm_chars.h"\n#include "vthrow.h"\n',
          'const uint16_t bm_sfx_pals[] = {' + ', '.join(f'0x{v:04X}' for g, k in sfx_keys for v in sfx_cols[(g, k)]) + ('' if sfx_keys else '0') + '};   /* SFX_NPAL palettes (KOF\'s shared effects bank, TODO #214) */\n']
     WINS.clear()
     cs = ['/* Generated by tools/brawler/export_bm.py. Do not edit. Every fighter\'s specials (its special_pool, in pool order):\n'
@@ -1946,6 +2054,7 @@ def write_c(chars, outdir):
             if t == 'throw_d' and tdata.get('back') == 'throw_c': th = None   # (the back throw = C's turned: bthrow_t turn)
             if not th: thr.append('{0, 0x100, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, 0xFF, 0xFF, 0xFFFF, 0, 0, %d}' % (t == 'throw_d' and tdata.get('back') == 'throw_c')); continue
             out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(t))
+            VBASE[(n, t)] = (game, th, info['rows'])
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
             sp = tdata.get('speed', {}).get(t, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)
             tfx = throw_fx_of(ch, t)
@@ -1954,6 +2063,7 @@ def write_c(chars, outdir):
         th = ch.get('throws', {}).get(THROW_X)               # its extra paired throw (revamp 3: Ralf's 426B), bm_xthr
         if th:
             out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(THROW_X))
+            VBASE[(n, THROW_X)] = (game, th, info['rows'])
             c.append(f'static const bthrow_row_t {n}_{THROW_X}[] = {{' + ', '.join(out) + '};')
             sp = tdata.get('speed', {}).get(THROW_X, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)
             tfx = throw_fx_of(ch, THROW_X)
@@ -2161,6 +2271,11 @@ def write_c(chars, outdir):
                    'fighters': [n_ for _, n_, _, _ in chars]},
                   open(os.path.join(outdir, 'lab.json'), 'w'), indent=1)
     else: c.append('const blab_t bm_lab = {0xFF, 0xFF, 0, 0};')
+    vt, vrep = victim_tables(chars, pkeys, ptable)       # (throws part 1: the victim side, vthrow.h)
+    c += vt
+    json.dump(vrep, open(os.path.join(outdir, 'vthrow.json'), 'w'), indent=1)
+    print(f'victim side: {vrep["pairs"]} thrower x victim tables ({vrep["tables"]} distinct, {vrep["rows"]} rows), '
+          f'{vrep["bytes"]:,} bytes; {vrep["clamped"]} offsets clamped to int8', flush=True)
     c.append('const int8_t bm_head[BC_COUNT][2] = {' + ', '.join(f'{{{ch["head"][0]}, {ch["head"][1]}}}' for _, _, ch, _ in chars) + '};')
     open(os.path.join(outdir, 'bm_chars.h'), 'w').write('\n'.join(h) + '\n')
     open(os.path.join(outdir, 'bm_chars.c'), 'w').write('\n'.join(c) + '\n')

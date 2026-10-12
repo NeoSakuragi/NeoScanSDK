@@ -110,17 +110,17 @@ $(BUILD)/snd/m1.bin $(BUILD)/snd/v1.bin $(BUILD)/snd/songs.h $(BUILD)/snd/voices
 # --- Compile ---
 $(BUILD)/stage_opt: FORCE                  # the -D options of the last build (STAGE, AI_OFF, PROFILE): every object is rebuilt
 	@mkdir -p $(BUILD); echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" | cmp -s - $@ || echo "$(STAGE) $(AI_OFF) $(PROFILE) $(LAB_BUILD)" > $@   # when one changes (an AI_OFF build no longer leaves main.o stale)
-$(BUILD)/%.o: %.c labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/%.o: %.c labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h vthrow.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
-$(BUILD)/main.o: main.c VERSION labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/main.o: main.c VERSION labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h vthrow.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 # the fighters' tables: one section per table (-fdata-sections), then tools/brawler/bank_pack.py sends each fighter's
 # bulk (frames, tiles, special scripts and programs, projectile rows) to its P2 bank and keeps what every fighter and
 # the engine read every frame in the first MB (docs/rom_packer_rules.md "P ROM"); objcopy renames the banked tables'
 # sections .p2bankN (sdk/boot/neoscan.ld), bm_bank.c holds each fighter's bank
-$(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c
+$(BUILD)/bm_chars.o: $(BUILD)/bm_chars.c vthrow.h
 	$(CC) $(CFLAGS) -fdata-sections -c $< -o $@
 $(BUILD)/bm_spec.o: $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h
 	$(CC) $(CFLAGS) -fdata-sections -c $< -o $@
