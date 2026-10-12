@@ -1259,14 +1259,15 @@ static const bthrow_row_t *vrow(const fighter_t *v, const bthrow_t *th, uint16_t
     const bthrow_row_t *r = &th->rows[i];
     if (!v->vrw && !(v->vanc & 1) && i >= v->swn) return r;
     *t = *r;
-    if (v->vrw) {                                                /* its own list (KOF: +$C2 = table + victim id x size) */
+    if (v->vrw && !(v->vanc & 4)) {                              /* its own list (KOF: +$C2 = table + victim id x size) */
         const bvrow_t *p = &v->vrw[i < v->vrn ? i : v->vrn - 1];
         if (p->vpose != 0xFE) t->vpose = p->vpose;
         t->flags = (t->flags & ~1) | (p->flags & 1);
         t->vx += p->dx; t->vy += p->dy;
     } else if ((v->vanc & 1) && t->vpose < VP_COUNT && !(t->flags & 32) && v->thr_by) {   /* another game's victim: its */
         const int8_t *a = bm_vanch[v->ch->id] + 2 * t->vpose, *m = bm_vanch[v->thr_by->ch->id] + 2 * t->vpose;   /* frame's */
-        if (a[0] != -128 && m[0] != -128) {                      /* centre where the mirror victim's was (-128: none) */
+        if (v->vanc & 4) m = &v->vrw[i < v->vrn ? i : v->vrn - 1].dx;   /* centre where the source's victim frame of this */
+        if (a[0] != -128 && m[0] != -128) {                      /* row had its own (-128: none) */
             t->vx += (t->flags & 1) ? a[0] - m[0] : m[0] - a[0];   /* (ROM orientation: x < 0 = the way the frame faces) */
             t->vy += a[1] - m[1];
         }
@@ -1681,6 +1682,8 @@ static void victim_side(fighter_t *f, fighter_t *v, uint8_t t) {
     for (p = bm_vthr[f->ch->id][k]; p && p->victim != 0xFF; p++)
         if (p->victim == v->ch->id) { v->vrw = p->rows; v->vrn = p->n; return; }
     v->vanc = bm_vanch[v->ch->id] && bm_vanch[f->ch->id];
+    for (p = bm_vthr[f->ch->id][k]; v->vanc && p && p->victim != 0xFF; p++)   /* (the source's frame centres per row: */
+        if (p->victim == 0xFE) { v->vrw = p->rows; v->vrn = p->n; v->vanc |= 4; }   /* victim 0xFE, vthrow.h) */
 }
 static uint8_t pend_sthr;          /* the next start_special plays a throw's special (fighter_t.sthr; its index: xix) */
 static uint8_t lab_ix = 0xFF;      /* the next start_special plays this pool index ("Lab: try in game"), whatever its role */

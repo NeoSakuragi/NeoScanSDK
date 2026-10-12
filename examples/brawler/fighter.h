@@ -593,7 +593,8 @@ typedef struct fighter {
     const banim_t *wan;
     uint8_t  wpose, wpad;
     /* a paired throw's victim side (throws part 1, docs/throws_audit.md "After"; fighter.c vrow): vrw = its own rows
-     * (bvthr_t, vrn of them; 0: none), vanc 1 = no rows of its own: its posture anchors against its thrower's (bm_vanch);
+     * (bvthr_t, vrn of them; 0: none), vanc 1 = no rows of its own: its posture anchors against its thrower's (bm_vanch;
+     * + 4: vrw holds the source frames' centres per row, the 0xFE entry), 2 = the swap passes over the thrower (lifted);
      * the start's swap segment (gthrow.swap_n rows, fighter.c throw_start): swdx / swdy = px from the script's row 0 to
      * where it was held, swn = its rows (0: none) */
     const bvrow_t *vrw;

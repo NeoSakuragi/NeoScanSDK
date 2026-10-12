@@ -1591,14 +1591,28 @@ def victim_rows(game, th, pkeys, vname, base):
         out.append((vp, same & 1, vx - vx_m, vy - vy_m))
     return out
 
+_ANCH = {}
+# The posture-anchor fallback (another game's victim: its frame's centre placed where the source's victim frame had its
+# centre) is OFF: checked on the 18,513 KOF rows that have their ground truth (each KOF victim's own list), the anchors'
+# offsets are further from the truth than the mirror rows' (mean |dx| + |dy| 20.0 px vs 12.0; x only 13.3, y only
+# 18.7; measured with the tables on, docs/throws_audit.md "After"): a frame's pixel centre is not what KOF's
+# lists align. Such a victim plays the script's rows as they are until a better anchor measures better (the engine path,
+# fighter.c vrow, stays: True writes the tables)
+VICTIM_ANCHORS = False
 def posture_anchors(n, ptable_n):
     """a fighter's posture anchors (vthrow.h bm_vanch): per posture, the centre of the opaque pixels of its frame for it,
     px from the feet, ROM orientation (x < 0 = the way it faces, y < 0 = up); -128 = no frame"""
-    tmp, name = TMPS[n]
-    hch, hreg = HP.load(tmp, name)
     out = []
-    for f in ptable_n:
-        if f is None or f < 0: out += [-128, -128]; continue
+    for f in ptable_n: out += frame_centre(n, f)
+    return out
+
+def frame_centre(n, f):
+    """[x, y] the centre of the opaque pixels of fighter n's frame f (its export), px from the feet, ROM orientation;
+    [-128, -128]: none"""
+    if f is None or f < 0: return [-128, -128]
+    if n not in _ANCH: _ANCH[n] = HP.load(*TMPS[n])
+    hch, hreg = _ANCH[n]
+    if True:
         sx = sy = cnt = 0                                 # (every opaque pixel of its parts, as head_point.pens
         for p in hch['frames'][f]['parts']:               #  places them, no canvas: a lying frame passes its edges)
             rows = len(p['tiles'][0]); top = -p['dy'] - rows * 16 if p['vflip'] else p['dy']
@@ -1611,9 +1625,8 @@ def posture_anchors(n, ptable_n):
                     if p['vflip']: pen = pen[::-1]; rr = rows - 1 - r_
                     ys, xs = HP.np.nonzero(pen)
                     cnt += len(xs); sx += float(xs.sum()) + len(xs) * (p['dx'] + 16 * c_); sy += float(ys.sum()) + len(ys) * (top + 16 * rr)
-        if not cnt: out += [-128, -128]; continue
-        out += [max(-127, min(127, int(round(sx / cnt)))), max(-127, min(127, int(round(sy / cnt))))]
-    return out
+        if not cnt: return [-128, -128]
+        return [max(-127, min(127, int(round(sx / cnt)))), max(-127, min(127, int(round(sy / cnt))))]
 
 # The throw-start effect (fx.throw_start, TODO #166 a): every throw shows KOF96/98's effect (state 61 of the shared
 # effects bank, make_sparks.py build_flash -> throwfx.h) with its sound, on the row and at the offset its own
@@ -1876,17 +1889,31 @@ def victim_tables(chars, pkeys, ptable):
                     tabs[key] = f'bm_vr{len(tabs)}'
                     out.append(f'static const bvrow_t {tabs[key]}[] = {{' + ', '.join(f'{{{vp}, {fl}, {dx}, {dy}}}' for vp, fl, dx, dy in cl) + '};')
                 lst.append(f'{{{ids[vn]}, 0, {len(cl)}, {tabs[key]}}}'); rep_['pairs'] += 1
+            # the source's own victim frame per row (the mirror match: the thrower's frames), its centre: the anchor
+            # another game's victim is placed against (victim 0xFE; the thrower's posture frames are borrowed, not the
+            # source's: SS2's frames sit far from their origin, differently per throw)
+            src_rows = th['victims'].get(src(n)) or next(iter(th['victims'].values())) if VICTIM_ANCHORS else []
+            sa = []
+            for i, (vp_m, fl_m, _, _) in enumerate(base if VICTIM_ANCHORS else []):
+                vf = src_rows[min(i, len(src_rows) - 1)][0]
+                x, y = frame_centre(n, vf) if not fl_m & 32 and vp_m < 255 else (-128, -128)
+                sa.append((0xFE, 0, x, y))
+            key = tuple(sa)
+            if sa and key not in tabs:
+                tabs[key] = f'bm_vr{len(tabs)}'
+                out.append(f'static const bvrow_t {tabs[key]}[] = {{' + ', '.join(f'{{{vp}, {fl}, {dx}, {dy}}}' for vp, fl, dx, dy in sa) + '};')
+            if sa: lst.append(f'{{0xFE, 0, {len(sa)}, {tabs[key]}}}')
             if lst:
                 out.append(f'static const bvthr_t {n}_{t}_vthr[] = {{' + ', '.join(lst) + ', {0xFF, 0, 0, 0}};')
                 per[(n, k)] = f'{n}_{t}_vthr'
     out.append('const bvthr_t *const bm_vthr[BC_COUNT][3] = {' + ', '.join(
         '{' + ', '.join(per.get((n, k), '0') for k in range(3)) + '}' for _, n, _, _ in chars) + '};')
     for _, n, _, _ in chars:
-        if n not in ALIAS: out.append(f'static const int8_t {n}_vanch[VP_COUNT * 2] = {{' + ', '.join(map(str, posture_anchors(n, ptable[n]))) + '};')
-    out.append('const int8_t *const bm_vanch[BC_COUNT] = {' + ', '.join('0' if n in ALIAS else f'{n}_vanch' for _, n, _, _ in chars) + '};')
+        if n not in ALIAS and VICTIM_ANCHORS: out.append(f'static const int8_t {n}_vanch[VP_COUNT * 2] = {{' + ', '.join(map(str, posture_anchors(n, ptable[n]))) + '};')
+    out.append('const int8_t *const bm_vanch[BC_COUNT] = {' + ', '.join('0' if n in ALIAS or not VICTIM_ANCHORS else f'{n}_vanch' for _, n, _, _ in chars) + '};')
     nf = sum(1 for _, n, _, _ in chars if n not in ALIAS)
     rep_.update(tables=len(tabs), rows=sum(len(k_) for k_ in tabs),
-                bytes=4 * sum(len(k_) for k_ in tabs) + 8 * (rep_['pairs'] + len(per)) + 12 * len(chars) + 2 * len(pkeys) * nf + 4 * len(chars))
+                bytes=4 * sum(len(k_) for k_ in tabs) + 8 * (rep_['pairs'] + len(per)) + 12 * len(chars) + 2 * len(pkeys) * nf * VICTIM_ANCHORS + 4 * len(chars))
     return out, rep_
 
 def write_c(chars, outdir):

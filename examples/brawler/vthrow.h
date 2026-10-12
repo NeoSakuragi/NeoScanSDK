@@ -14,7 +14,10 @@ typedef struct { uint8_t vpose, flags; int8_t dx, dy; } bvrow_t;   /* vpose: the
                                                                     row's own), flags bit 0: it faces the thrower's way, dx /
                                                                     dy: px added to the row's vx / vy */
 typedef struct { uint8_t victim, pad; uint16_t n; const bvrow_t *rows; } bvthr_t;   /* victim: bchar_t.id; n rows (the
-                                                                    script's later rows: its last); victim 0xFF ends */
+                                                                    script's later rows: its last); victim 0xFE: the
+                                                                    anchors' source side, per row the centre of the
+                                                                    frame the source showed (dx, dy; -128 none), what
+                                                                    another game's victim is placed against; 0xFF ends */
 extern const bvthr_t *const bm_vthr[][3];        /* by bchar_t.id: its throws C, D and its extra paired throw (BT_XTHROW) */
 extern const int8_t *const bm_vanch[];           /* by bchar_t.id: VP_COUNT x [x, y] its posture frames' centres (0: none) */
 #endif
