@@ -659,8 +659,7 @@ def lab_ship(f, req, by):
     """a ship request (no staging since 2026-10-10: every live send of a sheet queues one): {fighter, rev (default the
     live one), hash, by, at, note} queued as pending; the desktop's worker (labcfg.py ship-worker) ships the fighter's
     newest once it is 60 s old (arb_compile -> build -> checks -> VERSION bump -> publish) and marks it"""
-    cur = lab_current(f)
-    if not cur: return None, 'no config for ' + f
+    cur = lab_current(f) or {'version': 0, 'hash': ''}   # (no live config yet: the ship compiles his sheet's answers anyway)
     rev = req.get('rev') or cur['version']
     r = cur if rev == cur['version'] else next((x for x in lab_history(f) if x['version'] == rev), None)
     if not r: return None, 'no revision %s of %s' % (rev, f)
