@@ -599,7 +599,11 @@ def chain_tree(name, base, cfg, has):
             entries[k] = cls({'move': m, 'weight': w, 'effect': e}, True)
         if air.get('back'):                                         # back + A in any jump (roster[].air.back; absent: the jump's
             assert air['back'] in AIR_MOVE_NAMES, f'{name}: air back: {air["back"]} is not an air move'   # jump's air_cd)
-            entries['air_ba'] = cls({'move': air['back'], 'weight': 'strong', 'effect': 'knockdown'}, True)
+            entries['air_ba'] = cls({'move': air['back'], 'weight': 'strong', 'effect': 'none'}, True)   # a reel: the
+            # victim stays on the ground in hit-stun (note 20261011-210422-5d29's second reopen: "the cross-up moves do not
+            # launch the enemy, keep the enemy on the ground"; KOF98 measured in our emulator, /data/tmp/iori3: Iori's j.4B
+            # Yuri Ori, state 183, on Ryo behind him = P2 state 262, the standing reel, height 0 throughout, 6 damage). A
+            # KOF air command normal reels a standing victim; the straight / forward jump attacks keep their knockdown
     if cfg.get('dash'):                                             # a normal as a Blitz (roster[].blitz: a move name; Bruno
         entries['blitz'] = cls({'move': cfg['dash'], 'damage': 10, 'weight': 'strong', 'effect': 'knockdown'}, True)   # 2026-10-11,
                                                                     # note 20261011-113641-5d29: Haohmaru's ff + A = far A+B):

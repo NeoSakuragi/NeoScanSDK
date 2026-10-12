@@ -393,6 +393,13 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   request (+$D1 bit 7, 214's own latch) reads as none in a part alone (`nofollow`). Measured: 1 / 2 / 3 presses play
   141 / 141 > 145 / 141 > 145 > 149 and hit Ryo 1 / 2 / 3 times, the second a knockdown and the third timed as the full
   214A's own (up-forward + C with its two presses: the same hits).
+  A part alone keeps the motion factors its handler set before entering it (note 20261012-032513-5d29, "the second
+  rekka hit doesn't move forward"): Iori 214C's second part ($70F5E) sets vx 8 and slides on `fricmove`, but the friction
+  $EC00 is set once by the first part ($70EA4); alone it read 0 (vx *= 0, no travel). handlers98.part_factors puts the
+  last `set` of each factor (friction, gravity) on the handler's path before the entry at the part's start when the part
+  sets none before its first animation; speeds are not inherited. Measured in our emulator (iori_round3_proof.py, each
+  part left to finish, brawler / KOF98 px): Iori 214C 69.82 / 69.82, 69.82 / 69.82 (was 0), 115.5 / 115.5; Kyo 236A
+  (same SEQUENCE path, travel from the animation's dx: unchanged) 32 / 32, 84 / 84, 26 / 26.
 - **The jump's back attack** — `roster[].air.back` (Iori's note 20261011-210422-5d29 and its reopen: "you jump
   regularly, then press back + A during the jump ... the special kick done with B in KOF98 for a cross-up, back + B in the
   air"): back + A in ANY jump (the stick held away from the fighter's facing at the press) plays that air move (its
@@ -403,6 +410,10 @@ own move (a jump or a hop; fighter.c combat); a reeling or juggled victim stays 
   jump, the stick held back, B -> 183 > 184; 4B / B pressed together in the same frames keep the jump B), as the spare
   air name atk_ab_jump (moves "$B7"); its box is behind him: it hits a victim he has jumped over (the cross-up). The
   Assembly row `air_ba` ("jump + back + A"; arb_compile's check: a forward jump over the dummy, back + A past it).
+  Its hit is a reel (routes.py `air_ba`: strong, effect none; the reopen of 2026-10-12: "the cross-up moves do not
+  launch the enemy, keep the enemy on the ground"): KOF98's Yuri Ori on Ryo behind Iori = P2 state 262, the standing
+  reel, height 0 (measured in our emulator, /data/tmp/iori3); the straight / forward jump attacks keep their knockdown.
+  Only Iori sets air.back (Kyo's $EE is his air.down: already a flinch).
 - **A victim list's blow keeps the list's posture** (note 20261011-210524-5d29: "in KOF96 and 98, when this MAX is
   being performed, the victim is lying on the ground") — KOF98 Iori MAX 23624C's victim lists hold the victim in state
   413 (lying, between the strikes) and 434 (struck there), measured in our emulator (Yuri, frames 94-357 of the move).
