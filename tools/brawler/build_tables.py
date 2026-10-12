@@ -58,13 +58,25 @@ def add_slot(g, f):
     """the Character Lab's shell (docs/feedback.md "Character Lab: shell and packs"): one roster entry more, last (index
     BC_COUNT - 1), a copy of fighter f's named 'slot' (slot_of = f: the exporters read f's data for it), never on the
     select screen. Everything else of the roster stays as it is, so the bytes outside the slot's regions are the same
-    whoever fills the slot (tools/brawler/lab_pack.py checks it)."""
-    src = next((r for r in g['roster'] if r['name'] == f), None)
-    assert src, f'BRAWLER_SLOT={f}: not a roster fighter (a pack fighter must be in the roster: its shared tables)'
+    whoever fills the slot (tools/brawler/lab_pack.py checks it). A LAB-ONLY fighter (a roster_benched entry with "lab":
+    true, LB2 Moriya 2026-10-12) takes the slot too: in no normal build (the game's bytes unchanged), only in his pack."""
+    src = next((r for r in g['roster'] if r['name'] == f), None) or lab_only(g).get(f)
+    assert src, f'BRAWLER_SLOT={f}: not a roster fighter nor a Lab-only one (roster_benched "lab": true)'
     assert not src.get('form'), f'BRAWLER_SLOT={f}: a form link (its other form is another roster fighter) cannot take the slot'
     r = json.loads(json.dumps(src))
     r.update(name=SLOT, slot_of=f, display=src.get('display') or f, selectable=False)
     g['roster'].append(r)
+
+
+def lab_only(g):
+    """{name: entry} of the Lab-only fighters: roster_benched entries with "lab": true (never exported into the game; the
+    Character Lab's slot takes them: add_slot)"""
+    return {r['name']: r for r in (g.get('roster_benched') or {}).get('fighters', []) if r.get('lab')}
+
+
+def fighter(g, name):
+    """a fighter's game.json entry by name: the roster's, else a Lab-only one's (lab_only), else None"""
+    return next((r for r in g['roster'] if r['name'] == name), None) or lab_only(g).get(name)
 
 
 def data_name(r):

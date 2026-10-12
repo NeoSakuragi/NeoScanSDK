@@ -481,6 +481,26 @@
      "flash_pose": "rage",
      "unlock": "always",
      "voices": "kof"
+    },
+    {
+     "name": "moriya",
+     "lab": true,
+     "about": "The Last Blade 2's Moriya Minakata (2026-10-12): a Lab-only fighter (build_tables.lab_only: only the Character Lab's slot takes him, the game's builds stay as they were). Sheet = his own moves: chain A > A > B, finisher forward = forward + B (Ittou Kannazuki); C specials Shingetsu / Tsukikage / Oboro / teleports; fury = Kassatsu Izayoi Gekka (64123AB), MAX = Kassatsu Midare Setsugekka (641236B). tools/lastbld2, /data/neogeo_dict/lastbld2/README.md",
+     "display": "MORIYA",
+     "bank": "lastbld2:moriya",
+     "damage": 3,
+     "watch": {"frame": 0, "step": 0},
+     "routes": "default",
+     "archetype": "balanced",
+     "chain": {"length": 4, "links": ["atk_a_far", "atk_a_close", "atk_b_far"]},
+     "finishers": {"launcher": "up", "down": "sweep", "neutral": "atk_b_close", "forward": "body_toss", "up": "atk_c_far", "down_move": "atk_d_crouch"},
+     "specials": {"D": "623A", "fD": "236A", "dD": "214A", "uD": "623B", "dfD": "214C", "ufD": "236B"},
+     "blitz": {"ff": "412B", "dd": "214B", "uu": "412C"},
+     "fury": "64123AB",
+     "max": "641236B",
+     "unlock": "always",
+     "voices": "kof",
+     "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"}
     }
   ]
  },

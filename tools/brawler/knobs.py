@@ -175,7 +175,7 @@ def hit_budget(f, reg, out):
     one gets "Hits per target" (KN_PVPER) and "Hits in all" (KN_PVMAX) with its values as defaults, in place of its
     "Projectile hits" (a piercing object's count is those two)"""
     g = json.load(open(os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')))
-    ph = next((r.get('proj_hits') for r in g['roster'] if r['name'] == f), None) or {}
+    ph = next((r.get('proj_hits') for r in (g['roster'] + [y for y in (g.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if r['name'] == f), None) or {}
     for pid, ks in out.items():
         inp = reg['pieces'][pid]['input']
         e = ph.get(inp) or (ph.get(inp[4:]) if inp.startswith('MAX ') else None)

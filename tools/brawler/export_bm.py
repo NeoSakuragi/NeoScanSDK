@@ -42,8 +42,8 @@ LAB = {}                                                # the Lab build (--lab N
 LABINFO = {}                                            # name -> (its LAB special's pool index, its $NN ids) (write_c)
 SRCFLY = {}                                             # bm_srcfly by fighter (roster[].source_flight), set by write_c
 ALIAS = {}                                              # the shell's slot: {'slot': its source fighter} (roster slot_of)
-LAB_GAMES = ('kof96', 'kof98', 'kof99', 'samsho2')      # the source games whose exporter writes a LAB special (export96 /
-                                                        # handlers_ss2.lab_special)
+LAB_GAMES = ('kof96', 'kof98', 'kof99', 'samsho2', 'lastbld2')   # the source games whose exporter writes a LAB special
+                                                        # (export96 / handlers_ss2.lab_special / handlers_lb2.lab_special)
 SLOT_TILE_FIRST = 2048                                  # the slot's C block starts here in every shell / pack build (pack
                                                         # format: its frames name absolute tiles; = TILE_BASE, placed first)
 SLOT_TILES = 24576                                      # the slot's C block (tiles, 3 MB): every roster fighter fits it,
@@ -74,8 +74,12 @@ _ROSTER = None
 def roster(path=None):
     """{name: roster entry} (build_tables.roster_export): from ROSTER.json when given, else from game.json"""
     global _ROSTER
-    if path: _ROSTER = {r['name']: r for r in json.load(open(path))}
-    elif _ROSTER is None: _ROSTER = {r['name']: r for r in build_tables.roster_export(build_tables.load(GAME_JSON))}
+    if path or _ROSTER is None:
+        g = build_tables.load(GAME_JSON)
+        _ROSTER = {r['name']: r for r in (json.load(open(path)) if path else build_tables.roster_export(g))}
+        lab = [dict(r, selectable=False, lab_only=True) for n, r in build_tables.lab_only(g).items() if n not in _ROSTER]   # (+ the Lab-only fighters, after the
+        if lab: _ROSTER.update({r['name']: dict(r, lab_only=True) for r in build_tables.roster_export(dict(g, roster=lab))})   # roster: their
+                                                        # entries for the slot's lookups; never built otherwise)
     return _ROSTER
 
 # the brawler's animation set (KOF move names); MOVES order = the BA_* enum
@@ -342,6 +346,13 @@ def build(specs, outdir):
                                                                                 #  samsho2:hanzo is hanzo_ss2; inputs: its slots'
                                                                                 #  specials, a button version among them exported)
                                      lab={n: LAB[n] for n in names if n in LAB} or None)   # (the Lab: versions, Lab throws, LAB)
+        if game == 'lastbld2':                          # The Last Blade 2: its own reader, programs from its move data
+            sys.path.insert(0, os.path.join(HERE, '..', 'lastbld2')); import export_lb2
+            return export_lb2.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
+                                     extra={n: {'watch': tuple(roster()[rname(game, n)]['watch']), **flash_extra(game, rname(game, n)),
+                                                **({'moves': roster()[rname(game, n)]['moves']} if roster()[rname(game, n)].get('moves') else {})}
+                                            for n in names if rname(game, n) in roster()},
+                                     lab={n: LAB[n] for n in names if n in LAB} or None)
         if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp
             return export_whp.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
@@ -1871,7 +1882,7 @@ def victim_tables(chars, pkeys, ptable):
     fighter in) is in none of the shell's tables, so no address outside the slot depends on who fills it: its own rows
     as a thrower and as a victim are its pack's, slot_vthr in .labslot (slot_tables). -> C lines, a report"""
     ids = {n: i for i, (_, n, _, _) in enumerate(chars)}
-    bank = {r['bank']: r['name'] for r in roster().values() if r['name'] not in ALIAS}   # (the slot shares its source's
+    bank = {r['bank']: r['name'] for r in roster().values() if r['name'] not in ALIAS and not r.get('lab_only')}   # (the slot shares its source's
                                                                                         #  bank: the roster fighter's)
     tabs, out, per, rep_ = {}, [], {}, {'pairs': 0, 'clamped': 0}
     for _, n, _, _ in chars:
@@ -2306,7 +2317,7 @@ def write_c(chars, outdir):
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
-        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2') else None   # SS4 / WHP: KOF's usual 4
+        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2', 'lastbld2') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
         c.append(f'  {{{n + "_name" if n in ALIAS else chr(34) + (roster()[n].get("display") or n).upper() + chr(34)}, {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
     c.append('};')
@@ -2364,7 +2375,7 @@ def write_c(chars, outdir):
 if __name__ == '__main__':
     outdir = sys.argv[1]
     assert sys.argv[2] == '--roster', __doc__
-    specs = [r['bank'] for r in roster(sys.argv[3]).values() if not r.get('slot_of')]
+    specs = [r['bank'] for r in roster(sys.argv[3]).values() if not r.get('slot_of') and not r.get('lab_only')]
     for r in roster().values():
         if r.get('slot_of'): alias_slot(r['name'], r['slot_of'])
     chars, tiles = build(specs, outdir)

@@ -125,7 +125,7 @@ def inputs_hash(f):
     ids, his route file, his voices, and the exporters (an exporter change may change his data)"""
     import lab_pack
     G = json.load(open(os.path.join(GAME, 'game.json')))
-    r = next(x for x in G['roster'] if x['name'] == f)
+    r = next(x for x in (G['roster'] + [y for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if x['name'] == f)
     h = hashlib.sha256(json.dumps({'format': lab_pack.FORMAT, 'abi': lab_pack.FORMATS[lab_pack.FORMAT], 'roster': r,
                                    'chain': G.get('chain')}, sort_keys=True).encode())
     game = r['bank'].split(':')[0]

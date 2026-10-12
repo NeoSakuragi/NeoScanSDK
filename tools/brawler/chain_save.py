@@ -31,7 +31,7 @@ def entry_of(saved, fighter):
 def apply(game_path, entry, fighter, dry=False):
     text = open(game_path).read()
     g = json.loads(text)
-    r = next((x for x in g['roster'] if x['name'] == fighter), None)
+    r = next((x for x in (g['roster'] + [y for y in (g.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if x['name'] == fighter), None)
     assert r, f'{fighter}: not in the roster'
     bad = set(entry) - set(KEYS)
     assert not bad, f'entry keys {sorted(bad)}: only {KEYS}'

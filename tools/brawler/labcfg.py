@@ -191,7 +191,7 @@ def main():
         cfg = dict(r['json']); cfg.setdefault('name', a.fighter)
         if cfg['name'] != a.fighter: raise SystemExit(f"the config's name is {cfg['name']!r}, not {a.fighter!r}")
         gp = os.path.join(a.game, 'game.json'); G = json.load(open(gp))
-        old = next((x for x in G['roster'] if x['name'] == a.fighter), None)
+        old = next((x for x in (G['roster'] + [y for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if x['name'] == a.fighter), None)
         if old is None: raise SystemExit(f'{a.fighter} is not in {gp} roster (add the entry first)')
         ch = [k for k in sorted(set(old) | set(cfg)) if old.get(k) != cfg.get(k)]
         print(head(r)); print('changed keys:', ', '.join(ch) or 'none')

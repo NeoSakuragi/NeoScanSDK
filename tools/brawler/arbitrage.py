@@ -126,7 +126,7 @@ def build(out, game=None, names=None):
     for n in names or FIGHTERS:
         p = os.path.join(out, 'review', f'{n}_anims.json')
         if not os.path.exists(p): continue
-        r = next(x for x in G['roster'] if x['name'] == n)
+        r = next(x for x in (G['roster'] + [y for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if x['name'] == n)
         A = json.load(open(p))
         D = {a['id']: a for a in A['anims']}
         arch = r.get('archetype', 'balanced')

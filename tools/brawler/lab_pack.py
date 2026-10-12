@@ -520,7 +520,7 @@ def cmd_make(a):
     fe = next(x for x in cl['fighters'] if x['name'] == 'slot')
     rt = json.load(open(os.path.join(B, 'retime.json'))) if os.path.exists(os.path.join(B, 'retime.json')) else []
     G = json.load(open(os.path.join(GAME, 'game.json')))
-    r = next(x for x in G['roster'] if x['name'] == a.fighter)
+    r = next(x for x in (G['roster'] + [y for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]) if x['name'] == a.fighter)
     pieces = os.path.join(HERE, 'arb_pieces', a.fighter + '.json')
     ids = os.path.join(HERE, 'arb_pieces', a.fighter + '_ids.json')
     page = {'anims': lab['anims'] if lab else [], 'lab_spec': lab['spec'] if lab else None, 'moves': lab['moves'] if lab else {},
