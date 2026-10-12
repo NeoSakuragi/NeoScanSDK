@@ -860,9 +860,9 @@
    }
   },
   {
-   "name": "STAGE 2",
+   "name": "HIGHWAY RUN!",
    "background": 0,
-   "music": "STAGE_HIGHWAY",
+   "music": "THEME_KIM",
    "power": 1,
    "waves": [
     {
