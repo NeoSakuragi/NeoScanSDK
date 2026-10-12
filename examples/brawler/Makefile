@@ -150,8 +150,10 @@ clean:
 
 # --- a character pack (make LAB_PACK=<f>): the shell first (its own make), then the slot's regions of this build ---
 # (STRICT=1: also the DEBUG check that this build equals the shell outside the slot: a per-fighter table labslot.h misses)
+# (SHELL_FROZEN=1 VERSION=<the shell's>: the published shell as it is in build_shell/ + lab-shell.neo, not rebuilt:
+#  labpub.py when the engine did not change, so a ship builds one pack, not the shell again)
 packs/$(LAB_PACK).pack: $(ROM_NAME).zip FORCE
-	$(MAKE) LAB_SHELL=1 LAB_PACK=
+	$(if $(SHELL_FROZEN),,$(MAKE) LAB_SHELL=1 LAB_PACK=)
 	python3 $(TOOLS)/brawler/lab_pack.py make $(LAB_PACK) --shell build_shell lab-shell.neo --build $(BUILD) $(ROM_NAME).neo -o packs/$(LAB_PACK).pack $(if $(STRICT),--strict)
 
 # --- THE ONE COMMAND (docs/character_lab.md): the shell + the full pack of every fighter with a dictionary and a piece

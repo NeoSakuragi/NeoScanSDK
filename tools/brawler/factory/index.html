@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- The Brawler Factory (tools/brawler/factory/, deploy: deploy.sh here). Its data, the Assembly's scripts and the API are
+     the Brawler Lab's: every relative URL resolves under /brawler-lab/ (the base); the Factory's own files are absolute. -->
+<base href="/brawler-lab/">
+<title>Brawler Factory</title>
+<link rel="stylesheet" href="/brawler-factory/factory.css">
+</head>
+<body data-app="factory" data-tab="assembly">
+<header class="fbar"><div class="wrap">
+  <span class="brand">BRAWLER <span>FACTORY</span></span>
+  <span id="daemon" class="pill idle" title="The build daemon (brawler-ship.service on brunux)">daemon …</span>
+  <nav class="ftabs" aria-label="Tabs">
+    <button type="button" data-tab="chars">Characters</button>
+    <button type="button" data-tab="build">Build</button>
+    <button type="button" class="soon" disabled>Game<small>soon</small></button>
+    <button type="button" class="soon" disabled>Levels<small>soon</small></button>
+  </nav>
+</div></header>
+<main class="wrap">
+  <section id="pChars" aria-label="Characters"><p class="msg">Loading…</p></section>
+  <section id="pBuild" aria-label="Build" hidden></section>
+</main>
+<script src="tryit.js"></script>
+<script src="knobui.js"></script>
+<script src="liveclips.js"></script>
+<script src="anims_core.js"></script>
+<script src="/brawler-factory/factory.js"></script>
+</body>
+</html>

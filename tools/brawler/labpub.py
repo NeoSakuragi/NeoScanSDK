@@ -138,9 +138,29 @@ def inputs_hash(f):
     return h.hexdigest()[:16]
 
 
-def make(*args):
+ENGINE_SKIP = ('tools/brawler/chainlab/', 'tools/brawler/factory/', 'examples/brawler/VERSION', 'examples/brawler/game.json',
+               'tools/brawler/labcfg.py', 'tools/brawler/labpub.py', 'tools/brawler/workshop.py')
+
+
+def engine_key():
+    """what the Lab shell is made of besides the VERSION string and the fighters' roster entries (each pack carries his):
+    the tracked sdk/, examples/brawler/, tools/brawler/ files (the web pages and proofs left out) + game.json without its
+    rosters. Unchanged = the published shell still fits: a ship builds the changed fighter's pack against it (frozen)"""
+    r = subprocess.run(['git', '-C', REPO, 'ls-files', '-s', '--', 'sdk', 'examples/brawler', 'tools/brawler'], capture_output=True, text=True, check=True)
+    h = hashlib.sha256()
+    for l in r.stdout.splitlines():
+        path = l.split('\t', 1)[1]
+        if path.startswith(ENGINE_SKIP) or '_proof' in path: continue
+        h.update(l.encode() + b'\n')
+    G = json.load(open(os.path.join(GAME, 'game.json')))
+    h.update(json.dumps({k: v for k, v in G.items() if k not in ('roster', 'roster_benched')}, sort_keys=True).encode())
+    return h.hexdigest()[:16]
+
+
+def make(*args, env=None):
     print('make', ' '.join(args), flush=True)
-    r = subprocess.run(['make', '-C', GAME, '-j2', *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    r = subprocess.run(['make', '-C', GAME, '-j2', *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                       env=dict(os.environ, **(env or {})))
     if r.returncode: print(r.stdout[-4000:]); raise SystemExit(f'make {" ".join(args)} failed')
     for l in r.stdout.split('\n'):
         if l.startswith(('pack ', '  .labslot', 'lab_pack', 'NEO:')): print('  ' + l.strip())
@@ -153,17 +173,31 @@ def cmd_all(a):
     stamps = json.load(open(STAMPS)) if os.path.exists(STAMPS) else {}
     want = {f: inputs_hash(f) for f in fighters}
     cat = api('catalogue'); sh = cat.get('shell')
+    fmt_changed = False
     if a.if_changed:
         fmt_changed = not sh or sh.get('format') != lab_pack.FORMAT or stamps.get('format') != [lab_pack.FORMAT, lab_pack.FORMATS[lab_pack.FORMAT]]
         changed = [f for f in fighters if stamps.get(f) != want[f]]
         if not fmt_changed: fighters = changed           # (the shell is always rebuilt: an engine-only release changes it, not the packs;
                                                          #  it is published only when its bytes differ from the catalogue's)
         print('labpub all: ' + ('the pack format changed' if fmt_changed else 'changed: ' + ', '.join(changed)))
-    print(f'labpub all: the shell + {len(fighters)} packs ({", ".join(fighters)})', flush=True)
-    if not a.no_build:
-        make('LAB_SHELL=1')
-        for f in fighters: make(f'LAB_PACK={f}', 'STRICT=1')
     shell = os.path.join(GAME, 'lab-shell.neo')
+    ekey = engine_key()
+    # FROZEN SHELL (the Factory, 2026-10-12): the engine unchanged since the published shell was built here (the same bytes
+    # in lab-shell.neo + build_shell/): no shell build, no shell upload; the packs are built against it, with its VERSION
+    frozen = bool(a.if_changed and not fmt_changed and sh and stamps.get('engine') == ekey and os.path.isdir(os.path.join(GAME, 'build_shell'))
+                  and os.path.exists(shell) and hashlib.sha256(open(shell, 'rb').read()).hexdigest() == sh['sha256'])
+    print('labpub all: ' + (f'the engine is unchanged: the published shell {sh["version"]} is kept' if frozen else 'the shell')
+          + f' + {len(fighters)} packs ({", ".join(fighters)})', flush=True)
+    if not a.no_build:
+        if frozen:
+            sv = sh['engine'].split('-')[0]
+            try:
+                for f in fighters: make(f'LAB_PACK={f}', 'STRICT=1', 'SHELL_FROZEN=1', f'VERSION={sv}', env={'LAB_SHELL_VERSION': sv})
+            except SystemExit as e:
+                print(f'labpub all: a pack does not fit the published shell ({e}): the shell is rebuilt', flush=True); frozen = False
+        if not frozen:
+            make('LAB_SHELL=1')
+            for f in fighters: make(f'LAB_PACK={f}', 'STRICT=1')
     sfmt, sid, feats, sregs, sdoc = lab_pack.shell_anchor(shell)
     ssha = hashlib.sha256(open(shell, 'rb').read()).hexdigest()
     d, sizes, layout = lab_pack.neo(shell)
@@ -195,7 +229,7 @@ def cmd_all(a):
             if face: upload(face, {'kind': 'face', 'fighter': f})
         time.sleep(1.1)                                  # (versions are the UTC second)
     if not a.dry_run:
-        stamps.update(want); stamps['format'] = [lab_pack.FORMAT, lab_pack.FORMATS[lab_pack.FORMAT]]
+        stamps.update(want); stamps['engine'] = ekey; stamps['format'] = [lab_pack.FORMAT, lab_pack.FORMATS[lab_pack.FORMAT]]
         os.makedirs(os.path.dirname(STAMPS), exist_ok=True); json.dump(stamps, open(STAMPS, 'w'), indent=1)
     show(api('catalogue'))
 

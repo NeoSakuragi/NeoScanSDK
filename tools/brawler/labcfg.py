@@ -61,12 +61,23 @@ def head(r):
             + (f"  {r['note']}" if r.get('note') else '') + rv)
 
 
-def mark(i, status, note=''):
-    return api('ship_done', {'id': i, 'status': status, 'note': note[:600]})['ship']
+def mark(i, status, note='', **kw):
+    return api('ship_done', dict({'id': i, 'status': status, 'note': note[:600]}, **{k: v for k, v in kw.items() if v}))['ship']
+
+
+def api_raw(path, data):
+    """POST raw bytes (a ship log) to the feedback service, as api() does JSON"""
+    cmd = f"curl -s -S --max-time 60 -X POST -H 'Content-Type: text/plain' --data-binary @- {shlex.quote(BASE + path)}"
+    r = subprocess.run((['ssh', '-o', 'BatchMode=yes', HOST, cmd] if HOST else ['sh', '-c', cmd]), input=data, capture_output=True)
+    return r.returncode == 0
 
 
 FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
           'Claude-Session: https://claude.ai/code/session_01XhxN754ESQrKXnzjnRdvPt\n')
+# the Factory's Build tab shows a ship as these phases (each step of ship_one belongs to one)
+PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
+         'regress bleed': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
+STATE = {'state': 'idle'}                                # what the heartbeat says (ship_one updates it)
 
 
 def ship_conf(path):
@@ -81,24 +92,30 @@ def ship_conf(path):
 class Fail(Exception): pass
 
 
-def ship_one(c, f, row):
-    """one ship, in the ship checkout c['repo'] (nobody edits it) -> (status, note). Stops at the first failure ("<step>:
-    <reason>"; the checkout reset, nothing reaches the VPS before the checks pass). Every step's output: <logs>/<id>.log"""
+def ship_one(c, fighters, row):
+    """one ship, in the ship checkout c['repo'] (nobody edits it) -> (status, note, version, changes). fighters: the sheets
+    compiled (one or several: ONE version); none = a rebuild of the game as pushed (an engine merge). Stops at the first
+    failure ("<step>: <reason>"; the checkout reset, nothing reaches the VPS before the checks pass). Every step's output:
+    <logs>/<id>.log, uploaded to the feedback service after each step (the Factory's Build tab reads it there)"""
     repo = c['repo']; game = os.path.join(repo, 'examples', 'brawler'); bl = os.path.join(repo, 'tools', 'brawler')
     vp = os.path.join(game, 'VERSION'); env = dict(os.environ, **c['env']); nice = ['nice', '-n', str(c['nice'])]
     os.makedirs(c['logs'], exist_ok=True)
-    logf = open(os.path.join(c['logs'], f'{row["id"]}.log'), 'w')
+    lp = os.path.join(c['logs'], f'{row["id"]}.log')
+    logf = open(lp, 'w')
     st = {'v': None}
+    up = lambda: (logf.flush(), api_raw(f'ship_log/{row["id"]}', open(lp, 'rb').read()))
 
     def run(step, cmd, cwd=repo, ok=None, timeout=3600):
-        mark(row['id'], 'building', f'building {st["v"] or "?"}: {step}')
-        print(f'[ship #{row["id"]}] {f}: {step}', flush=True)
-        logf.write(f'\n==== {step}: {" ".join(cmd)}\n'); logf.flush()
+        ph = PHASE.get(step, step)
+        STATE.update(state='building', id=row['id'], step=ph, version=st['v'])
+        mark(row['id'], 'building', f'building {st["v"] or "?"}: {step}', step=ph, version=st['v'])
+        print(f'[ship #{row["id"]}] {row["fighter"]}: {step}', flush=True)
+        logf.write(f'\n==== {step}: {" ".join(cmd)}\n'); up()
         t0 = time.time()
         try: r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
         except subprocess.TimeoutExpired: raise Fail(f'{step}: timed out after {timeout} s')
         out = r.stdout + r.stderr
-        logf.write(out + f'\n==== {step}: exit {r.returncode} in {time.time() - t0:.0f} s\n'); logf.flush()
+        logf.write(out + f'\n==== {step}: exit {r.returncode} in {time.time() - t0:.0f} s\n'); up()
         if r.returncode or (ok and not ok(out)):
             last = [x.strip() for x in out.splitlines() if x.strip()]
             why = last[-1:] if 'Traceback' in out else ([x for x in last if x.startswith(('REFUSED', '- ', 'FAIL', 'error', 'fatal', 'bleed:'))] or last[-2:])
@@ -107,7 +124,7 @@ def ship_one(c, f, row):
 
     g = lambda *x: ['git', '-C', repo] + list(x)
     py = lambda name, *x: nice + [sys.executable, os.path.join(bl, name)] + list(x)
-    start = None
+    start = None; changes = []; left = []
     try:
         run('reset', g('reset', '-q', '--hard', 'HEAD'))
         run('git pull', g('fetch', '-q', 'origin', 'brawler'))
@@ -115,13 +132,16 @@ def ship_one(c, f, row):
         start = run('git pull', g('rev-parse', 'HEAD')).strip()
         v0 = open(vp).read().strip(); p = v0.split('.'); p[-1] = str(int(p[-1]) + 1); st['v'] = v1 = '.'.join(p)
         open(vp, 'w').write(v1 + '\n')                   # (first: arb_compile's build and gold section carry it)
-        out = run('arb_compile', py('arb_compile.py', f, '--game', game))
-        lines = out.splitlines()
-        left = [x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
-        if any(x.startswith('game.json roster changes: none') for x in lines):
+        for f in fighters:
+            out = run('arb_compile', py('arb_compile.py', f, '--game', game))
+            lines = out.splitlines()
+            left += [f + ': ' + x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
+            changes += [f + ': ' + x.split(':', 1)[1].strip() for x in lines if x.startswith('game.json roster changes:') and not x.startswith('game.json roster changes: none')]
+        if fighters and not changes:
             run('reset', g('reset', '-q', '--hard', 'HEAD'))
-            logf.close()
-            return 'done', f'nothing changed: the game already plays this sheet ({v0})'
+            logf.write('\nnothing changed\n'); up(); logf.close()
+            return 'done', f'nothing changed: the game already plays this sheet ({v0})', None, []
+        if not fighters: changes = ['rebuild: no data change (the engine as pushed)']
         bd = os.path.join(game, 'build')
         for x in os.listdir(bd):
             if x.endswith('.o'): os.remove(os.path.join(bd, x))
@@ -131,48 +151,63 @@ def ship_one(c, f, row):
         run('regress bleed', py('regress.py', game, os.path.join(c['logs'], f'{row["id"]}_regress.json'), '--bleed-only'),
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
         paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
+        what = (', '.join(fighters) + ' shipped from the Assembly' + (f' (rev {row["rev"]})' if row.get('rev') else '')) if fighters else 'rebuild (no data change)'
         run('commit', g('add', '--', *paths))                # (before the publish: scenario.py publish finds the build
-        run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {f} shipped from the Assembly (rev {row["rev"]})' + FOOTER, '--', *paths))
+        run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {what}' + FOOTER, '--', *paths))
         run('publish-vps', ['make', '-C', game, 'publish-vps'])   # by its "Brawler 0.10.N" commit)
         run('scenario publish', py('scenario.py', 'publish'))
         run('labpub', py('labpub.py', 'all', '--if-changed'))
         run('push', g('push', '-q', 'origin', 'HEAD:brawler'))
     except Fail as e:
-        logf.write(f'\nFAILED: {e}\n'); logf.close()
+        logf.write(f'\nFAILED: {e}\n'); up(); logf.close()
         subprocess.run(g('reset', '-q', '--hard', start or 'HEAD'))   # (the checkout as pulled; a local commit dropped)
         if st['v']: subprocess.run(nice + ['make', f'-j{c["jobs"]}'], cwd=game, env=env, capture_output=True)   # (build/ as
         # the pulled game.json: arb_compile reads what the build plays as "now", a stale build hides the sheet's change)
-        return 'failed', f'{e} (log {row["id"]}.log on the ship host)'
-    logf.close()
-    return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else '')
+        return 'failed', f'{e} (the whole log: the Factory\'s Build tab)', st['v'], changes
+    logf.write(f'\nshipped {v1}\n'); up(); logf.close()
+    return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else ''), v1, changes
+
+
+def beat_loop(poll):
+    """the heartbeat (the Factory's "Build daemon: online"): every 30 s, what the service is doing"""
+    import socket, threading
+    def loop():
+        while True:
+            try: api('ship_beat', dict(STATE, host=socket.gethostname(), pid=os.getpid()))
+            except (SystemExit, Exception) as e: print('heartbeat failed:', e, flush=True)
+            time.sleep(30)
+    threading.Thread(target=loop, daemon=True).start()
 
 
 def ship_worker(a):
     """THE SHIP SERVICE (brawler-ship.service, docs/character_lab.md "Ship service"): every poll s, the pending requests
-    (the Assembly's "Ship to the game"), one at a time; a fighter's older pending requests are superseded by his newest"""
+    (the Assembly's "Ship to the game", the Factory's "Ship pending changes" / "Rebuild & ship current"), one at a time,
+    oldest first; a one-fighter request is dropped when a newer pending one covers that fighter"""
     global HOST
     c = ship_conf(a.conf); HOST = c['lab_host']
     if a.logs: c['logs'] = a.logs
     me = os.path.abspath(__file__); mt = os.path.getmtime(me)
     print(f'ship service: repo {c["repo"]}, logs {c["logs"]}, lab {HOST or "local"}, poll {c["poll"]} s', flush=True)
+    if not a.once: beat_loop(c['poll'])
+    fs_of = lambda r: r.get('fighters') if 'fighters' in r else [r['fighter']]
     while True:
         try: rs = api('ship')['requests']
         except (SystemExit, Exception) as e: print('queue unreachable:', e, flush=True); rs = []
-        pend = {}
-        for r in rs:
-            if r['status'] == 'pending' and (not a.fighter or r['fighter'] == a.fighter): pend.setdefault(r['fighter'], []).append(r)
-        for f, rows in sorted(pend.items(), key=lambda kv: min(r['id'] for r in kv[1])):
-            rows.sort(key=lambda r: r['id']); last = rows[-1]
-            for r in rows[:-1]: mark(r['id'], 'dropped', f'superseded by #{last["id"]}')
+        pend = sorted((r for r in rs if r['status'] == 'pending' and (not a.fighter or a.fighter in fs_of(r))), key=lambda r: r['id'])
+        for r in pend:
+            later = next((x for x in pend if x['id'] > r['id'] and 'fighters' not in r and r['fighter'] in fs_of(x)), None)
+            if later: mark(r['id'], 'dropped', f'superseded by #{later["id"]}'); continue
             t0 = time.time()
-            try: stt, note = ship_one(c, f, last)
-            except Exception as e: stt, note = 'failed', f'the ship service stopped: {type(e).__name__}: {e}'
-            mark(last['id'], stt, note)
-            print(f'[ship #{last["id"]}] {f}: {stt}: {note} ({time.time() - t0:.0f} s)', flush=True)
+            try: stt, note, ver, ch = ship_one(c, fs_of(r), r)
+            except Exception as e: stt, note, ver, ch = 'failed', f'the ship service stopped: {type(e).__name__}: {e}', None, []
+            STATE.clear(); STATE['state'] = 'idle'
+            mark(r['id'], stt, note, version=ver, changes=ch)
+            print(f'[ship #{r["id"]}] {r["fighter"]}: {stt}: {note} ({time.time() - t0:.0f} s)', flush=True)
             if os.path.getmtime(me) != mt:               # (a pull changed this file: run the new one)
                 print('labcfg.py changed: restarting', flush=True); os.execv(sys.executable, [sys.executable] + sys.argv)
-        if a.once: return
-        time.sleep(c['poll'])
+            break                                        # (the queue read again: requests made meanwhile, drops)
+        if a.once and not pend: return
+        if not pend: time.sleep(c['poll'])
 
 
 def record(f, rev):

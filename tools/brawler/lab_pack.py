@@ -483,7 +483,8 @@ def compat(fmt, need, sfmt, feats):
 def legacy_engine(shell_d, shell_l, regs):
     """the engine string the Players before 0.0.33 compare (<VERSION>-<the shell, its slot regions and anchor zeroed>)"""
     fp = hashlib.sha256(masked(shell_d, shell_l, [(r['rom'], r['offset'], r['size']) for r in regs] + [('P', LABANCHOR_AT, LABANCHOR_SIZE)])).hexdigest()
-    return open(os.path.join(GAME, 'VERSION')).read().strip() + '-' + fp[:12]
+    # (LAB_SHELL_VERSION: a pack built against an older published shell, labpub.py's frozen shell: that shell's VERSION)
+    return (os.environ.get('LAB_SHELL_VERSION') or open(os.path.join(GAME, 'VERSION')).read().strip()) + '-' + fp[:12]
 
 
 def cmd_make(a):

@@ -680,11 +680,37 @@ def lab_ship_mark(req, by):
         rows = lab_ships()
         row = next((x for x in rows if x['id'] == req.get('id')), None)
         if not row: return None, 'no ship request %s' % req.get('id')
-        if req['status'] == 'building': row.update(status='building', started_at=now(), result=str(req.get('note') or '')[:600])
+        if req['status'] == 'building':
+            if row['status'] != 'building': row['started_at'] = now()
+            row.update(status='building', result=str(req.get('note') or '')[:600])
+            if req.get('step'): row.update(step=str(req['step'])[:40], step_at=now())
         else: row.update(status=req['status'], closed_at=now(), closed_by=by, result=str(req.get('note') or '')[:600])
+        for k in ('version', 'changes'):                 # (the Factory's Build tab: the version built, the game.json diff lines)
+            if req.get(k): row[k] = req[k] if k == 'version' else [str(x)[:300] for x in req[k][:40]]
         lab_ship_save(rows)
     log('lab ship', row['id'], row['status'], 'by', by)
     return row, None
+
+
+def lab_ship_batch(req, by):
+    """the Factory's "Ship pending changes" / "Rebuild & ship current": ONE request (one version) for several fighters
+    ({fighters: [f...]}) or none ({rebuild: true}: no data change, the engine as pushed); revs = each fighter's live rev"""
+    fs = req.get('fighters') or []
+    if not isinstance(fs, list) or not all(isinstance(x, str) and FIGHTER.match(x) for x in fs): return None, 'fighters: a list of fighter names'
+    if not fs and not req.get('rebuild'): return None, 'no fighter to ship (give fighters, or rebuild: true)'
+    revs = {f: (lab_current(f) or {'version': 0})['version'] for f in fs}
+    with lab_lock:
+        rows = lab_ships()
+        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': '+'.join(fs) if fs else 'rebuild', 'fighters': fs, 'revs': revs,
+               'kind': 'batch' if fs else 'rebuild', 'rev': 0, 'hash': '', 'by': by, 'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
+        rows.append(row); lab_ship_save(rows)
+    log('lab ship batch', row['id'], row['fighter'], 'by', by)
+    return row, None
+
+
+SHIP_BEAT = os.path.join(LAB, 'ship_beat.json')               # the ship service's heartbeat (every 30 s)
+SHIP_LOGS = os.path.join(LAB, 'ship_logs')                    # <id>.log: each request's log, uploaded by the service as it runs
+MAX_SHIP_LOG = 8 << 20
 
 
 def lab_items(kind, f=None):
@@ -1092,7 +1118,14 @@ class H(http.server.BaseHTTPRequestHandler):
         if parts == ['ship']:
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             st, fi = (q.get('status') or [''])[0], (q.get('fighter') or [''])[0]
-            return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi)]})
+            try: beat = json.load(open(SHIP_BEAT))
+            except (OSError, ValueError): beat = None
+            return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi or fi in (x.get('fighters') or []))],
+                                    'daemon': beat, 'now': now()})
+        if len(parts) == 2 and parts[0] == 'ship_log' and parts[1].isdigit():
+            p = os.path.join(SHIP_LOGS, parts[1] + '.log')
+            if not os.path.exists(p): return self.reply(404, {'error': 'no log for request ' + parts[1]})
+            return self.reply(200, body=open(p, 'rb').read(), ctype='text/plain; charset=utf-8')
         if parts == ['config']:
             fs = sorted(n[:-5] for n in os.listdir(LAB_CFG) if n.endswith('.json')) if os.path.isdir(LAB_CFG) else []
             return self.reply(200, {'configs': [lab_head(lab_current(f)) for f in fs if FIGHTER.match(f)]})
@@ -1124,6 +1157,27 @@ class H(http.server.BaseHTTPRequestHandler):
             if req is None: return
             row, err = lab_ship(parts[1], req, user) if parts[0] == 'ship' else lab_ship_mark(req, user)
             return self.reply(400, {'error': err}) if err else self.reply(200, {'ship': row})
+        if parts == ['ship_batch']:
+            req = self.json_body(1 << 14)
+            if req is None: return
+            row, err = lab_ship_batch(req, user)
+            return self.reply(400, {'error': err}) if err else self.reply(200, {'ship': row})
+        if parts == ['ship_beat']:                           # the ship service: {host, state idle | building, id?, step?, pid?}
+            req = self.json_body(1 << 12)
+            if req is None: return
+            beat = dict({k: req[k] for k in ('host', 'state', 'id', 'step', 'pid', 'version') if k in req}, at=now(), by=user)
+            os.makedirs(LAB, exist_ok=True)
+            with open(SHIP_BEAT + '.part', 'w') as o: json.dump(beat, o)
+            os.replace(SHIP_BEAT + '.part', SHIP_BEAT)
+            return self.reply(200, {'ok': True})
+        if len(parts) == 2 and parts[0] == 'ship_log' and parts[1].isdigit():   # the service: the request's whole log so far
+            b = self.body(MAX_SHIP_LOG)
+            if b is None: return self.reply(413, {'error': 'a log of 1 B to %d B' % MAX_SHIP_LOG})
+            os.makedirs(SHIP_LOGS, exist_ok=True)
+            p = os.path.join(SHIP_LOGS, parts[1] + '.log')
+            with open(p + '.part', 'wb') as o: o.write(b)
+            os.replace(p + '.part', p)
+            return self.reply(200, {'ok': True, 'size': len(b)})
         if len(parts) >= 2 and parts[0] == 'config' and FIGHTER.match(parts[1]):
             f, rest = parts[1], parts[2:]
             if rest == ['revert']:

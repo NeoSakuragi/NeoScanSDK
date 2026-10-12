@@ -38,6 +38,9 @@
 (async function () {
   const AD = window.AnimDict, h = AD.h, API = 'feedback-api/';
   const root = document.getElementById('arb');
+  // the Brawler Factory (tools/brawler/factory/, 2026-10-12) embeds this sheet with only what recompiles token free: no
+  // Workshop / Dictionary / Review links, no "Ask in the Workshop"
+  const FAC = document.body.dataset.app === 'factory';
   const f = new URLSearchParams(location.search).get('f') || 'kim';
   const SET = f + '-arb';
   const SC = 0.6;                                  // one scale for every clip of the page (the picker's too)
@@ -178,6 +181,7 @@
 
   // ---- "Ask in the Workshop": the Workshop (its threads, its mic) with a request pre-filled for this slot and piece ----
   function askLink(def, pieces) {
+    if (FAC) return null;
     const p = pieces[0], key = !p ? null : isId(p) ? p : 'anim-' + p;
     const text = `Arbitration sheet, slot "${def.label}"` + (pieces.length ? ` (${pieces.map(fmtP).join(' then ')})` : ' (empty)') + ': ';
     const q = new URLSearchParams({ f, tab: 'workshop' }); if (key) q.set('ask', key); q.set('text', text);
@@ -428,7 +432,7 @@
     });
     const lockedList = lck.length ? h('details', { class: 'plocked' }, h('summary', { text: 'Locked specials (' + lck.length + ')' }),
       h('ul', {}, lck.map(p => h('li', {}, h('span', { text: p.name + ' (' + p.input + ') ' }),
-        h('a', { href: 'lab.html?tab=workshop&f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
+        FAC ? null : h('a', { href: 'lab.html?tab=workshop&f=' + f + '#' + encodeURIComponent(p.keys[0]), target: '_blank', text: 'Ask in the Workshop' }))))) : null;
     const piecesBox = W ? h('div', { class: 'ppieces' }, h('b', { text: 'Decoded pieces' }),
       pcards.length ? h('div', { class: 'pgrid' }, pcards) : h('span', { text: 'None unlocked yet.' }), lockedList,
       h('b', { text: 'Animations' })) : null;
@@ -520,7 +524,7 @@
     h('div', { class: 'tryrow livego' }, h('b', { text: 'Live: ' }), liveMsg),
     liveLineEl, gameLine,
     h('div', { class: 'tryrow' }, sheetReset, timingReset),
-    h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Review' })));
+    FAC ? null : h('div', { class: 'links' }, h('a', { href: 'lab.html?tab=workshop&f=' + f, text: 'Workshop' }), h('a', { href: 'lab.html?tab=dictionary&f=' + f, text: 'Dictionary' }), h('a', { href: 'lab.html?tab=review&f=' + f, text: 'Review' })));
   const menuBtn = h('button', { type: 'button', class: 'abtn', 'aria-expanded': 'false', text: '⋯', 'aria-label': 'The sheet\'s tools: Try in game, Send to Player, live config history, reset' });
   menuBtn.onclick = () => { const o = menuBody.hidden; menuBody.hidden = !o; menuBtn.setAttribute('aria-expanded', String(o)); };
   const stat = h('span', { class: 'astat', role: 'status', 'aria-live': 'polite' }, stSave, stLive, stGame);
