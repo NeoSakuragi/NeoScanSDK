@@ -215,7 +215,7 @@
   }
 
   // ---- Levels: one row per stage, tap to edit its name / background / song ----
-  let lvOpenStage = -1, lvEdit = null;              // the stage being edited, its unsaved values
+  let lvOpenStage = -1, lvEdit = null, lvScroll = null;   // the stage being edited, its unsaved values, the song list scroll
   const L = { msg: h('span', { class: 'msg', role: 'status', 'aria-live': 'polite' }) };
   const NAME_RE = /^[A-Z0-9 .!-]{1,12}$/;
   const audio = new Audio(); let playing = null;     // one preview at a time: the song's name
@@ -242,7 +242,7 @@
     const rows = want.map((st, i) => {
       const ed = diff[i].length, isOpen = lvOpenStage === i;
       const row = h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
-        onclick: () => { lvOpenStage = isOpen ? -1 : i; lvEdit = null; L.msg.textContent = ''; drawLevels(); } },
+        onclick: () => { lvOpenStage = isOpen ? -1 : i; lvEdit = null; lvScroll = null; L.msg.textContent = ''; drawLevels(); } },
         h('b', { class: 'ln', text: String(i + 1) }), bgImg(st.background),
         h('span', { class: 'lt' }, h('b', { text: st.name }), h('span', { text: '♪ ' + st.music + (i === 0 ? ' *' : '') })),
         ed ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? (open.status === 'building' ? 'building' : 'queued') : 'unshipped' }) : null);
@@ -272,6 +272,8 @@
       h('button', { type: 'button', class: 'play', 'aria-label': (playing === sg.name ? 'Stop ' : 'Play 20 s of ') + sg.name, text: playing === sg.name ? '■' : '▶', onclick: () => preview(sg) }),
       h('button', { type: 'button', class: 'pick', role: 'option', 'aria-selected': v.music === sg.name ? 'true' : 'false', title: sg.what,
         onclick: () => { v.music = sg.name; drawLevels(); } }, h('b', { text: sg.name }), h('small', { text: ' ' + sg.source })))));
+    requestAnimationFrame(() => { const on = songs.querySelector('.lsong.on');     // the list where he left it, else the chosen song in view
+      songs.scrollTop = lvScroll != null ? lvScroll : on ? on.offsetTop - songs.clientHeight / 2 : 0; songs.onscroll = () => { lvScroll = songs.scrollTop; }; });
     const save = h('button', { type: 'button', class: 'primary', text: 'Save stage ' + (i + 1), disabled: !nameOk() || same() ? '' : null,
       onclick: () => saveLevels(lvWant().map((x, k) => k === i ? { name: v.name, background: v.background, music: v.music } : { name: x.name, background: x.background, music: x.music }), 'Stage ' + (i + 1)) });
     const undo = LF.some(k => st[k] !== game[k]) ? h('button', { type: 'button', text: 'Back to the game\'s',
