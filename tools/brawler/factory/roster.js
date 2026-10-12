@@ -51,7 +51,7 @@
     let L = {}; for (const f of sel) if (base[f.name]) L[f.name] = base[f.name];
     for (const k of ['slot', 'z']) Object.keys(L).sort((a, b) => L[a][k] - L[b][k]).forEach((n, i) => { L[n][k] = i; });
     for (const f of sel) if (!L[f.name]) L = place(L, f.name, f.pose);
-    return L;
+    return Object.fromEntries(Object.keys(L).sort((a, b) => L[a].slot - L[b].slot).map(n => [n, L[n]]));   // (the build's key order: "edited" means edited)
   }
 
   async function save(body, what) {
