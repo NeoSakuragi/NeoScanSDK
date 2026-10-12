@@ -505,6 +505,7 @@ def model(g, build):
         return {'enemy': en_idx[e], 'pick': d.get('pick', 0), 'set': d.get('set', 0), 'tint': tint_idx[d.get('tint', 'none')],
                 'x': x, 'z': d['z'], 'flags': fl}
     for si, s in enumerate(g['stages']):
+        assert re.fullmatch(STAGE_NAME, s['name']), f'stage {si + 1}: name {s["name"]!r}: 1-12 characters (A-Z 0-9 space . ! -)'
         ww = widths[s['background']] if widths else None
         sp, wv = [], []
         for wi, w in enumerate(s['waves']):
@@ -620,6 +621,7 @@ AI_ORDER = ['flags', 'rest_shift', 'rest_random', 'rest_add', 'rest_start', 'res
 EN_LAYOUT = [('base', 0, 'B'), ('ai', 1, 'B'), ('attract_ai', 2, 'B'), ('power', 3, 'B'), ('npool', 4, 'B'), ('set', 5, 'B'),
              ('tint', 6, 'B'), ('flags', 7, 'B'), ('life', 8, 'h'), ('pool', 10, 'I'), ('name', 14, 'I'), ('pal', 18, 'I'), ('moves', 22, 'I')]
 EN_SIZE = 26
+STAGE_NAME = r'[A-Z0-9 .!-]{1,12}'                      # a stage's name: the HUD (main.c hud_wave) + GAME OVER, fix font
 ST_LAYOUT = [('bg', 0, 'B'), ('music', 1, 'B'), ('power', 2, 'B'), ('nwaves', 3, 'B'), ('waves', 4, 'I'), ('spawns', 8, 'I'),
              ('boss', 12, 'B'), ('boss_song', 13, 'B'), ('unlock', 14, 'B'), ('boss_z', 15, 'B'), ('boss_lock', 16, 'h'),
              ('boss_x', 18, 'h'), ('boss_seed', 20, 'H'), ('boss_first', 22, 'B'), ('nmin', 23, 'B')]
@@ -872,6 +874,7 @@ def tables(g, build):
           if g['music'].get('gameover') == 'FADE' else f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}\n#define GAME_OVER_FADE 0'),
          'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
+         'extern const char *const gstage_names[GS_COUNT];   /* game.json stages[].name: the HUD, GAME OVER */',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
@@ -1017,6 +1020,7 @@ def tables(g, build):
                     f'.unlock = {s["unlock"]}, .boss_lock = {s["boss_lock"]}, .boss_x = {s["boss_x"]}, .boss_z = {s["boss_z"]}, .boss_seed = 0x{s["boss_seed"]:04X}, '
                     f'.boss_first = {s["boss_first"]}, .nmin = {s["nmin"]} }},   /* {s["name"]} */')
     c.append('const gstage_t gstages_rom[GS_COUNT] = {\n' + '\n'.join(rows) + '\n};')
+    c.append('const char *const gstage_names[GS_COUNT] = { ' + ', '.join(json.dumps(s['name']) for s in M['stages']) + ' };')
     xrows = []
     for si, s in enumerate(M['stages']):
         if s['triggers']:

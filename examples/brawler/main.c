@@ -2032,8 +2032,12 @@ static uint8_t pl_ch[2], pl_set[2], pl_on[2];   /* the players, carried from sta
 
 static uint8_t mod8(uint8_t a, uint8_t b) { while (a >= b) a -= b; return a; }   /* no libgcc: no 32-bit % */
 static void hud_wave(void) {
-    FIX_print(2, 26, "STAGE   WAVE   ", 0); FIX_printNum(8, 26, camp + 1, 0);
-    if (phase >= PH_BOSS) FIX_print(10, 26, "BOSS ", 0); else FIX_printNum(15, 26, wave + 1, 0);
+    const char *n = gstage_names[camp];                  /* game.json stages[].name, 1-12 characters (the Factory's Levels) */
+    uint8_t x = 2;
+    FIX_print(2, 26, n, 0);
+    while (*n++) x++;                                    /* "STAGE 1 WAVE 1": the wave after the name */
+    FIX_print(x, 26, " WAVE   ", 0);
+    if (phase >= PH_BOSS) FIX_print(x + 1, 26, "BOSS ", 0); else FIX_printNum(x + 6, 26, wave + 1, 0);
 }
 static int16_t lock_at(int16_t x) { int16_t m = world_w - 320; return x > m ? m : x; }   /* inside the background shown */
 static uint8_t ai_of(const genemy_t *en) { return attract ? en->attract_ai : en->ai; }
@@ -2683,7 +2687,7 @@ static void gameover_start(void) {
     show_start(5, char_index(f->ch), f->set, RGB8(0, 0, 0));
     fighter_play(&fighters[0], BA_DOWN);                     /* the player lies on the floor */
     centre(10, "GAME OVER");
-    { char t[] = "STAGE  "; t[6] = '1' + camp; centre(13, t); }
+    centre(13, gstage_names[camp]);                          /* the stage's name (game.json stages[].name) */
     if (GAME_MUS_OVER) snd_music(GAME_MUS_OVER);             /* (0: KOF98's way, the continue song fading out: cont_tick) */
 }
 static void cont_tick(void) {                    /* the fight frozen under the overlay */

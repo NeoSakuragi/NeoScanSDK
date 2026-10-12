@@ -13,7 +13,8 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         edits; every host path in the conf, tools/brawler/ship.example.json). Each request, one at a time (a fighter's
         older pending ones: dropped, superseded), stopping at the first failure ("<step>: <reason>", the checkout reset,
         the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
-        (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version),
+        (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version), levels.py
+        merge (a request with "levels": the Factory's Levels draft -> game.json stage names / backgrounds / songs),
         rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, git commit
         (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
         push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
@@ -75,7 +76,7 @@ def api_raw(path, data):
 FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
           'Claude-Session: https://claude.ai/code/session_01XhxN754ESQrKXnzjnRdvPt\n')
 # the Factory's Build tab shows a ship as these phases (each step of ship_one belongs to one)
-PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
+PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
          'regress bleed': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
 STATE = {'state': 'idle'}                                # what the heartbeat says (ship_one updates it)
 
@@ -137,11 +138,16 @@ def ship_one(c, fighters, row):
             lines = out.splitlines()
             left += [f + ': ' + x.strip()[2:] for x in lines[next((i for i, x in enumerate(lines) if x.startswith('REPORT ')), len(lines)):] if x.strip().startswith('- ')]
             changes += [f + ': ' + x.split(':', 1)[1].strip() for x in lines if x.startswith('game.json roster changes:') and not x.startswith('game.json roster changes: none')]
-        if fighters and not changes:
+        if row.get('levels'):                            # the Factory's Levels draft (lab/levels), as it is now
+            dp = os.path.join(c['logs'], f'{row["id"]}_levels.json')
+            json.dump(api('levels').get('draft') or {}, open(dp, 'w'))
+            out = run('levels', py('levels.py', 'merge', game, dp))
+            changes += [x for x in out.splitlines() if x.startswith('levels: stage ')]
+        if (fighters or row.get('levels')) and not changes:
             run('reset', g('reset', '-q', '--hard', 'HEAD'))
             logf.write('\nnothing changed\n'); up(); logf.close()
             return 'done', f'nothing changed: the game already plays this sheet ({v0})', None, []
-        if not fighters: changes = ['rebuild: no data change (the engine as pushed)']
+        if not fighters and not row.get('levels'): changes = ['rebuild: no data change (the engine as pushed)']
         bd = os.path.join(game, 'build')
         for x in os.listdir(bd):
             if x.endswith('.o'): os.remove(os.path.join(bd, x))
@@ -152,6 +158,7 @@ def ship_one(c, fighters, row):
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
         paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
         what = (', '.join(fighters) + ' shipped from the Assembly' + (f' (rev {row["rev"]})' if row.get('rev') else '')) if fighters else 'rebuild (no data change)'
+        if row.get('levels'): what = (what + ' + ' if fighters else '') + f'levels shipped from the Factory (draft rev {row["levels"]})'
         run('commit', g('add', '--', *paths))                # (before the publish: scenario.py publish finds the build
         run('commit', g('commit', '-q', '-m', f'Brawler {v1}: {what}' + FOOTER, '--', *paths))
         run('publish-vps', ['make', '-C', game, 'publish-vps'])   # by its "Brawler 0.10.N" commit)
@@ -166,6 +173,21 @@ def ship_one(c, fighters, row):
         return 'failed', f'{e} (the whole log: the Factory\'s Build tab)', st['v'], changes
     logf.write(f'\nshipped {v1}\n'); up(); logf.close()
     return 'done', f'shipped {v1}' + ('; left out: ' + '; '.join(left) if left else ''), v1, changes
+
+
+def levels_report(c):
+    """the Factory's Levels: the songs' 20 s previews (only those not cached yet, played by the ship checkout's ROM in our
+    emulator) to the VPS, then what the game plays now (levels.py state) to the feedback service. Never fails a ship"""
+    game = os.path.join(c['repo'], 'examples', 'brawler'); lv = os.path.join(c['repo'], 'tools', 'brawler', 'levels.py')
+    env = dict(os.environ, **c['env'])
+    try:
+        r = subprocess.run(['nice', '-n', str(c['nice']), sys.executable, lv, 'previews', game, c.get('previews', '/data/brawler-ship/previews')]
+                           + (['--host', HOST, '--dest', c.get('previews_dest', '/data/brawler-factory/songs')] if HOST else []),
+                           capture_output=True, text=True, env=env, timeout=1800)
+        if r.returncode: print('levels previews failed:', (r.stderr or r.stdout).strip()[-300:], flush=True)
+        st = subprocess.run([sys.executable, lv, 'state', game], capture_output=True, text=True, check=True).stdout
+        api('levels_game', json.loads(st))
+    except (SystemExit, Exception) as e: print('levels report failed:', e, flush=True)
 
 
 def beat_loop(poll):
@@ -188,7 +210,7 @@ def ship_worker(a):
     if a.logs: c['logs'] = a.logs
     me = os.path.abspath(__file__); mt = os.path.getmtime(me)
     print(f'ship service: repo {c["repo"]}, logs {c["logs"]}, lab {HOST or "local"}, poll {c["poll"]} s', flush=True)
-    if not a.once: beat_loop(c['poll'])
+    if not a.once: beat_loop(c['poll']); levels_report(c)
     fs_of = lambda r: r.get('fighters') if 'fighters' in r else [r['fighter']]
     while True:
         try: rs = api('ship')['requests']
@@ -202,6 +224,7 @@ def ship_worker(a):
             except Exception as e: stt, note, ver, ch = 'failed', f'the ship service stopped: {type(e).__name__}: {e}', None, []
             STATE.clear(); STATE['state'] = 'idle'
             mark(r['id'], stt, note, version=ver, changes=ch)
+            if stt == 'done' and ver: levels_report(c)
             print(f'[ship #{r["id"]}] {r["fighter"]}: {stt}: {note} ({time.time() - t0:.0f} s)', flush=True)
             if os.path.getmtime(me) != mt:               # (a pull changed this file: run the new one)
                 print('labcfg.py changed: restarting', flush=True); os.execv(sys.executable, [sys.executable] + sys.argv)

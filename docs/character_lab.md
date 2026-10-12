@@ -329,6 +329,18 @@ First setup on a host: `git worktree add --detach /data/brawler-ship/repo origin
 -C examples/brawler` there (full export), then install the unit. Needs: ssh key to root@195.201.91.211 (labcfg / arb_compile
 answers / publish), `gh auth` for the push, the ROM / dictionary inputs at their /data paths.
 
+### The Factory's Levels (2026-10-12)
+
+`/brawler-factory/?tab=levels`: each campaign stage's name (1-12 characters A-Z 0-9 space . ! -, shown in the HUD
+before WAVE and on GAME OVER: `gstage_names`), background (a stage of the build wide enough for its lock points) and song
+(a songs.json song, with a 20 s MP3 preview). Waves are not edited there. Saves go to the Levels draft (`GET|POST
+lab/levels`, `LAB/levels.json` + `levels.history.jsonl`); "Ship pending changes" sends `ship_batch {levels: true}` and
+the ship service runs `levels.py merge` (only those three game.json lines per stage; a refusal = `failed` "levels:
+REFUSED: <reason>") before the build; the history shows `levels: stage 2 music STAGE_HIGHWAY -> THEME_KIM`. At start and
+after each shipped version the service runs `levels.py previews` (missing MP3s, played by the ship ROM in our emulator,
+cached in /data/brawler-ship/previews, rsync'd to the VPS /data/brawler-factory/songs/) and posts `levels.py state` to
+`lab/levels_game` (what the page shows as "the game"). In-game check: `levels_check.py GAME_DIR OUT`.
+
 ## The server API
 
 The pages and the Player talk to the feedback service (`tools/feedback/server.py`, unit `brawler-feedback`): the pages

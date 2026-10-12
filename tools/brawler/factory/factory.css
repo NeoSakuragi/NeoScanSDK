@@ -193,3 +193,33 @@ body .knobs .kctl input[type=range] { accent-color: var(--accent); }
 @media (max-width: 520px) { .wrap { padding: 0 8px; } }
 .dline { margin: 0 0 6px; } .dline .pill { white-space: normal; }
 #arb .abar h1 { display: none; }
+
+/* ---- Levels: one row per stage (number, background, name, song), the editor under the open one ---- */
+.card h2 .gv { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.lrows { display: flex; flex-direction: column; }
+.lrow { display: grid; grid-template-columns: 1.4em 96px minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left; border: 0; border-top: var(--line); border-radius: 0; padding: 5px 2px; background: var(--card); width: 100%; }
+.lrows .lrow:first-child { border-top: 0; }
+.lrow.open { background: var(--accent-bg); }
+.lrow .ln { font: 700 15px ui-monospace, monospace; text-align: center; }
+.lbg { width: 96px; height: 28px; object-fit: cover; object-position: left center; border-radius: 4px; background: #e8eaf2; display: block; }
+.lrow .lt { min-width: 0; display: flex; flex-direction: column; }
+.lrow .lt b { font: 700 14px ui-monospace, monospace; }
+.lrow .lt span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledit { border-top: var(--line); background: var(--accent-bg); padding: 6px 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.ledit .lf { display: flex; align-items: baseline; gap: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-top: 4px; }
+.ledit .lf small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.ledit input { font: 700 15px ui-monospace, monospace; text-transform: uppercase; border: var(--line); border-radius: 6px; padding: 4px 8px; width: 11em; background: var(--card); color: var(--fg); }
+.lbgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 4px; }
+.lbgb { padding: 3px; display: flex; flex-direction: column; gap: 2px; align-items: stretch; font-size: 11.5px; }
+.lbgb .lbg { width: 100%; }
+.lbgb[aria-pressed="true"] { border: 2px solid var(--accent); background: var(--card); font-weight: 700; }
+.lsongs { max-height: 40vh; overflow: auto; border: var(--line); border-radius: 6px; background: var(--card); }
+.lsong { display: flex; align-items: center; gap: 4px; border-top: var(--line); padding: 1px 3px; }
+.lsong:first-child { border-top: 0; }
+.lsong .play { font-size: 12px; padding: 2px 8px; flex: 0 0 auto; min-width: 2.2em; }
+.lsong .pick { flex: 1 1 auto; min-width: 0; text-align: left; border: 0; background: transparent; padding: 4px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lsong .pick b { font: 600 12.5px ui-monospace, monospace; }
+.lsong .pick small { color: var(--muted); }
+.lsong.on { background: var(--accent-bg); }
+.lsong.on .pick b::before { content: "✓ "; color: var(--accent); }
+.lfoot { margin: 6px 0 2px; font-size: 12px; }

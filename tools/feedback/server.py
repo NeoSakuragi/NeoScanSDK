@@ -697,15 +697,60 @@ def lab_ship_batch(req, by):
     ({fighters: [f...]}) or none ({rebuild: true}: no data change, the engine as pushed); revs = each fighter's live rev"""
     fs = req.get('fighters') or []
     if not isinstance(fs, list) or not all(isinstance(x, str) and FIGHTER.match(x) for x in fs): return None, 'fighters: a list of fighter names'
-    if not fs and not req.get('rebuild'): return None, 'no fighter to ship (give fighters, or rebuild: true)'
+    lv = (levels_load().get('draft') or {}).get('rev') if req.get('levels') else None   # (the Levels draft: its revision)
+    if req.get('levels') and not lv: return None, 'no levels draft to ship'
+    if not fs and not lv and not req.get('rebuild'): return None, 'no fighter to ship (give fighters, levels: true, or rebuild: true)'
     revs = {f: (lab_current(f) or {'version': 0})['version'] for f in fs}
     with lab_lock:
         rows = lab_ships()
-        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': '+'.join(fs) if fs else 'rebuild', 'fighters': fs, 'revs': revs,
-               'kind': 'batch' if fs else 'rebuild', 'rev': 0, 'hash': '', 'by': by, 'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
+        row = {'id': max([x['id'] for x in rows] or [0]) + 1, 'fighter': '+'.join(fs + (['levels'] if lv else [])) or 'rebuild', 'fighters': fs, 'revs': revs,
+               'kind': 'batch' if fs or lv else 'rebuild', 'rev': 0, 'hash': '', 'by': by, 'at': now(), 'note': str(req.get('note') or '')[:300], 'status': 'pending'}
+        if lv: row['levels'] = lv
         rows.append(row); lab_ship_save(rows)
     log('lab ship batch', row['id'], row['fighter'], 'by', by)
     return row, None
+
+
+LEVELS = os.path.join(LAB, 'levels.json')                    # the Factory's Levels: {draft: {rev, stages, by, at}, game: {...}}
+LEVEL_NAME = re.compile(r'^[A-Z0-9 .!-]{1,12}$')               # (tools/brawler/levels.py NAME)
+SONG_NAME = re.compile(r'^[A-Z0-9_]{1,32}$')
+
+
+def levels_load():
+    try: return json.load(open(LEVELS))
+    except (OSError, ValueError): return {}
+
+
+def levels_save(d):
+    os.makedirs(LAB, exist_ok=True)
+    with open(LEVELS + '.part', 'w') as o: json.dump(d, o, indent=1, ensure_ascii=False)
+    os.replace(LEVELS + '.part', LEVELS)
+
+
+def levels_put(req, by, game=False):
+    """the page's draft {stages: [{name, background, music}...]} (a new revision, checked in shape here, against the
+    game by the ship service: tools/brawler/levels.py), or the ship service's report of the game (levels.py state:
+    what the build plays, its backgrounds and songs)"""
+    with lab_lock:
+        d = levels_load()
+        if game:
+            if not isinstance(req.get('stages'), list): return None, 'game: levels.py state'
+            d['game'] = dict(req, at=now())
+        else:
+            st = req.get('stages')
+            if not isinstance(st, list) or not 1 <= len(st) <= 32: return None, 'stages: a list of {name, background, music}'
+            clean = []
+            for i, x in enumerate(st):
+                if not isinstance(x, dict) or not isinstance(x.get('name'), str) or not LEVEL_NAME.match(x['name']):
+                    return None, 'stage %d: name: 1-12 characters A-Z 0-9 space . ! -' % (i + 1)
+                if not isinstance(x.get('background'), int) or not isinstance(x.get('music'), str) or not SONG_NAME.match(x['music']):
+                    return None, 'stage %d: background (a number) and music (a song name)' % (i + 1)
+                clean.append({'name': x['name'], 'background': x['background'], 'music': x['music']})
+            d['draft'] = {'rev': ((d.get('draft') or {}).get('rev') or 0) + 1, 'stages': clean, 'by': by, 'at': now()}
+            with open(LEVELS + '.history.jsonl', 'a') as hf: hf.write(json.dumps(d['draft'], ensure_ascii=False) + '\n')
+        levels_save(d)
+    log('lab levels', 'game' if game else 'draft rev %d' % d['draft']['rev'], 'by', by)
+    return d, None
 
 
 SHIP_BEAT = os.path.join(LAB, 'ship_beat.json')               # the ship service's heartbeat (every 30 s)
@@ -1122,6 +1167,7 @@ class H(http.server.BaseHTTPRequestHandler):
             except (OSError, ValueError): beat = None
             return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi or fi in (x.get('fighters') or []))],
                                     'daemon': beat, 'now': now()})
+        if parts == ['levels']: return self.reply(200, levels_load())
         if len(parts) == 2 and parts[0] == 'ship_log' and parts[1].isdigit():
             p = os.path.join(SHIP_LOGS, parts[1] + '.log')
             if not os.path.exists(p): return self.reply(404, {'error': 'no log for request ' + parts[1]})
@@ -1157,6 +1203,11 @@ class H(http.server.BaseHTTPRequestHandler):
             if req is None: return
             row, err = lab_ship(parts[1], req, user) if parts[0] == 'ship' else lab_ship_mark(req, user)
             return self.reply(400, {'error': err}) if err else self.reply(200, {'ship': row})
+        if parts in (['levels'], ['levels_game']):            # the Factory's Levels draft / the ship service's game report
+            req = self.json_body(1 << 16)
+            if req is None: return
+            d, err = levels_put(req, user, parts == ['levels_game'])
+            return self.reply(400, {'error': err}) if err else self.reply(200, d)
         if parts == ['ship_batch']:
             req = self.json_body(1 << 14)
             if req is None: return

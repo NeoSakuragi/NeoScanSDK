@@ -1,5 +1,5 @@
 // The BRAWLER FACTORY (canneji.duckdns.org/brawler-factory/, Bruno 2026-10-12: "only include things that can safely be
-// modified and recompiled without tokens"). One page, two live tabs (Game and Levels come next):
+// modified and recompiled without tokens"). One page, three live tabs (Game comes next):
 //   ?tab=chars            the cast (cast.json: every roster fighter, his HUD face) with his edit / ship state
 //   ?tab=chars&f=<f>      his Assembly sheet: chainlab/arbitrage.js itself (body[data-app=factory]: no Workshop links),
 //                         saving to the same answers + live config as the Lab (the Player's Character lab unchanged)
@@ -7,6 +7,9 @@
 //                         heartbeat, the ship in progress (its phase, elapsed time, live log), the queue, the last 20 ships
 //                         (version, fighters, game.json changes, result, duration, log), Ship pending changes / per
 //                         fighter / Rebuild & ship current
+//   ?tab=levels           each campaign stage's name, background, song (tools/brawler/levels.py): edits saved as the
+//                         Levels draft (lab/levels), shipped by Ship pending changes; the songs' 20 s previews are MP3s
+//                         the ship service plays in our emulator (/brawler-factory/songs/). Waves: not here
 // The base URL is /brawler-lab/: cast.json, faces/, the scripts and feedback-api/ are the Lab's.
 (function () {
   'use strict';
@@ -17,11 +20,11 @@
     .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
   const Q = new URLSearchParams(location.search);
   const F = Q.get('f');
-  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild') };
+  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild'), levels: document.getElementById('pLevels') };
   const tabs = [...document.querySelectorAll('.ftabs button[data-tab]')];
   const daemonEl = document.getElementById('daemon');
   const PHASES = ['pull', 'compile', 'build', 'checks', 'publish', 'Lab packs', 'push'];
-  let S = { rows: [], daemon: null, skew: 0, configs: [] };     // the queue + the heartbeat; skew = server clock - ours
+  let S = { rows: [], daemon: null, skew: 0, configs: [], lv: {} };   // lv: the Levels {draft, game}     // the queue + the heartbeat; skew = server clock - ours
   const t = iso => iso ? Date.parse(iso) : NaN;
   const ago = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : s < 172800 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' d'; };
   const dur = ms => { const s = Math.max(0, Math.round(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -31,14 +34,15 @@
   const revOf = (r, f) => r.revs ? r.revs[f] : r.fighter === f ? r.rev : undefined;
 
   // ---- tabs ----
-  let tab = Q.get('tab') === 'build' ? 'build' : 'chars';
+  let tab = ['build', 'levels'].includes(Q.get('tab')) ? Q.get('tab') : 'chars';
   function show(k) {
     tab = k;
     for (const [n, el] of Object.entries(P)) el.hidden = n !== k;
     tabs.forEach(b => b.dataset.tab === k ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
     const u = new URL(location.href); u.searchParams.set('tab', k); history.replaceState(null, '', u.pathname + u.search);
-    document.title = (k === 'build' ? 'Build' : F || 'Characters') + ' · Brawler Factory';
+    document.title = (k === 'build' ? 'Build' : k === 'levels' ? 'Levels' : F || 'Characters') + ' · Brawler Factory';
     if (k === 'build') drawBuild();
+    if (k !== 'levels') stopPreview();
     poll();
   }
   tabs.forEach(b => { b.onclick = () => show(b.dataset.tab); });
@@ -47,11 +51,12 @@
   let pollT = null;
   async function poll() {
     clearTimeout(pollT);
-    const [q, cfg] = await Promise.all([getJ(LAB + 'ship'), getJ(LAB + 'config')]);
+    const [q, cfg, lv] = await Promise.all([getJ(LAB + 'ship'), getJ(LAB + 'config'), getJ(LAB + 'levels')]);
     if (q) { S.rows = q.requests || []; S.daemon = q.daemon; if (q.now) S.skew = t(q.now) - Date.now(); }
     if (cfg) S.configs = cfg.configs || [];
+    if (lv) S.lv = lv;
     drawDaemon();
-    if (tab === 'build') drawBuild(); else drawCastTags();
+    if (tab === 'build') drawBuild(); else if (tab === 'levels') { if (lvOpenStage < 0) drawLevels(); } else drawCastTags();   // (an open editor: not redrawn under his fingers)
     pollT = setTimeout(poll, tab === 'build' ? 5000 : 20000);
   }
   function daemonState() {
@@ -81,6 +86,13 @@
     const last = done.map(r => (/(?:shipped|build) (\d\S*)/.exec(r.result || '') || [])[1]).filter(Boolean).pop();
     return { open, unshipped, cfg, last };
   }
+  // the Levels: the draft's stages (or the game's), what differs from the game, a levels ship queued / building
+  const LF = ['name', 'background', 'music'];
+  const lvGame = () => (S.lv.game && S.lv.game.stages) || null;
+  const lvWant = () => { const g = lvGame(), d = S.lv.draft && S.lv.draft.stages; return g && d && d.length === g.length ? d : g; };
+  const lvDiff = () => { const g = lvGame(), w = lvWant(); return g ? g.map((x, i) => LF.filter(k => x[k] !== w[i][k])) : []; };
+  const lvOpen = () => S.rows.find(r => r.levels && (r.status === 'pending' || r.status === 'building'));
+  const lvPending = () => !lvOpen() && lvDiff().some(d => d.length);
   const pendingFighters = () => [...new Set(S.configs.map(c => c.fighter))].filter(f => shipState(f).unshipped);
 
   // ---- Characters ----
@@ -168,7 +180,7 @@
     const logBtn = h('button', { type: 'button', text: openLog === r.id ? 'Hide log' : 'Log', onclick: () => { openLog = openLog === r.id ? null : r.id; drawBuild(); } });
     return h('div', { class: 'ship' },
       h('span', { class: 'v', text: ver || '#' + r.id }),
-      h('span', { class: 'who', text: (fs.length ? fs.join(', ') : 'rebuild (engine as pushed)') }),
+      h('span', { class: 'who', text: (fs.length || r.levels ? fs.concat(r.levels ? ['levels'] : []).join(', ') : 'rebuild (engine as pushed)') }),
       h('span', { class: 't', text: cur ? dur(end - start) : (r.closed_at ? hm(r.closed_at) + ' · ' + dur(end - start) : hm(r.at)) }),
       cur || r.status === 'failed' ? stepsEl(r) : null,
       (r.changes || []).length ? r.changes.map(c => h('p', { class: 'ch', text: c })) : null,
@@ -178,20 +190,91 @@
   }
   function drawBuild() {
     const d = daemonState();
-    const pend = pendingFighters();
+    const pend = pendingFighters(), lvp = lvPending();
+    const all = pend.concat(lvp ? ['levels'] : []);
     const building = S.rows.filter(r => r.status === 'building');
     const queued = S.rows.filter(r => r.status === 'pending');
     const hist = S.rows.filter(r => r.status === 'done' || r.status === 'failed').slice(-20).reverse();
-    const shipAll = h('button', { type: 'button', class: 'primary', disabled: pend.length ? null : '', text: pend.length ? `Ship pending changes (${pend.join(', ')})` : 'Ship pending changes (none)',
-      onclick: () => ship({ fighters: pend, note: 'Ship pending changes (the Factory)' }, pend.join(', ')) });
+    const shipAll = h('button', { type: 'button', class: 'primary', disabled: all.length ? null : '', text: all.length ? `Ship pending changes (${all.join(', ')})` : 'Ship pending changes (none)',
+      onclick: () => ship({ fighters: pend, levels: lvp || undefined, note: 'Ship pending changes (the Factory)' }, all.join(', ')) });
     const rebuild = h('button', { type: 'button', text: 'Rebuild & ship current', title: 'No data change: the game as pushed (e.g. after an engine merge), new version',
       onclick: () => { if (confirm('Rebuild and ship the game as pushed (no data change)?')) ship({ rebuild: true, note: 'Rebuild & ship current (the Factory)' }, 'rebuild'); } });
-    const per = pend.length ? h('div', { class: 'pend' }, 'One at a time:', pend.map(f => h('button', { type: 'button', text: 'Ship ' + f, onclick: () => ship({ fighters: [f], note: 'Ship ' + f + ' (the Factory)' }, f) }))) : null;
+    const per = all.length > 1 ? h('div', { class: 'pend' }, 'One at a time:', all.map(f => h('button', { type: 'button', text: 'Ship ' + f,
+      onclick: () => ship(f === 'levels' ? { levels: true, note: 'Ship levels (the Factory)' } : { fighters: [f], note: 'Ship ' + f + ' (the Factory)' }, f) }))) : null;
     P.build.replaceChildren(...[
       h('div', { class: 'card' }, h('p', { class: 'dline' }, h('span', { class: 'pill ' + d.cls, text: d.text })), h('div', { class: 'btns' }, shipAll, rebuild), per, B.msg),
       building.length ? h('div', { class: 'card cur' }, h('h2', { text: 'Now building' }), building.map(r => shipRow(r, true))) : null,
       queued.length ? h('div', { class: 'card' }, h('h2', { text: 'Queue (' + queued.length + ')' }), queued.map(r => shipRow(r, false))) : null,
       h('div', { class: 'card' }, h('h2', { text: 'Last ' + hist.length + ' ships' }), hist.length ? hist.map(r => shipRow(r, false)) : h('p', { class: 'msg', text: 'None yet.' }))].filter(Boolean));
+  }
+
+  // ---- Levels: one row per stage, tap to edit its name / background / song ----
+  let lvOpenStage = -1, lvEdit = null;              // the stage being edited, its unsaved values
+  const L = { msg: h('span', { class: 'msg', role: 'status', 'aria-live': 'polite' }) };
+  const NAME_RE = /^[A-Z0-9 .!-]{1,12}$/;
+  const audio = new Audio(); let playing = null;     // one preview at a time: the song's name
+  audio.onended = () => { playing = null; drawLevels(); };
+  function stopPreview() { audio.pause(); playing = null; }
+  function preview(sg) {
+    if (playing === sg.name) { stopPreview(); return drawLevels(); }
+    audio.src = '/brawler-factory/' + sg.preview; playing = sg.name;
+    audio.play().catch(() => { playing = null; L.msg.className = 'msg bad'; L.msg.textContent = 'No preview of ' + sg.name + ' yet (the build daemon makes them).'; drawLevels(); });
+    drawLevels();
+  }
+  const bgImg = i => h('img', { class: 'lbg', src: 'stages/bg' + i + '.jpg', alt: 'background ' + i, loading: 'lazy' });
+  async function saveLevels(stages, what) {
+    L.msg.className = 'msg'; L.msg.textContent = 'Saving…';
+    try { S.lv = await postJ(LAB + 'levels', { stages }); L.msg.textContent = what + ': saved. Ship it from the Build tab (Ship pending changes).'; lvEdit = null; }
+    catch (e) { L.msg.className = 'msg bad'; L.msg.textContent = 'Not saved: ' + e.message; }
+    drawLevels(); drawDaemon();
+  }
+  function drawLevels() {
+    const G = S.lv.game;
+    if (!G) { P.levels.replaceChildren(h('p', { class: 'note', text: 'The game\'s levels are not known yet: the build daemon reports them when it starts and after each ship.' })); return; }
+    const want = lvWant(), diff = lvDiff(), open = lvOpen();
+    const songOf = n => G.songs.find(x => x.name === n) || { name: n, source: '?' };
+    const rows = want.map((st, i) => {
+      const ed = diff[i].length, isOpen = lvOpenStage === i;
+      const row = h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
+        onclick: () => { lvOpenStage = isOpen ? -1 : i; lvEdit = null; L.msg.textContent = ''; drawLevels(); } },
+        h('b', { class: 'ln', text: String(i + 1) }), bgImg(st.background),
+        h('span', { class: 'lt' }, h('b', { text: st.name }), h('span', { text: '♪ ' + st.music + (i === 0 ? ' *' : '') })),
+        ed ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? (open.status === 'building' ? 'building' : 'queued') : 'unshipped' }) : null);
+      return [row, isOpen ? editor(i, st, G) : null];
+    });
+    P.levels.replaceChildren(h('div', { class: 'card' },
+      h('h2', {}, 'Levels', h('span', { class: 'sp' }), h('span', { class: 'gv', text: 'in game ' + (G.version || '?') })),
+      h('div', { class: 'lrows' }, rows),
+      h('p', { class: 'msg lfoot', text: '* Stage 1 plays P1\'s own theme when he has one (his roster music); this song otherwise. Waves are not edited here.' }),
+      L.msg));
+  }
+  function editor(i, st, G) {
+    const v = lvEdit || (lvEdit = { ...st }); const game = lvGame()[i];
+    const name = h('input', { type: 'text', value: v.name, maxlength: '12', autocapitalize: 'characters', spellcheck: 'false', 'aria-label': 'Stage ' + (i + 1) + ' name' });
+    const nmsg = h('span', { class: 'msg' });
+    const nameOk = () => NAME_RE.test(v.name);
+    name.oninput = () => { const p = name.selectionStart; name.value = name.value.toUpperCase(); name.setSelectionRange(p, p); v.name = name.value;
+      nmsg.className = nameOk() ? 'msg' : 'msg bad'; nmsg.textContent = nameOk() ? '' : '1-12 characters: A-Z 0-9 space . ! -'; save.disabled = !nameOk() || same(); };
+    const same = () => LF.every(k => v[k] === st[k]);
+    const bgs = h('div', { class: 'lbgs' }, G.bgs.map(b => {
+      const fits = b.w >= game.need_w;
+      return h('button', { type: 'button', class: 'lbgb', 'aria-pressed': v.background === b.i ? 'true' : 'false', disabled: fits ? null : '',
+        title: fits ? b.name + ', ' + b.w + ' px' : b.name + ': ' + b.w + ' px wide, this stage\'s waves need ' + game.need_w,
+        onclick: () => { v.background = b.i; drawLevels(); } }, bgImg(b.i), h('span', { text: b.i + (fits ? '' : ' (too short)') }));
+    }));
+    const songs = h('div', { class: 'lsongs', role: 'listbox', 'aria-label': 'Song' }, G.songs.map(sg => h('div', { class: 'lsong' + (v.music === sg.name ? ' on' : '') },
+      h('button', { type: 'button', class: 'play', 'aria-label': (playing === sg.name ? 'Stop ' : 'Play 20 s of ') + sg.name, text: playing === sg.name ? '■' : '▶', onclick: () => preview(sg) }),
+      h('button', { type: 'button', class: 'pick', role: 'option', 'aria-selected': v.music === sg.name ? 'true' : 'false', title: sg.what,
+        onclick: () => { v.music = sg.name; drawLevels(); } }, h('b', { text: sg.name }), h('small', { text: ' ' + sg.source })))));
+    const save = h('button', { type: 'button', class: 'primary', text: 'Save stage ' + (i + 1), disabled: !nameOk() || same() ? '' : null,
+      onclick: () => saveLevels(lvWant().map((x, k) => k === i ? { name: v.name, background: v.background, music: v.music } : { name: x.name, background: x.background, music: x.music }), 'Stage ' + (i + 1)) });
+    const undo = LF.some(k => st[k] !== game[k]) ? h('button', { type: 'button', text: 'Back to the game\'s',
+      onclick: () => saveLevels(lvWant().map((x, k) => { const y = k === i ? game : x; return { name: y.name, background: y.background, music: y.music }; }), 'Stage ' + (i + 1) + ' back to the game\'s') }) : null;
+    return h('div', { class: 'ledit' },
+      h('label', { class: 'lf' }, h('span', { text: 'Name' }), name), nmsg,
+      h('div', { class: 'lf' }, h('span', { text: 'Background' })), bgs,
+      h('div', { class: 'lf' }, h('span', { text: 'Music' }), h('small', { class: 'msg', text: i === 0 ? 'stage 1: P1\'s own theme when he has one, else this' : '' })), songs,
+      h('div', { class: 'btns' }, save, undo, h('button', { type: 'button', text: 'Close', onclick: () => { lvOpenStage = -1; lvEdit = null; drawLevels(); } })));
   }
 
   // ---- start ----
