@@ -103,7 +103,7 @@
    "archetype": "balanced",
    "chain": {"length": 4},
    "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": "214B"},
+   "specials": {"D": "CCCC", "fD": "426C", "dD": "623C", "uD": "623D", "dfD": null, "ufD": "EX 214C"},
    "fury": "23624C",
    "unlock": "always",
    "voices": "kof",

@@ -3596,5 +3596,18 @@
   "expect": "The fourth hit of the chain is Iori's forward + B kick (his command normal), then the fifth press his finisher.",
   "do_keys": "2:a,10:-,2:a,10:-,2:a,10:-,2:a,10:-,2:a,60:-",
   "proof": 90
+ },
+ "20261006-160912-b3f3": {
+  "title": "Billy's up-forward + C: EX Billy's quarter-circle-back + punch, the staff out on the diagonal (KOF98 EX 214C)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy",
+   "dummy": "ryo",
+   "gap": 100
+  },
+  "do": "Press up-forward + C.",
+  "expect": "Billy crouches, then shoots his staff out on a long diagonal up and forward, as EX Billy's quarter-circle-back + punch in KOF98, and pulls it back. It is an anti-air as in KOF98: it knocks down an enemy jumping in front of him, a standing one stays under it.",
+  "do_keys": "4:URc",
+  "proof": 90
  }
 }

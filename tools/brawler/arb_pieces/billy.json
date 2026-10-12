@@ -132,6 +132,24 @@
    "air": false,
    "source": "handlers98.ROM_SPECIALS"
   },
+  "EX 214A": {
+   "decoded": true,
+   "anims": [
+    "1E0",
+    "1E2"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
+  "EX 214C": {
+   "decoded": true,
+   "anims": [
+    "1E1",
+    "1E3"
+   ],
+   "air": false,
+   "source": "handlers98.ROM_SPECIALS"
+  },
   "MAX 236236A": {
    "decoded": false,
    "anims": [
@@ -2739,25 +2757,33 @@
    "kind": "pose",
    "state": 480,
    "names": [],
-   "specials": []
+   "specials": [
+    "EX 214A"
+   ]
   },
   "1E1": {
    "kind": "pose",
    "state": 481,
    "names": [],
-   "specials": []
+   "specials": [
+    "EX 214C"
+   ]
   },
   "1E2": {
    "kind": "pose",
    "state": 482,
    "names": [],
-   "specials": []
+   "specials": [
+    "EX 214A"
+   ]
   },
   "1E3": {
    "kind": "pose",
    "state": 483,
    "names": [],
-   "specials": []
+   "specials": [
+    "EX 214C"
+   ]
   },
   "1E4": {
    "kind": "attack",
@@ -3063,6 +3089,48 @@
    }
   ],
   "S-008": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-009": [
+   {
+    "id": "damage",
+    "name": "Damage",
+    "unit": "%",
+    "default": 100,
+    "min": 10,
+    "max": 300,
+    "step": 10,
+    "rows": [
+     {
+      "kind": 4,
+      "a": 0,
+      "match": 0,
+      "base": 256
+     }
+    ],
+    "judgment": true,
+    "from": "every hit it deals (the export's per-hit damage x the tier)"
+   }
+  ],
+  "S-010": [
    {
     "id": "damage",
     "name": "Damage",

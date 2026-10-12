@@ -494,6 +494,17 @@ specials are the same programs; the new ones are LAB_ONLY).
 - Decoded 2026-10-11: the parts of 214A's handler $70E42: `214A>141` ($70E42 alone: 141, 143), `214A>145` ($70F5E:
   145, 147), `214A>149` ($70FE0: 149, 150 in the air, 151 landing; hit kind 3), the states from the handler's table
   (part_entry's scratch fields). MAX 23624C: the victim lies (413.0 = lying 90) and the strikes keep it there.
+
+## Billy (KOF98): the diagonal cane — 2026-10-12 (note 20261006-160912-b3f3, game 0.10.66)
+- Bruno (chat, binding): "the diagonal cane is qcb + P with EX Billy". KOF98 has an EX Billy (recogniser list
+  $B25EA, not $B2582): `capture/specials96.py --game kof98 --passes ex 26` (state c26x) found EX 214A / C on the
+  EX-only handler $70156. Decoded (handlers98 ROM_SPECIALS + ROM_DEMAND): S-009 EX 214A (states 480, 482), S-010
+  EX 214C (481, 483); both spawn the staff object 484 at +80 / 128 (frames 845..857, its attack box at the tip). A and
+  C are the same frames: C starts 3 frames later, recovers 2 later, damage id 49 vs 48 -> C (S-010) on up-forward + C
+  (roster specials.ufD, was 214B). No Assembly set billy-arb and no sheet slot for ufD: game.json directly.
+- Checked in our emulator: romspecials_check billy:ufD = KOF98's EX Billy frame for frame (58 frames, 0 mismatch,
+  object 484 same spawn / end), KOF98 0 hits on a standing Terry at 48 / 80 / 112 px: an anti-air;
+  `billy_qcb_proof.py`: starts at every gap, knocks down Ryo held 70 px up at 80 / 100 / 120 px (8 damage).
 ---
 
 The sections below were the Character Lab's notes in docs/feedback.md, docs/brawler_gold.md and

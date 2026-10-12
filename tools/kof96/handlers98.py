@@ -1134,7 +1134,7 @@ def variant_summary(m, cid, inp, v, frames=400):
 ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '426B', '623A', '623B', '21416C'},
                 'ralf': {'[4]6C', '[2]8C', '[4]6D', '[4]6A', '[2]8A', '[4]6B', '23624C', 'AAAA'},
                 'ryo': {'236A', '623A', '236D', 'EX 623A', '624D', '23624C', 'EX 646A'}, 'robert': {'EX 236C', '624D', '623C', '623D', '23624C', 'EX 646D', '623A', 'EX 624D', 'air 214D', '6426A', '6426C'},
-                'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B', '623A', '236D', '236A>156', '236A>158', '236A>162'},
+                'yamazaki': {'623C', '623D', '623B', '236236C'}, 'billy': {'623C', '426C', '214B', '236236C', '623D', '23624C', 'EX 214A', 'EX 214C'}, 'kyo': {'623C', '214A', 'EX 236A', '236C', '21426C', 'EX 421D', '421B', '623A', '236D', '236A>156', '236A>158', '236A>162'},
                 'iori': {'236A', '623D', '214A', '623C', '624D', '624B', '23624C', '214A>141', '214A>145', '214A>149', '214C>142', '214C>146', '214C>149'}, 'mai': {'236A', '426D', '214C', '623D', 'EX 214D', '623A', '21426D'},
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
@@ -1143,11 +1143,13 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
 # ROM specials on demand (Bruno's first Workshop unlock, 2026-10-10): decoded for the Lab (arb_compile pieces, the Workshop's
 # S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
 # roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
-ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'},
+ROM_DEMAND = {'robert': {'6426A', '6426C'}, 'billy': {'EX 214A', 'EX 214C'}, 'kyo': {'623A', '236D', '236A>156', '236A>158', '236A>162'},
               'iori': {'214A>141', '214A>145', '214A>149', '214C>142', '214C>146', '214C>149'}}   # (Iori: note
 # 20261011-210904-5d29, dd + A = the three parts of Aoi Hana as a pressed sequence, the C version since its reopen ("the
 # A one is too short"): 214C's handler $70E42 plays 142 / 146 / 149 (214A's 141 / 145 / 149); Kyo: his sheet's
-# notes 20261011-175124 / 175657 / 175806-5d29: dd + A 623A, down + C 236D, the ff + A sequence's three parts of 236A)
+# notes 20261011-175124 / 175657 / 175806-5d29: dd + A 623A, down + C 236D, the ff + A sequence's three parts of 236A; Billy:
+# note 20261006-160912-b3f3 + Bruno 2026-10-12 "the diagonal cane is qcb + P with EX Billy": EX 214A / C, handler $70156
+# (EX-only, recogniser list $B25EA), states 480 / 482 (A) and 481 / 483 (C), the staff object 484 going out on the diagonal)
 # furies read from the ROM whose MAX path is not modelled yet (no 'MAX <fury>' export: down+D plays the fury, as before):
 # none since TODO #220 (2026-10-07): Iori 23624C's MAX (ten strikes from the state list +$C2 by +$D2, the victim's lists
 # picked by the attacker's +$D2: victim_lists 'idx') and Yamazaki 236236C's (three drags, the last list's release leaves
