@@ -23,7 +23,7 @@ PORTRAITS = '/data/neogeo_dict/portraits/'
 GAME_NAMES = {'kof94': 'The King of Fighters \'94', 'kof95': 'The King of Fighters \'95', 'kof96': 'The King of Fighters \'96',
               'kof98': 'The King of Fighters \'98', 'kof99': 'The King of Fighters \'99', 'kizuna': 'Kizuna Encounter',
               'samsho2': 'Samurai Shodown II', 'samsho4': 'Samurai Shodown IV', 'whp': 'World Heroes Perfect',
-              'doubledr': 'Double Dragon (Neo Geo)'}
+              'doubledr': 'Double Dragon (Neo Geo)', 'lastbld2': 'The Last Blade 2'}
 
 
 def jload(p):
@@ -55,7 +55,8 @@ def build(out, game):
     try: import labpub
     except Exception: labpub = None
     cast = []
-    for r in G['roster']:
+    lab_only = [dict(y, selectable=False) for y in (G.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]
+    for r in G['roster'] + lab_only:                   # (+ the Lab-only fighters: build_tables.lab_only, LB2 Moriya)
         n = r['name']; gm, bn = r['bank'].split(':')
         e = {'name': n, 'display': (r.get('display') or n).upper(), 'bank': r['bank'], 'game': gm,
              'game_name': GAME_NAMES.get(gm, gm), 'scale': r.get('scale', 1.0), 'archetype': r.get('archetype'),

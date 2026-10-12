@@ -61,7 +61,7 @@ def upload(path, req):
 def default_face(f):
     G = json.load(open(os.path.join(REPO, 'examples', 'brawler', 'game.json')))
     bench = G.get('roster_benched') or []
-    bench = list(bench.values()) if isinstance(bench, dict) else bench
+    bench = (bench.get('fighters') or []) if isinstance(bench, dict) else bench   # (game.json: {about, fighters})
     r = next((r for r in G['roster'] + bench if isinstance(r, dict) and r.get('name') == f), None)
     if not r: return None
     return hud_face(r['bank'])
