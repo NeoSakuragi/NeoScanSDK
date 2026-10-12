@@ -4029,6 +4029,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     a command grab, its hold's caught one): its flight stays
                                                                     the source's (std_flight) */
     int32_t bvx, bvy;                                            /* the brawler's own flight velocity (react) */
+    int8_t away;                                                 /* the way the hit sends the victim (+1 right) */
     uint8_t sr = a->state == S_SPECIAL && a->spec_sr ? (v->y > 0 ? a->spec_sr >> 4 : a->spec_sr & 15) : 0;   /* its source
                                                                     reaction (standing / airborne: Kizuna's situation) */
     if (reaction > 15) reaction = v->y > 0 && (sr || !(a->state == S_SPECIAL && a->spec_id == BS_FURY && (reaction & 7) <= R_HEAVY))
@@ -4104,11 +4105,26 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (a->dtgt == v) { if (v->dpin) v->dpin--; a->dtgt = 0; }   /* its down attack landed: the target is free (TODO #218) */
     {   const fighter_t *from = a->pdef && (a->pdef->ppad & 1) && a->owner ? a->owner : a;   /* (an object whose victims fly
                                                                     away from its thrower: bproj_t.ppad 1, TODO #193) */
-        react(v, INT(v->x) >= INT(from->x) ? 1 : -1, reaction, push);
+        away = INT(v->x) >= INT(from->x) ? 1 : -1;
+        if (a->state == S_SPECIAL && !held && a->spec_atk) {     /* a special's body hit on a free victim: sent the way */
+            uint8_t ob = BANK_set(CH_BANK(a->ch));               /* its attack box reaches out from the attacker's body, */
+            int8_t bx = a->spec_atk->x;                          /* not by where the two stand (note 20261011-201729-5d29: */
+            BANK_set(ob);                                        /* Kyo's triple kick flying over Ryo pinned on the wall
+                                                                    sent him back the other way). The sources' rule: KOF98
+                                                                    $1AEEC copies the attacker's facing (+$31 bit 0) into
+                                                                    the victim's reaction direction (+$12C bit 0, read at
+                                                                    $1D4BE), Double Dragon's hop ($25AD0) and Kizuna's
+                                                                    reactions (src_react) the same; a box centred behind
+                                                                    the body (sprites face left: x > 0) sends it backward,
+                                                                    a box centred on the body (a crowd around it) away
+                                                                    from the attacker as before */
+            if (bx) away = bx < 0 ? a->facing : -a->facing;
+        }
+        react(v, away, reaction, push);
     }
     bvx = v->vx; bvy = v->vy;
     if (a->state == S_SPECIAL) {                                 /* a special's body hit: KOF98's reaction (its reel's */
-        kof_react(v, INT(v->x) >= INT(a->x) ? 1 : -1, rk, a->spec_slide);   /* slide, the juggle rule: KM_HURT), */
+        kof_react(v, away, rk, a->spec_slide);                   /* slide, the juggle rule: KM_HURT), */
         if (!held && !((bm_srcfly[a->ch->id] >> a->spec_ix) & 1))   /* a free victim's flight the brawler's (note 20261011-223923), */
             std_flight(v, reaction, bvx, bvy);                   /* but a move listed in roster[].source_flight keeps its
                                                                     source's (note 20261011-201729: the chase's slide) */

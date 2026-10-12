@@ -334,6 +334,22 @@ victim's own offsets (KOF's per-victim lists; other games' victims: posture anch
   120, 130, 140 px and from his A chain at 30 / 50 / 70 px (was 1 / 2 / 3 at 40 / 80 / 120); past ~145 px kick 1 no
   longer reaches (KOF's far: none). /data/tmp/kyo_triple (trace.json per run, sheet_g40_after.png).
 
+- **A special's hit pushes its victim the way its attack box points** (note 20261011-201729-5d29's second reopen, game
+  0.10.70: "the second kick sometimes pushes the opponent in the wrong direction when done toward the corner"). Cause:
+  fighter_hit sent every victim away from the attacker by their x (victim right of the attacker -> right). Kyo's triple
+  kick against Ryo pinned on the wall (wall_update) flies on past him (Kyo up to the screen edge, 12 px beyond Ryo's
+  wall), so kick 2 found Ryo behind Kyo's x and sent him back to the middle, and kick 3 whiffed (2 / 3 hits in every
+  corner run; the open-stage runs did the same on kick 3 once Kyo reached the wall). KOF98 sends its victim the
+  attacker's facing way: $1AEEC copies the attacker's +$31 bit 0 into the victim's +$12C bit 0, the reaction ($1D4BE)
+  negates vx on it (our emulator, WLOG on P2 +$12C / +$50); in KOF's corner all three land, Ryo held at x 736. Double
+  Dragon's hop ($25AD0) and Kizuna's reactions (src_react) already did. Rule now, engine agnostic: a special's body hit
+  on a free victim (not held: throws, command grabs, holds keep theirs) sends it the way its attack box reaches out of
+  the body: a box centred ahead (sprites face left: box x < 0) = the attacker's facing, behind (x > 0) = backward, centred
+  on the body (x = 0, a crowd around it) = away by x as before. Normals and projectiles unchanged. Data: 1169 of the bank's
+  1250 special attack steps reach forward, 81 behind (Billy, Cheng-Fu, Genjuro, Hanzo, Krauser, Mai, Terry); the change
+  only shows when the two have crossed. Height back to 100 % (Assembly answer's rise override removed, kyo-arb.json
+  .bak-20261012-corner). Frames + per-run tables: /data/tmp/kyo_corner (before.json / after.json).
+
 - **A move that leaves the fighter airborne with his air attack** — `game.json roster[].keeps_air_attack` [special
   inputs] (Bruno 2026-10-11, decisions set open-2026-10-11 `hanzo-air-shuriken`: "after the shuriken Blitz, Hanzo is
   still in the air and he can still execute a regular air attack"). The special's `bspec_t.sflags` SF_AIRATK (64,
@@ -617,3 +633,6 @@ Compiled from the sheet without an agent: 2 slot(s) linked, 0 unresolved; slots 
   down and burnt, the two outside (140 ahead, 40 deep) untouched.
 - notes 20261011-225504-5d29 (chain press 4 = forward + B) and 20261011-210904-5d29's reopen (dd + A = 214C's three
   parts: 214C>142 / >146 / >149, S-012..S-014): compiled from the sheet (the two sections above).
+
+### KYO: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `kyo-arb`, build 0.10.70)
+Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
