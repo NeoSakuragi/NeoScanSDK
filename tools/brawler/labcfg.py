@@ -170,7 +170,8 @@ def ship_one(c, fighters, row):
         run('publish-vps', ['make', '-C', game, 'publish-vps'])   # by its "Brawler 0.10.N" commit)
         run('scenario publish', py('scenario.py', 'publish'))
         run('labpub', py('labpub.py', 'all', '--if-changed'))
-        run('push', g('push', '-q', 'origin', 'HEAD:brawler'))
+        run('push', g('pull', '-q', '--rebase', 'origin', 'brawler'))   # (someone pushed while it built: replay this ship's commit
+        run('push', g('push', '-q', 'origin', 'HEAD:brawler'))             #  on top; a real conflict still fails the ship)
     except Fail as e:
         logf.write(f'\nFAILED: {e}\n'); up(); logf.close()
         subprocess.run(g('reset', '-q', '--hard', start or 'HEAD'))   # (the checkout as pulled; a local commit dropped)
