@@ -214,6 +214,25 @@ GAMES = {
         nop=0x48,             # a blocked command becomes $48 (type 0: ignored), the $00 replay of Garou's line avoided
         block=414, send=440,  # the tap core: the game's $07 at 413, its first song ($30) at 444 (measured)
     ),
+    'kof2000': dict(
+        name="The King of Fighters 2000", rom='/data/roms/kof2000.neo',
+        m1='/data/neogeo_dict/sound/kof2000/kof2000_m1.bin', dir='/data/neogeo_dict/sound/kof2000',
+        id=b'Sound Driver(ROM)Ver 1.9 00/03/22',             # (2026-10-12) Garou's Ver 1.8 line one step on; the .neo's M1 is
+        songs=0x32E2, song20=0x2BC1, banksets=0x2727,           # already decrypted; tables found by Garou's code references
+        notes=0x2BE7, fnum=0x2A87,                              # ($110D, $1103, $1141, $253D, $254E)
+        lv_fm=0x3161, lv_a=0x31E1, lv_b=0x3261,                 # ($2022, $200C, $2049)
+        b_dn=0x2B49, b_rec=0x2E20, fx6=0x2E36,                  # ($0979, $0812, $13F9)
+        big_slot=7, guard=0xFD9B,
+        start=[('a', 0x10, 0x01), ('a', 0x10, 0x00), ('a', 0x28, 0x01), ('a', 0x28, 0x02), ('a', 0x28, 0x05),
+               ('a', 0x28, 0x06), ('a', 0x10, 0x01), ('a', 0x10, 0x00), ('b', 0x00, 0x87), ('a', 0x1C, 0x87),
+               ('a', 0x1C, 0x00)],
+        overhang=True, untie_0e=True, ops='v17', vol_always=False, b_roots='v17', op_fx=False,
+        b_legato_keyon=True, fm_level_fx=True,                  # (Garou's two changes)
+        types=0x307C,                                           # ($0184)
+        nop=0x30,             # a blocked command becomes $30 (type 0: ignored)
+        block=410, send=431,   # the tap core: the game sends $07 at frame 408 and its first song ($21) at 429 (measured);
+        # at 430 the command lands just before a timer interrupt and the song starts one tick late
+    ),
 }
 
 def game_of(data):

@@ -19,6 +19,7 @@ listing, and the V ROM sample ranges both streams play. One page, one builder, e
     python3 build_web.py --game rbff1 OUT_DIR                Real Bout Fatal Fury (MAKOTO v3, Art of Fighting 3's code, tools/makoto3);
     python3 build_web.py --game rbffspec|rbff2 OUT_DIR       Real Bout Special (SNK Ver 1.1 = KOF97's) / Real Bout 2 (SNK Ver 1.6), tools/kof98snd;
     python3 build_web.py --game garou OUT_DIR [0x34 ...]     Garou: Mark of the Wolves (SNK Sound Driver Ver 1.8, tools/kof98snd);
+    python3 build_web.py --game kof2000 OUT_DIR [0x22 ...]   KOF2000 (SNK Sound Driver Ver 1.9, Garou's line, tools/kof98snd);
     python3 build_web.py --game doubledr OUT_DIR [0xE2 ...]  Double Dragon (Technos' SDC_NGSS driver, tools/ngss: song_ngss.py /
                                                              regs_ngss.py, captures in our emulator, capture_ngss.py);
     python3 build_web.py --game ninjamas OUT_DIR [0xD0 ...]  Ninja Master's (ADK's driver, tools/adksnd: songadk.py /
@@ -53,7 +54,7 @@ import base64, json, os, re, struct, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 PERIOD, ISR_START, WRITE_COST = 333, 100, 6.4
-SNKSND = ('kof98', 'kof97', 'kizuna', 'samsho4', 'garou', 'rbffspec', 'rbff2')           # games on tools/kof98snd's model
+SNKSND = ('kof98', 'kof97', 'kizuna', 'samsho4', 'garou', 'rbffspec', 'rbff2', 'kof2000')           # games on tools/kof98snd's model
 
 GAMES = {
     'kof98': {
@@ -375,6 +376,19 @@ GAMES['garou'] = {
              'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the Garou V ROM. Nothing here is a recording.",
                        "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
                        "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with Garou's table addresses and its two changes (the FM level effect works on the velocity; an ADPCM-B slur into another note keys on again), reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
+                       "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
+             'capture': 'capture', 'unit': 'ticks'}}
+
+GAMES['kof2000'] = {
+    'm1': '/data/neogeo_dict/sound/kof2000/kof2000_m1.bin', 'cap': '/data/neogeo_dict/sound/kof2000/cap/cap_%02X.txt',
+    'neo': '/data/roms/kof2000.neo',
+    # docs/kof2000_songs.md: screens not identified yet; only the boot song measured
+    'names': {0x21: 'First song at boot / start of every attract cycle'},
+    'page': {'title': "The King of Fighters 2000", 'bar': 96, 'beat': 24, 'start': 0x22,
+             'intro': "KOF2000 songs played two ways through the same YM2610 emulator: <b>Real driver</b> is every register write the game's Z80 sound driver (SNK's \"Sound Driver(ROM)Ver 1.9 00/03/22\", the build after Garou's 1.8) made in our emulator, <b>Model</b> is our reading of that driver re-playing the song data from the M1 ROM. Switch between them while it plays; the playhead keeps its place in the music.",
+             'notes': ["<b>Chip.</b> Both sources run through ymfm's YM2610 (Geolith's C port, the core our emulator uses), compiled to WebAssembly and running in this page, with the ADPCM samples from the KOF2000 V ROM. Nothing here is a recording.",
+                       "<b>Real driver</b>: the register writes captured in our emulator (Geolith core with a Z80 port tap, tools/kof98snd/capture98.py) while the game's own driver played the song.",
+                       "<b>Model</b>: tools/kof98snd/song98.py + regs98.py, KOF98's driver model with KOF2000's table addresses and Garou's two changes, reading the song data from the M1 ROM. The facts line says on how many sequencer interrupts its register writes are identical to the real driver's, same values, same order.",
                        "<b>Timing.</b> One timer-A clock (166.8 Hz) and a tempo accumulator, as KOF98. The capture only knows which interrupt a write fell in, so both sources space the writes of a tick by an estimated 6.4 samples each; the model estimates the interrupts the driver loses during long ticks, so its clock can drift slightly over a long song."],
              'capture': 'capture', 'unit': 'ticks'}}
 
