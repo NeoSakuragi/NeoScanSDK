@@ -7,13 +7,21 @@ emulator's core (harness).
     python3 throws_rv3_proof.py OUT_DIR [FIGHTER ...]   -> OUT_DIR/throws_rv3.json, OUT_DIR/throws_<fighter>.png
 
 Per fighter, P1 walks into the dummy (the hold), then: forward + A, back + A (its paired throws), up + A / down + A (its
-extra throw, game.json roster[].throws.extra: a grab special's program or its paired throw_x; none: the hold hit),
-forward / back + C with a full meter (the super throw: throws.super, else the throw pressed at the super tier) and
-forward + C with no meter (the plain forward throw, nothing paid). Checked per option: what played (a paired throw BT_*,
-a special by its input, its role), the dummy's damage, the meter spent, P1 untouchable (inv = INV_FURY) on every frame
-of the throw (a paired throw: to its control return; a special: to its end), and for the throws that throw a body, a
-second enemy (a copy of the dummy, slot 3) standing where the body comes down is knocked down by it while P1's target
-gets no chain window from it (no chain credit). Sheets: one row per option and facing, a shot every SHOT_EVERY frames."""
+extra throw, game.json roster[].throws.extra: a grab special's program or its paired throw_x; none: the hold hit), all
+free (no drive spent), and forward + C: the C special for the stick, as standing, one drive chunk; with no drive nothing
+(the hold goes on). Checked per option: what played (a paired throw BT_*, a special by its input, its role), the dummy's
+damage, the drive spent, P1 untouchable (inv = INV_FURY) on every frame of a throw (a paired throw: to its control
+return; a throw special: to its end), and for the throws that throw a body, a second enemy (a copy of the dummy, slot 3)
+standing where the body comes down is knocked down by it while P1's target gets no chain window from it (no chain
+credit). Sheets: one row per option and facing, a shot every SHOT_EVERY frames.
+
+Ported 2026-10-12 to the 2026-10-08 meter (docs/brawler_gold.md "Two meter bars": the 300-point meter / meter_t fields
+are gone, the drive's chunks replace them) and its throw rules: the phase-3 super throw is DROPPED (Bruno 2026-10-08,
+gold "Terry": "Super throw: dropped"; fighter.c hold_update), and hold + C (any stick) = the C special for the stick, as
+standing (Bruno 2026-10-10, note 20261010-145638-b3f3; it threw until then) - so the old forward / back + C super-throw
+options and the "forward + C, no meter = the plain throw" option test rules that no longer exist; forward + C now checks
+the current rule instead. The per-frame paths of the throws themselves (thrower / victim vs the decoded source) are
+throws_audit.py's; this proof keeps the outcome checks (what plays, damage, cost, invincibility, the body hitting)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(HERE, 'chainlab'))
@@ -32,7 +40,7 @@ L = Lab(); b = L.b; ST = b.states
 INV_FURY = 0xFF
 BS_FURY, BS_THROW = 6, 11                                     # fighter.h (BS_COUNT 6; BS_THROW = BS_COUNT + 5)
 BT_NAMES = {0: 'forward throw (C)', 1: 'back throw (D)', 4: 'extra paired throw (throw_x)'}
-STHROW, SDMG, THROW_DMG = G['meter']['super_throw'], G['tiers']['super_throw'], 12
+M = G['meter']; CHUNK = M['chunk']; DFULL = CHUNK * M['chunks']
 import re
 SRC = open(os.path.join(GAME, 'build', 'bm_chars.c')).read()
 def windows(n):
@@ -72,29 +80,25 @@ def second():
     for o in range(b.fsize): b.w(dst + o, 1, b.r(src + o, 1))
     b.fset(3, 'idx', 3); b.place(3, x=b.fget(2, 'x') + 400, z=30); b.fset(3, 'hp', 60); b.fset(3, 'facing', 1)
 
-OPTIONS = [('fA', 'forward + A', 'f', 'a', 300), ('bA', 'back + A', 'b', 'a', 300), ('uA', 'up + A', 'U', 'a', 300),
-           ('dA', 'down + A', 'D', 'a', 300), ('fC', 'forward + C, meter 300', 'f', 'c', 300),
-           ('bC', 'back + C, meter 300', 'b', 'c', 300), ('fC0', 'forward + C, meter 0', 'f', 'c', 0)]
+OPTIONS = [('fA', 'forward + A', 'f', 'a', DFULL), ('bA', 'back + A', 'b', 'a', DFULL), ('uA', 'up + A', 'U', 'a', DFULL),
+           ('dA', 'down + A', 'D', 'a', DFULL), ('fC', 'forward + C, drive full', 'f', 'c', DFULL),
+           ('fC0', 'forward + C, drive 0', 'f', 'c', 0)]
 
 def play(n, opt, face, shots=None, body_x=None):
     key, label, stick, btn, meter = opt
     if body_x is not None: settle(); second()
     hold(face)
     if body_x is not None: b.place(3, x=b.fget(0, 'x') + body_x, z=30); b.fset(3, 'facing', face & 0xFF)
-    b.fset(0, 'meter', meter); b.fset(0, 'meter_t', 0)
+    b.fset(0, 'drive', meter)
     k = {'f': 'R' if face > 0 else 'L', 'b': 'L' if face > 0 else 'R'}.get(stick, stick) + btn
     m0 = meter; h0 = len(b.hits); x0 = b.fget(0, 'x')
     run(2, k)
     r = {'option': key, 'label': label, 'facing': 'right' if face > 0 else 'left', 'states': [], 'inv_frames': 0, 'act_frames': 0}
-    r['meter_spent'] = m0 - b.fget(0, 'meter')                  # (at the press: the gauge refills a point every 4 frames)
-    if st(0) == 'GRAB' and b.fget(0, 'xwait'):                 # a paired super throw: its super flash over the hold first
-        r['flash_frames'] = b.fget(0, 'xwait') + 2
-        while b.fget(0, 'xwait'): run(1)
-        run(1)
+    r['meter_spent'] = m0 - b.fget(0, 'drive')                  # (the drive spent at the press: full, no refill)
     s0, sid, six, sthr = st(0), b.fget(0, 'spec_id'), b.fget(0, 'spec_ix'), b.fget(0, 'sthr')
     if s0 == 'THROW': r['played'] = BT_NAMES.get(b.fget(0, 'throw_id'), f'throw {b.fget(0, "throw_id")}')
     elif s0 == 'SPECIAL':
-        r['played'] = f'special {POOL[n][six]}' + (' (super throw, as a fury)' if sthr == 2 else ' (extra throw)' if sid == BS_THROW else f' (role {sid})')
+        r['played'] = f'special {POOL[n][six]}' + (' (extra throw)' if sid == BS_THROW else f' (role {sid})')
     elif s0 == 'GRAB': r['played'] = 'hold hit'
     else: r['played'] = s0
     r['thr_dmg'] = b.fget(2, 'thr_dmg') if s0 == 'THROW' else None
@@ -149,35 +153,36 @@ for n in only:
     for opt in OPTIONS:
         for face in (1, -1):
             b.load(blob)
-            want_shots = opt[0] in ('fA', 'bA', 'fC', 'bC', 'fC0') or (opt[0] == 'uA' and 'u' in x) or (opt[0] == 'dA' and 'd' in x)
+            want_shots = opt[0] in ('fA', 'bA', 'fC') or (opt[0] == 'uA' and 'u' in x) or (opt[0] == 'dA' and 'd' in x)
             r = play(n, opt, face, rows if want_shots else None)
-            if r['low_body_dx'] and opt[0] != 'fC0':            # a thrown body coming down low: a second enemy there
+            if r['low_body_dx'] and opt[0] not in ('fC', 'fC0'):            # a thrown body coming down low: a second enemy there
                 for bx in (r['low_body_dx'][-1], r['low_body_dx'][len(r['low_body_dx']) // 2]):   # (its landing, then midway)
                     b.load(blob)
                     r2 = play(n, opt, face, None, body_x=bx)
                     r['second_enemy'] = dict(r2.get('second_enemy', {}), placed_dx=bx)
                     if 'KNOCKDOWN' in r['second_enemy']['states']: break
-            elif opt[0] != 'fC0' and r['played'] != 'hold hit':
+            elif opt[0] not in ('fC', 'fC0') and r['played'] != 'hold hit':
                 r['body_note'] = 'no thrown-body phase in its data' if not r['body_frames'] else 'its body never comes down low (above 40 px)'
             # checks
             ex = x.get('u' if opt[0] == 'uA' else 'd') if opt[0] in ('uA', 'dA') else None
-            sup = (RO[n].get('throws') or {}).get('super')
+            fsp = CL['fighters'][fi]['specials'].get('fD')             # forward + C: the forward C slot (as standing)
             if opt[0] in ('fA', 'bA'): want = 'throw'
             elif opt[0] in ('uA', 'dA'): want = 'hold hit' if not ex else 'throw_x' if ex == 'throw_x' else 'special ' + ex
-            elif opt[0] == 'fC0': want = 'forward throw (C)'
-            else: want = 'super ' + (sup or 'throw pressed')
+            elif opt[0] == 'fC': want = 'special ' + fsp if fsp else 'a C special'
+            else: want = 'hold'                                         # (no drive: nothing plays, the hold goes on)
             p = r['played']
             okp = (want == 'throw' and 'throw' in p and 'special' not in p) or (want == 'hold hit' and p == 'hold hit') or \
-                  (want == 'throw_x' and 'throw_x' in p) or (want.startswith('special ') and p.startswith(want) and 'extra' in p) or \
-                  (want == 'forward throw (C)' and p.startswith('forward throw')) or \
-                  (want.startswith('super ') and ((sup == 'throw_x' and 'throw_x' in p) or (not sup and 'throw' in p and 'special' not in p) or
-                                                  (sup and sup != 'throw_x' and p.startswith('special ' + sup) and 'super' in p)))
+                  (want == 'throw_x' and 'throw_x' in p) or (want.startswith('special ') and p.startswith(want) and
+                                                             ('extra' in p) == (opt[0] != 'fC')) or \
+                  (want == 'a C special' and p.startswith('special ') and 'extra' not in p) or (want == 'hold' and p == 'hold hit')
             r['want'] = want
             r['ok_played'] = okp
-            r['ok_meter'] = r['meter_spent'] == (STHROW if opt[0] in ('fC', 'bC') else 0)
-            r['ok_inv'] = p == 'hold hit' or r['invincible']
-            r['ok_damage'] = p == 'hold hit' or r['damage'] > 0 or (r['stun'] > 0 and 'special' not in p)   # (a stun strike: Cheng-Fu)
-            if opt[0] in ('fC', 'bC') and r['thr_dmg'] is not None: r['ok_damage'] = r['ok_damage'] and r['thr_dmg'] == SDMG
+            r['ok_meter'] = r['meter_spent'] == CHUNK * M['special'] if opt[0] == 'fC' else \
+                r['meter_spent'] in ((0, -1, -2) if opt[0] == 'fC0' else (0,))   # (drive 0: a point back a frame over the press)
+            r['ok_inv'] = p == 'hold hit' or r['invincible']             # (a C special too: invincible, gold "combo ladder")
+            r['ok_damage'] = p == 'hold hit' or opt[0] == 'fC' or r['damage'] > 0 or (r['stun'] > 0 and 'special' not in p)   # (a
+                                    # stun strike: Cheng-Fu; forward + C plays the standing special, which need not reach the
+                                    # victim reeling where it was held: Goenitz's 214B wind, Haohmaru's 623K)
             if 'second_enemy' in r: r['ok_body'] = 'KNOCKDOWN' in r['second_enemy']['states'] and r['second_enemy']['no_chain_credit']
             r['ok'] = all(v for k_, v in r.items() if k_.startswith('ok_'))
             out['options'].append(r)

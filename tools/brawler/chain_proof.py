@@ -20,7 +20,8 @@ Sections (all by default):
              finisher (its move, the victim's reaction); back = the back throw (P1 untouchable through it, the victim
              thrown behind, a second enemy behind knocked down by the body, no chain after it); the fallbacks:
              Haohmaru (no throw) back = neutral, a tree without up / down links: up / down = neutral
-  juggle     at most chain.juggle_cap air hits, then untouchable until it lands, hittable again once it stands; a downed
+             (each chain from 30 px; a far normal finisher's from FAR_START: real boxes since 0.8.2)
+  juggle     at most chain.juggle_cap air hits (a hit: life lost or a fresh hit-stop), then untouchable until it lands, hittable again once it stands; a downed
              fighter (its knockdown touched the floor) is never hit
   hitstop    the scale per link (roster) + a special's hit (the engine's 7)
   stun       an enemy's hit stun (light / heavy) and a player's (stun_player) + its untouchable window (guard_player):
@@ -296,14 +297,23 @@ if 'buffer' in SECTIONS:
 # ---- finishers by direction ------------------------------------------------------------------------------------------
 DIRS = {'neutral': '', 'forward': 'R', 'up': 'U', 'down': 'D', 'back': 'L'}
 KEY = {'neutral': 'A', 'forward': 'fA', 'up': 'uA', 'down': 'dA', 'back': 'bA'}
+FAR_START = 42      # px: a chain whose finisher is a far normal starts here (KOF plays its far normals only beyond its
+                    # close range; since 0.8.2, 0297c7d, the ROM's real attack boxes, no 96 px minimum reach: Krauser's
+                    # far C box spans 56-120 px ahead and passes over a victim the chain leaves 27 px ahead from 30 px;
+                    # from 36-54 px his whole chain and that finisher connect)
+def fin_node(fi, d, tree=None):
+    nd = (tree or tree_of(fi))['links']['A']
+    for _ in range((tree or tree_of(fi))['chain']['length'] - 2): nd = nd['links']['A']
+    return nd['links'].get(KEY[d]) or nd['links']['A']
 def finisher_case(fi, d, tree=None, extra_behind=False, shots=None, far_victim=False):
     c = (tree or tree_of(fi)).get('chain') or tree_of(fi)['chain']; N = c['length']
+    far = not far_victim and not fin_node(fi, d, tree).get('throw') and re.fullmatch(r'atk_[abcd]_far', fin_node(fi, d, tree).get('move') or '')
     settle()
     if extra_behind:                                          # a second enemy behind P1 (a copy of the dummy)
         base = b.base; src = base + 2 * b.fsize; dst = base + 3 * b.fsize
         for o in range(b.fsize): b.w(dst + o, 1, b.r(src + o, 1))
         b.fset(3, 'idx', 3)
-    setpos(30)
+    setpos(FAR_START if far else 30)
     if extra_behind:
         b.place(3, x=b.fget(0, 'x') + extra_behind, z=30); b.fset(3, 'facing', 1); b.fset(3, 'state', ST.index('IDLE')); run(1)
     x0 = b.fget(0, 'x'); v0 = b.fget(2, 'x') - x0
@@ -327,10 +337,8 @@ def finisher_case(fi, d, tree=None, extra_behind=False, shots=None, far_victim=F
         run(1); obs['ymax'] = max(obs['ymax'], b.fget(2, 'y')); obs['states'].add(st(2))
         if extra_behind: obs['ex'].add(st(3))
     vside = b.fget(2, 'x') - obs.get('x_throw', b.fget(0, 'x'))
-    want = (tree or tree_of(fi))['links']['A']
-    for _ in range(N - 2): want = want['links']['A']
-    wnode = want['links'].get(KEY[d]) or want['links']['A']
-    r = {'want': wnode.get('move') + (' (throw)' if wnode.get('throw') else '') + ' ' + wnode.get('effect', ''), 'played': fin['move'],
+    wnode = fin_node(fi, d, tree)
+    r = {'start_dist': FAR_START if far else 30, 'want': wnode.get('move') + (' (throw)' if wnode.get('throw') else '') + ' ' + wnode.get('effect', ''), 'played': fin['move'],
          'state': fin['state'], 'victim_states': sorted(obs['states']), 'victim_max_y': round(obs['ymax'], 1), 'damage': dmg,
          'victim_side_before': round(v0), 'victim_side_after': round(vside), 'chain_t_after': b.fget(0, 'chain_t')}
     bt = back_throw(names[fi]) if d == 'back' else None
@@ -409,14 +417,16 @@ if 'juggle' in SECTIONS:
         if len(l) >= N and st(2) == 'KNOCKDOWN' and b.fget(2, 'y') > 20: launched.append(t); return True
     mash(N, last='U', after=lch, limit=200)
     launched = launched[0] if launched else None
-    air = []; hp = b.fget(2, 'hp'); hold_y = 40.0; jn = []
+    air = []; hp = b.fget(2, 'hp'); hold_y = 40.0; jn = []; fz = b.fget(2, 'freeze')
     for t in range(160):                                      # the victim held in the air in front of P1 (test poke), A mashed
         if st(2) == 'KNOCKDOWN':
             b.fset(2, 'y', hold_y); b.fset(2, 'vy', 0); b.place(2, x=b.fget(0, 'x') + 34, z=30)
         run(1, 'a' if t % 8 < 2 else '')
-        h2 = b.fget(2, 'hp')
-        if h2 < hp: air.append(t)
-        hp = h2; jn.append(b.fget(2, 'jug_n'))
+        h2, f2 = b.fget(2, 'hp'), b.fget(2, 'freeze')
+        if h2 < hp or f2 > fz: air.append(t)                   # a hit: life lost or a fresh hit-stop (a multi-hit
+        hp, fz = h2, f2; jn.append(b.fget(2, 'jug_n'))         # normal's later hits deal none: revamp 1A fixed damage,
+                                                              # fighter.c combat; they land in a chain since 0.9.0's
+                                                              # hits_to_come, 6672e78: Terry's close C, its 2nd hit)
     out['held_air'] = {'launched': launched is not None, 'air_hits': len(air), 'cap': CH['juggle_cap'], 'jug_n_max': max(jn),
                        'ok': launched is not None and len(air) == CH['juggle_cap']}
     for _ in range(400):                                      # let it fall: downed, untouchable; it stands: hittable again
@@ -433,8 +443,8 @@ if 'juggle' in SECTIONS:
         if len(l) >= N and st(2) == 'KNOCKDOWN' and b.fget(2, 'y') > 0: launched2.append(t); return True
     mash(N, last='U', after=lch2, limit=200); air2 = 0
     for t in range(200):
-        y = b.fget(2, 'y'); h0 = b.fget(2, 'hp'); run(1, 'a' if t % 6 < 2 else '')
-        if b.fget(2, 'hp') < h0 and y > 0: air2 += 1
+        y = b.fget(2, 'y'); h0 = b.fget(2, 'hp'); f0 = b.fget(2, 'freeze'); run(1, 'a' if t % 6 < 2 else '')
+        if (b.fget(2, 'hp') < h0 or b.fget(2, 'freeze') > f0) and y > 0: air2 += 1   # (a hit: as held_air counts it)
         if st(2) in ('DOWN', 'GETUP', 'IDLE'): break
     out['natural'] = {'air_hits_after_launch': air2, 'ok': air2 <= CH['juggle_cap']}
     # downed: the neutral finisher, then A mashed at it on the floor (the bounce's hop included): no hit until it stands

@@ -11,8 +11,10 @@ Per fighter: A from far / close / crouch / forward (the route tree's root link t
 attacks (straight jump + A = its air_a, forward jump + A = air_cd, down + A = air_b; an air special table entry in its
 place), B jumps (vertical / forward / back: the one jump), A and B acting the frame they are pressed, no jump-cancel left
 in the chain (the chain always starts on the ground), C in each of the six slots (the stick picks it; a drive chunk) and
-A+B + the same stick = the same special, D with the gauge full = the fury, full + low life = its MAX version (TODO #139:
-bchar_t.fury_max, the fury when the fighter has none; a form link: down+D its transition), short of the gauge nothing,
+A+B + the same stick = the same special, D with the gauge full = the fury (gauge emptied, fury_drive chunks), at low life
+D = the fury for free (gauge kept: unlimited, Brawler 0.9.1 be4c0e5), down + D with the gauge full at low life = its MAX
+version (gauge emptied, max_drive chunks; TODO #139: bchar_t.fury_max, the fury when the fighter has none; a form link:
+down+D its transition), short of the gauge nothing,
 the drive's refill, a special out of a hit (the breaker: always the neutral C special, two chunks, its sprite blinking
 to its end: brk). game.json meter.infinite (a test switch): nothing is spent, both bars full."""
 import json, os, sys
@@ -163,19 +165,25 @@ for ci, name in enumerate(names):
     mx = G['roster'][ci].get('max')                          # (game.json roster[].max: the source names its own, TODO #212)
     if mx in pool: mix = pool.index(mx)
     settle(DFULL, FMAX); setpos(60); run(1, 'd'); run(1); s = st(0)
-    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'gauge': b.fget(0, 'fgauge')}}
+    r['fury'] = {'kof': fury, 'full': {'state': s, 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'), 'gauge': b.fget(0, 'fgauge'),
+                                       'drive': b.fget(0, 'drive')}}
     if fury:
         run(20); p = os.path.join(OUT, f'fury_{name}.png'); b.screenshot(p); fury_shots.append((name, fury, p))
     form = G['roster'][ci].get('form')                      # down+D with a full meter = its form link's transition
     if form and form['trigger'] == 'down+D full meter':      # (docs/brawler_move_vocabulary.md "Form link"): BS_FORM
         mix, BS_MAX = pool.index(form['transition']), BS_FORM   # (the training is started again for what follows)
     else: BS_MAX = BS_FURY
-    if not form:                                             # the MAX: D with the gauge full at low life (2026-10-08)
-        settle(DFULL, FMAX); b.w(L.lab + PACK_STAT_OFF + 1, 1, 1); b.fset(0, 'hp', 60 * M['low'] // 100)
-    else: settle(DFULL, FMAX)                                # (a form link: down+D with the gauge full)
-    setpos(60); run(1, 'Dd' if form else 'd'); run(1); s2 = st(0)
+    def low_life(): b.w(L.lab + PACK_STAT_OFF + 1, 1, 1); b.fset(0, 'hp', 60 * M['low'] // 100)
+    lw = None
+    if not form:                                             # low life, D alone = the fury, free: the gauge is not
+        settle(DFULL, FMAX); low_life(); setpos(60); run(1, 'd'); run(1)   # spent (unlimited fury, Brawler 0.9.1
+        lw = r['fury']['low_d'] = {'state': st(0), 'spec_id': b.fget(0, 'spec_id'), 'spec_ix': b.fget(0, 'spec_ix'),   # be4c0e5,
+                                   'gauge': b.fget(0, 'fgauge'), 'drive': b.fget(0, 'drive')}               # gold "Two meter bars")
+        settle(DFULL, FMAX); low_life()                      # the MAX: DOWN + D with the gauge full at low life (Bruno
+    else: settle(DFULL, FMAX)                                # 2026-10-09, be4c0e5; plain D there is the free fury above)
+    setpos(60); run(1, 'Dd'); run(1); s2 = st(0)             # (a form link: down+D with the gauge full)
     r['fury']['max'] = {'kof': form['transition'] if form else mx if mx in pool else 'MAX ' + fury if mix != fix else fury, 'state': s2, 'spec_id': b.fget(0, 'spec_id'),
-                        'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'gauge': b.fget(0, 'fgauge')}
+                        'spec_ix': b.fget(0, 'spec_ix'), 'want_ix': mix, 'gauge': b.fget(0, 'fgauge'), 'drive': b.fget(0, 'drive')}
     if form:
         for _ in range(200):
             if b.char_of(0) != ci and st(0) == 'IDLE': break
@@ -189,11 +197,14 @@ for ci, name in enumerate(names):
     for _ in range(20): seen.add(st(0)); run(1)
     r['fury']['short'] = {'states': sorted(seen), 'gauge': b.fget(0, 'fgauge')}
     f_ok = s == 'SPECIAL' and r['fury']['full']['spec_id'] == BS_FURY and r['fury']['full']['spec_ix'] == fix and \
-        r['fury']['full']['gauge'] == (FMAX if INF else 0)
+        r['fury']['full']['gauge'] == (FMAX if INF else 0) and drive_ok(r['fury']['full']['drive'], CHUNK * M['fury_drive'])
+    l_ok = lw is None or (lw['state'] == 'SPECIAL' and lw['spec_id'] == BS_FURY and lw['spec_ix'] == fix and
+                          lw['gauge'] == FMAX and drive_ok(lw['drive'], CHUNK * M['fury_drive']))
     m_ok = s2 == 'SPECIAL' and r['fury']['max']['spec_id'] == BS_MAX and r['fury']['max']['spec_ix'] == mix and \
-        r['fury']['max']['gauge'] == (FMAX if INF else 0) and (not form or r['fury']['max']['became'] == form['target'])
-    r['fury']['ok'] = (f_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
-        (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen)
+        r['fury']['max']['gauge'] == (FMAX if INF else 0) and (not form or r['fury']['max']['became'] == form['target']) and \
+        (form is not None or drive_ok(r['fury']['max']['drive'], CHUNK * M['max_drive']))
+    r['fury']['ok'] = (f_ok and l_ok and m_ok and (('SPECIAL' in seen) if INF else ('SPECIAL' not in seen))) if fury else \
+        (s != 'SPECIAL' and s2 != 'SPECIAL' and 'SPECIAL' not in seen and (lw is None or lw['state'] != 'SPECIAL'))
     # ---- the drive: refill (a point a frame) --------------------------------------------------------------------------------
     settle(0); m0 = b.fget(0, 'drive'); run(100); r['meter']['refill_100_frames'] = b.fget(0, 'drive') - m0
     r['meter']['ok'] = b.fget(0, 'drive') == DFULL if INF else r['meter']['refill_100_frames'] in (99, 100, 101)
