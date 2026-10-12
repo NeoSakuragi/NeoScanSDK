@@ -9,6 +9,32 @@
      "title": "Billy Kane",
      "questions": [
       {
+       "id": "throws-handoff",
+       "title": "Throws: when should the engine take the victim back?",
+       "context": "Today the decoded throw script holds the victim only until the throw RELEASES him; then the engine flies him on its own arc. That is where most throws look wrong: the victim's pose pops (head-down to upright in one frame) and his path leaves the source's by up to 51 px. Left = KOF98, right = ours (Terry's back throw). Proposed: the script owns BOTH fighters, position and pose, until the victim LANDS; the engine takes over at the landing. This reverses your 2026-10-08 rule (engine physics as soon as he leaves the hands). The fixes for the screen-edge teleports, the floating victims and the slipping sprites come with it either way.",
+       "media": [
+        {
+         "image": "decisions-media/open-2026-10-11/throws-side_3_throw_d_terry_back.jpg",
+         "caption": "KOF98 (left) vs ours (right), Terry back throw: frames 47 -> 50 = the pose pop, 56-76 = our arc vs KOF's"
+        },
+        {
+         "image": "decisions-media/open-2026-10-11/throws-sheet_hanzo_ss2_fwd.jpg",
+         "caption": "Hanzo SS2 forward throw: the 92 px teleport at the release near the screen edge"
+        }
+       ],
+       "options": [
+        {
+         "label": "Script until the landing (recommended): the flight looks like the source"
+        },
+        {
+         "label": "Keep the engine from the release (today), fix only the teleports / floating / sprites"
+        },
+        {
+         "label": "Engine from the release but with the source's speed (overshoots: lands up to 1070 px too far)"
+        }
+       ]
+      },
+      {
        "id": "billy-uf-c2",
        "title": "Billy, again: which diagonal cane move on up-forward + C?",
        "context": "Your note says the cane goes on a diagonal. Two moves do that: tap the one you mean.",
