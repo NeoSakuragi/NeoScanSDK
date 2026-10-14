@@ -265,11 +265,17 @@ class Brawler:
                 o, ln = struct.unpack('>IH', extra[p:p + 6]); p += 6; self._queue.append((o, extra[p:p + ln])); p += ln
     def to_fight(self, cache=True):
         """power on -> coin -> START -> pick the cursor's fighter (Terry) -> the fight, 20 frames in"""
-        path = os.path.join(WORK, 'fight_%08x%s.state' % (self._rom_id(), 't' if self.tick_sync else ''))
+        path = os.path.join(WORK, 'fight_%08x%si.state' % (self._rom_id(), 't' if self.tick_sync else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()
         self.seq('600:-,4:o,100:-,4:s,100:-,4:a,270:-')
+        self.intro_out()
         open(path, 'wb').write(self.save())
+    def intro_out(self):
+        """0.10.99's stage intro (main.c in_ph): the players walk in, then the first wave spawns: run until it is over
+        (a fighter placed before is respawned by spawn_wave: romspecials_check's close dummy came back at x 200)"""
+        w = 0
+        while 'in_ph' in self.syms and self.r(self.syms['in_ph'], 1) != 0 and w < 900: self.run(1); w += 1
 
     # RAM
     def r(self, addr, size):
@@ -357,7 +363,7 @@ class Brawler:
     def pick(self, k, button='a', cache=True, unlock=False):
         """power on -> coin -> START -> the select screen's fighter k (bm_chars index = game.json roster order; the cursor walked
         there with the stick: the real select path) -> the fight, 20 frames in; unlock: every boss selectable"""
-        path = os.path.join(WORK, 'fight_%08x_%d%s%s%s.state' % (self._rom_id(), k, button, 'u' if unlock else '',
+        path = os.path.join(WORK, 'fight_%08x_%d%s%s%si.state' % (self._rom_id(), k, button, 'u' if unlock else '',
                                                                   't' if self.tick_sync else ''))
         if cache and os.path.exists(path): self.load(open(path, 'rb').read()); return
         self.core.retro_reset()                       # from power on, whatever ran before in this process
@@ -366,6 +372,7 @@ class Brawler:
         self.seq('4:s,100:-')
         self.sel_goto(k)
         self.seq(f'4:{button},270:-')
+        self.intro_out()
         open(path, 'wb').write(self.save())
     def char_of(self, i):
         """index in bm_chars (game.json roster order) of fighter i"""
