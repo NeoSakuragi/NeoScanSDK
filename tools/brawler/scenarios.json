@@ -4339,5 +4339,22 @@
   "expect": "The forward throw lifts Ryo on the pole, swings him round once and slams him: Billy is free again after about 3/4 of a second (46 frames, was 134: the pole swing played 8 times), as quick as Terry's or Kyo's throws; the A right after it comes out while Ryo still lies. The back throw is unchanged (34 frames).",
   "do_keys": "2:Ra,50:-,2:a,120:-,24:R,4:-,2:La,40:-,2:a",
   "proof": 120
+ },
+ "20261011-225104-5d29": {
+  "title": "Win poses: Kyo's hand fire, Terry's thrown cap and the other KOF fighters' win-pose effects",
+  "setup": {
+   "mode": "stage",
+   "fighter": "kyo",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Beat the stage 1 boss with Kyo (one hit) and watch his win pose; clear the stage a few more times (the pose is picked at random). Then do the same with Terry.",
+  "expect": "Kyo's win poses with fire show it as in KOF98: the flame lights up in his hand (the raised-hand pose and the fist pose). Terry's two cap poses throw his cap: it flies up in an arc and lands on the floor in front of him. Robert, Mai, Yashiro, Iori, Rugal (not his D pose) and K' show their own pose effects too.",
+  "do_keys": "8:a,8:-,8:a,8:-,8:a",
+  "proof": 400
  }
 }

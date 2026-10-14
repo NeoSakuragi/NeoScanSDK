@@ -38,7 +38,10 @@ Captured in our emulator (`tools/kof96/capture/emu.py`, see the KOF96 README); s
 ## Game states (Kyo vs Yuri, all fighters)
 KOF96's numbers except: hop normals 120-123 (A-D, every hop direction; KOF96's hops use the jump normals), run 45-47, backstep 48-50, roll 51-53, specials from 128,
 knockdowns blowback 283 -> 287, trip 307 -> 309 -> 313 -> down 328 -> get-up 72, air hit 308 -> 279; **win poses**
-(button held at the KO): A 336->337, B 338->339, C 340->341, D 342->343 (`capture/wins98.py`, same for all 38).
+(button held at the KO): A 336->337, B 338->339, C 340->341, D 342->343 (`capture/wins98.py`, same for all 38). Their effect
+objects (Kyo's hand fire, Terry's thrown cap, ...): `capture/winfx98.py OUTDIR ID ...` (`GAME=kof96 / kof99` too), the
+object pool dumped every frame of the pose -> `capture/wins[_<game>]/winfx.json` (each object: P1's step at its birth,
+its table / state / step and place from P1 per frame; height = +$20 + P1's +$1C - its +$1C), read by export96 `win_objects`.
 `export96.MOVES98`. Every other slot of each table is exported as `slot_<n>` with the states that select it.
 
 ## Specials, supers, MAX, EX

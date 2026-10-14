@@ -258,6 +258,7 @@
    "name": "rugal",
    "bank": "kof98:rugal",
    "watch": {"frame": 343, "step": -1},
+   "win_fx_off": ["win_4"],
    "routes": "default",
    "archetype": "heavy",
    "chain": {"length": 3},

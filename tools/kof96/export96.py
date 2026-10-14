@@ -96,6 +96,35 @@ def win_state_lists(game, cid):
         if sts not in out: out.append(sts)
     return out
 
+# The win poses' effect objects (note 20261011-225104-5d29, Bruno: "a lot of win poses of Yuri and Kyo embed flames ...
+# Terry throwing his cap"): every object the winner spawns during the pose, captured in our emulator (tools/kof98/capture/
+# winfx98.py -> wins[_<game>]/winfx.json, by the button that picks the pose), each one an effect object of the pose
+# (export_bm bm_wins fx / obj, fighter.c wpose_step, the way Haohmaru's thrown sword is): born as the pose enters the
+# step it was born on, pinned to the fighter (follow 3: its rows are offsets from him, it ends with its last row), its
+# frames its own animation's in the fighter's table (+$70 = the fighter: every one captured), one row a frame as KOF
+# showed it; the frames before its birth inside the step drawn empty (-1). Kyo's hand fire = the $FA records of 336 /
+# 342 (handlers98.step_effects reads the same places); Terry's cap, Robert's / Yashiro's thrown things: their flight.
+WINFX = {g: os.path.join(os.path.dirname(p), 'winfx.json') for g, p in WINS.items()}
+def win_objects(m, game, cid, sts, add, slot_of):
+    p = WINFX.get(game)
+    allfx = json.load(open(p)).get(str(cid)) or {} if p and os.path.exists(p) else {}
+    b = next((b for b in 'ABCD' if win_states(game, cid, b) == sts), None)
+    out, parsed = [], {}
+    def steps(st):
+        if st not in parsed: parsed[st] = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, st)))[0]
+        return parsed[st]
+    for o in allfx.get(b, []) if b else []:
+        if o['state'] not in sts or any(r[0] != cid for r in o['rows']): continue
+        first = sum(len(steps(st)) for st in sts[:sts.index(o['state'])])
+        k = next(i for i, s_ in enumerate(steps(o['state'])) if s_[4] == o['raw'])
+        rows = [[-1, 0.0, 0, None, None]] * o['delay'] + [
+            [add(next(s_ for s_ in steps(st) if s_[4] == raw)[1]), float(x), round(y), None, None] for _, st, raw, x, y in o['rows']]
+        out.append({'step': first + k, 'obj': {
+            'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 3, 'travel': 0, 'name': 'WINFX',
+            'back': o['back'], 'state': o['rows'][0][1]}})
+    return out
+
 PAL_ROM = {'kof98': 0x2D77F0, 'kof99': 0x2D77F0, 'kof97': 0x2CFFF0}   # bank 2; KOF97's from its copy of KOF98's loader ($4AD6)
 def pal_rom98(m, n): return [0] + [m.u16(PAL_ROM[m.game] + n * 32 + 2 * i, 2) for i in range(1, 16)]
 def palettes98(m, cid, used):
@@ -394,7 +423,7 @@ def frame_centre_rom(m, crom, cid, fidx, _cache={}):
 
 
 def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None,
-           rom_more=None, throw_victims=None):
+           rom_more=None, throw_victims=None, win_fx_off=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
     extra: {name: {move: (state, step)}} more moves for one fighter, each a single held frame (the animation's step
     `step`, -1 = its last): the brawler's 'watch' pose (export_bm.WATCH).
@@ -494,6 +523,9 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
                     wsteps += [{'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}}
                                for t, fi, fl, b, ri, dx in steps]
                 anims[key] = {'slot': parts[0][0], 'state': sts[0], 'parts': parts, 'mode': 'hold', 'steps': wsteps}
+                objs = [] if key in (win_fx_off or {}).get(name, ()) else win_objects(m, game, cid, sts, add_frame, slot_of)
+                if objs: anims[key]['objects'] = objs          # (win_fx_off: game.json roster[].win_fx_off, a pose left
+                                                               # without its effects: their frames not exported either)
         for move, (state, step) in (extra or {}).get(name, {}).items():
             slot = slot_of(cid, state); steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
             t, fi, fl, b, ri, dx = steps[step]

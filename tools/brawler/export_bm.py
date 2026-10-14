@@ -422,6 +422,7 @@ def build(specs, outdir):
                                slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()},
                                lab={n: LAB[n] for n in names if n in LAB} or None,   # (the Lab build: export96.lab_special)
                                rom_more={n: rom_wanted(n) for n in names},
+                               win_fx_off={n: roster()[n].get('win_fx_off', []) for n in names if n in roster()},
                                throw_victims={n: [v for g_ in (game,) + VICTIMS_FROM.get(game, ()) for v in games.get(g_, []) if v != n]
                                               for n in names})   # (victim_tables; VICTIMS_FROM: T1)
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
@@ -2496,10 +2497,12 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')
         wm = [] if n in ALIAS else win_more(ch)                  # its other win poses (bm_wins; the shell's slot: a pack
-        if wm:                                                   # fills it, its 'win' only)
-            c.append(f'const banim_t {n}_wan[] = {{' + ', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[id(source(ch, m))]}}}' for m in wm) + '};')
+        objs = [] if n in ALIAS else [(k, o['step'], o['obj']) for k, m in enumerate(['win'] + wm)   # fills it, its 'win'
+                                      for o in (ch['anims'].get(m) or {}).get('objects', ())]   # only); the poses' step
+        if wm or objs:                                           # effects, pose 0 = 'win' (BA_WIN) too (note 20261011-
+                                                                 # 225104-5d29: Kyo's hand fire, Terry's cap)
+            c.append(f'const banim_t {n}_wan[] = {{' + (', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[id(source(ch, m))]}}}' for m in wm) or '{0, 0, 0}') + '};')
             c.append(f'const uint8_t {n}_wvox[] = {{' + ''.join(f'{k + 1}, {at}, {v}, ' for k, m in enumerate(wm) for at, v in win_voices(ch, n, game, m)) + '0xFF};   /* [pose, step, voice id] */')
-            objs = [(k + 1, o['step'], o['obj']) for k, m in enumerate(wm) for o in ch['anims'][m].get('objects', ())]
             c.append(f'const uint8_t {n}_wfx[] = {{' + ''.join(f'{k}, {st}, {j}, ' for j, (k, st, _) in enumerate(objs)) + '0xFF};   /* [pose, step, object] */')
             if objs: cs.append(projectile_c(n, 'w', [o for _, _, o in objs], game, {'input': 'WIN'}))
             cs.append(f'extern const banim_t {n}_wan[];\nextern const uint8_t {n}_wvox[], {n}_wfx[];')

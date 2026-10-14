@@ -984,7 +984,13 @@ four, Genjuro three, Hanzo three, Kuroko one; WHP / Kizuna / DD / SS4: one). The
 pack's format): `bm_wins[id]` (build/bm_wins.h `bwin_t` {n, anims, vox, fx, obj}: the other poses' animations, their
 voices [pose, step, id] (voices.py's suggestion, as the `win` key gets its own), their step effects [pose, step, object]
 -> obj, an effect object born as the pose enters the step: SS2 Haohmaru's thrown sword, pinned, its flight from SS2's
-code). main.c win_tick -> fighter.c `fighter_win_pose`: pose = (game_ticks + the player's index) % its poses (no draw
+code; note 20261011-225104-5d29, Bruno: "Kyo / Yuri flames, Terry throwing his cap": the KOF poses' own effect objects,
+pose 0 `win` included: every object the winner spawns during the pose, captured in our emulator by
+tools/kof98/capture/winfx98.py -> wins[_<game>]/winfx.json, exported by export96 `win_objects` as pinned effects of the
+fighter's own frames, one row a frame: Kyo A / D hand fire, Terry A / C cap, Robert B / D, Mai A, Yashiro D, Iori D,
+Rugal A-C, K' A; game.json roster[].win_fx_off [pose key] leaves a pose without them, its frames not exported: Rugal
+["win_4"], his D pose's two thrown objects 510 / 511 need colours his 8 palettes cannot fold (pal_pack: 12 slots, 11
+without them -> packed into 8); proof tools/brawler/winfx5d29_proof.py). main.c win_tick -> fighter.c `fighter_win_pose`: pose = (game_ticks + the player's index) % its poses (no draw
 from the AI's generator: a replay repeats it), played through `fighter_t.wan` (frames via frame_ovr, KOF's step clock);
 a Lab pack's fighter (the shell's slot) has pose 0 only. Proof: tools/brawler/winposes_proof.py (every pose of SS2
 Haohmaru / Genjuro / Hanzo, Terry, K', Geese played in stage clears, frames and timing = the ROM's tables, the sword's
