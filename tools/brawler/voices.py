@@ -34,9 +34,9 @@ JSON = os.path.join(HERE, 'voices.json')
 GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
 MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
 SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
-BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850, 'lastbld2': 414}   # (LB2: its $07 at 413 in the tap core)       # the driver probe: frame after the game's $07 (tap core frames)
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850, 'lastbld2': 414, 'garou': 431}   # (LB2: its $07 at 413 in the tap core)       # the driver probe: frame after the game's $07 (tap core frames)
 CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
-NOP = {'lastbld2': 0x48}       # the byte a blocked command becomes in the probe: Garou's driver line replays a stale ring
+NOP = {'lastbld2': 0x48, 'garou': 0x63}       # the byte a blocked command becomes in the probe: Garou's driver line replays a stale ring
                                # slot on $00 (tools/kof98snd/games98.py garou nop); LB2's $48 = a type 0 (ignored) command
 P1 = 0x108100
 FX_PREFIX = 0x1A
@@ -840,9 +840,54 @@ def ffight_list(rname, name, cid):
     print(rname, len(out), 'voices', sum(x['bytes'] for x in out) // 1024, 'KB', flush=True)
     return {'game': 'ffight', 'cid': cid, 'voices': out}
 
+# ---- Garou: Mark of the Wolves (SNK's "Sound Driver(ROM)Ver 1.8 99/08/04", tools/kof98snd games98 'garou'; tools/garou,
+# 2026-10-14) ----
+# The 68000 sends prefix $1C then a code to REG_SOUND ($59F70 [meas]); tools/garou/capture_garou.py logs the words per
+# frame of every move it plays (the normals', the throw's, the win pose's, the specials'). Rock's: $1CB0-$1CCF his
+# shouts, $1C47 / $1C48 the swings, $1C4A the jump, $1C4D-$1C56 the throw, $1C51 / $1C52 the super flash, $1CE1-$1CEE
+# the specials' effects; left out: $1C9x (the victim's hit sounds) and $1C59 (a landing). Its $07 at frame 430 in the
+# tap core (docs/garou_songs.md): BLOCK 431, a blocked command becomes $63.
+GAROU_SKIP = lambda w: w >> 4 == 0x1C9 or w == 0x1C59
+def _garou_cap():
+    return json.load(open('/data/neogeo_dict/garou/rock_capture.json'))
+
+def garou_capture(rname, name, cid):
+    print(rname, ': Garou sounds come from tools/garou/capture_garou.py (voices.py list)', flush=True)
+
+def garou_list(rname, name, cid):
+    d = _garou_cap(); uses = []
+    for rows in [d['throw'], d['win']] + list(d['normals'].values()):
+        for r in rows:
+            for w in r['snd']:
+                if not GAROU_SKIP(w): uses.append((w, {'kind': 'anim', 'slot': r['anim'], 'states': [r['anim']], 'step': r['step']}))
+    sys.path.insert(0, os.path.join(TOOLS, 'garou')); import handlers_garou as HG
+    for inp in HG.SPECIALS[name]:
+        for i, r in enumerate(d[inp]):
+            for w in r['snd']:
+                if not GAROU_SKIP(w): uses.append((w, {'kind': 'special', 'input': inp, 'at': i}))
+    hits = probe('garou', {w for w, u in uses}); v = v_rom('garou')
+    voices = {}
+    for w, u in uses:
+        if not hits.get(w): continue
+        h = hits[w]; key = tuple(map(tuple, h['segments']))
+        vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'segments': h['segments'], 'level': h['level'], 'uses': []})
+        if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
+        if u not in vo['uses']: vo['uses'].append(u)
+    shout = lambda vo: 0xB0 <= int(vo['cmd'], 16) & 0xFF < 0xD0
+    lst = sorted(voices.values(), key=lambda x: (not shout(x), x['cmd']))
+    for k, vo in enumerate(lst, 1):
+        vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
+        vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
+        vo['cmds'].sort()
+        if not shout(vo): vo['channel'] = 'fx'
+    print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
+    return {'game': 'garou', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'segments', 'level', 'bytes', 'ms',
+                                                                        'uses', 'channel') if k in vo} for vo in lst]}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
        'ffight': {'cast': {'guy': 0, 'cody': 1, 'haggar': 2}, 'capture': ffight_capture, 'list': ffight_list},
        'lastbld2': {'cast': {'moriya': 1}, 'capture': lastbld2_capture, 'list': lastbld2_list},
+       'garou': {'cast': {'rock': 1}, 'capture': garou_capture, 'list': garou_list},
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
        'kizuna': {'cast': {'kim': 5, 'rosa': 4}, 'capture': kizuna_capture, 'list': kizuna_list},
@@ -856,7 +901,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
          'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': [],
-         'samsho2': [*range(142, 150)], 'lastbld2': [], 'ffight': []}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
+         'samsho2': [*range(142, 150)], 'lastbld2': [], 'ffight': [], 'garou': []}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

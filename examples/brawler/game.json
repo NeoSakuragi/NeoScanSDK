@@ -557,6 +557,54 @@
      "hit_sfx": {"A": "FF HIT", "B": "FF HEADBUTT", "throw_c": "FF BODY FALL", "throw_d": "FF BODY FALL"},
      "unlock": "always",
      "voices": "kof"
+    },
+    {
+     "name": "rock",
+     "about": "Garou: Mark of the Wolves' Rock Howard (2026-10-14): a Lab-only fighter (tools/garou: ROM decoder, export, programs; study /data/neogeo_dict/garou/README.md). Garou's frames / step timing / boxes from the ROM (check_timeline: frame for frame), every special's motion = Garou's own play cut into velocity segments (handlers_garou check: 12 / 12 frame-identical). Hit-stop = Garou's: 7 frames on the light hits, 11 on the heavy (numbers_garou.py). Sheet = his own moves: chain A > A > B, finishers close C / far D / crouch D sweep; D = Reppuken (236A), forward = Hard Edge (214A), down = Reppuken C (236C), up = Rising Tackle (28A), down-forward = Rage Run (214B), up-forward = Rising Tackle C; fury = Raging Storm (236236A), MAX = Shine Knuckle (236236B). Throw: close + forward / back + C (both slots).",
+     "display": "ROCK",
+     "bank": "garou:rock",
+     "lab": true,
+     "watch": {
+      "frame": 0,
+      "step": 0
+     },
+     "routes": "default",
+     "archetype": "balanced",
+     "chain": {
+      "length": 4,
+      "links": [
+       "atk_a_far",
+       "atk_a_close",
+       "atk_b_far"
+      ],
+      "hitstop": [7, 7, 7, 11]
+     },
+     "finishers": {
+      "launcher": "up",
+      "down": "sweep",
+      "neutral": "atk_c_close",
+      "forward": "atk_d_far",
+      "up": "atk_c_far",
+      "down_move": "atk_d_crouch"
+     },
+     "specials": {
+      "D": "236A",
+      "fD": "214A",
+      "dD": "236C",
+      "uD": "28A",
+      "dfD": "214B",
+      "ufD": "28C"
+     },
+     "blitz": {
+      "ff": "214C",
+      "dd": "214D",
+      "uu": "236236C",
+      "du": "236236D"
+     },
+     "fury": "236236A",
+     "max": "236236B",
+     "unlock": "always",
+     "voices": "kof"
     }
   ]
  },

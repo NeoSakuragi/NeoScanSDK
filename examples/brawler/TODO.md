@@ -307,10 +307,10 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] T2 (done 2026-10-14, deployed; Factory Players tab, APK /data/brawler-share: docs/feedback.md "Shared players"). Shareable Player: a build safe to give to other players (only the player's own feedback button, no Fighter
   Lab, nothing an antivirus could flag). Two accounts, Wael and Asenka (easy passwords, kept out of the repo/chat).
   Assign a build to each account from the Brawler Factory (token free); their Player auto-downloads up to that build.
-- [ ] T3 (running). Mark of the Wolves: investigate the engine, extract Rock Howard into the roster.
-- [ ] T4 (running, one agent for T4-T6). Moriya: check whether his standard slash attacks have visual effects in Last Blade 2 (maybe none); add them if they exist.
-- [ ] T5 (running, one agent for T4-T6). Last Blade 2 sounds: slash impacts, special-move impacts, etc. into the brawler sound set.
-- [ ] T6 (running, one agent for T4-T6). Moriya: dragon punch follow-up (back-to-back DP), mapped sensibly onto our control scheme.
+- [x] T3 (done, Lab-only `garou:rock`, pack 10,769 tiles; study /data/neogeo_dict/garou/README.md; specials 12 / 12 frame-identical to Garou, normals' ROM timeline = the game's, hit-stop 7 / 11 from Garou; gaps: Rage Run follow-ups, 236B/D grab-counter, Neo-Max, hop physics, theme ported but no free M ROM bank set; sheets /data/tmp/garou_t3/sheets). Mark of the Wolves: investigate the engine, extract Rock Howard into the roster.
+- [ ] T4. Moriya: check whether his standard slash attacks have visual effects in Last Blade 2 (maybe none); add them if they exist.
+- [ ] T5. Last Blade 2 sounds: slash impacts, special-move impacts, etc. into the brawler sound set.
+- [ ] T6. Moriya: dragon punch follow-up (back-to-back DP), mapped sensibly onto our control scheme.
 - [x] T8 (done 0.10.82, Lab-only: Guy/Cody/Haggar sprites 1:1, walk/jump/chain/hit-stop/throw timing within a frame, voices + 6 hit sounds; gaps: FF throw damage, one jump arc, music not ported; sheets /data/tmp/ffight/sheets). Final Fight: Haggar, Cody, Guy, pixel-faithful (trajectory, feel, walk, jump arc, damage, hit-stop, voices, sprites); lab-only until seen.
 - [ ] T7. Bonus game: analyze how bonus games work in AOF1 and AOF2; prepare an integration decision page (canneji,
   Oros login) for Bruno to choose how to bring it over.
