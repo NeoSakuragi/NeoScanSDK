@@ -1151,9 +1151,11 @@ static void flicker(const fighter_t *f) {
     for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, src[j]);
     PAL_setPalette(f->palbase + ch->flk_ix, buf);
 }
+uint16_t pal_pend;
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
     uint8_t i, j;
+    pal_pend &= ~(1 << (f->idx & 15));
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];

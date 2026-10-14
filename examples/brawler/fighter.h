@@ -723,6 +723,8 @@ const uint8_t *fighter_dash(const fighter_t *f);   /* game_tables grun_dash: [st
 uint8_t fighter_pose_head(const fighter_t *f, int16_t *dx, int16_t *dy);   /* the flash pose step's head (TODO #191) */
 const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i);   /* its palette i as defined (set, custom colours) */
 #define FIGHTER_NAME(f) ((f)->name ? (f)->name : (f)->ch->name)
+extern uint16_t pal_pend;                                   /* fighters (bit idx) whose tinted palettes main.c loads later
+                                                               (CPU budget B, main.c pal_pend_tick); fighter_load_pals clears */
 void fighter_load_pals(const fighter_t *f);                 /* its colour set through its tint into its hardware palettes */                          /* full life, getting up, invulnerable a moment */
 
 #endif

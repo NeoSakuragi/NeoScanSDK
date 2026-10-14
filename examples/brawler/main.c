@@ -1136,8 +1136,10 @@ static int32_t run_bob(const fighter_t *f) {
     __asm__("divu.w %1,%0" : "+d"(r) : "d"((uint16_t)t[0]));   /* (state_t mod period: the remainder, high word) */
     return FIX(t[1 + (r >> 16)]);
 }
+static void pal_pend_tick(void);
 static void draw(void) {
     uint8_t i;
+    if (pal_pend) pal_pend_tick();
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
@@ -2063,7 +2065,24 @@ static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t 
     e->idx = slot; e->power = power + en->power + (attract ? 0 : ai_rank_power()); e->tint = tint;   /* (+ the rank's) */
     e->name = en->flags & GE_FIGHTER_NAME ? 0 : en->name; e->cpal = en->pal; e->tree = (const rt_head_t *)en->moves;
     if (!attract) e->hp = e->hp_max = life(en->life);     /* the campaign's difficulty (the demo: as it was) */
-    if (tint || e->cpal) fighter_load_pals(e);
+    if (tint || e->cpal) pal_pend |= 1 << slot;             /* (its colours: pal_pend_tick, before it can show) */
+}
+/* (CPU budget B, docs/brawler_cpu_budget.md: the boss's 5 tinted minions loaded at once took 4 frames) a spawned enemy's
+ * tinted / custom palettes load in draw: one enemy a tick, and at once any enemy (or its effect) the line guard could
+ * place this frame (its x within -160 .. 480 of the screen): its palettes are never seen before they are its own. A burn
+ * a flash or an overlay meanwhile owns them (its end loads them: fighter_load_pals) */
+static void pal_pend_tick(void) {
+    uint8_t i, done = 0, k;
+    for (i = 2; i < NF; i++) {
+        fighter_t *f = &fighters[i];
+        int16_t sx = INT(f->x) - cam_x;
+        uint8_t near = sx >= -160 && sx <= 480;
+        if (!(pal_pend & (1 << i))) continue;
+        if (f->burn || f->flash || f->ovl) { pal_pend &= ~(1 << i); continue; }
+        for (k = 0; k < NPJ && !near; k++)
+            if (projectiles[k].state != S_OFF && projectiles[k].owner == f) near = 1;
+        if (near || !done) { fighter_load_pals(f); done = 1; }
+    }
 }
 static int16_t spawn_x(const gspawn_t *sp) {     /* off screen: the right, or the left (SP_LEFT) when there is room */
     int16_t r = (sp->flags >> 4) * 36;
