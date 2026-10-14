@@ -4047,5 +4047,33 @@
   "expect": "The jabs make their impact sounds but Ryo stays silent; he cries out once when the last blow sends him off the ground and once when he hits the floor. The same for you when you get hit, and the death scream still plays on a KO.",
   "do_keys": "3:a,9:-,3:a,9:-,3:a,9:-,3:b,9:-,3:b,9:-,3:c,120:-",
   "proof": 180
+ },
+ "20261014-171937-5d29": {
+  "title": "Haggar's new fury: jab, jab, finisher three times, then his spin with 8 hits",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D next to Ryo (the fury gauge is full).",
+  "expect": "After the super flash Haggar plays jab, jab, finisher, three times, then his spinning lariat, which hits 8 times. Ryo reels in place through every hit and is only knocked down by the spin's last hit. Haggar cannot be hit during the whole fury. You hear Haggar's swing on each jab, his finisher sound, the spin's shout, and Final Fight's hit sounds.",
+  "do_keys": "1:d",
+  "proof": 420
+ },
+ "20261014-171700-5d29": {
+  "title": "Ki training: the tree cracks, then you hear it fall",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is full (the clip presses at the top) and listen as the tree breaks.",
+  "expect": "As in Art of Fighting 2: the tree cracks (crackling) twice as its trunk splits and its top starts to fall, then the falling tree's crash when the crown hits the ground, and again as it settles, at AOF2's moments.",
+  "do_keys": "56:-,2:a",
+  "proof": 300
  }
 }

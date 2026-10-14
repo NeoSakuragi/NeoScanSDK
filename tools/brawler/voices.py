@@ -838,6 +838,12 @@ def ffight_list(rname, name, cid):
     lst = [(0x2F, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': 0} for a in FF_SWING[name]]),
            (FF_FINISH[name][0], [{'kind': 'anim', 'slot': FF_FINISH[name][1], 'states': [FF_FINISH[name][1]], 'step': 0}]),
            (FF_SPECIAL[name], [{'kind': 'special', 'input': 'AJ', 'at': 0}])]
+    import handlers_ff                            # the fury pieces (handlers_ff.PIECES, note 20261014-171937-5d29): each
+    for inp, pc in (handlers_ff.PIECES.get(name) or {}).items():   # sends its animation's sound at its start, as FF does
+        u = {'kind': 'special', 'input': inp, 'at': 0}             # for that animation (the jab's $2F, the finisher's,
+        for c, us in lst:                                          # the spin's shout)
+            if any(x.get('slot') == pc[0] for x in us) or (pc[0] == handlers_ff.SPECIAL[name] and any(x.get('input') == 'AJ' for x in us)):
+                us.append(u); break
     for c, a in FF_JUMP[name]:                    # (one voice per command, its animations its uses)
         u = {'kind': 'anim', 'slot': a, 'states': [a], 'step': 0}
         if lst[-1][0] == c: lst[-1][1].append(u)

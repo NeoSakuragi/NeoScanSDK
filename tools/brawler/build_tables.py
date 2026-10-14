@@ -771,6 +771,8 @@ def dtier_tables(g, build, dmul):
             if x: return x['damage']                     # to the super throw and a MAX to the fury, Rosa's 421A)
             return next((m[k]['damage'] for k in ('fury', 'max') if m.get(k) and m[k].get('input') == inp), None)
         fury = r.get('fury'); mx = r.get('max')          # the MAX: game.json's, else 'MAX <fury>' in the pool, else the
+        if isinstance(fury, list): fury = ' > '.join(fury)   # (a fury SEQUENCE, note 20261014-171937-5d29: measured as one
+                                                         #  move under this name, damage_tiers.py)
         if fury and not mx:                              # one measured as it (TODO #152's other button), else the fury
             mm = (m.get('max') or {}).get('input') or ''
             mx = 'MAX ' + fury if 'MAX ' + fury in pool else mm if mm.startswith('MAX ') and mm in pool else fury
@@ -933,8 +935,9 @@ def ending_tables(g):
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade'),
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
+GB_FALL_SND = 6                                          # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
@@ -980,6 +983,10 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert len(gr) == 5 and all(a < b for a, b in zip([0] + gr, gr)) and gr[-1] <= 127, f"bonus game {x['id']}: grades: 5 rising powers 1-127"
             assert len(ch) == 6 and all(isinstance(v, int) and 0 <= v <= 3 for v in ch), f"bonus game {x['id']}: chunks: 6 values 0-3 (grade 0-5)"
             assert x.get('win_grade', 5) in range(1, 6), f"bonus game {x['id']}: win_grade 1-5 (the lowest grade that passes)"
+            fs = x.get('fall_sounds') or []
+            assert len(fs) <= GB_FALL_SND and all(isinstance(t, int) and 0 <= t < 255 for t, _ in fs) and \
+                [t for t, _ in fs] == sorted(t for t, _ in fs), f"bonus game {x['id']}: fall_sounds: up to {GB_FALL_SND} [tick 0-254, sfx name], ticks rising"
+            for _, v in fs: snd(f"bonus game {x['id']}: fall_sounds", v)
         else:
             assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
             assert x['breaks_with'] == 'fury' and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury, unlock fury | none"
@@ -1000,6 +1007,9 @@ def bonus_tables(g, songs_known, sfx_names):
         if x['kind'] == 'gauge':
             f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }',
                   f".win_grade = {x.get('win_grade', 5)}"]
+            fs = x.get('fall_sounds') or []              # (the tree's sounds as it falls: AOF2's, ticks from the blow)
+            f += [f".nfall = {len(fs)}", '.fall_t = { ' + ', '.join(str(t) for t, _ in fs) + ' }' if fs else '.fall_t = { 0 }',
+                  '.fall_sfx = { ' + ', '.join(f'0x{code(v):02X}' for _, v in fs) + ' }' if fs else '.fall_sfx = { 0 }']
         else:
             f += [f".count = {x['count']}", '.breaks = BB_FURY', f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}"]
         rows.append('{ ' + ', '.join(f) + ' }')

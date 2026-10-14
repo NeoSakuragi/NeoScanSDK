@@ -494,7 +494,10 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_c_jump", "down": "atk_a_jump"},
    "throws": {"hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}}, "b": {"travel": 94}},
    "hold_walk": {"about": "Final Fight's walk in the hold (note 20261014-171133-5d29; tools/ffight/rec_ff.py grab_walk*): the stick moves him and the held victim at his walk's speed on both axes (speed = x his walk), the facing kept, his bank's hold_walk animation ($14434) played forward / backward with the way he goes; the hold's timer runs on; A / forward or back + A / B as in the standing hold", "speed": 1},
-   "hit_sfx": {"A": "FF HIT", "B": "FF HEADBUTT", "throw_c": "FF BODY FALL", "throw_d": "FF BODY FALL"},
+   "fury": ["P.JAB", "P.JAB", "P.FIN", "P.JAB", "P.JAB", "P.FIN", "P.JAB", "P.JAB", "P.FIN", "P.AJ8"],
+   "fury_about": "note 20261014-171937-5d29 (Final Fight has no fury; Bruno's made-up one): D = jab, jab, finisher x3, then the spin with 8 hits, a SEQUENCE of his own pieces (tools/ffight/handlers_ff.PIECES: P.JAB = the jab $1397C cut at FF's chain link, P.FIN = the finisher $13A94 to its hit's end, P.AJ8 = the spin $13600 with each attack step a hit), back to back (export_bm sequences 'fury.D', fighter.c seq_next: the fury's role kept for every piece: invincible, its tier, one super flash); every hit a reel (the dance), the spin's 8th the knockdown; FF's sound per piece (voices.json: $2F, $03, $1D); hits FF HIT / FF HAGGAR HIT (the finisher's $09)",
+   "hit_sfx": {"A": "FF HIT", "B": "FF HEADBUTT", "throw_c": "FF BODY FALL", "throw_d": "FF BODY FALL",
+               "P.JAB": "FF PIECE HIT", "P.FIN": "FF PIECE FINISH", "P.AJ8": "FF PIECE HIT"},
    "unlock": "always",
    "voices": "kof",
    "from_lab": true
@@ -1445,7 +1448,7 @@
   "win_music": "BONUS_WIN",
   "games": [
    {"id": "ki", "name": "KI TRAINING", "kind": "gauge", "scene": "tree", "slot": 0, "voice": "AOF2 SPIRIT CARD", "music": "BONUS_KI", "seconds": 10, "step": 2,
-    "grades": [36, 68, 92, 108, 120], "chunks": [0, 0, 0, 0, 0, 2], "win_grade": 5},
+    "grades": [36, 68, 92, 108, 120], "chunks": [0, 0, 0, 0, 0, 2], "win_grade": 5, "fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]]},
    {"id": "posts", "name": "SUPER DEATH BLOW", "kind": "break", "scene": "posts", "slot": 2, "voice": "AOF2 SDB CARD", "music": "BONUS_POSTS", "seconds": 60, "count": 9,
     "breaks_with": "fury", "unlock": "fury"}
   ]
