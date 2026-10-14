@@ -65,7 +65,7 @@ def prog_links(game, cid, inp):
     h, bt = H.handler_of(cid, inp, inp.startswith('EX '), game)
     return H.decode(m, h, bt, inp.startswith('EX '), cid=cid)['links']
 
-def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1, obj_window=400, held=0):
+def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follow=(), facing=1, obj_window=400, held=0, fury=None):
     """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored;
     held: the button stays down until the program has played `held` frames (its PC_HELD reads it held on those)"""
     mir = (lambda ks: ks.translate(str.maketrans('RL', 'LR'))) if facing < 0 else (lambda ks: ks)
@@ -84,6 +84,9 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     w = 0
     while b.states[b.fget(0, 'state')] != 'IDLE' and w < 300: b.run(1); w += 1
     if meter is not None: b.fset(0, 'drive', meter)       # a full drive meter (0.0.48: a special costs meter; revamp 2: drive)
+    if 'fury_lock' in b.syms: b.w(b.syms['fury_lock'], 1, 0)   # 0.10.101: a new credit's fury is locked until the posts
+                                                         # bonus is won (fighter.c fury_lock): the furies played free
+    if fury is not None and role in ('C', 'M'): b.fset(0, 'fgauge', fury)   # the hidden fury gauge full (D = the fury)
     b.hits = []
     n, keys = ROLES[role].split(':')
     rows, started, t, pfz, done = [], None, 0, 0, None
@@ -199,6 +202,7 @@ def main(game, out, cases):
     roster = [r['name'] for r in json.load(open(os.path.join(game, 'game.json')))['roster']]
     gj = {r['name']: r for r in json.load(open(os.path.join(game, 'game.json')))['roster']}
     gm = json.load(open(os.path.join(game, 'game.json')))['meter']; meter = gm['chunk'] * gm['chunks']   # (the drive: chunks)
+    fury = gm.get('fury_max')                            # (the hidden fury gauge: full = D plays the fury)
     frames = json.load(open(os.path.join(game, 'build', 'bm_frames.json')))
     b = Brawler(rom=os.path.join(game, 'brawler.neo'), game=game)
     summary = []
@@ -246,7 +250,7 @@ def main(game, out, cases):
                     for q, (pf, bp) in enumerate(zip(res['press_frames'], bpad)) if pf is not None]   # (a press KOF latched in its hit-stop: the brawler presses in its own)   # the program frame KOF's
                                                          # handler read it on (None: lost in KOF's hit-stop, not pressed)
             br, bro = brawler_run(b, roster.index(name), role, gap, shots, pool=pool, meter=meter, follow=bfol, frames=900 if dm else 700,
-                                  obj_window=len(game_rows) + 60, held=res.get('held', 0))
+                                  obj_window=len(game_rows) + 60, held=res.get('held', 0), fury=fury)
             rec = lambda bf: int(frames[name][bf].split(':')[1]) if bf < len(frames[name]) and frames[name][bf] else -1
             kcid = cid; rec0 = K.rom96.frame_record(K.rom96.Mem(K.rom96.load(K.rom96.GAMES[kg]['neo'])[0], kg), cid, 0)
             n = min(len(br), res['frames_game'])
