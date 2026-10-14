@@ -479,3 +479,29 @@ server refuses a decision that breaks one (server.py `check_review`, so every pa
 
 The live fighter configs, the shell / pack catalogue, the Player's Character lab, Send to Player, the Fighter Lab
 and the piece knobs (with their server API, `/api/lab/...`) are documented in **docs/character_lab.md**.
+
+## Shared players (TODO T2, 2026-10-14)
+
+A Player for people outside the house (Wael, Asenka), one code path with the house Player:
+
+- **Build**: `cd android && ./gradlew assembleShared` -> `app/build/outputs/apk/shared/app-shared.apk`, package
+  `com.neoscan.player.shared` (installs beside the house Player), label "Brawler". `BuildConfig.SHARED` switches off the
+  Character lab, the test queue, the decisions, the notes list and the `--es url` override; `src/shared/` swaps in a no-op
+  `PlayerUpdate` and `Assembly` (the house ones live in `src/devtools/`: APK self-install, WebView + JS bridge) and its
+  manifest drops REQUEST_INSTALL_PACKAGES / UPDATE_PACKAGES_WITHOUT_USER_ACTION / POST_NOTIFICATIONS, the update
+  receivers and cleartext HTTP. Permissions left: INTERNET, RECORD_AUDIO (asked at the first Feedback press), VIBRATE.
+  Release build: not debuggable, no minify / obfuscation / packer, the only native code is the Geolith core built into the
+  APK; signed (APK Signature Scheme v2 + v3) with its own key `/data/brawler-share/shared-release.jks`
+  (`/data/brawler-share/signing.properties`, chmod 600, never the Oros key). New Player versions are sent by hand.
+  `-PshareBase=http://10.0.2.2:8921/share/` makes a proof build against a local service (cleartext only then).
+- **Accounts**: not Oros accounts (an Oros account opens Oros, the Lab and the Factory). `tools/feedback/share_accounts.py
+  make /data/brawler-share/accounts.txt accounts.json` -> scrypt hashes; the plain file stays on brunux (chmod 600). On the
+  VPS: `/data/brawler/feedback/share/accounts.json`. Login `POST /brawler/feedback/share/login` -> a 30-day HMAC token
+  (`nsp1.`, JWT-shaped), role `player`: upload / transcribe / reply / his own `/mine` only; no Lab, no
+  `/brawler/download/`, decisions only when put to him by name. Remove an account from accounts.json = its token dies.
+- **Builds**: the Factory's **Players** tab (`?tab=players`, `players.js`, the `players` section, saved live, no ship):
+  one row per account, a build picker (every published build + the kept ones), Save. `GET share/latest.json` = the newest
+  build up to the assigned one; `share/build/brawler-<V>.neo` serves that one only. Assigned builds are hard-linked into
+  `/data/brawler/feedback/share/builds/` so publish_vps.sh's keep-3 pruning never removes them. The shared Player fetches
+  whenever the build differs from its own (so moving an account back works too).
+- **Notes**: stored with user = the account; `fb.py list` shows `Wael [shared]`, `fb.py list --user Wael` filters.

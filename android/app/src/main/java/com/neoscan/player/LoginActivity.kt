@@ -23,9 +23,10 @@ class LoginActivity : Activity() {
         val dp = resources.displayMetrics.density
         val pad = (24 * dp).toInt()
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad * 2, pad, pad); gravity = Gravity.CENTER_HORIZONTAL }
-        col.addView(TextView(this).apply { text = "NeoScan Player"; textSize = 26f; setTypeface(typeface, Typeface.BOLD) })
+        col.addView(TextView(this).apply { text = if (BuildConfig.SHARED) "Brawler" else "NeoScan Player"; textSize = 26f; setTypeface(typeface, Typeface.BOLD) })
         col.addView(TextView(this).apply {
-            text = "Sign in with your Oros account (the one of canneji.duckdns.org/oros). The builds and the feedback need it."
+            text = if (BuildConfig.SHARED) "Sign in with the name and password Bruno gave you." else
+                "Sign in with your Oros account (the one of canneji.duckdns.org/oros). The builds and the feedback need it."
             textSize = 14f; alpha = 0.75f; setPadding(0, (8 * dp).toInt(), 0, (20 * dp).toInt())
         })
         val user = EditText(this).apply {

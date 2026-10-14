@@ -304,7 +304,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] T1. (done 0.10.82: KOF victim float/drop, KOF98 victim offsets, KOF96 boss victim lists, landing slide, hand-off fixed; 256 -> 90 detached frames over 55 throws; open items + choices in docs/brawler_throws_review.md) Throws refactor: throws still off and glitchy, ejection trajectories off, some throws don't tie the victim to
   the thrower graphically. Audit every throw of the roster (proof sheets), refactor the throw path onto one data-driven
   model, list concrete improvements, fix the clear ones.
-- [ ] T2 (running). Shareable Player: a build safe to give to other players (only the player's own feedback button, no Fighter
+- [x] T2 (done 2026-10-14, deployed; Factory Players tab, APK /data/brawler-share: docs/feedback.md "Shared players"). Shareable Player: a build safe to give to other players (only the player's own feedback button, no Fighter
   Lab, nothing an antivirus could flag). Two accounts, Wael and Asenka (easy passwords, kept out of the repo/chat).
   Assign a build to each account from the Brawler Factory (token free); their Player auto-downloads up to that build.
 - [ ] T3 (running). Mark of the Wolves: investigate the engine, extract Rock Howard into the roster.

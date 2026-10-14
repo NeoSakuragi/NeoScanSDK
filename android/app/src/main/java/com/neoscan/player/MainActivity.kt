@@ -75,7 +75,7 @@ class MainActivity : Activity() {
         val bios = File(sys, "neogeo.zip")
         if (!bios.exists()) assets.open("neogeo.zip").use { i -> bios.outputStream().use { i.copyTo(it) } }
         val rom = File(getExternalFilesDir(null), "brawler.neo")
-        RomFetch.configure(this, intent.getStringExtra("url"))
+        RomFetch.configure(this, if (BuildConfig.SHARED) null else intent.getStringExtra("url"))   // the shared Player: its own server only
         PlayerUpdate.setChannel(this, intent.getStringExtra("channel")); PlayerUpdate.cleanup(this)
         val msg = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; text = "Checking for a new build..." }
         val launch = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER }
@@ -92,7 +92,8 @@ class MainActivity : Activity() {
                 val pu = PlayerUpdate.ready(this)
                 if (ok && pu != null) updateBanner(launch, pu) { startGame(sys, save, rom) }
                 else if (ok) startGame(sys, save, rom)
-                else msg.text = "No game yet.\n\nCheck the connection (builds: canneji.duckdns.org/brawler), or\nadb push brawler.neo ${rom.absolutePath}"
+                else msg.text = if (BuildConfig.SHARED) "No game yet.\n\nCheck the connection, or ask Bruno for a build." else
+                    "No game yet.\n\nCheck the connection (builds: canneji.duckdns.org/brawler), or\nadb push brawler.neo ${rom.absolutePath}"
             }
         }.start()
     }
@@ -136,7 +137,8 @@ class MainActivity : Activity() {
         })
         feedback = Feedback(this, rom) { emu }
         testMode = TestMode(this, root, { emu }, feedback, rom) { refreshBadge() }
-        lab = CharacterLab(this, root, { emu }, ::playRom, { h -> if (h >= 0) pad.labH = h; android.graphics.Rect(pad.labArea) }) { playRom(rom) }
+        // THE SHARED PLAYER (TODO T2): no Character lab (nor its packs, live configs, Assembly)
+        if (!BuildConfig.SHARED) lab = CharacterLab(this, root, { emu }, ::playRom, { h -> if (h >= 0) pad.labH = h; android.graphics.Rect(pad.labArea) }) { playRom(rom) }
         lab?.onAssembly = { open ->                                // 0.0.32: the Assembly panel: no touch pad meanwhile
             pad.visibility = if (open) android.view.View.INVISIBLE else android.view.View.VISIBLE
             touchMask = 0; pushPads(); pad.relayout(); gl.requestRender() }
@@ -499,7 +501,7 @@ class MainActivity : Activity() {
             if (n % 720 == 0) PlayerUpdate.check(this)
             n++
             val b = RomFetch.latest(this)
-            gameNewer = b > 0 && b > RomFetch.installedBuild(this)
+            gameNewer = RomFetch.newer(this, b)
             val ready = gameNewer || PlayerUpdate.available() != null
             runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready }
             try { Thread.sleep(5000) } catch (e: InterruptedException) { }
@@ -520,7 +522,7 @@ class MainActivity : Activity() {
         val b = android.app.AlertDialog.Builder(this).setOnDismissListener { emu?.paused = held() }
         if (items.isEmpty()) b.setTitle("Up to date").setMessage("Player ${BuildConfig.VERSION_NAME}, game ${RomFetch.installed(this)}")
             .setPositiveButton("Check now") { _, _ -> Thread {
-                val r = PlayerUpdate.check(this); val g = RomFetch.latest(this); gameNewer = g > 0 && g > RomFetch.installedBuild(this)
+                val r = PlayerUpdate.check(this); val g = RomFetch.latest(this); gameNewer = RomFetch.newer(this, g)
                 runOnUiThread { pad.updateReady = gameNewer || PlayerUpdate.available() != null
                     toast(if (r != null) "Player ${r.version} is ready" else if (gameNewer) "A new game build is ready" else "Up to date") } }.start() }
             .setNegativeButton("Back", null)

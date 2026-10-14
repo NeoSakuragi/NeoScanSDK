@@ -40,7 +40,8 @@ class SettingsActivity : Activity() {
         }
 
         section("Account")
-        note("Signed in as ${Auth.user(this) ?: "?"} (Oros account, ${if (Auth.admin(this)) "admin" else "tester"}). The builds and the feedback need it.")
+        note(if (BuildConfig.SHARED) "Signed in as ${Auth.user(this) ?: "?"}. Your builds and your feedback notes need it." else
+             "Signed in as ${Auth.user(this) ?: "?"} (Oros account, ${if (Auth.admin(this)) "admin" else "tester"}). The builds and the feedback need it.")
         col.addView(Button(this).apply { text = "Log out"; setOnClickListener {
             Auth.logout(this@SettingsActivity)
             startActivity(android.content.Intent(this@SettingsActivity, LoginActivity::class.java)
@@ -70,6 +71,7 @@ class SettingsActivity : Activity() {
              "START = start, HOME / MODE = these settings.")
 
         section("Updates")
+        if (!BuildConfig.SHARED) {                                       // the shared Player has no self-update (TODO T2)
         val pl = TextView(this).apply { textSize = 15f; setPadding(0, (10 * dp).toInt(), 0, 0) }
         col.addView(pl)
         val upd = Button(this).apply { setOnClickListener { PlayerUpdate.install(this@SettingsActivity) } }
@@ -89,6 +91,7 @@ class SettingsActivity : Activity() {
         note("The player checks at launch and every hour and downloads a new version in the background; the launch " +
              "screen then offers it" + (if (Auth.admin(this)) " and the update button on the game screen blinks" else "") +
              ". The update keeps the login, settings, notes and the game.")
+        }
         toggle("Fetch new builds on launch", prefs.autoUpdate) { prefs.autoUpdate = it }
         toggle("Show frame stats (also logged to files/frames.log)", prefs.frameStats) { prefs.frameStats = it }
         val rom = File(getExternalFilesDir(null), "brawler.neo")

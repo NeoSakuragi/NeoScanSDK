@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
-    <application android:label="NeoScan Player" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+    <application android:label="${appLabel}" android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
         android:allowBackup="false" android:usesCleartextTraffic="true">
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="fullSensor"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation">

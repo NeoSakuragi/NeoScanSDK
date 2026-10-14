@@ -3,6 +3,7 @@
 (tools/feedback/server.py, 127.0.0.1:8920 over ssh = authenticated by the ssh key); never a direct DB edit.
 
     fb.py list [--status new|read|in_progress|shipped|wont_do|duplicate|verified|reopened] [--category gameplay] [--cost]
+               [--user Wael]   (a shared Player's account shows as "Wael [shared]", TODO T2)
     fb.py show <id>
     fb.py status <id> read|in_progress|wont_do|verified|reopened [--note "..."] [--commit SHA]
     fb.py status <id> fixed --commit SHA [--note "..."]     (on the brawler branch, not yet in a published build)
@@ -121,7 +122,7 @@ def line(r, cost=False):
     rel = f" {r['release']}" if r['status'] == 'shipped' else f" of {r['duplicate_of']}" if r['status'] == 'duplicate' else ''
     n = len(r.get('replies') or [])
     tags = ' '.join(x for x in (r['category'], r['fighters']) if x)
-    return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
+    return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}{' [shared]' if r.get('shared') else ''}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
            (f"  [{tags}]" if tags else '') + (f"  {money(r.get('cost_usd'))}" + (' (est.)' if 'duration' in (r.get('cost_source') or '') else '') if cost else '') + \
            f"  \"{text[:80]}\"" + (f"  ({n} repl{'y' if n == 1 else 'ies'})" if n else '')
 
@@ -129,7 +130,7 @@ def line(r, cost=False):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
-    p = sub.add_parser('list'); p.add_argument('--status'); p.add_argument('--category'); p.add_argument('--cost', action='store_true')
+    p = sub.add_parser('list'); p.add_argument('--status'); p.add_argument('--category'); p.add_argument('--user'); p.add_argument('--cost', action='store_true')
     p = sub.add_parser('show'); p.add_argument('id')
     p = sub.add_parser('status'); p.add_argument('id'); p.add_argument('status')
     p.add_argument('--release', default=None); p.add_argument('--note', default=''); p.add_argument('--of', default='')
@@ -153,7 +154,7 @@ def main():
     try:
         if a.cmd == 'review': return review_cmd(a)
         if a.cmd == 'list':
-            q = '&'.join(f'{k}={v}' for k, v in (('status', a.status), ('category', a.category)) if v)
+            q = '&'.join(f'{k}={v}' for k, v in (('status', a.status), ('category', a.category), ('user', a.user)) if v)
             res = api('list' + ('?' + q if q else '')); rows = res['rows']
             for r in rows: print(line(r, a.cost))
             if not rows: print('(none)')
