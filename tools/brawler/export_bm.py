@@ -361,6 +361,10 @@ def build(specs, outdir):
                                                 **({'moves': roster()[rname(game, n)]['moves']} if roster()[rname(game, n)].get('moves') else {})}
                                             for n in names if rname(game, n) in roster()},
                                      lab={n: LAB[n] for n in names if n in LAB} or None)
+        if game == 'garou':                             # Garou: Mark of the Wolves: its own reader (tools/garou), the same layout
+            sys.path.insert(0, os.path.join(HERE, '..', 'garou')); import export_garou
+            return export_garou.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
+                                       extra={n: {'watch': tuple(roster()[rname(game, n)]['watch'])} for n in names if rname(game, n) in roster()})
         if game == 'ffight':                            # Final Fight (CPS1): its own reader (tools/ffight), the same layout
             sys.path.insert(0, os.path.join(HERE, '..', 'ffight')); import export_ff
             return export_ff.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
@@ -1804,6 +1808,7 @@ VICTIM_POSES['whp'] = json.load(open(os.path.join(HERE, '..', 'whp', 'victim_pos
 VICTIM_POSES['samsho2'] = json.load(open(os.path.join(HERE, '..', 'samsho2', 'victim_poses_ss2.json')))['poses']   # SS2's throws
 VICTIM_POSES['doubledr'] = json.load(open(os.path.join(HERE, '..', 'doubledr', 'victim_poses_dd.json')))['poses']   # Billy Lee's throws (TODO #194)
 VICTIM_POSES['lastbld2'] = json.load(open(os.path.join(HERE, '..', 'lastbld2', 'victim_poses_lb2.json')))['poses']   # LB2 Moriya's throw
+VICTIM_POSES['garou'] = json.load(open(os.path.join(HERE, '..', 'garou', 'victim_poses_garou.json')))['poses']   # Garou Rock's throw
 VICTIM_POSES['ffight'] = json.load(open(os.path.join(HERE, '..', 'ffight', 'victim_poses_ff.json')))['poses']   # Final Fight's throws (Bred's postures)
 
 FAMILY = {'grabbed': 'standing', 'hunched': 'standing', 'hit_reel': 'standing', 'bent_back': 'standing', 'standing': 'standing',
@@ -2399,7 +2404,7 @@ def write_c(chars, outdir):
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
-        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2', 'lastbld2', 'ffight') else None   # SS4 / WHP: KOF's usual 4
+        land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2', 'lastbld2', 'ffight', 'garou') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
         c.append(f'  {{{n + "_name" if n in ALIAS else chr(34) + (roster()[n].get("display") or n).upper() + chr(34)}, {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
     c.append('};')

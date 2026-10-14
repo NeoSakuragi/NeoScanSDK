@@ -307,7 +307,7 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [ ] T2 (running). Shareable Player: a build safe to give to other players (only the player's own feedback button, no Fighter
   Lab, nothing an antivirus could flag). Two accounts, Wael and Asenka (easy passwords, kept out of the repo/chat).
   Assign a build to each account from the Brawler Factory (token free); their Player auto-downloads up to that build.
-- [ ] T3 (running). Mark of the Wolves: investigate the engine, extract Rock Howard into the roster.
+- [x] T3 (done, Lab-only `garou:rock`, pack 10,769 tiles; study /data/neogeo_dict/garou/README.md; specials 12 / 12 frame-identical to Garou, normals' ROM timeline = the game's, hit-stop 7 / 11 from Garou; gaps: Rage Run follow-ups, 236B/D grab-counter, Neo-Max, hop physics, theme ported but no free M ROM bank set; sheets /data/tmp/garou_t3/sheets). Mark of the Wolves: investigate the engine, extract Rock Howard into the roster.
 - [ ] T4. Moriya: check whether his standard slash attacks have visual effects in Last Blade 2 (maybe none); add them if they exist.
 - [ ] T5. Last Blade 2 sounds: slash impacts, special-move impacts, etc. into the brawler sound set.
 - [ ] T6. Moriya: dragon punch follow-up (back-to-back DP), mapped sensibly onto our control scheme.

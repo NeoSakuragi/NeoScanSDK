@@ -1,0 +1,5 @@
+{"_doc": "Garou victim postures (export_bm.VICTIM_POSES['garou'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, sprites face left once exported, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'anim.step' of the victim's own thrown animations in handlers_garou.throw: Rock's throw puts the victim in $236 (566: held, carried behind him, over his head) and $2A1 (673: the landing bounce); Rock's own frames for them (Rock thrown by Rock). Read by eye from the frames (2026-10-14, /data/tmp/garou_t3/shots/r3.png).",
+ "poses": {"566.0": ["grabbed", 0], "566.1": ["grabbed", 0], "566.2": ["hunched", 0], "566.3": ["hunched", 0],
+           "566.4": ["horizontal", -90], "566.5": ["horizontal", -90], "566.6": ["inverted_diagonal", -150],
+           "566.7": ["inverted", 180], "673.0": ["lying", -90], "673.1": ["lying", -90], "673.2": ["lying", -90],
+           "673.3": ["inverted_diagonal", -150], "673.4": ["lying", -90]}}
