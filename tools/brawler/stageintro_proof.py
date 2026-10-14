@@ -28,20 +28,22 @@ def watch(b, tag, stage, hold_keys='La'):
     """from the tick the intro starts: the timeline, the shots, the checks"""
     OFF = b.states.index('OFF')
     while u8(b, 'in_ph') != 1: b.run(1)
-    t0 = b.frame; tl = []; shots = []; arrive = wave = None
+    t0 = b.frame; tl = []; shots = []; arrive = wave = spawn = None; vis = None
     two = u8(b, 'pl_on') and b.r(b.syms['pl_on'] + 1, 1)
     while True:
         t = b.frame - t0; ph = u8(b, 'in_ph')
         st = [b.fget(i, 'state') for i in range(8)]
-        tl.append({'t': t, 'ph': ph, 'on': [i for i in range(8) if st[i] != OFF], 'x': [round(b.fget(i, 'x'), 1) for i in range(2)],
+        tl.append({'t': t, 'ph': ph, 'on': [i for i in range(8) if st[i] != OFF], 'x': [round(b.fget(i, 'x'), 1) for i in range(8)],
                    'cam': b.r(b.syms['cam_x'], 2)})
+        if spawn is None and [i for i in tl[-1]['on'] if i >= 2]:   # (note 20261014-192343-5d29: the first wave's enemies
+            spawn = t; vis = visible(b, tag)                 # walk in from off the screen: nothing of them shows as they spawn)
         if ph == 3 and arrive is None: arrive = t
         if ph == 0 and wave is None: wave = t
-        want = t in SHOTS or (arrive is not None and t == arrive) or (wave is not None and t == wave + 30)
+        want = t in SHOTS or (arrive is not None and t == arrive) or (wave is not None and t == wave + 30) or (spawn is not None and t == spawn + 120)
         if want:
             p = os.path.join(OUT, f'{tag}_{t:03d}.png'); b.screenshot(p); shots.append((t, ph, p))
         else: b.run(1, hold_keys if ph == 2 else '')        # (the walk: P1 holds left + A, the script's intents win)
-        if wave is not None and t >= wave + 30: break
+        if spawn is not None and t >= spawn + 120: break
         if t > 1500: break
     fade = [e for e in tl if e['ph'] == 1]
     walk = [e for e in tl if e['ph'] == 2]
@@ -51,10 +53,27 @@ def watch(b, tag, stage, hold_keys='La'):
           'walk_forward': bool(walk) and all(walk[k + 1]['x'][0] >= walk[k]['x'][0] for k in range(len(walk) - 1)),
           'no_enemy_before_wave': all(not [i for i in e['on'] if i >= 2] for e in tl if e['ph'] != 0),
           'enemies_after_wave': bool([i for i in tl[-1]['on'] if i >= 2]),
+          'no_enemy_visible_on_spawn': vis is not None and vis[0] == 0,
+          'spawned_outside': spawn is not None and all(not (-24 < tl[spawn]['x'][i] - tl[spawn]['cam'] < 340) for i in tl[spawn]['on'] if i >= 2),
+          'walked_in': spawn is not None and any(0 <= tl[-1]['x'][i] - tl[-1]['cam'] <= 320 for i in tl[-1]['on'] if i >= 2),
           'arrived_on_marks': arrive is not None and all(abs(tl[arrive]['x'][p] - tl[arrive]['cam'] - G['stage_intro']['marks'][p][0]) <= 1 for p in range(1 + bool(two))),
           'two_players': bool(two)}
-    return {'tag': tag, 'stage': stage, 'walk_start': walk[0]['t'] if walk else None, 'arrive': arrive, 'wave': wave, 'checks': ck,
+    return {'tag': tag, 'stage': stage, 'spawn': spawn, 'spawn_x': [tl[spawn]['x'][i] - tl[spawn]['cam'] for i in tl[spawn]['on'] if i >= 2] if spawn is not None else None,
+            'spawn_pixels': vis, 'walk_start': walk[0]['t'] if walk else None, 'arrive': arrive, 'wave': wave, 'checks': ck,
             'ok': all(v for k, v in ck.items() if k != 'two_players'), 'shots': shots}
+
+
+def visible(b, tag):
+    """the enemies' pixels on the screen this tick: the frame with them vs the same frame with them taken off (from a
+    save state) -> (pixels that differ, the diff image's path)"""
+    import numpy as np
+    s0 = b.save(); OFF = b.states.index('OFF')
+    pa, pb = os.path.join(OUT, f'{tag}_spawn.png'), os.path.join(OUT, f'{tag}_spawn_none.png')
+    b.screenshot(pa); b.load(s0)
+    for i in range(2, 8): b.fset(i, 'state', OFF)
+    b.screenshot(pb); b.load(s0)
+    a, c = (np.asarray(Image.open(x).convert('RGB'), dtype=int) for x in (pa, pb))
+    return int((abs(a - c).sum(axis=2) > 0).sum()), pa
 
 
 def clear_stage(b):

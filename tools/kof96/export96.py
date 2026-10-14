@@ -120,6 +120,7 @@ def physics98(m, cid, prejump=0):
 # KOF99 (name table at $BCC88): KOF98's engine
 # KOF99 states, labelled in our emulator (GAME=kof99 capture/labels.py): KOF98's except the C+D blowback (285)
 MOVES99 = dict(MOVES98, blowback=285)
+CHARGE_STATES = {'kof96': (60, 61), 'kof97': (77,), 'kof98': (77,), 'kof99': (77,)}   # the brawler's 'charge' (export)
 # KOF97: KOF98's states through KOF97's per-fighter map ($AFBCA), checked on Terry's and Orochi's frames (the bosses'
 # maps send missing moves to what they have); the win poses are elsewhere (336 is a knockdown frame): not exported
 MOVES97 = {k: v for k, v in MOVES98.items() if not k.startswith('win_')}
@@ -462,6 +463,18 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             except Exception: continue
             anims[move] = {'slot': slot, 'state': state, 'mode': mode, 'steps': [
                 {'frame': add_frame(fi), 'ticks': t, 'flags': fl, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in b.items()}} for t, fi, fl, b, ri, dx in steps]}
+        if only is None or 'charge' in only:            # the power charge / power-up (note 20261014-133606-5d29; A+B+C held
+            parts = []                                  # in our emulator, tools/kof96/capture/emu.py): KOF96 states 60
+            for st in CHARGE_STATES[game]:              # start then 61 its loop (62 the release); KOF98 (Extra mode,
+                try: parts.append(rom96.parse_anim(m, rom96.anim_addr(m, cid, slot_of(cid, st))))   # state c0x) 77: the
+                except Exception: parts = []; break     # charge then the MAX activation's pose, held (KOF98's 60 / 61
+            if parts:                                   # are the knockdown); KOF99 77 its Counter / Armor activation
+                st0 = [{'frame': add_frame(fi), 'ticks': t, 'flags': 0, 'dx': 0, 'boxes': {f'{k:02X}': v for k, v in b.items()}}
+                       for steps, _ in parts for t, fi, fl, b, ri, dx in steps]
+                loop = parts[-1][1] == 'loop'
+                anims['charge'] = {'slot': slot_of(cid, CHARGE_STATES[game][-1]), 'state': CHARGE_STATES[game][-1],
+                                   'mode': 'loop' if loop else 'hold', 'steps': st0,
+                                   **({'loop_from': len(st0) - len(parts[-1][0])} if loop and len(parts) > 1 else {})}
         for move, slot in (slots or {}).get(name, {}).items():
             steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
             anims[move] = {'slot': slot, 'state': slot, 'mode': mode, 'steps': [

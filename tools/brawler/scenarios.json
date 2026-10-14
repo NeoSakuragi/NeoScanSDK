@@ -3927,17 +3927,17 @@
   "proof": 160
  },
  "20261014-133606-5d29": {
-  "title": "Ki training: only a full gauge passes, then the tree falls",
+  "title": "Ki training: he concentrates before the blow; a failed grade sounds as in AOF2",
   "setup": {
    "mode": "bonus",
    "fighter": "terry",
    "game": "ki",
    "after": 1
   },
-  "do": "Press A when the gauge is full (the clip presses at the top). Also try a press below the top (GOOD / GREAT).",
-  "expect": "At the top grade (PERFECT) the tree cracks, its top falls, he leaps back, the crown lands, METER +2 and AOF2's winning jingle. Any lower grade fails as in AOF2: a few leaves, the tree stands, 'TRAINING FAILED' and the fail jingle.",
-  "do_keys": "56:-,2:a",
-  "proof": 300
+  "do": "Press A below the top of the gauge (the clip presses early: a failed grade). Then try again pressing at the very top.",
+  "expect": "After the press he stands a moment, then holds his concentration pose (Terry: KOF98's power charge; SS2 fighters their rage, KOF96 bosses their charge) about 1.4 s, as AOF2's Ryo, then the jab (AOF2's punch sound). Failed: the tree stands, a few leaves, about a second later his hurt voice (where Ryo shakes his hand) and AOF2's falling-leaf sounds, then TRAINING FAILED with AOF2's fail jingle at AOF2's moment (about 4 s after the blow). At the top grade he concentrates twice as long (2.4 s) and throws his forward finisher; the tree breaks as before.",
+  "do_keys": "40:-,2:a",
+  "proof": 420
  },
  "20261014-134238-5d29": {
   "title": "Kyo's throw near the screen's edge: he stays where he throws, the victim stops at the edge",
@@ -3968,7 +3968,7 @@
   "proof": 60
  },
  "20261014-141702-5d29": {
-  "title": "Run animation no longer plays too fast (Genjuro, every runner)",
+  "title": "Genjuro's run = SS2's frame by frame (Haohmaru, Hanzo SS2 too)",
   "setup": {
    "mode": "lab",
    "fighter": "genjuro",
@@ -3976,9 +3976,9 @@
    "gap": 300
   },
   "do": "Tap forward, forward and hold forward: Genjuro runs.",
-  "expect": "His legs keep pace with the ground: each run frame shows about 4-5 frames (it flipped every 3 before), so his stride covers the floor as in SS2 instead of spinning. Every fighter's run slowed the same way (the walk keeps its 1.5x pace); the dashes (Kim, Cheng-Fu, Billy) and Haggar are unchanged.",
+  "expect": "As in Samurai Shodown II, checked frame by frame in our emulator: 3 frames of his run-start pose standing, then the 4 run pictures (Genjuro: 66.0, 66.1, 66.2, 66.1) 3 frames each, looping, moving 6.3 px a frame (SS2's own speed: faster than before; Hanzo SS2 7.1 px, 2 pictures, a 6-frame start). Side by side: /data/tmp/ss2run/genjuro_sheet.png.",
   "do_keys": "1:R,1:-,90:R",
-  "proof": 30
+  "proof": 60
  },
  "20261014-142848-5d29": {
   "title": "Kyo's scissors kick: C alone in the air gives the second kick, even when the first one misses",
@@ -4064,7 +4064,7 @@
   "proof": 520
  },
  "20261014-171700-5d29": {
-  "title": "Ki training: the tree cracks, then you hear it fall",
+  "title": "Ki training PERFECT: concentration, forward finisher, the tree cracks and falls",
   "setup": {
    "mode": "bonus",
    "fighter": "terry",
@@ -4072,9 +4072,9 @@
    "after": 1
   },
   "do": "Press A when the gauge is full (the clip presses at the top) and listen as the tree breaks.",
-  "expect": "As in Art of Fighting 2: the tree cracks (crackling) twice as its trunk splits and its top starts to fall, then the falling tree's crash when the crown hits the ground, and again as it settles, at AOF2's moments.",
+  "expect": "He concentrates (his charge pose) about 2.4 s as AOF2's Ryo on a top grade, throws his forward finisher, then as in Art of Fighting 2: the tree cracks twice as its trunk splits and its top starts to fall, the falling tree's crash when the crown hits the ground, and again as it settles, at AOF2's moments from the punch.",
   "do_keys": "56:-,2:a",
-  "proof": 300
+  "proof": 420
  },
  "20261014-172113-5d29": {
   "title": "Boss death: the clear music starts only after the body has fully landed",
@@ -4139,15 +4139,15 @@
   "proof": 90
  },
  "20261014-192343-5d29": {
-  "title": "Stage start: fade-in, STAGE 1 START, Terry walks in, then the wave",
+  "title": "Stage start: the first wave walks in from off the screen",
   "setup": {
    "mode": "select",
    "cursor": "terry"
   },
   "do": "The select screen, the cursor on Terry. Press A and watch the stage start without touching anything; once Terry stands still, try to move.",
-  "expect": "The screen goes black and the street fades in with nobody on it and no life bars, STAGE 1 START in the middle; the title goes, Terry walks in from the left edge on his own and stops, the life bars come back; you control him and a moment later the first enemies arrive.",
-  "do_keys": "30:-,3:a,330:-",
-  "proof": 360
+  "expect": "The screen goes black and the street fades in with nobody on it, STAGE 1 START; Terry walks in from the left and stops, the life bars come back; then the first enemies appear from beyond the RIGHT edge and walk in: none of them pops up inside the screen (every stage's first wave now walks in).",
+  "do_keys": "30:-,3:a,450:-",
+  "proof": 480
  },
  "bonus-pillars-normals": {
   "title": "Super Death Blow bonus: break 3 posts with regular attacks to unlock the fury",

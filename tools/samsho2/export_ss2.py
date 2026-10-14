@@ -57,7 +57,9 @@ MOVES = {
     'atk_c_close': (302, 0, None), 'atk_c_far': (304, 0, None), 'atk_d_close': (322, 0, None), 'atk_d_far': (324, 0, None),
     'atk_a_crouch': (236, 0, None), 'atk_b_crouch': (254, 0, None), 'atk_c_crouch': (306, 0, None), 'atk_d_crouch': (326, 0, None),
     'atk_c_jump': (310, 0, None), 'atk_d_jump': (330, 0, None), 'atk_c_jump_diag': (310, 0, None), 'atk_d_jump_diag': (330, 0, None),
-    'body_toss': (276, 0, None),                  # (the air A+B / C+D: air_moves, the fighter's own animations)
+    'body_toss': (276, 0, None),
+    'charge': (140, 0, None),                     # the rage (POW full: anim 140 for every fighter, rage.json; note
+                                                  # 20261014-133606-5d29: the Ki training's concentration before the blow)                  # (the air A+B / C+D: air_moves, the fighter's own animations)
     'hit_stand_light': (110, 0, None), 'hit_stand_heavy': (106, 0, None), 'hit_air': (220, 0, 0),
     'blowback': (220, 0, 0), 'blowback_n': (220, 0, 0), 'knockdown_flight': (220, 1, 1), 'knockdown_bounce': (222, 0, 0),
     'knockdown_fall': (222, 0, 0), 'down': (222, 1, 1), 'getup': (138, 1, None), 'trip': (120, 0, None),
@@ -156,6 +158,13 @@ def air_moves(ch):
     return {mv: (K.anims_of(K.descriptor(ch, 0, 1, sub))[0], 0, None) for mv, sub in AIR_SUBS.items()}
 
 LOOP = {'idle', 'walk_fwd', 'run'}
+# SS2's run, frame by frame in our emulator (note 20261014-141702-5d29, Bruno: "check frame by frame"; proof
+# tools/samsho2/run_ss2.py -> /data/tmp/ss2run): forward forward held plays animation 20 (one step, its run start, standing:
+# no x) for RUN_START frames (the run handler's timer, not the step's ticks [meas]), then animation 66 looping, each step
+# 3 frames on screen (its ticks 2 + 1; display list per frame), moving the run speed every frame (roster[].run.speed:
+# Haohmaru / Genjuro 6.3125, Hanzo 7.125 px a frame [meas]); release: animation 68 (2 frames) then the walk / stand.
+# The brawler's run = the start step once, then 66's steps looped (banim_t.hold $80 | 1: export_bm anim_hold).
+RUN_START = {'haohmaru': (20, 3), 'genjuro': (20, 3), 'hanzo': (20, 6)}
 ALIAS = {'hop_up_rise': 'jump_up_rise', 'hop_up_fall': 'jump_up_fall', 'hop_fwd_rise': 'jump_fwd_rise',
          'hop_fwd_fall': 'jump_fwd_fall', 'hop_back_rise': 'jump_back_rise', 'hop_back_fall': 'jump_back_fall',
          'atk_c_hop': 'atk_c_jump', 'atk_d_hop': 'atk_d_jump', 'atk_c_hop_diag': 'atk_c_jump_diag',
@@ -635,6 +644,9 @@ def export(names, outdir, only=None, extra=None, lab=None):
         anims = {}
         for mv, (a, f, l) in {**MOVES, **jump_moves(ch)}.items():
             anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, f, l)}
+        if name in RUN_START and 'run' in anims:          # the run's start step, then its loop (RUN_START)
+            a0, n0 = RUN_START[name]; s0 = anim_steps(B, ch, a0)[:1]
+            anims['run'] = dict(anims['run'], loop_from=1, steps=[dict(s0[0], ticks=n0 - 1)] + anims['run']['steps'])
         for mv, src in ALIAS.items(): anims[mv] = anims[src]
         if name in WIN: anims.update(win_anims(B, ch, name))
         w = (extra or {}).get(name, {}).get('watch')

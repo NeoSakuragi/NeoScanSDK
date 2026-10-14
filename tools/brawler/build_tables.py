@@ -314,7 +314,7 @@ def blitz_slides(g):
     return out
 
 
-RUN_KEYS = ('hold_last', 'float', 'last_step', 'mode', 'dash', 'air_buttons', 'about')
+RUN_KEYS = ('hold_last', 'float', 'last_step', 'mode', 'dash', 'air_buttons', 'speed', 'about')
 def run_bobs(g):
     """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
     20261009-102625-5d29: Kim floats up and down a few pixels as he runs): one height a frame (px above its feet, drawn
@@ -373,6 +373,17 @@ def run_anim(wk, r):
     return round(ra / wk.get('anim', 1) * 256)
 
 
+def run_speed(r):
+    """roster[].run.speed (note 20261014-141702-5d29, Bruno on SS2 Genjuro: "check frame by frame"): the run moves at its
+    source's own measured speed (px a frame) and its animation plays at its steps' own ticks (fighter.c run_rate 0x100):
+    the source's run frame for frame, its feet on the floor. -> 16.16, 0 = the rule (the walk x walk.run, run_anim)"""
+    v = (r.get('run') or {}).get('speed')
+    if v is None: return 0
+    assert isinstance(v, (int, float)) and 1 <= v <= 12 and (r.get('run') or {}).get('mode', 'run') == 'run', \
+        f"roster {r['name']}: run.speed {v} (1-12 px a frame, a run)"
+    return round(v * 65536)
+
+
 def walk_phys(g, r):
     """roster[].walk_rate (note 20261014-084140-5d29, Final Fight's Haggar: "the walk plays too fast"): the walk / run
     animations' rate, fixed (1 = its steps' own ticks, the source's measured cadence) instead of the engine's rule (its
@@ -395,7 +406,7 @@ def roster_export(g):
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
              **({'walk_phys': walk_phys(g, r)} if 'walk_rate' in r else {}),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of', 'swing') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'charge_from', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of', 'swing') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -543,9 +554,13 @@ def model(g, build):
                              'set': st, 'tint': GE_SPAWN if ti is None else tint_idx[ti], 'flags': GE_FIGHTER_NAME if name == 'fighter' else 0,
                              'life': e['life'], 'hud': None if name == 'fighter' else name.replace('_', ' '), 'pal': cu, 'moves': enemy_tree(e, g, build, idx)})
     assert len(M['ai']) <= 255, 'at most 255 AI rows'
-    def spawn(d, where):
+    def spawn(d, where, lock):
         e = d['enemy']; assert e in en_idx, f'{where}: no enemy {e}'
         fl, x = 0, d.get('x', 0)
+        # (voice note 20261014-192343-5d29: "the enemies are popping on the screen") nobody appears inside the screen: a
+        # world-x spawn lies outside the camera at its lock point (lock-24 .. lock+340, main.c spawn_x's walk-in edges)
+        assert 'walk_in' in d or not (lock - 24 < x < lock + 340), \
+            f'{where}: x {x} is inside the screen at lock {lock}: use walk_in (or an x outside {lock - 24}..{lock + 340})'
         if 'walk_in' in d:
             w = d['walk_in']; fl |= SP_WALK_IN | (SP_LEFT if w['side'] == 'left' else 0) | (w.get('rank', 0) << 4)
             assert w['side'] in ('left', 'right') and 0 <= w.get('rank', 0) < 16, where
@@ -561,11 +576,11 @@ def model(g, build):
             assert ww is None or 0 <= w['lock'] <= ww - 320, f'stage {si + 1} wave {wi + 1}: lock {w["lock"]} outside 0-{ww - 320}'
             assert wi == 0 or w['lock'] >= s['waves'][wi - 1]['lock'], f'stage {si + 1}: lock points go forward'
             wv.append({'lock': w['lock'], 'seed': int(str(w['seed']), 0), 'first': len(sp), 'n': len(w['spawns'])})
-            sp += [spawn(d, f'stage {si + 1} wave {wi + 1}') for d in w['spawns']]
+            sp += [spawn(d, f'stage {si + 1} wave {wi + 1}', w['lock']) for d in w['spawns']]
         b = s['boss']; nb = len(sp)
         assert len(b['minions']) <= MAX_ENEMIES - 1, f'stage {si + 1}: at most {MAX_ENEMIES - 1} minions with the boss'
         assert ww is None or b['lock'] <= ww - 320, f'stage {si + 1}: boss lock past the end'
-        sp += [spawn(d, f'stage {si + 1} boss') for d in b['minions']]
+        sp += [spawn(d, f'stage {si + 1} boss', b['lock']) for d in b['minions']]
         trig = [trigger(t, f'stage {si + 1} trigger {k + 1}', len(s['waves']), en_idx, tint_idx, mus, dr_idx, ww)
                 for k, t in enumerate(s.get('triggers', []))]
         assert len(trig) <= MAX_TRIGGERS, f'stage {si + 1}: at most {MAX_TRIGGERS} triggers'
@@ -955,10 +970,11 @@ def ending_tables(g):
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds', 'blows'),
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
+GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
@@ -1010,6 +1026,17 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert len(fs) <= GB_FALL_SND and all(isinstance(t, int) and 0 <= t < 255 for t, _ in fs) and \
                 [t for t, _ in fs] == sorted(t for t, _ in fs), f"bonus game {x['id']}: fall_sounds: up to {GB_FALL_SND} [tick 0-254, sfx name], ticks rising"
             for _, v in fs: snd(f"bonus game {x['id']}: fall_sounds", v)
+            cg = x.get('charge') or {}                   # (note 20261014-133606-5d29: AOF2's concentration before the blow)
+            assert set(cg) <= {'about', 'stand', 'fail', 'pass'} and all(isinstance(cg.get(k, 0), int) for k in ('stand', 'fail', 'pass')) and \
+                0 <= cg.get('stand', 0) <= cg.get('fail', 0) <= 600 and cg.get('stand', 0) <= cg.get('pass', 0) <= 600, \
+                f"bonus game {x['id']}: charge {{stand, fail, pass}}: ticks from the press, stand <= fail / pass <= 600"
+            snd(f"bonus game {x['id']}: punch_sound", x.get('punch_sound'))
+            fl = x.get('fail_sounds') or []
+            assert len(fl) <= GB_FAIL_SND and all(isinstance(t, int) and 0 <= t < 255 for t, _ in fl) and \
+                [t for t, _ in fl] == sorted(t for t, _ in fl), f"bonus game {x['id']}: fail_sounds: up to {GB_FAIL_SND} [tick 0-254, sfx name | 'VOICE HIT'], ticks rising"
+            for _, v in fl:
+                if v.upper() != 'VOICE HIT': snd(f"bonus game {x['id']}: fail_sounds", v)
+            assert isinstance(x.get('fail_result', 58), int) and 20 <= x.get('fail_result', 58) <= 600, f"bonus game {x['id']}: fail_result 20-600"
         else:
             assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
             assert x['breaks_with'] in ('fury', 'any') and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury | any, unlock fury | none"
@@ -1040,6 +1067,12 @@ def bonus_tables(g, songs_known, sfx_names):
             fs = x.get('fall_sounds') or []              # (the tree's sounds as it falls: AOF2's, ticks from the blow)
             f += [f".nfall = {len(fs)}", '.fall_t = { ' + ', '.join(str(t) for t, _ in fs) + ' }' if fs else '.fall_t = { 0 }',
                   '.fall_sfx = { ' + ', '.join(f'0x{code(v):02X}' for _, v in fs) + ' }' if fs else '.fall_sfx = { 0 }']
+            cg = x.get('charge') or {}; fl = x.get('fail_sounds') or []
+            fcode = lambda v: 'GB_VOICE_HIT' if v.upper() == 'VOICE HIT' else f'0x{code(v):02X}'
+            f += [f".chg_stand = {cg.get('stand', 0)}", f".chg_blow = {{ {cg.get('fail', 0)}, {cg.get('pass', 0)} }}",
+                  f".punch_sfx = 0x{code(x.get('punch_sound')):02X}", f".nfail = {len(fl)}",
+                  '.fail_t = { ' + (', '.join(str(t) for t, _ in fl) or '0') + ' }', '.fail_sfx = { ' + (', '.join(fcode(v) for _, v in fl) or '0') + ' }',
+                  f".fail_result = {x.get('fail_result', 58)}"]
         else:
             ln = lambda k, d: '{ ' + ', '.join(c_str(l) for l in (x.get(k, d) + ['', '', ''])[:3]) + ' }'
             f += [f".count = {x['count']}", f".breaks = {'BB_FURY' if x['breaks_with'] == 'fury' else 'BB_ANY'}", f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}",
@@ -1204,6 +1237,7 @@ def tables(g, build):
          'extern const uint8_t *const grun_dash[BC_COUNT]; /* the dash: [start, frames, x..., height..., air_buttons] (roster[].run.mode dash), 0 = a run */',
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
+         'extern const int32_t grun_spd[BC_COUNT];       /* the run at its source\'s speed (16.16; roster[].run.speed), 0 = walk x gwalk_run */',
          'extern const uint16_t grun_anim[BC_COUNT];     /* the run animation\'s rate = the walk\'s x this (8.8; game.json walk.run_anim / walk.anim, 256 for a roster[].walk_rate fighter) */',
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
@@ -1287,6 +1321,8 @@ def tables(g, build):
     c.append(f"const uint16_t gwalk_anim = {round(wk.get('anim', 1) * 256)};   /* walk / run animation rate x this (8.8) */")
     c.append('const uint16_t grun_anim[BC_COUNT] = { ' + ', '.join(str(run_anim(wk, r)) for r in g['roster']) +
              ' };   /* the run animation\'s rate = the walk\'s x this (8.8), run_anim */')
+    c.append('const int32_t grun_spd[BC_COUNT] = { ' + ', '.join(str(run_speed(r)) for r in g['roster']) +
+             ' };   /* the run at its source\'s own speed (16.16 px a frame; roster[].run.speed), 0 = walk x gwalk_run */')
     hw = []
     for r in g['roster']:                                # the walk in the hold (note 20261014-171133-5d29)
         hwr = r.get('hold_walk')

@@ -626,6 +626,8 @@ extern uint8_t drive_chunks, fury_lock;   /* (fighter.c "the meter"; main.c "bon
 void fighter_meter_fill(fighter_t *f);    /* both bars full (the bonus posts: the fury always payable) */
 enum { BL_JAB, BL_FIN, BL_FWD };   /* fighter_blow's slots: the chain's first link (his jab: neutral A), its neutral
                                    finisher (A all the way), its forward finisher (the last link's forward + A) */
+void fighter_pose(fighter_t *f, uint8_t anim);   /* a held pose from its start (main.c's clock: fighter_pose_tick, no update) */
+void fighter_pose_tick(fighter_t *f);
 uint8_t fighter_blow(fighter_t *f, uint8_t slot);   /* plays his tree's move for slot now, from neutral, no input (the
                                    Ki training's blow by grade: main.c bn_gauge_flow, game.json bonus games[].blows) -> its node */
 uint8_t fighter_prop_hit(fighter_t *a, uint8_t sound);   /* a strike on a breakable prop (a bonus post) counts as a hit for

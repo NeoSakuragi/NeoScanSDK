@@ -82,6 +82,7 @@ static uint16_t run_rate(const fighter_t *f) {                  /* the run anima
                                                                     (game.json walk.run_anim: no walk.anim boost, note
                                                                     20261014-141702-5d29) */
     uint16_t r = (uint16_t)(((uint32_t)f->wrate * grun_anim[f->ch->id]) >> 8);
+    if (grun_spd[f->ch->id]) return 0x100;                       /* a run at its source's speed: its steps' own ticks */
     return r < 0x40 ? 0x40 : r;
 }
 #define X_MIN 16
@@ -305,8 +306,9 @@ static void anim_tick(fighter_t *f) {
         if (f->step + 1 < an->nsteps) { f->acc -= d; f->step++; }
         else {                                                   /* loops report one pass done too */
             f->anim_done = 1;
-            if (an->hold) { f->acc = d; return; }                /* held on its last step */
-            f->acc -= d; f->step = 0;
+            if (an->hold == 1) { f->acc = d; return; }           /* held on its last step */
+            f->acc -= d; f->step = an->hold & 0x80 ? an->hold & 0x7F : 0;   /* hold $80 | k: loops back to step k (its
+                                                                    first steps a start: SS2's run, export_ss2 RUN_START) */
         }
         step_move(f); voice_at(f, f->anim, f->step, f->step);
         if (an->steps[f->step].flags & 4) f->hit_mask = 0;       /* multi-hit normals: a new hit window */
@@ -773,6 +775,10 @@ static void route_go(fighter_t *f, const rnode_t *prev, uint8_t node, uint8_t b,
  * (light A: a ground node of his tree playing far A, else close A, else that animation as it is; a heavy chain starts on close C); BL_FIN the A links followed to the last (the neutral finisher); BL_FWD the forward + A link
  * of the first link that has one (the last builder: routes.py chain_tree's fA, a blowback), none: the neutral finisher.
  * Played as route_go plays a link (a special finisher free; a throw finisher has no victim here: the neutral one). */
+/* a held pose (the Ki training's concentration, note 20261014-133606-5d29: BA_CHARGE, main.c bn_charge): the animation
+ * from its start on his own clock, his state kept (main.c ticks it instead of fighter_update until the blow) */
+void fighter_pose(fighter_t *f, uint8_t anim) { play(f, anim); }
+void fighter_pose_tick(fighter_t *f) { anim_tick(f); }
 uint8_t fighter_blow(fighter_t *f, uint8_t slot) {
     uint8_t ob = BANK_set(CH_BANK(f->ch)), n = NODE(f, TREE(f)->root)->next[RI_A], k, fw = 0, j;
     if (slot == BL_JAB)                                          /* his light punch: a ground node of his tree playing
@@ -4090,7 +4096,10 @@ static void update(fighter_t *f, const intent_t *in) {
             break;
         }
         if (f->state == S_RUN && in->dx == f->facing) {          /* run = walk x gwalk_run (sub-pixel) */
-            f->x += dir_mul(f->facing, mul88(f->wspd, gwalk_run)); f->z += dir_mul(in->dz, FIX(1)); clamp(f);
+            const banim_t *ra = &f->ch->anims[f->anim];         /* (its start steps stand: SS2's run start, anim 20) */
+            int32_t v = grun_spd[f->ch->id] ? grun_spd[f->ch->id] : mul88(f->wspd, gwalk_run);   /* roster[].run.speed */
+            if (!(ra->hold & 0x80) || f->step >= (ra->hold & 0x7F)) f->x += dir_mul(f->facing, v);
+            f->z += dir_mul(in->dz, FIX(1)); clamp(f);
             f->pushing = !f->team || in->grab;                   /* running into a body grabs it as walking does (Bruno */
             f->wdz = in->dz > 0 ? 1 : in->dz < 0 ? -1 : 0;       /* 2026-10-10, note 20261010-143820-b3f3): the run ends */
             break;                                               /* into the hold */

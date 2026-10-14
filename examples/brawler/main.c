@@ -3016,7 +3016,9 @@ static uint8_t bn_game, bn_cur, bn_lead, bn_lock0;
 static void centre(uint8_t row, const char *t);
 static uint16_t bn_t, bn_clock, bn_shown_clock;
 static const gbonus_game_t *bn_g;
-static uint8_t bn_power, bn_grade, bn_hit_t, bn_gain;   /* the gauge game: power, grade, ticks since the press (0: none) */
+static uint8_t bn_power, bn_grade, bn_gain;     /* the gauge game: power, grade */
+static uint16_t bn_hit_t, bn_chg_t;             /* ticks since the blow started (0: none); since the press while he
+                                                    concentrates (0: none; games[].charge, note 20261014-133606-5d29) */
 static uint8_t bn_pass;                          /* the gauge game: the grade passed (>= win_grade): the tree falls */
 static uint16_t bn_fall_t;                       /* ticks since the blow while the tree falls (0: not falling) */
 static bar_t bn_bar;
@@ -3174,7 +3176,7 @@ static void bonus_play(uint8_t k) {
     centre(13, bn_g->name);
     if (bn_g->kind == BK_GAUGE) {
         nf = 1; sh_n = 2;                        /* the fighter alone: the tree behind him on 47-57 */
-        bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_gain = 0; bn_pass = 0; bn_fall_t = 0;
+        bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_chg_t = 0; bn_gain = 0; bn_pass = 0; bn_fall_t = 0;
         bn_put(BN_TREE_SPR, &bonus_tree[0], bonus_tree[0].x, bonus_tree[0].y, 0, 0xF, 0xFF, 1);   /* (objects: AOF2's screen = ours) */
         bn_bar = (bar_t){ .col = 12, .row = 9, .n = 16, .pal = METER_PAL, .px = -1, .trail = -1 };
         bn_text(20, "PRESS A WHEN THE GAUGE IS FULL!", 1);
@@ -3244,6 +3246,16 @@ static void bn_leaves(uint8_t n) {               /* n leaves from the canopy (a 
 }
 static void bn_gauge_flow(fighter_t *f) {
     uint8_t k;
+    if (bn_chg_t) {                              /* (note 20261014-133606-5d29, AOF2's Ryo: he stands, concentrates, then
+                                                    punches; games[].charge, ticks from the press) */
+        bn_chg_t++;
+        if (bn_chg_t == bn_g->chg_stand + 1) fighter_pose(f, BA_CHARGE);   /* his charge / power-up / rage (export) */
+        if (bn_chg_t > bn_g->chg_blow[bn_pass]) {   /* the blow: from the next tick (bonus_input) */
+            bn_chg_t = 0; bn_hit_t = 1;
+            if (bn_g->punch_sfx) snd_sfx(bn_g->punch_sfx);
+        }
+        return;
+    }
     if (bn_hit_t) {                              /* after the press: the punch, the shake, the leaves */
         bn_hit_t++;
         if (f->x > FIX(BN_TREE_STOP)) f->x = FIX(BN_TREE_STOP);   /* (the trunk stops a blow that travels) */
@@ -3262,7 +3274,14 @@ static void bn_gauge_flow(fighter_t *f) {
             if ((bn_pc[k].y >> 4) > 224) { bn_hide(BN_LEAF_SPR + k, 1); continue; }
             bn_put(BN_LEAF_SPR + k, &bonus_leaf[((bn_hit_t >> 3) + k) & 1], bn_pc[k].x >> 4, bn_pc[k].y >> 4, 0, 0xF, 0xFF, !((bn_hit_t + k) & 7));
         }
-        if (bn_hit_t == (bn_pass ? BN_FALL_RESULT : 70)) {   /* the result: the grade, its reward (a pass: the crown down) */
+        if (!bn_pass && bn_hit_t >= 12)          /* a failed grade's sounds (games[].fail_sounds: AOF2's, from the punch
+                                                    mark; GB_VOICE_HIT his own hurt voice where Ryo hurts his hand) */
+            for (k = 0; k < bn_g->nfail; k++)
+                if (bn_g->fail_t[k] == bn_hit_t - 12) {
+                    if (bn_g->fail_sfx[k] == GB_VOICE_HIT) voice_play(f->ch, f->team, VK_HIT); else snd_sfx(bn_g->fail_sfx[k]);
+                }
+        if (bn_hit_t == (bn_pass ? BN_FALL_RESULT : 12 + bn_g->fail_result)) {   /* the result: the grade, its reward (a pass: the crown
+                                                    down; a fail: AOF2's jingle frame, fail_result) */
             static const char *const GRADE[6] = { "MISS", "WEAK", "FAIR", "GOOD", "GREAT", "PERFECT!" };
             uint8_t add = bn_g->chunks[bn_grade], room = MAX_CHUNKS - drive_chunks, i;
             if (bn_won >> bn_game & 1) add = 0;  /* (won before: its bonus only) */
@@ -3284,7 +3303,8 @@ static void bn_gauge_flow(fighter_t *f) {
         bn_grade = 0;
         while (bn_grade < 5 && bn_power >= bn_g->grades[bn_grade]) bn_grade++;
         bn_pass = bn_grade >= bn_g->win_grade;
-        bn_hit_t = 1; bn_text(20, 0, 0);
+        if (bn_g->chg_blow[bn_pass]) bn_chg_t = 1; else bn_hit_t = 1;   /* (his concentration first: games[].charge) */
+        bn_text(20, 0, 0);
         (void)f;
     }
 }
@@ -3428,7 +3448,7 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
         return;
     }
     if (bn_t == 1 || bn_t == 60) centre(13, bn_t == 1 ? bn_g->name : "                  ");
-    if (bn_clock && !sf_who && !(bn_g->kind == BK_GAUGE && bn_hit_t)) bn_clock--;
+    if (bn_clock && !sf_who && !(bn_g->kind == BK_GAUGE && (bn_hit_t || bn_chg_t))) bn_clock--;
     if (bn_g->kind == BK_GAUGE) bn_gauge_flow(f); else bn_break_flow(f);
 }
 static void unlock_start(uint8_t k);
@@ -4327,6 +4347,8 @@ void game_tick(void) {
     if (in_ph == IN_WALK) intro_pre();
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
         if (win_posing(i)) fighter_win_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
+        else if (bonus_on == BN_PLAY && bn_chg_t > bn_g->chg_stand && i == bn_lead) fighter_pose_tick(&fighters[i]);   /* the Ki
+                                                                    training's concentration (bn_gauge_flow) */
         else if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
     if (!attract && !lab.active && phase == PH_CLEAR) win_tick();
     if (bonus_on) bonus_flow();                              /* a bonus game (its clock holds through a super flash) */

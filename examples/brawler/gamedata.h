@@ -316,6 +316,8 @@ extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an in
  * (BU_FURY: Fury and Fury MAX on D). fury_lock: D's fury locked from a new game until a BU_FURY game is won ---- */
 enum { BK_GAUGE, BK_BREAK };
 #define GB_FALL_SND 6                /* (build_tables.py GB_FALL_SND) */
+#define GB_FAIL_SND 16               /* (build_tables.py GB_FAIL_SND) */
+#define GB_VOICE_HIT 0xFF             /* a fail_sfx: the fighter's hurt voice */
 enum { BB_FURY, BB_ANY };            /* what breaks a BK_BREAK object: a fury's / MAX's strike only; any strike */
 enum { BU_NONE, BU_FURY };
 typedef struct {
@@ -333,6 +335,14 @@ typedef struct {
     uint8_t nfall, fall_t[GB_FALL_SND], fall_sfx[GB_FALL_SND];   /* BK_GAUGE (note 20261014-171700-5d29): the passed
                                      tree's sounds as it falls, sfx code fall_sfx[k] at tick fall_t[k] from the blow (game.json
                                      games[].fall_sounds: AOF2's crack and fall at its frames from the punch mark) */
+    uint8_t chg_stand, punch_sfx; /* BK_GAUGE (note 20261014-133606-5d29, AOF2 measured: tools/aof/ki_fail.py): after the
+                                     press he stands chg_stand ticks, then holds his concentration (BA_CHARGE: fighter_pose)
+                                     until chg_blow[pass] ticks from the press, then the blow (its start sends punch_sfx) */
+    uint16_t chg_blow[2];         /*   [0] a failed grade, [1] a pass (0 0: the blow at the press) */
+    uint8_t nfail, fail_t[GB_FAIL_SND], fail_sfx[GB_FAIL_SND];   /* BK_GAUGE: a failed grade's sounds, ticks from the punch
+                                     mark (games[].fail_sounds: AOF2's hurt voice and leaves); sfx GB_VOICE_HIT = the
+                                     fighter's own hurt voice (VK_HIT) */
+    uint16_t fail_result;         /* BK_GAUGE: a failed grade's result + over_music, ticks from the punch mark (0: 58) */
     uint8_t hp;                   /* BK_BREAK: the hits an object takes (a strike touching it counts once; bonus-pillars-normals) */
     uint16_t won_ticks;           /* BK_BREAK: a won result held this long (the unlock's message box) */
     const char *lesson[3];        /* BK_BREAK: the lesson box (fix rows 20 / 22 / 24, the first highlighted; "" = none) */

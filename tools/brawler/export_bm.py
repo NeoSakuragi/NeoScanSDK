@@ -82,6 +82,15 @@ def roster(path=None):
                                                         # entries for the slot's lookups; never built otherwise)
     return _ROSTER
 
+def anim_hold(an):
+    """banim_t.hold: 1 = held on its last step ('hold'), 0 = a loop from step 0, $80 | k = a loop back to step k (its first
+    k steps a start played once: SS2's run start, export_ss2 RUN_START; fighter.c anim_tick)"""
+    if an['mode'] == 'hold': return 1
+    k = an.get('loop_from', 0)
+    assert 0 <= k < min(len(an['steps']), 128)
+    return 0x80 | k if k else 0
+
+
 # the brawler's animation set (KOF move names); MOVES order = the BA_* enum
 MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', 'jump_fwd_rise', 'jump_fwd_fall', 'land',
          'atk_a_close', 'atk_a_far', 'atk_b_close', 'atk_b_far', 'atk_c_close', 'atk_c_far', 'atk_d_close', 'atk_d_far',
@@ -109,9 +118,14 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'walk_back',                                   # an AI fighter walking away from its target (it always faces
                                                         # it, Bruno 2026-10-08): KOF's walk-back (state 2), else source()'s
                                                         # walk played backwards
-         'hold_walk']                                   # the walk in the hold (note 20261014-171133-5d29, Final Fight's
+         'hold_walk',                                   # the walk in the hold (note 20261014-171133-5d29, Final Fight's
                                                         # Haggar: game.json roster[].hold_walk; fighter.c hold_walk): a
                                                         # bank that has none shows its idle (never played: the feature off)
+         'charge']                                      # the concentration before the Ki training's blow (note 20261014-
+                                                        # 133606-5d29, Bruno: "AOF2's charging, gathering energy animation
+                                                        # before the attack; find the equivalent": main.c bn_charge):
+                                                        # KOF96 the power charge (60 + 61), KOF98 / 99 the power-up (77): export96; SS2 the
+                                                        # rage (anim 140, export_ss2), else SOURCES' fallback (flash pose, win)
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
@@ -149,7 +163,9 @@ SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 
            'atk_a_jump': ['atk_a_jump', 'atk_c_jump'], 'atk_a_jump_diag': ['atk_a_jump_diag', 'atk_c_jump_diag'],
            'atk_b_jump': ['atk_b_jump', 'atk_d_jump'], 'atk_b_jump_diag': ['atk_b_jump_diag', 'atk_d_jump_diag'],
            'atk_ab_jump': ['atk_ab_jump', 'atk_d_jump'], 'atk_ab_jump_diag': ['atk_ab_jump_diag', 'atk_d_jump_diag'],
-           'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump']}
+           'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump'],
+           'charge': ['charge', 'flash', 'win']}      # (no charge / power-up of its own: its super flash pose (FLASH_POSES:
+                                                      # DD's power-up, Kizuna's taunt, ...), else its win pose, held)
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none; walk_back without its own: the walk's
     steps in reverse order, one object per fighter so its step array is shared)"""
@@ -473,6 +489,14 @@ def build(specs, outdir):
             for th in ex['characters'][name].get('throws', {}).values():   # a throw's own-victim rows under the roster's
                 if name in th.get('victims', {}) and src(rn) != name:   # name (poses(): Billy Lee = doubledr:billy)
                     th['victims'][src(rn)] = th['victims'].pop(name)
+            cf = (roster().get(rn) or {}).get('charge_from')   # (game.json roster[].charge_from: the move his Ki training
+            if cf:                                      # concentration plays instead of SOURCES' pick, note 20261014-133606-5d29:
+                cf = cf if isinstance(cf, dict) else {'move': cf}   # a move name, or {move, first, last}: its steps
+                a_ = ex['characters'][name]['anims'].get(cf['move'])   # first..last, held on the last)
+                assert a_, f'{rn}: charge_from {cf}: no such exported move'
+                st_ = a_['steps'][cf.get('first', 0):cf.get('last', len(a_['steps']) - 1) + 1]
+                assert st_, f'{rn}: charge_from {cf}: no steps'
+                ex['characters'][name]['anims']['charge'] = {'slot': a_.get('slot'), 'mode': 'hold', 'steps': st_}
             chars.append((game, rn, ex['characters'][name], start - SRC_BASE))
             TMPS[rn] = (tmp, name)
     tile_next = TILE_BASE + len(c1) // 64
@@ -2198,7 +2222,7 @@ def write_c(chars, outdir):
          'typedef struct { uint8_t nparts, ncols; const bpart_t *parts; } bframe_t;   /* ncols: hardware sprites the frame uses */',
          'typedef struct { int8_t x, y; uint8_t w, h; } bbox_t;                       /* centre from the feet (y<0 up), half extents; sprite faces left */',
          'typedef struct { uint16_t frame; uint8_t ticks, flags; bbox_t hurt, atk; int8_t dx; uint8_t hy; } bstep_t;   /* flags: 1 = attack box, 2 = hurt box, 4 = opens a new hit (multi-hit normals; in a ROM special: 4 the victim reels without sliding (under SF_SREACT: its body box is a push box, Kizuna\'s type 5), 8 event, 16 same hit, 32 window, 64 a catch box, 128 no hit-stop: KOF\'s class 4 barrage hits, TODO #139); dx: px the fighter moves forward as the step starts (KOF\'s $FB move); hy: height in px during the step (command normals that hop: export96.cmd_frames); in a ROM special\'s anims (bspec_t.anims) the victim\'s reaction to its attack box instead, packed R_* standing | juggled << 4 (KOF\'s reaction table: tools/kof96/handlers98.box_react; 0 = the P_ANIM reaction) */',
-         'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: stop on the last step */',
+         'typedef struct { uint8_t nsteps, hold; const bstep_t *steps; } banim_t;     /* hold: 1 = stop on the last step, $80 | k = loop back to step k (export_bm anim_hold) */',
          'typedef struct { int32_t walk, jump_vy0, gravity, jump_dx, hop_vy0, hop_gravity, hop_dx; uint8_t prejump, land; } bphys_t;   /* 16.16 px per frame (KOF ROM: export96 physics); jump_* = the regular jump (stick held), hop_* = the hop (stick tapped); jump_dx / hop_dx: horizontal speed of a forward or back jump; prejump: frames on the ground before take-off (KOF: the prejump animation, the frames in which a release makes the jump a hop); land: frames on the floor after a jump (KOF: the landing animation\'s steps at ticks + 1 frames each, + 1, measured: KOF98 4, Terry / Rugal / Goenitz 5) */',
          'typedef struct { uint16_t tframe; int16_t tx, ty; uint8_t vpose, flags; int16_t vx, vy; } bthrow_row_t;   /* one video frame of a paired script (vocabulary hold.paired_script): thrower frame + offset from its start (forward +, up +); victim posture (0xFF: none; flags 32: a BA_* animation it plays instead, its flight: blowback, knockdown...) + offset from the thrower; flags 1 = victim faces the thrower\'s way (its facing at the grab), 2 = victim drawn in front (a data override: game.json roster[].throws.front; else always behind the grabber, TODO #146), 4 = impact (the blow lands / the victim hits the floor: damage, spark, sound), 16 = the game froze there (hit-stop), 8 = the thrower has turned around (drawn mirrored; offsets stay in its grab facing) */',
          'typedef struct { uint16_t nrows, speed; const bthrow_row_t *rows; uint16_t ret, rel, land, fx_row; int16_t fx_dx, fx_dy; uint8_t hanim, hstep; uint16_t gframe, stun; uint8_t hsfx, turn; } bthrow_t;   /* turn (Krauser gold 2026-10-09, game.json roster[].throws.back = "throw_c"): an empty BT_THROW_D whose back throw is its C throw played turned (fighter.c throw_start: the victim over to its back at the grab, as the mirrored back throw of a chain); hsfx: a hold hit\'s sound, a normal button\'s (SX_A + 1 .. SX_CD + 1; 0 = its move\'s own: game.json roster[].throws.hold.sfx);  speed: 8.8 script rows a frame (fighter.c throw_update); ret: the CONTROL RETURN row (the thrower acts again from it; the victim plays its rows on alone to nrows, then lies down); rel / land: the release row and the landing row (0xFFFF: none): from rel to land the victim is a thrown body (spawn.body: it knocks down the enemies it touches); fx_row / fx_dx / fx_dy: the throw-start effect (fx.throw_start, TODO #166: KOF96/98\'s effect state 61 + its sound) on that row, px forward / up from the thrower (0xFFFF: none: the hold hits); hanim / hstep: a hold hit\'s move (BA_*) and its active step, whose attack box hits the crowd around the held victim (0xFF: none); gframe: the thrower\'s hold pose (throw C only; 0xFFFF: the throw\'s first row: SS2\'s turned grab has its own, TODO #188 a); stun: a stun strike (TODO #212, Double Dragon\'s Cheng-Fu: no damage, no impact): at its end the victim stands dizzy in its heavy reel for stun frames, open to any hit (fighter.c victim_end, fighter_t.dizzy; 0 = a throw) */',
@@ -2459,7 +2483,7 @@ def write_c(chars, outdir):
         c.append(f'static const uint16_t {n}_flk[{16 * len(ch["block_palettes"]) if fk else 1}] = {{' +
                  (', '.join(f'0x{v:04X}' for row in fk['sets'] for v in row) if fk else '0') + '};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
-            f'{{{len(source(ch, m)["steps"])}, {1 if source(ch, m)["mode"] == "hold" else 0}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
+            f'{{{len(source(ch, m)["steps"])}, {anim_hold(source(ch, m))}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
     lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}
