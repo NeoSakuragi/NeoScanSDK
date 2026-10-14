@@ -2,7 +2,8 @@
  * P1 / P2: stick = walk on the floor (up/down = depth), double tap forward = run, A punch, B kick, C jump, D special.
  * Combo routes: AAA, AAB, BB, BAB, finishers forward+A / down+B; air A / B. Two dummy enemies (Terry's other colour sets).
  * HUD: P1 state and combo link, P1's target (fighter number, life), CPU = worst frame of the last 16 (crt0 counts idle spins of 54 cycles;
- * a frame is 202,752 cycles at 12 MHz, so idle % = spins * 54 / 2027.52 ~ spins * 7 / 256). */
+ * a frame is 202,752 cycles at 12 MHz, so idle % = spins * 54 / 2027.52 ~ spins * 7 / 256), LAG n = the frames dropped over
+ * those 16 ticks (ticks that overran: CPU never shows them). */
 #include <neoscan.h>
 #include "neo_internal.h"
 #include "fighter.h"
@@ -1378,6 +1379,8 @@ static int8_t hud_lives[2];
 static uint16_t hud_cont[2];
 static uint8_t hud_face[2], hud_two = 0xFF;      /* portraits shown left / right; layout (0 = one player, 1 = two) */
 static uint16_t hud_tick, hud_min_spins = 0xFFFF;
+static uint16_t hud_lag, hud_lag_v, hud_lag_t;   /* (CPU budget H) frames dropped this window; vblank_count / game_ticks at the last hud */
+extern volatile uint32_t game_ticks;             /* (crt0) */
 static uint8_t wave;
 static void fix_put(uint8_t col, uint8_t row, uint16_t v) { cmd_push(VRAM_FIX + col * 32 + row + 2, v); }
 static uint8_t char_index(const bchar_t *ch) { uint8_t i; for (i = 0; i < BC_COUNT; i++) if (&bm_chars[i] == ch) return i; return 0; }
@@ -1515,10 +1518,19 @@ static void hud(void) {
     }
     if (boss_shown) bar_draw(&bars[4], fighters[BOSS_IDX_HUD].hp, fighters[BOSS_IDX_HUD].hp_max);
     if ((hud_tick & 15) != 0 && (uint16_t)wait_cycles < hud_min_spins) hud_min_spins = (uint16_t)wait_cycles;  /* skip the print tick */
+    {   /* (CPU budget H) the frames dropped: a tick that overran takes 2+ vblanks, which the idle spins never show (CPU
+           reads the worst tick that fit); LAG = the frames dropped over the last 16 ticks (from one hud to the next:
+           vblanks - ticks; a stretch without the HUD in between, a scene or a pause, is not counted) */
+        uint16_t v = vblank_count, t = (uint16_t)game_ticks;
+        if ((uint16_t)(t - hud_lag_t) == 1 && (uint16_t)(v - hud_lag_v) > 1) hud_lag += (uint16_t)(v - hud_lag_v) - 1;
+        hud_lag_v = v; hud_lag_t = t;
+    }
     if (!(++hud_tick & 15)) {
         uint16_t idle = (uint16_t)(((uint32_t)hud_min_spins * 7) >> 8);
         FIX_print(30, 26, "CPU    %", 0); FIX_printNum(34, 26, idle >= 100 ? 0 : 100 - idle, 0);
-        hud_min_spins = 0xFFFF;
+        FIX_print(22, 26, "      ", 0);
+        if (hud_lag) { FIX_print(22, 26, "LAG", 0); FIX_printNum(26, 26, hud_lag > 99 ? 99 : hud_lag, 0); }
+        hud_min_spins = 0xFFFF; hud_lag = 0;
 #if PROFILE_HUD
         {
             static const char *PN[P_N] = { "FLUSH", "AI", "UPDATE", "COMBAT", "SORT", "TILES", "GUARD", "PLACE", "HUD" };
