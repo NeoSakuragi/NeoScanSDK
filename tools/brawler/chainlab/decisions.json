@@ -2973,6 +2973,137 @@
      ]
     }
    ]
+  },
+  {
+   "id": "bonus-followup",
+   "title": "Bonus game: follow-ups (and Haggar)",
+   "intro": "Your answers: two AOF2 games — Ki training (punch the big tree: more meter) and Super Death Blow (break the wooden posts: unlocks Fury + Fury MAX on D), after stage 1 and stage 3, AOF2 tree + posts. These are the gaps before building. One answer each; a note for anything else.",
+   "sections": [
+    {
+     "title": "Bonus game",
+     "questions": [
+      {
+       "id": "bf-order",
+       "title": "Which game after which stage",
+       "context": "Two slots (after stage 1, after stage 3), two games.",
+       "options": [
+        {
+         "label": "After stage 1: tree (meter). After stage 3: posts (Fury unlock)"
+        },
+        {
+         "label": "After stage 1: posts (Fury unlock). After stage 3: tree (meter)"
+        },
+        {
+         "label": "Both times a pick screen with both games"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "bf-lock",
+       "title": "Fury and Fury MAX before the posts are won",
+       "context": "\"Fury and Fury MAX unlock with the D button once performed\" read as: locked until the posts bonus is won.",
+       "options": [
+        {
+         "label": "Locked until won (D does nothing for fury before that)"
+        },
+        {
+         "label": "Available from the start; the bonus only adds a reward on top"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "bf-fail",
+       "title": "If the posts are not all broken in time",
+       "context": "AOF2: no unlock, only points.",
+       "options": [
+        {
+         "label": "Fury stays locked for this credit (a continue keeps the lock)"
+        },
+        {
+         "label": "Unlocked anyway; a fail only loses the bonus score"
+        },
+        {
+         "label": "A fail gives Fury but not Fury MAX"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "bf-break",
+       "title": "How your fighter breaks the posts",
+       "context": "AOF2: Ryo must use the Super Haoh Shoko-ken; our fighters each have their own fury.",
+       "options": [
+        {
+         "label": "Only his own fury breaks posts (shown how on screen; teaches the motion)"
+        },
+        {
+         "label": "Any hit chips the posts; a fury breaks them in one go"
+        },
+        {
+         "label": "Normals and specials only (the fury is what you are earning)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "bf-meter",
+       "title": "What the tree (Ki training) gives",
+       "context": "Ki training = one-press timing on a sweeping gauge (AOF2 Spirit Training, AOF1 Bottle Cut code); the grade sets the reward.",
+       "options": [
+        {
+         "label": "+1 meter stock for the run (3 -> 4), top grade only"
+        },
+        {
+         "label": "Meter starts full in the next stage, scaled by the grade"
+        },
+        {
+         "label": "Faster meter gain for the run, scaled by the grade"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Haggar in the build",
+     "questions": [
+      {
+       "id": "haggar-swap",
+       "title": "The select screen is full (25 places): who makes room for Haggar",
+       "context": "Haggar is ready (Lab-only, 0.10.82). The one taken off goes back to Lab-only and can return any time from Roster & select.",
+       "options": [
+        {
+         "label": "Hanzo (SS2): the second Hanzo"
+        },
+        {
+         "label": "Cheng Fu"
+        },
+        {
+         "label": "Billy Lee"
+        },
+        {
+         "label": "Rosa"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ]
 }
