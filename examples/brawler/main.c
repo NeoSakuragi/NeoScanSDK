@@ -2804,6 +2804,9 @@ static void bn_fall_step(void) {
         bn_put(BN_FALL_SPR, o, o->x + e->dx, o->y + e->dy, 0, 0xF, e->vs, 1);
         if (o->w < BONUS_FALL_MAXW) bn_hide(BN_FALL_SPR + o->w, BONUS_FALL_MAXW - o->w);
     }
+    for (k = 0; k < bn_g->nfall; k++)            /* its sounds (game.json fall_sounds, note 20261014-171700-5d29: AOF2's
+                                                    crack and fall, sent on its frames from the punch mark) */
+        if (bn_g->fall_t[k] == bn_fall_t - 1) snd_sfx(bn_g->fall_sfx[k]);
     if (bn_fall_t < 0xFFFF) bn_fall_t++;
 }
 static void bn_leaves(uint8_t n) {               /* n leaves from the canopy (a fixed spread, no random draw) */

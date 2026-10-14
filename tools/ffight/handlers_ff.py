@@ -43,22 +43,46 @@ def frames_of(X, spec):
     ents, _ = X.entries(spec)
     return [(e, fa) for e, fa, t, at in ents for _ in range(t)]
 
-def collapse(X, B, name, rows):
+def collapse(X, B, name, rows, one_hit=True):
     steps = []
     for e, fa in rows:
         if steps and steps[-1]['ff'][0] == e: steps[-1]['ticks'] += 1; continue
         bx = X.kof_boxes(fa, name)
         steps.append({'frame': B.frame(fa), 'ticks': 0, 'flags': 0x100 if '11' in bx else 0, 'dx': 0, 'boxes': bx, 'ff': [e, fa]})
     for i, s in enumerate(steps):                   # FF hits once per move: consecutive attack steps = one hit
-        if s['flags'] & 0x100 and i + 1 < len(steps) and steps[i + 1]['flags'] & 0x100: s['flags'] |= 0x4000
+        if one_hit and s['flags'] & 0x100 and i + 1 < len(steps) and steps[i + 1]['flags'] & 0x100: s['flags'] |= 0x4000
     return steps
 
-def special(X, B, name):
+# FURY PIECES (note 20261014-171937-5d29, Bruno: "a completely new fury for Haggar, Final Fight has none: jab, jab,
+# finisher, x3, then the special; nothing launches but the very last hit of the special, which does seven or eight
+# hits"): his own animations as ground programs of their own, played back to back by game.json roster[].fury = the list
+# (export_bm sequences, fighter.c seq_next). input -> (animation, frames kept (None: the whole), damage a hit, reaction
+# of the last hit (the others a reel), each attack step a hit of its own). Cuts = FF's chain cadence [meas rec_ff
+# haggar chain]: a jab link starts 2 frames after the hit entry's first (entries 0-1 = 8 frames, then the hit: 10), the
+# finisher keeps its hit entry whole (entries 0-1 = 10 frames + 5). The spin: $13600's 8 attack steps, one hit each
+# (FF's lariat hits once: rec_ff special_hit, $00 on its hit), the last a knockdown. Damage: jab 1 x 6 + finisher 3 x 3
+# + spin 2 x 8 = 31 (game.json tiers.fury 30 +-20 %)
+PIECES = {'haggar': {'P.JAB': (0x1397C, 10, 1, 'reel', False), 'P.FIN': (0x13A94, 15, 3, 'reel', False),
+                     'P.AJ8': (0x13600, None, 2, 'knockdown', True)}}
+
+def pieces(X, B, name):
+    out = []
+    for inp, (anim, keep, dmg, last, multi) in (PIECES.get(name) or {}).items():
+        sp = special(X, B, name, anim=anim, keep=keep, multi=multi, dmg=dmg,
+                     react=HS.R_KNOCKDOWN if last == 'knockdown' else HS.R_HEAVY, piece=True)
+        sp.update(input=inp, base_input=inp, condition='piece', name=f'Fury piece {inp} (${anim:X})')
+        out.append(sp)
+    return out
+
+def special(X, B, name, anim=None, keep=None, multi=False, dmg=None, react=None, piece=False):
     import export_ss2 as XS
-    rows = frames_of(X, SPECIAL[name]); arc = SPECIAL_ARC[name]
-    ents = X.entries(SPECIAL[name])[0]
+    anim = anim or SPECIAL[name]
+    rows = frames_of(X, anim); arc = SPECIAL_ARC[name] if anim == SPECIAL[name] else None
+    ents = X.entries(anim)[0]
     if ents[-1][3] == 0xFF:                         # the end entry ($FF): the move ends on its first frame [meas]
         rows = rows[:len(rows) - ents[-1][2] + 1]
+    if keep: rows = rows[:keep]
+    react = HS.R_KNOCKDOWN if react is None else react
     if arc:                                         # the hop: its air frames (y > 0) as FF's 16.16 arc gives them, then
         vy, g, y, air = arc[0], arc[1], 0.0, 0      # the landing crouch (the jump's: 6 + 1 frames) on the floor
         while True:
@@ -71,10 +95,10 @@ def special(X, B, name):
     else: segs = [rows[:1], rows[1:]]
     states, anims_d, ops = [], {}, []
     for i, sg in enumerate(segs):
-        steps = collapse(X, B, name, sg)
+        steps = collapse(X, B, name, sg, one_hit=not multi)
         steps[0]['ticks'] += 1                      # the brawler's clock: P_ANIM shows step 0 once more (handlers_lb2)
         if steps[-1]['ticks']: steps[-1]['ticks'] -= 1
-        k = f'{i}:{SPECIAL[name]:x}'; states.append(k); anims_d[k] = {'mode': 'hold', 'steps': steps}
+        k = f'{i}:{anim:x}'; states.append(k); anims_d[k] = {'mode': 'hold', 'steps': steps}
         air = bool(arc) and i == 1
         ops += [('label', ('E', i)), ('anim', i), ('set', 'vx', 0), ('set', 'cnt', len(sg) - 1)]
         if arc and i == 2: ops.append(('set', 'h', 0))
@@ -86,8 +110,12 @@ def special(X, B, name):
     prims = [encode(o) for o in assemble(ops)]
     nh = sum(sum(HS.openings(anims_d[s]['steps'])) for s in states)
     for p in prims:
-        if p[0] == HS.P['anim']: p[2] = max(1, HS.SPECIAL_DAMAGE // max(1, nh)) | HS.R_KNOCKDOWN << 8
-    for s in states: XS.standard_reacts(anims_d[s]['steps'], HS.R_KNOCKDOWN)
+        if p[0] == HS.P['anim']: p[2] = (dmg or max(1, HS.SPECIAL_DAMAGE // max(1, nh))) | react << 8
+    for s in states: XS.standard_reacts(anims_d[s]['steps'], react)
+    if piece:                                       # a fury piece's reels never slide the victim (FF's hits push nobody:
+        for s in states:                            # Bred's x stays 528 through Haggar's whole chain, rec_ff chain) -> bstep_t
+            for st in anims_d[s]['steps']:          # flags 4 (export_bm 'noslide'): the dance keeps it in his reach
+                if st['flags'] & 0x100: st['noslide'] = True
     anims_l = [{'steps': anims_d[s]['steps'], 'hold': True} for s in states]
     prow = play(prims, anims_l)
     st = lambda r: anims_l[r[0]]['steps'][r[1]]
@@ -102,9 +130,9 @@ def special(X, B, name):
     return {'input': 'AJ', 'condition': 'normal', 'version': 'whiff', 'script': script, 'name': 'Special (attack + jump)',
             'base_input': 'AJ', 'row_boxes': [st(r)['boxes'] for r in prow],
             'row_steps': [[r[0], r[1], st(r)['flags'], 0xFF] for r in prow],
-            'marks': [''] * len(script), 'projectiles': [], 'anims': [SPECIAL[name]],
+            'marks': [''] * len(script), 'projectiles': [], 'anims': [anim],
             'shape': [max(r[1] for r in script), max(r[2] for r in script), False], 'game_hits': len(opens), 'rom': rom,
-            'ff': {'anim': SPECIAL[name], 'arc': arc, 'frames': len(prow)},
+            'ff': {'anim': anim, 'arc': arc, 'frames': len(prow)},
             'ss2': {'results': [], 'sounds': [], 'code_sounds': [], 'code_voices': []}}
 
 def play(prims, anims_l):

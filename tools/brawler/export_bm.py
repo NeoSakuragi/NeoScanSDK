@@ -291,7 +291,13 @@ def played_inputs(n):
     r = roster().get(n) or {}
     sp = r.get('specials') or []
     return {w for v in (sp.values() if isinstance(sp, dict) else sp) if v for w in (v if isinstance(v, list) else [v])} | \
-        ({r['fury']} if r.get('fury') else set())
+        set(fury_inputs(r))
+
+def fury_inputs(r):
+    """the inputs a roster fighter's fury names: one, or a SEQUENCE's pieces (roster[].fury = a list, note
+    20261014-171937-5d29: Haggar's made-up fury, jab, jab, finisher x3 + the spin); [] = none"""
+    v = r.get('fury')
+    return list(v) if isinstance(v, list) else [v] if v else []
 
 def slot_inputs(slots):
     """the inputs a {slot: value} roster field names (blitz, air_specials): a value is an input, a move name, or a
@@ -825,7 +831,8 @@ def move_fx(n, sp, hk, element=0, state=None):
     if isinstance(want, dict):
         assert set(want) == {'states', 'sound'}, f'{n}: hit_sfx {sp["input"]}: {{"states": [...], "sound": name}}'
         want = want['sound'] if state in want['states'] else None
-    kind = KIND_OF[sfx_code(n, want)] if want else 29 if r.get('fury') and sp['input'] in (r['fury'], 'MAX ' + r['fury']) else hk
+    fi = fury_inputs(r)
+    kind = KIND_OF[sfx_code(n, want)] if want else 29 if fi and sp['input'] in fi + ['MAX ' + w for w in fi] else hk
     fire = hk in (11, 13, 21) or sp['input'] in (r.get('fire') or ())   # roster[].fire: specials whose hits burn though
     burn = H.BURN_OF.get(element) or (FIRE_COLOUR.get(n, 2) if fire else 0)   # their game's kind is not a fire one (TODO #163)
     return kind | burn << 6
@@ -1169,7 +1176,8 @@ def special_pool(ch, name=None):
     out = [sp for sp in ch.get('specials', []) if sp['condition'] == 'normal' and not sp['input'].replace('EX ', '').startswith('air')
            and not sp.get('air') and not (name in NO_EX and sp['input'].startswith('EX '))]
     fury = fury_special(ch, name)
-    out = out + [fury] if fury is not None and fury not in out else out
+    out = out + [fury] if fury is not None and fury not in out and not fury.get('seq') else out   # (a sequence: its pieces
+                                                                                                 #  come last, sequences())
     for _, air in air_specials(ch, name):          # its air specials (a press in a jump, TODO #200 / #221), table order
         if air.get('seq'): continue                 # (a sequence's head: its pieces come last, sequences())
         out = out + [air] if air not in out else out
@@ -1238,6 +1246,7 @@ def seq_slots(r):
         for key, v in (r.get(field) or {}).items(): yield field, key, v
     sp = r.get('specials') or []
     for key, v in (sp.items() if isinstance(sp, dict) else zip(build_tables.SPECIAL_KEYS, sp)): yield 'specials', key, v
+    if isinstance(r.get('fury'), list): yield 'fury', 'D', r['fury']   # (the fury, note 20261014-171937-5d29: 'fury.D')
 
 
 def together(name, label, ps):
@@ -1354,6 +1363,9 @@ def fury_special(ch, name):
     """the fighter's fury (game.json roster[].fury: its KOF input, any condition; None = none)"""
     want = roster()[name].get('fury') if name in roster() else None
     if not want: return None
+    if isinstance(want, list): return seq_head(ch, name, 'fury.D')   # a SEQUENCE of pieces (note 20261014-171937-5d29):
+                                                                    # its first piece; seq_next plays the others, the
+                                                                    # fury's role kept (meter, flash, invincibility, tier)
     sp = next((sp for sp in ch.get('specials', []) if sp['input'] == want), None)
     assert sp, f'{name}: no fury {want} in its bank'
     return sp
@@ -1439,6 +1451,7 @@ def fury_max_special(ch, name):
     want = roster()[name].get('fury') if name in roster() else None
     if not want: return None
     sps = ch.get('specials', [])
+    if isinstance(want, list) and not roster()[name].get('max'): return None   # (a fury sequence: no 'MAX <fury>')
     mx = roster()[name].get('max')                  # game.json roster[].max (TODO #212): a source without KOF's MAX
     if mx:                                          # level names its down+D fury itself (Double Dragon's Cheng-Fu:
         sp = next((sp for sp in sps if sp['input'] == mx), None)   # two supers, the 623 one the bigger)

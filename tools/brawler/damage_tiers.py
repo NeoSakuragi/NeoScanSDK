@@ -87,12 +87,13 @@ for ci, name in enumerate(names):
         seen.add(kof)
         t, got = measure(dk + 'c')
         r['specials'][kof] = {'slot': slot, 'damage': t, 'ix': pool.index(kof) if kof in pool else None, 'played': got}
-    if R.get('fury'):
-        t, got = measure('d'); r['fury'] = {'input': R['fury'], 'damage': t, 'played': got}
+    fz = ' > '.join(R['fury']) if isinstance(R.get('fury'), list) else R.get('fury')   # (a fury sequence: build_tables' name)
+    if fz:
+        t, got = measure('d'); r['fury'] = {'input': fz, 'damage': t, 'played': got}
         form = R.get('form')
         if not (form and form['trigger'] == 'down+D full meter'):
             t, got = measure('Dd', low=True)
-            mx = R.get('max') if R.get('max') in pool else 'MAX ' + R['fury'] if 'MAX ' + R['fury'] in pool else R['fury']
+            mx = R.get('max') if R.get('max') in pool else 'MAX ' + fz if 'MAX ' + fz in pool else fz
             r['max'] = {'input': mx, 'damage': t, 'played': got}
     print(name, json.dumps(r), flush=True)
 os.makedirs(os.path.dirname(os.path.abspath(OUT)), exist_ok=True)

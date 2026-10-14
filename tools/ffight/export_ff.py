@@ -216,7 +216,7 @@ def export(names, outdir, only=None, extra=None, lab=None):
         if w: anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, name, w[0])[w[1]:][:1]}
         th = throws(B, name)
         for t, x in th.items(): anims[t] = x.pop('anim')
-        sps = [H.special(sys.modules[__name__], B, name)]
+        sps = [H.special(sys.modules[__name__], B, name)] + H.pieces(sys.modules[__name__], B, name)   # (+ its fury pieces)
         sets = colours(B)
         out['characters'][name] = {'id': CAST[name], 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(name),

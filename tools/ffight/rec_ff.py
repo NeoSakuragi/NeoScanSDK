@@ -37,6 +37,7 @@ SCEN = {
     'jatk_d':  (None, 200, [(('A',), 1), ((), 22), (('B', 'DOWN'), 1), (('DOWN',), 50)]),
     'jatk_fd': (None, 200, [(('A', 'RIGHT'), 1), (F, 22), (('B', 'DOWN'), 1), (('DOWN',), 50)]),     # (note 20261014-084234)
     'special': (None, 200, [(('A', 'B'), 1), ((), 90)]),
+    'special_hit': (30, 200, [(('A', 'B'), 1), ((), 90)]),    # (the spin connecting: its hit sound, for the fury's pieces)
     'whiff':   (None, 200, [(('B',), 1), ((), 40)]),
 }
 def chain_scen(name, links, back=False):

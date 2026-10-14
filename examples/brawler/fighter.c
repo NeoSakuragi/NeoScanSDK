@@ -2483,6 +2483,13 @@ static void special_end(fighter_t *f) {
                                                                     back (TODO #195: SS2's rage colours stay through the
                                                                     fury's motion, as SS2's rage lasts through the WFT) */
 }
+static uint8_t seq_piece(const fighter_t *f) {                 /* 1: a sequence's piece after its first (the pool entry
+                                                                    before it is SF_SEQ: export_bm.sequences writes the
+                                                                    pieces consecutive, only the last unflagged). A fury
+                                                                    sequence (game.json roster[].fury = a list, note
+                                                                    20261014-171937-5d29) flashes once: its first piece */
+    return f->spec_ix && f->spec_ix < f->ch->nspec && (f->ch->specials[f->spec_ix - 1].sflags & SF_SEQ);
+}
 static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), special_pick: it has a special */
     if (f->team) stat_specials++;
     f->sthr = pend_sthr; pend_sthr = 0;                         /* a throw's special (revamp 3): hold_special's pick */
@@ -2510,7 +2517,8 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
                                                                     the fury's rule, from its first frame to its end */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = f->spbuf = 0; f->spage = 0xFF;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
-    f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
+    f->fpose = seq_piece(f) && f->ch->nfpose ? 0xFF : 0;                      /* a fury's flash pose: not yet ("flash pose"; a sequence's
+                                                                    later piece: done, its first showed it) */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
     rt_arm(f, BA_COUNT + f->spec_ix);                            /* its targets, if it has some (retiming) */
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
@@ -3589,9 +3597,12 @@ static void special_update(fighter_t *f) {
     uint8_t k;
     uint16_t from;
     if (sp->prog) {                                              /* read from the ROM: its program */
+        uint8_t ix = f->spec_ix;
         if (f->rt_flags) { rt_prog(f, sp); return; }            /* retimed (see "retiming") */
         prog_update(f, sp);
-        if (sp->pvoice && f->state == S_SPECIAL) voice_at(f, VK_SPEC + f->spec_ix, f->srow - 1, f->srow - 1);   /* its
+        if (sp->pvoice && f->state == S_SPECIAL && f->spec_ix == ix)   /* (a sequence's next piece started in it: seq_next
+                                                                    played its first frame, its voice sent there) */
+            voice_at(f, VK_SPEC + f->spec_ix, f->srow - 1, f->srow - 1);   /* its
                                                                     voices by its frames (bspec_t.pvoice: Double Dragon's) */
         return;
     }
@@ -4139,7 +4150,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                       f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
-        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose)
+        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose && !seq_piece(f))
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
                                                                     super_flash: state_t 1 = its first frame) */
         break;

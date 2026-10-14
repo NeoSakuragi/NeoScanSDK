@@ -380,8 +380,16 @@ victim's own offsets (KOF's per-victim lists; other games' victims: posture anch
   piece's input, which now applies to EVERY pool entry of that input (build_tables retime_tables). Unset (no list):
   tables byte-identical (table diff 0.10.56 -> this build: only hanzo_ss2's rows + the SF enum + the retime rows
   renumbered). The Assembly shows it already (several pieces on a slot: "A → B → C", "+ add after"); arb_compile links
-  several S- ids on a Blitz / air special slot as the list (else unresolved, as before). Not yet: the C special slots,
-  the fury (their maps are by input: spmap / spec_map would read the head the way blitz_rows does). Set: Hanzo SS2 `ddA`
+  several S- ids on a Blitz / air special slot as the list (else unresolved, as before). The C special slots take a
+  list since 2026-10-12 (Moriya), the FURY since 2026-10-14 (note 20261014-171937-5d29, Haggar's made-up fury:
+  `roster[].fury` = `["P.JAB", "P.JAB", "P.FIN", ... "P.AJ8"]`, label `fury.D`; bchar_t.fury = the head): every piece
+  keeps the fury's role (seq_next restarts the next piece as BS_FURY: INV_FURY, the fury tier's scale, the dance), the
+  super flash and the flash pose play on the first piece only (fighter.c seq_piece: the pool entry before it is
+  SF_SEQ), a piece's voice is sent once (special_update: not again when seq_next already started the next piece in
+  the same frame). Haggar's pieces are his own FF animations as programs (tools/ffight/handlers_ff.PIECES: the jab cut
+  at FF's chain link, the finisher to its hit's end, the spin with each attack step a hit; every reel `noslide`: FF's
+  hits push nobody, rec_ff chain); proof tools/brawler/haggar_fury_proof.py (17 hits, reels to the spin's 8th, INV_FURY,
+  31 damage, one flash, FF's sounds per piece). Set: Hanzo SS2 `ddA`
   [j.4123A, j.4123B, j.4123AB] (S-008, S-009, S-010; Assembly answer `air_bz_dd` in the decisions store, backup
   `.bak-20261011-triple`), each with its startup halved (`retime` ["0.5x", null, null]: 15 -> 8 source frames).
   Measured in our emulator (/data/tmp/hanzo_triple, triple.py): the first shuriken 9 frames after the move starts (was

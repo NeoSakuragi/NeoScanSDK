@@ -4021,5 +4021,33 @@
   "expect": "He runs with Last Blade 2's own six-frame running stride, leaning forward, his legs keeping pace with the ground (no gliding on one pose, no sliding feet).",
   "do_keys": "2:R,2:-,70:R,30:-",
   "proof": 110
+ },
+ "20261014-171937-5d29": {
+  "title": "Haggar's new fury: jab, jab, finisher three times, then his spin with 8 hits",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D next to Ryo (the fury gauge is full).",
+  "expect": "After the super flash Haggar plays jab, jab, finisher, three times, then his spinning lariat, which hits 8 times. Ryo reels in place through every hit and is only knocked down by the spin's last hit. Haggar cannot be hit during the whole fury. You hear Haggar's swing on each jab, his finisher sound, the spin's shout, and Final Fight's hit sounds.",
+  "do_keys": "1:d",
+  "proof": 420
+ },
+ "20261014-171700-5d29": {
+  "title": "Ki training: the tree cracks, then you hear it fall",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is full (the clip presses at the top) and listen as the tree breaks.",
+  "expect": "As in Art of Fighting 2: the tree cracks (crackling) twice as its trunk splits and its top starts to fall, then the falling tree's crash when the crown hits the ground, and again as it settles, at AOF2's moments.",
+  "do_keys": "56:-,2:a",
+  "proof": 300
  }
 }

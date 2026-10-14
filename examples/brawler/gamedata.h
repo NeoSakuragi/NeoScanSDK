@@ -312,6 +312,7 @@ extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an in
  * time before `seconds` run out, only by the class `breaks` (BB_FURY: a fury's / MAX's body or objects); won: `unlock`
  * (BU_FURY: Fury and Fury MAX on D). fury_lock: D's fury locked from a new game until a BU_FURY game is won ---- */
 enum { BK_GAUGE, BK_BREAK };
+#define GB_FALL_SND 6                /* (build_tables.py GB_FALL_SND) */
 enum { BB_FURY };
 enum { BU_NONE, BU_FURY };
 typedef struct {
@@ -323,6 +324,9 @@ typedef struct {
     uint16_t seconds;             /* the game's clock (BK_GAUGE: no press by then = grade 0) */
     uint8_t grades[5];            /* BK_GAUGE: the power (0-127) each grade 1-5 needs */
     uint8_t chunks[6];            /* BK_GAUGE: drive chunks a grade 0-5 adds (the bar up to 4) */
+    uint8_t nfall, fall_t[GB_FALL_SND], fall_sfx[GB_FALL_SND];   /* BK_GAUGE (note 20261014-171700-5d29): the passed
+                                     tree's sounds as it falls, sfx code fall_sfx[k] at tick fall_t[k] from the blow (game.json
+                                     games[].fall_sounds: AOF2's crack and fall at its frames from the punch mark) */
 } gbonus_game_t;
 #define GB_MAX_GAMES 3
 typedef struct {
