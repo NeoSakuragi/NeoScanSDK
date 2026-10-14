@@ -1119,18 +1119,17 @@ static void set_burn(fighter_t *f, uint8_t burn) {
  * (5 R + 9 G + 2 B) / 16 by the tint's numbers (gamedata.h gtint_t, game.json "tints": shade, ash, rust); colour 0
  * (transparent) untouched */
 static __attribute__((noinline)) uint16_t tint_colour(uint8_t tint, uint16_t c) {
-    int16_t v[3], l;
-    uint8_t k;
-    const gtint_t *t = &gtints[tint];
-    v[0] = ((c >> 7) & 0x1E) | ((c >> 14) & 1); v[1] = ((c >> 3) & 0x1E) | ((c >> 13) & 1); v[2] = ((c << 1) & 0x1E) | ((c >> 12) & 1);
-    l = (v[0] * 5 + v[1] * 9 + v[2] * 2) >> 4;
-    for (k = 0; k < 3; k++) {
-        int16_t m = l * (int16_t)t->mix + v[k];                     /* 16 x 16 multiplies: muls, no libgcc */
-        v[k] = ((int16_t)(m * (int16_t)t->mul) >> t->shift) + t->add[k];
-        if (v[k] < 0) v[k] = 0;
-        if (v[k] > 31) v[k] = 31;
-    }
-    return RGB(v[0], v[1], v[2]);
+    /* (CPU budget B: the multiplies precomputed by build_tables.py, gtint_lut[tint - 1][l * 32 + channel]; the boss
+       wave's spawn spent 4 frames here) */
+    const int8_t *g = gtint_lut[tint - 1];
+    const int8_t *a = gtints[tint].add;
+    int16_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), gr = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+    int16_t l = (int16_t)((((r << 2) + r + (gr << 3) + gr + (b << 1)) >> 4) << 5);
+    r = g[l + r] + a[0]; gr = g[l + gr] + a[1]; b = g[l + b] + a[2];
+    if (r < 0) r = 0; else if (r > 31) r = 31;
+    if (gr < 0) gr = 0; else if (gr > 31) gr = 31;
+    if (b < 0) b = 0; else if (b > 31) b = 31;
+    return RGB(r, gr, b);
 }
 uint16_t fighter_colour(const fighter_t *f, uint16_t c) { return f->tint ? tint_colour(f->tint, c) : c; }   /* the
                                                              untinted path stays as cheap as before (the select screen calls it per colour) */

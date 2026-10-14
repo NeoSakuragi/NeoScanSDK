@@ -1044,6 +1044,24 @@ def bonus_tables(g, songs_known, sfx_names):
     return c
 
 
+
+def tint_lut(tints):
+    """the minion tints precomputed (CPU budget B, docs/brawler_cpu_budget.md: the boss wave's spawn tinted its minions'
+    palettes with 6 multiplies a colour, a 4-frame freeze): per tint, for every luminance l and channel c (0-31), what
+    fighter.c computed: (int16)((l * mix + c) * mul) >> shift; the game adds the channel's cast and clamps to 0-31. Kept
+    within -64..96 (the same result after a cast of at most +-32 and the clamp: int8)"""
+    rows = []
+    for n, t in tints.items():
+        assert all(-32 <= a <= 32 for a in t['add']), f'tint {n}: a cast past +-32'
+        v = []
+        for l in range(32):
+            for ch in range(32):
+                m = ((l * t['mix'] + ch) * t['mul']) & 0xFFFF
+                m = m - 0x10000 if m & 0x8000 else m
+                v.append(max(-64, min(96, m >> t['shift'])))
+        rows.append(f'    {{   /* {n} */\n' + '\n'.join('        ' + ', '.join(str(x) for x in v[i:i + 32]) + ',' for i in range(0, 1024, 32)) + '\n    },')
+    return 'const int8_t gtint_lut[TINT_COUNT - 1][1024] = {\n' + '\n'.join(rows) + '\n};'
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -1064,6 +1082,7 @@ def tables(g, build):
          'extern const char *const gstage_names[GS_COUNT];   /* game.json stages[].name: the HUD, GAME OVER */',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
+         'extern const int8_t gtint_lut[TINT_COUNT - 1][1024];   /* fighter.c tint_colour: tint t\'s (l * mix + c) * mul >> shift at [t - 1][l * 32 + c] */',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          'extern const uint8_t roster_music[BC_COUNT];   /* the fighter\'s theme (game.json roster[].music), 0 = none: main.c stage_song */',
@@ -1212,6 +1231,7 @@ def tables(g, build):
              f".boss_ko = 0x{code(hs['boss_ko']):02X}, .bounce = 0x{code(hs['bounce']):02X}, .scream_delay = {hs['scream_delay']}, .hurt = {hurt}, .rest_music = {hs['rest_music']}, .cycle = {{ hcycle_light, hcycle_strong }} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
+    c.append(tint_lut(g['tints']))
     erows = []
     for e in M['enemies']:
         ln = e['name'].lower()
