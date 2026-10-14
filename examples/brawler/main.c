@@ -849,7 +849,7 @@ static col_trim_t col_trim[NA];
 col_trim_t *trim_cur;                     /* draw.s fighter_tiles / fighter_place: the entity's columns */
 static uint8_t band_used[BANDS];
 #if BLK_CHECK
-uint16_t blk_bad, blk_checked;                   /* (the CPU budget C / D proof: cached spans / blocks that differ, checked) */
+uint16_t blk_bad, blk_checked;                   /* (the CPU budget C / D proof: band counts / kept blocks that differ, checked) */
 #endif
 static uint8_t span(int16_t top, int16_t bot, uint8_t sh, uint8_t *b1) {   /* screen y [top, bot) -> bands of 1 << sh
                                                                             px: b0 (returned) - *b1, b0 > *b1: none */
@@ -1011,18 +1011,52 @@ static void land_clip(uint8_t on) {
 }
 /* step c: an entity's shown columns on the 8-px bands (sign -1: taken back; th: thinned, its columns th - 1, th + 1,
  * ...); its band range in *lo / *hi */
+/* (CPU budget C, docs/brawler_cpu_budget.md: the columns added band by band cost up to a third of a frame on the
+ * effects-heavy ticks, an effect tried, taken back, thinned) each column's band span as two marks in a difference array
+ * (+1 at its first band, -1 after its last), then one pass over the entity's bands adds the running count: the same
+ * counts as adding every column on every band it covers, in columns + bands steps instead of columns x bands */
 static void cols_add(const fighter_t *f, int16_t oy, int8_t sign, uint8_t th, uint8_t *lo, uint8_t *hi) {
     const col_trim_t *c = &col_trim[f->idx];
-    uint8_t k, b0, b1, rows;
-    *lo = BANDS; *hi = 0;
+    uint32_t dl[(BANDS + 4) / 4];                            /* the marks, bands 0 .. BANDS (one past the last) */
+    int8_t *d = (int8_t *)dl, run = 0;
+    uint8_t k, b0, b1, rows, l = BANDS, h = 0, *u;
+    for (k = 0; k < (BANDS + 4) / 4; k++) dl[k] = 0;
     for (k = th ? th - 1 : 0; k < f->ncols; k += th ? 2 : 1) {
         if (!(rows = c->t[k] & 63)) continue;
         b0 = span(oy + c->top[k], oy + c->top[k] + (int16_t)(rows << 4), 3, &b1);
         if (b0 > b1) continue;
-        bands_add(b0, b1, sign);
-        if (b0 < *lo) *lo = b0;
-        if (b1 > *hi) *hi = b1;
+        d[b0]++; d[b1 + 1]--;
+        if (b0 < l) l = b0;
+        if (b1 > h) h = b1;
     }
+    *lo = l; *hi = h;
+#if BLK_CHECK
+    {   uint8_t ref[BANDS], rl = BANDS, rh = 0;                  /* the proof: the column-by-band walk it replaces */
+        for (k = 0; k < BANDS; k++) ref[k] = band_used[k];
+        for (k = th ? th - 1 : 0; k < f->ncols; k += th ? 2 : 1) {
+            if (!(rows = c->t[k] & 63)) continue;
+            b0 = span(oy + c->top[k], oy + c->top[k] + (int16_t)(rows << 4), 3, &b1);
+            if (b0 > b1) continue;
+            for (u = ref + b0; b0 <= b1; b0++) *u++ += sign;
+        }
+        for (k = th ? th - 1 : 0; k < f->ncols; k += th ? 2 : 1) {
+            if (!(rows = c->t[k] & 63)) continue;
+            b0 = span(oy + c->top[k], oy + c->top[k] + (int16_t)(rows << 4), 3, &b1);
+            if (b0 > b1) continue;
+            if (b0 < rl) rl = b0;
+            if (b1 > rh) rh = b1;
+        }
+        if (l <= h) { u = band_used + l; for (k = l; k <= h; k++) { run += d[k]; *u++ += sign > 0 ? run : -run; } }
+        blk_checked++;
+        if (rl != l || rh != h) blk_bad++;
+        else for (k = 0; k < BANDS; k++) if (ref[k] != band_used[k]) { blk_bad++; break; }
+        return;
+    }
+#endif
+    if (l > h) return;
+    u = band_used + l;
+    if (sign > 0) for (k = l; k <= h; k++) { run += d[k]; *u++ += run; }
+    else for (k = l; k <= h; k++) { run += d[k]; *u++ -= run; }
 }
 static uint8_t guard_tier(const fighter_t *f) {
     const fighter_t *o;
