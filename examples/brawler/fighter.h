@@ -551,7 +551,8 @@ typedef struct fighter {
      * colours, OVL_WHITE the breaker's blink, OVL_RED the red state's); fmax = the fury playing started as the MAX */
     uint16_t dsc;
     uint8_t  dacc, brk, ovl, fmax;
-    uint8_t  sfl, sfl_pad;        /* sfl: a paid C special's blue flash, frames left (fighter.c pal_overlay, gmeter.sflash) */
+    uint8_t  sfl, pfury;          /* sfl: a paid C special's blue flash, frames left (fighter.c pal_overlay, gmeter.sflash);
+                                   * pfury: a projectile born in a fury (proj_alloc; main.c's bonus posts) */
     /* throws (revamp phase 3, fighter.c "hold and throws"): sthr = the special playing is a throw (1: an extra throw,
      * BS_THROW; 2: the super throw, played as a fury) and xix its special's index (start_special takes it); thr_dmg = a
      * paired throw's whole damage on its victim (THROW_DAMAGE, the super throw's gmeter.sthrow_dmg); tb_by = the throw
@@ -604,6 +605,11 @@ typedef struct fighter {
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
+extern uint8_t drive_chunks, fury_lock;   /* (fighter.c "the meter"; main.c "bonus stages") */
+void fighter_meter_fill(fighter_t *f);    /* both bars full (the bonus posts: the fury always payable) */
+uint8_t fighter_strike_box(const fighter_t *a, int16_t *x0, int16_t *x1, int16_t *y0, int16_t *y1);   /* its attack box this
+                                   frame on screen (world x, screen y) -> 0 none, 1 a normal / special, 2 a fury's (MAX's)
+                                   body or one of its objects */
 void fighter_game_reset(void);   /* a new game: the overlay cache and the burn clock from zero (fighter.c; the attract never bleeds into play) */
 uint8_t fighter_low(const fighter_t *f);   /* low life (gmeter.low): the life bar blinks red; with the gauge full: the MAX */
 enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not

@@ -14,13 +14,18 @@ lab/levels), shipped by the ship service (labcfg.py ship-worker) like a fighter'
                                              emulator (tools/port/capture_snd.py brawler, BRAWLER_CORE), then the cache
                                              rsync'd to H:DIR (the page's /brawler-factory/songs/)
 
+The bonus stages (TODO T7, game.json "bonus"; build_tables.bonus_check, main.c "bonus stages") are edited here too: the
+draft's optional `bonus` = {after: [stage numbers], pick_seconds, fury_lock, games: [{name, music, seconds, count | top}]}
+(top = the drive chunks the gauge game's top grade adds); only the bonus block is rewritten (bonus_text).
+
 A name: 1-12 characters A-Z 0-9 space . ! - (the fix font; build_tables.STAGE_NAME, the HUD's room before WAVE).
 A background: a stage of the build wide enough for the stage's lock points (each wave's and the boss's: lock <= width
 - 320, build_tables.model). A song: a songs.json song. Stage 1 plays P1's own theme instead when he has one (game.json
 roster[].music, main.c stage_song): no game.json switch for that."""
-import ast, hashlib, json, os, re, subprocess, sys
+import ast, copy, hashlib, json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
 NAME = r'[A-Z0-9 .!-]{1,12}'
 FIELDS = ('name', 'background', 'music')
@@ -45,9 +50,42 @@ def state(game):
     for s in g['stages']:
         locks = [w['lock'] for w in s['waves']] + [s['boss']['lock']]
         st.append({**{k: s[k] for k in FIELDS}, 'need_w': max(locks) + 320})
-    return {'stages': st, 'bgs': backgrounds(), 'stage1_theme': True,
+    return {'stages': st, 'bgs': backgrounds(), 'stage1_theme': True, 'bonus': bonus_view(g),
             'songs': [{'name': s['name'], 'source': s['source'], 'what': s.get('what', '')[:160], 'preview': 'songs/' + preview_key(s)} for s in songs],
             'version': open(os.path.join(game, 'VERSION')).read().strip()}
+
+
+def bonus_view(g):
+    """the bonus block as the page edits it (compact: the fields Bruno tunes; kind / scene / grades stay in game.json)"""
+    b = g.get('bonus')
+    if not b: return None
+    return {'after': b['after'], 'pick_seconds': b['pick']['seconds'], 'fury_lock': bool(b.get('fury_lock')),
+            'games': [{'id': x['id'], 'kind': x['kind'], 'scene': x['scene'], 'name': x['name'], 'music': x['music'], 'seconds': x['seconds'],
+                       **({'count': x['count']} if x['kind'] == 'break' else {'top': x['chunks'][5]})} for x in b['games']]}
+
+
+def bonus_merge(game, g, want):
+    """the page's bonus view into game.json's bonus block -> (the new block, change lines); raises ValueError(reason)"""
+    import build_tables
+    old = bonus_view(g); b = copy.deepcopy(g['bonus']); ch = []
+    if not isinstance(want, dict) or not isinstance(want.get('games'), list) or len(want['games']) != len(b['games']):
+        raise ValueError('the bonus draft does not match the game\'s bonus games: edit it again')
+    b['after'] = sorted(want.get('after', b['after'])); b['pick']['seconds'] = want.get('pick_seconds', b['pick']['seconds'])
+    b['fury_lock'] = bool(want.get('fury_lock', b.get('fury_lock')))
+    for x, w in zip(b['games'], want['games']):
+        for k in ('name', 'music', 'seconds') + (('count',) if x['kind'] == 'break' else ()):
+            if k in w: x[k] = w[k]
+        if x['kind'] == 'gauge' and 'top' in w: x['chunks'] = x['chunks'][:5] + [w['top']]
+    songs = {s['name'] for s in json.load(open(os.path.join(game, 'songs.json')))['songs']}
+    try: build_tables.bonus_check({**g, 'bonus': b}, songs)
+    except (AssertionError, KeyError, TypeError) as e: raise ValueError(f'bonus: {e}')
+    new = bonus_view({'bonus': b})
+    for k in ('after', 'pick_seconds', 'fury_lock'):
+        if new[k] != old[k]: ch.append(f'levels: bonus {k} {json.dumps(old[k])} -> {json.dumps(new[k])}')
+    for o, n in zip(old['games'], new['games']):
+        for k in n:
+            if n[k] != o[k]: ch.append(f"levels: bonus {o['id']} {k} {json.dumps(o[k])} -> {json.dumps(n[k])}".replace('"', ''))
+    return b, ch
 
 
 def check(game, draft):
@@ -69,12 +107,30 @@ def check(game, draft):
         for k in FIELDS:
             if v[k] != old[k]: ch.append(f'levels: stage {n} {k} {json.dumps(old[k])} -> {json.dumps(v[k])}'.replace('"', ''))
         out.append(v)
+    if isinstance(draft, dict) and draft.get('bonus') is not None:   # (the bonus stages: optional in a draft)
+        b, bch = bonus_merge(game, json.load(open(os.path.join(game, 'game.json'))), draft['bonus'])
+        if bch: ch += bch; out = (out, b)
     return out, ch
 
 
+def bonus_text(b, ind=' '):
+    """game.json's bonus block in its own layout (one line a field, one line a game)"""
+    one = lambda v: json.dumps(v, ensure_ascii=False)
+    rows = [f'{ind}"bonus": {{'] + [f'{ind} {one(k)}: {one(v)},' for k, v in b.items() if k != 'games']
+    rows += [f'{ind} "games": ['] + [f'{ind}  {one(x)}' + (',' if i + 1 < len(b['games']) else '') for i, x in enumerate(b['games'])] + [f'{ind} ]', f'{ind}}},']
+    return rows
+
+
 def write(game, new):
-    """only the stages' name / background / music lines of game.json rewritten (the rest keeps its text)"""
+    """only the stages' name / background / music lines of game.json rewritten (the rest keeps its text); a bonus block
+    changed (new = (stages, bonus)): that block rewritten (bonus_text)"""
+    bonus = None
+    if isinstance(new, tuple): new, bonus = new
     p = os.path.join(game, 'game.json'); text = open(p).read(); lines = text.split('\n')
+    if bonus is not None:
+        a = next(k for k, l in enumerate(lines) if l == ' "bonus": {')
+        e = next(k for k in range(a, len(lines)) if lines[k] == ' },')
+        lines[a:e + 1] = bonus_text(bonus)
     i = next(k for k, l in enumerate(lines) if l.strip() == '"stages": [')
     ind = None
     for si, v in enumerate(new):
@@ -87,6 +143,7 @@ def write(game, new):
     out = '\n'.join(lines)
     G = json.loads(out)
     assert [{k: s[k] for k in FIELDS} for s in G['stages']] == new, 'game.json rewrite mismatch'
+    assert bonus is None or G['bonus'] == bonus, 'game.json bonus rewrite mismatch'
     open(p, 'w').write(out)
 
 

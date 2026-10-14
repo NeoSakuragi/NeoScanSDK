@@ -736,7 +736,20 @@ def levels_clean(req):
         if not isinstance(x.get('background'), int) or not isinstance(x.get('music'), str) or not SONG_NAME.match(x['music']):
             return None, 'stage %d: background (a number) and music (a song name)' % (i + 1)
         clean.append({'name': x['name'], 'background': x['background'], 'music': x['music']})
-    return {'stages': clean}, None
+    b = req.get('bonus')                                         # the bonus stages (TODO T7; levels.py bonus_view /
+    if b is None: return {'stages': clean}, None                 # bonus_merge check it against the game)
+    num = lambda v: isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 99
+    if not isinstance(b, dict) or not isinstance(b.get('after'), list) or not all(num(s) for s in b['after']) or \
+       not num(b.get('pick_seconds')) or not isinstance(b.get('fury_lock'), bool) or not isinstance(b.get('games'), list) or len(b['games']) > 3:
+        return None, 'bonus: {after, pick_seconds, fury_lock, games}'
+    games = []
+    for g in b['games']:
+        if not isinstance(g, dict) or not isinstance(g.get('name'), str) or not re.match(r'^[A-Z0-9 .!-]{1,18}$', g['name']) or \
+           not isinstance(g.get('music'), str) or not SONG_NAME.match(g['music']) or not num(g.get('seconds')) or \
+           not all(num(g[k]) for k in ('count', 'top') if k in g):
+            return None, 'bonus game: {name (1-18 A-Z 0-9 space . ! -), music, seconds, count | top}'
+        games.append({k: g[k] for k in ('id', 'kind', 'scene', 'name', 'music', 'seconds', 'count', 'top') if k in g})
+    return {'stages': clean, 'bonus': {'after': b['after'], 'pick_seconds': b['pick_seconds'], 'fury_lock': b['fury_lock'], 'games': games}}, None
 
 
 def game_clean(req):

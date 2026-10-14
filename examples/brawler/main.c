@@ -19,6 +19,7 @@
 #include "portraits_big.h"
 #include "staff_roll.h"
 #include "bm_wins.h"
+#include "bonus.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
 #include "labslot.h"
@@ -192,6 +193,9 @@ static uint8_t bz_x[2][2], bz_xa[2][2], bz_z[2][2], bz_za[2][2];   /* the Blitz 
 static uint8_t ab_age[2][2];                     /* A+B = C (read_player): frames since A / B was pressed */
 enum { PH_WAVE, PH_GO, PH_BOSS, PH_END, PH_CLEAR };   /* campaign phases (see "campaign") */
 static uint8_t phase;
+enum { BN_OFF, BN_PICK, BN_PLAY, BN_END };             /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
+                                                          game won this credit; sh_n = the entities shadows() handles */
+static uint8_t bonus_on, bn_won, sh_n = NE;
 
 /* ---- SNK MVS conventions: the game (not the BIOS) shows "LEVEL-n" and "CREDIT nn" on the bottom line. LEVEL = the
  * DIFFICULTY setting of the soft DIP table below (BIOS game menu; value at BIOS RAM $10FD84 + 6, 0-7); CREDIT = P1's
@@ -306,12 +310,12 @@ static void stage_show(void) {
     uint8_t s;
     for (s = 0; s < BG_N; s++) cmd_push(VRAM_SCB3 + BG_SPR + s, ((496 - stg->y) << 7) | stg->rows);
 }
-static void stage_init(uint8_t n) {
+static void stage_use(const stage_t *st, const uint8_t *zb) {   /* a stage (stage.h) or a bonus scene (bonus.h) */
     uint8_t s;
     bd_on = 0; bighit_red = bighit_slow = 0; hitflash = 0;
     land_off();                                                     /* from the select screen: its land's sprites go */
-    stg = &stages[n]; floor_top = stg->floor_top; world_w = stg->cols << 4;
-    zback = gback_rom[n]; zback_n = (uint8_t)stg->cols;           /* the floor's back edge (game.json depth; 0: none) */
+    stg = st; floor_top = stg->floor_top; world_w = stg->cols << 4;
+    zback = zb; zback_n = (uint8_t)stg->cols;                     /* the floor's back edge (game.json depth; 0: none) */
     stage_pals();
     *(volatile uint16_t *)0x3C0006 = stg->lspcmode;                /* REG_LSPCMODE: auto-animation speed */
     for (s = 0; s < BG_N; s++) {
@@ -320,6 +324,7 @@ static void stage_init(uint8_t n) {
         bg_shown[s] = 0xFF;
     }
 }
+static void stage_init(uint8_t n) { stage_use(&stages[n], gback_rom[n]); }
 static void stage_draw(void) {
     uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, n = stg->rows * 2;
     uint16_t *x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N), *w;
@@ -509,10 +514,10 @@ static void shadow_init(void) {
     }
 }
 static void shadows(void) {
-    uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, NE), *x = cmd_run(VRAM_SCB4 + SH_SPR, NE);
+    uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, sh_n), *x = cmd_run(VRAM_SCB4 + SH_SPR, sh_n);
     uint8_t i;
     shadow_parity ^= 1;
-    for (i = shadow_parity; i < NE; i += 2, y += 2, x += 2) {
+    for (i = shadow_parity; i < sh_n; i += 2, y += 2, x += 2) {
         fighter_t *f = order[i];
         int16_t sx, gy;
         if (mode != 1 || i >= nf || hidden[i] || noshadow[i] || f->state == S_OFF ||
@@ -1331,16 +1336,17 @@ static void bar_clear(bar_t *b) {
 }
 static void hud_reset(void) {
     static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 1, 1, 5, 5, 7 };   /* the name above its bar (Bruno 2026-10-09, note 20261009-234250-b3f3) */
-    uint8_t p, c;
+    uint8_t p, c, cc = drive_chunks > 2 ? 3 : CHUNK_CELLS;   /* a chunk's cells: 3 when the bar has more than 2 (the bonus's
+                                                                    reward: 4 x 3 a side, P1's and P2's never meet) */
     for (p = 0; p < 5 + 2 * MAX_CHUNKS; p++) {
         uint8_t k = (p - 5) % MAX_CHUNKS, two = p >= 5 + MAX_CHUNKS;   /* (a chunk: its index, P2's) */
-        bars[p].col = p < 5 ? COL[p] : two ? 35 - CHUNK_CELLS - CHUNK_CELLS * k : 5 + CHUNK_CELLS * k;   /* (the chunks side by
-                                                                    side: one bar, note 20261009-114418-5d29) */
-        bars[p].open = p >= 5 && k + 1 < gmeter.chunks && k + 1 < MAX_CHUNKS;   /* (a chunk before another: no inner cap;
+        bars[p].col = p < 5 ? COL[p] : two ? 35 - cc - cc * k : 5 + cc * k;   /* (the chunks side by side: one bar, note
+                                                                    20261009-114418-5d29) */
+        bars[p].open = p >= 5 && k + 1 < drive_chunks && k + 1 < MAX_CHUNKS;   /* (a chunk before another: no inner cap;
                                                                     the next one's outer cap = the 1 px divider) */
         bars[p].row = p < 5 ? ROW[p] : 3;
         bars[p].mirror = (p & 1 && p < 4) || two; bars[p].px = bars[p].trail = -1; bars[p].wait = 0;
-        bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : CHUNK_CELLS; bars[p].pal = p >= 5 ? METER_PAL : p == 0 ? LIFE_PAL : 0;
+        bars[p].n = p < 4 ? BAR_CELLS : p == 4 ? BOSS_CELLS : cc; bars[p].pal = p >= 5 ? METER_PAL : p == 0 ? LIFE_PAL : 0;
         if (p < 4) hud_tgt[p] = 0;
         for (c = 0; c < BOSS_CELLS; c++) bars[p].cell[c] = 0;
     }
@@ -1386,7 +1392,7 @@ static void hud(void) {
         bar_draw(&bars[p], in_play(f) ? f->hp : 0, f->hp_max);
         {   uint8_t k;                                       /* the drive: one bar per chunk, the first filled first */
             int16_t d = in_play(f) ? (int16_t)f->drive : 0;
-            for (k = 0; k < gmeter.chunks && k < MAX_CHUNKS; k++) {
+            for (k = 0; k < drive_chunks && k < MAX_CHUNKS; k++) {
                 int16_t c = d > (int16_t)gmeter.chunk ? (int16_t)gmeter.chunk : d < 0 ? 0 : d;
                 bar_draw(&bars[5 + p * MAX_CHUNKS + k], c, (int16_t)gmeter.chunk);
                 d -= (int16_t)gmeter.chunk;
@@ -2493,9 +2499,15 @@ static void stage_begin(uint8_t s, uint8_t first) {
     hud_reset();
     if (first) { BIOS_PLAYER_MOD[0] = attract ? 0 : 1; BIOS_PLAYER_MOD[1] = pl_on[1]; }   /* BIOS: who plays (a START then joins) */
 }
+static void bonus_off(void);
 static void fight_start(void) {                  /* from the select screen (pl_* set): a new game at camp_from */
+    bonus_off();                                 /* (a bonus cut short by the BIOS: its sprites given back) */
+    fury_lock = !attract && gbonus.fury_lock;        /* a new credit: the fury locked until the posts are won (the
+                                                        attract demo never: its bot plays as before) */
+    bn_won = 0; bonus_on = BN_OFF;
     stage_begin(attract ? 0 : camp_from, 1);
 }
+static void fight_start_at(uint8_t s) { uint8_t c = camp_from; camp_from = s; fight_start(); camp_from = c; }   /* (lab_bonus) */
 /* the attract cycle (TODO #25), KOF98's measured in our emulator (power on, no coin, 24 000 frames, BIOS USER_REQUEST
  * writes + snapshots): its intro, the title logo 1020 frames (17 s), the demo fight 1800 (30 s, ROUND 1 to the KO),
  * the ranking 240, then SYSTEM_RETURN; the BIOS's eye-catcher 466 frames and request 2 again. Here: the logo, then the
@@ -2552,11 +2564,325 @@ uint8_t game_start_accept(uint8_t flags) {
     if (lab.active) return 0;                                /* the Chain Lab's training: nobody joins */
     if (mode == 2 || attract) return opt_on ? 0 : flags;
     if (mode == 0) return sel_phase == SEL_CHOOSE && cursor[1] == 0xFF ? flags & 2 : 0;   /* the select: P2 joins */
-    if (mode != 1 || cont_ov == 2 || phase >= PH_END || ko_seq) return 0;
+    if (mode != 1 || cont_ov == 2 || phase >= PH_END || ko_seq || bonus_on) return 0;   /* (a bonus game: nobody joins) */
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
+}
+/* ---- bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; game.json "bonus",
+ * gamedata.h gbonus_t, AOF2's scenes: tools/brawler/make_bonus.py -> bonus.h). After a stage with gbonus.after set (and
+ * its BOSS UNLOCKED screen), mode 6: AOF2's SELECT BONUS GAME, each game's picture (its scene's object, shrunk), the
+ * stick + A (any button, START), gbonus.pick_seconds on the clock, the cursor's game at 0. Then the game, played in the
+ * fight's tick (mode 1, bonus_on): its scene as the stage (stage_use, the camera fixed at its cam), the leading player
+ * alone (P1, else P2), no enemies, the HUD up:
+ *   BK_GAUGE (the tree, AOF2 Spirit Training): the gauge (fix row 9) sweeps 0-127, step a tick, wrapping; one A (no
+ *     press in `seconds`: grade 0) freezes it, grade = how many of grades[] it reached (AOF2's table $17EF8, default
+ *     row); the fighter throws his A at the tree, the tree shakes, the bark mark shows, grade x 3 leaves fall; chunks[grade]
+ *     drive chunks are added to the bar (drive_chunks, both players, for the credit, up to MAX_CHUNKS).
+ *   BK_BREAK (the posts, AOF2 Initiate Super Death Blow): `count` posts, one at a time at AOF2's place, before `seconds`
+ *     run out; only a fury (D) or its MAX (fighter_strike_box class 2: its body or its objects) breaks one (burnt, then
+ *     its splinters fly), any other hit shakes it and the lesson shows again; his gauge and drive are held full, the lock
+ *     lifted for the game. All broken: `unlock` (BU_FURY: fury_lock off for the credit); else it stays as it was.
+ * A game already won this credit shows its bonus only (the game has no score). The objects: behind the fighter on the
+ * shadows' last sprites (shadows() handles sh_n entities: 47-57 the tree, 55-58 the post), in front on the box viewer's
+ * 300-347 (dbg_init and shadow_init give both back after). ---- */
+_Static_assert(BONUS_TREE == 0 && BONUS_POSTS == 1, "build_tables.py BONUS_SCENES = make_bonus.py SCENES, in order");
+#define BN_FRONT    DBG_SPR                      /* in front of the fighters: the pick pictures, splinters, leaves, mark */
+#define BN_TREE_SPR (SPR_BASE - 12)              /* behind: the tree (11 columns, 47-57; the shadows then 43-44) */
+#define BN_POST_SPR (SPR_BASE - 4)               /* behind: the post (4 columns, 55-58; the shadows then 43-52) */
+#define BN_LEAVES   15
+#define BN_PIECES   BONUS_N_PIECE
+#define BN_LEAF_SPR (BN_FRONT + 2 * BN_PIECES)   /* 312-326 */
+#define BN_MARK_SPR (BN_LEAF_SPR + BN_LEAVES)    /* 327-331 */
+#define BN_FEET_Z   10                           /* the fighter's lane: feet at the scene's floor_top + 10 (AOF2's) */
+#define BN_TREE_X   124                          /* the fighter's world x in front of the tree / before the posts */
+#define BN_POSTS_X  90
+#define BN_END_T    300                          /* ticks of the result before the next stage */
+static uint8_t bn_game, bn_cur, bn_lead, bn_lock0;
+static void centre(uint8_t row, const char *t);
+static uint16_t bn_t, bn_clock, bn_shown_clock;
+static const gbonus_game_t *bn_g;
+static uint8_t bn_power, bn_grade, bn_hit_t, bn_gain;   /* the gauge game: power, grade, ticks since the press (0: none) */
+static bar_t bn_bar;
+static uint8_t bn_left, bn_post, bn_img, bn_thud, bn_lesson;   /* the break game: posts left, the post's state BP_*, ... */
+static uint16_t bn_pt;                           /* ticks in the post's state */
+enum { BP_NONE, BP_DROP, BP_STAND, BP_HIT };
+static uint8_t bn_split;                         /* ticks left of the last post's splinters */
+static struct { int16_t x, y, vx, vy; } bn_pc[BN_LEAVES];   /* splinters (BN_PIECES) / leaves: 1/16 px */
+static uint8_t bn_pc_n;
+static void bn_put(uint16_t spr, const bonus_obj_t *o, int16_t sx, int16_t sy, uint8_t paloff, uint8_t hs, uint8_t vs, uint8_t tiles) {
+    uint8_t c, r, h = o->h;                      /* o's columns at screen sx, sy (hs / vs: SCB2's shrink); tiles: its words */
+    if (vs != 0xFF) h = (uint8_t)(((uint16_t)o->h * (vs + 1) + 255) >> 8);   /* (shrunk: the lines it fills) */
+    for (c = 0; c < o->w; c++) {
+        if (tiles) {
+            uint16_t *w = cmd_run(VRAM_SCB1 + (spr + c) * 64, o->h * 2);
+            const uint16_t *m = o->map + c * o->h * 2;
+            for (r = 0; r < o->h; r++, m += 2) { *w++ = m[0]; *w++ = m[1] ? m[1] + (paloff << 8) : 0; }
+            cmd_push(VRAM_SCB2 + spr + c, (uint16_t)hs << 8 | vs);
+        }
+        cmd_push(VRAM_SCB3 + spr + c, c ? 0x40 : (uint16_t)((((496 - sy) & 0x1FF) << 7) | h));
+        if (!c) cmd_push(VRAM_SCB4 + spr, (uint16_t)(sx & 0x1FF) << 7);
+    }
+}
+static void bn_hide(uint16_t spr, uint8_t n) { while (n--) cmd_push(VRAM_SCB3 + spr++, 0); }
+static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row, "                                      ", 0); if (t) { uint8_t n = 0; while (t[n]) n++; FIX_print(20 - (n >> 1), row, t, pal); } }
+static const bonus_obj_t *bn_pic(uint8_t scene) { return scene == BONUS_TREE ? &bonus_tree[0] : &bonus_post[0]; }
+static void bn_pick_draw(void) {                 /* the names, the cursor's highlighted, its arrows */
+    uint8_t k;
+    for (k = 0; k < gbonus.ngames; k++) {
+        const gbonus_game_t *g = &gbonus.games[k];
+        uint8_t n = 0, cx = gbonus.ngames == 2 ? (k ? 29 : 11) : (uint8_t)(7 + 13 * k), on = k == bn_cur;
+        while (g->name[n]) n++;
+        FIX_print(cx - (n >> 1) - 2, 23, " ", 0); FIX_print(cx - (n >> 1) + n + 1, 23, " ", 0);
+        if (on) { FIX_print(cx - (n >> 1) - 2, 23, ">", 1); FIX_print(cx - (n >> 1) + n + 1, 23, "<", 1); }
+        FIX_print(cx - (n >> 1), 23, g->name, on);
+        FIX_print(cx - 6, 25, (bn_won >> k & 1) ? "   CLEARED   " : g->kind == BK_GAUGE ? "  METER UP   " : g->unlock == BU_FURY ? " FURY UNLOCK " : "             ", on);
+    }
+}
+static void bonus_start(void) {                  /* after stage camp: the pick screen */
+    uint8_t k, i;
+    const bonus_scene_t *t = &bonus_scenes[BONUS_TREE], *p = &bonus_scenes[BONUS_POSTS];
+    mode = 6; bonus_on = BN_PICK; bn_t = 0; bn_cur = 0; nf = 0; cam_x = 0; bn_shown_clock = 0xFFFF;
+    bn_lead = pl_on[0] ? 0 : 1;
+    for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    FIX_clear(); arcade_line_reset();
+    stage_hide(); dbg_init();
+    bd_set(COLOR_BLACK);
+    for (i = 0; i < t->st.npal; i++) PAL_setPalette(STAGE_PAL + i, t->st.pal + i * 16);   /* both scenes' palettes */
+    for (i = 0; i < p->st.npal; i++) PAL_setPalette(STAGE_PAL + t->st.npal + i, p->st.pal + i * 16);
+    centre(4, "SELECT BONUS GAME");
+    for (k = 0; k < gbonus.ngames; k++) {        /* the pictures: the tree at half size, the post at 3 / 4 */
+        uint8_t sc = gbonus.games[k].scene, tr = sc == BONUS_TREE;
+        const bonus_obj_t *o = bn_pic(sc);
+        int16_t cx = gbonus.ngames == 2 ? (k ? 232 : 88) : 56 + 104 * k, w = tr ? o->w * 8 : o->w * 12, h = tr ? o->h * 8 : o->h * 12;
+        bn_put(BN_FRONT + k * 12, o, cx - (w >> 1), 172 - h, sc == BONUS_POSTS ? t->st.npal : 0, tr ? 7 : 11, tr ? 0x7F : 0xBF, 1);
+    }
+    bn_pick_draw();
+    snd_music(gbonus.pick_music);
+}
+static void bonus_play(uint8_t k);
+static void bonus_pick_tick(void) {
+    uint16_t pr = JOY_pressed(bn_lead), left;
+    if (++bn_t == 1) return;
+    left = (uint16_t)(gbonus.pick_seconds * 60) > bn_t ? div16((uint16_t)(gbonus.pick_seconds * 60) - bn_t + 59, 60) : 0;
+    if (left != bn_shown_clock) { bn_shown_clock = left; FIX_print(35, 4, "  ", 0); FIX_printNum(35, 4, left, 1); }
+    if ((pr & JOY_RIGHT) && bn_cur + 1 < gbonus.ngames) { bn_cur++; snd_ssg(SSG_CURSOR); bn_pick_draw(); }
+    if ((pr & JOY_LEFT) && bn_cur) { bn_cur--; snd_ssg(SSG_CURSOR); bn_pick_draw(); }
+    if (!left || (bn_t > 20 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) {
+        uint8_t k;
+        snd_ssg(SSG_CONFIRM);
+        for (k = 0; k < gbonus.ngames; k++) bn_hide(BN_FRONT + k * 12, 12);
+        bonus_play(bn_cur);
+    }
+}
+static void bn_lesson_show(uint8_t on) {         /* the break game's lesson box: what breaks the posts, how (AOF2's
+                                                    "FOR SUPER HAOHSHOKO-KEN" box) */
+    bn_lesson = on;
+    bn_text(20, on ? "ONLY YOUR FURY BREAKS THE POSTS!" : 0, 1);
+    bn_text(22, on ? "FURY  =  D" : 0, 0);
+    bn_text(24, on ? "MAX  =  DOWN + D  AT LOW LIFE" : 0, 0);
+}
+static void bonus_play(uint8_t k) {
+    uint8_t i;
+    fighter_t *f = &fighters[bn_lead];
+    bn_hide(BN_FRONT, 3 * 12);                   /* (the pick screen's pictures) */
+    bn_game = k; bn_g = &gbonus.games[k]; bonus_on = BN_PLAY; bn_t = 0; bn_clock = bn_g->seconds * 60; bn_shown_clock = 0xFFFF;
+    mode = 1; phase = PH_WAVE; phase_t = 0; cont_ov = 0; wave = 0;
+    triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;
+    inputs_reset(); sparks_init(); sf_reset(); tfx_reset(); dbg_on = 0; dbg_init();
+    FIX_clear(); arcade_line_reset();
+    stage_use(&bonus_scenes[bn_g->scene].st, 0); cam_x = lock_x = bonus_scenes[bn_g->scene].cam;
+    bd_set(stg->backdrop);
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
+    fighter_init(f, &bm_chars[pl_ch[bn_lead]], pl_set[bn_lead], 16 + bn_lead * MAX_PALS, 0,
+                 bn_g->kind == BK_GAUGE ? BN_TREE_X : BN_POSTS_X, BN_FEET_Z);
+    f->idx = bn_lead; f->facing = 1;
+    order[0] = f; for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[1 + i] = &projectiles[i]; }
+    hud_reset();
+    snd_music(bn_g->music);
+    centre(13, bn_g->name);
+    if (bn_g->kind == BK_GAUGE) {
+        nf = 1; sh_n = 2;                        /* the fighter alone: the tree behind him on 47-57 */
+        bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_gain = 0;
+        bn_put(BN_TREE_SPR, &bonus_tree[0], bonus_tree[0].x, bonus_tree[0].y, 0, 0xF, 0xFF, 1);   /* (objects: AOF2's screen = ours) */
+        bn_bar = (bar_t){ .col = 12, .row = 9, .n = 16, .pal = METER_PAL, .px = -1, .trail = -1 };
+        bn_text(20, "PRESS A WHEN THE GAUGE IS FULL!", 1);
+    } else {
+        nf = 1 + NPJ; sh_n = 10;                 /* the fighter and his objects: the post behind on 55-58 */
+        bn_left = bn_g->count; bn_post = BP_NONE; bn_pt = 0; bn_thud = 0; bn_pc_n = 0; bn_split = 0;
+        bn_lock0 = fury_lock; fury_lock = 0;     /* the fury works here (the lesson) */
+        bn_lesson_show(1);
+    }
+}
+static void bonus_off(void) {                    /* out of a bonus: its sprites hidden, the shadows' back */
+    if (sh_n != NE) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_POST_SPR, 4); sh_n = NE; shadow_init(); }
+    if (bonus_on) bn_hide(BN_FRONT, 48);
+    bonus_on = BN_OFF;
+}
+static void bonus_end(void) {                    /* the result shown: the next stage */
+    bonus_off();
+    stage_begin(camp + 1, 0);
+}
+static void bn_result(const char *l1, const char *l2, uint16_t bonus) {
+    bonus_on = BN_END; bn_t = 0;
+    bn_text(13, l1, 1); bn_text(16, l2, 0);
+    FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
+    snd_music(gbonus.over_music);
+}
+static void bn_leaves(uint8_t n) {               /* n leaves from the canopy (a fixed spread, no random draw) */
+    uint8_t k;
+    bn_pc_n = n > BN_LEAVES ? BN_LEAVES : n;
+    for (k = 0; k < bn_pc_n; k++) {
+        bn_pc[k].x = (int16_t)(130 + mod8((uint8_t)(k * 37), 150)) << 4; bn_pc[k].y = (int16_t)(mod8((uint8_t)(k * 23), 70) + 4) << 4;
+        bn_pc[k].vx = (k & 1) ? 6 : -6; bn_pc[k].vy = 10 + (k & 3) * 3;
+    }
+}
+static void bn_gauge_flow(fighter_t *f) {
+    uint8_t k;
+    if (bn_hit_t) {                              /* after the press: the punch, the shake, the leaves */
+        bn_hit_t++;
+        if (bn_hit_t == 12) {                    /* the blow lands */
+            bn_put(BN_MARK_SPR, &bonus_mark[0], bonus_mark[0].x, bonus_mark[0].y, 0, 0xF, 0xFF, 1);
+            bn_leaves(bn_grade * 3);
+            snd_sfx(bn_grade >= 4 ? SFX_HIT_CD : ghitsnd.guard);
+        }
+        if (bn_hit_t >= 12 && bn_hit_t < 36)    /* the tree shakes: 2 px either side, every 2 ticks */
+            bn_put(BN_TREE_SPR, &bonus_tree[0], bonus_tree[0].x + (bn_hit_t >= 34 ? 0 : (bn_hit_t & 2) ? 2 : -2), bonus_tree[0].y, 0, 0xF, 0xFF, 0);
+        if (bn_hit_t == 20) bn_put(BN_MARK_SPR, &bonus_mark[1], bonus_mark[1].x, bonus_mark[1].y, 0, 0xF, 0xFF, 1);
+        for (k = 0; k < bn_pc_n; k++) {          /* the leaves: falling, swaying */
+            bn_pc[k].y += bn_pc[k].vy; bn_pc[k].x += bn_pc[k].vx; if (!((bn_hit_t + k * 5) & 31)) bn_pc[k].vx = -bn_pc[k].vx;
+            if ((bn_pc[k].y >> 4) > 224) { bn_hide(BN_LEAF_SPR + k, 1); continue; }
+            bn_put(BN_LEAF_SPR + k, &bonus_leaf[((bn_hit_t >> 3) + k) & 1], bn_pc[k].x >> 4, bn_pc[k].y >> 4, 0, 0xF, 0xFF, !((bn_hit_t + k) & 7));
+        }
+        if (bn_hit_t == 70) {                    /* the result: the grade, its reward */
+            static const char *const GRADE[6] = { "MISS", "WEAK", "FAIR", "GOOD", "GREAT", "PERFECT!" };
+            uint8_t add = bn_g->chunks[bn_grade], room = MAX_CHUNKS - drive_chunks, i;
+            if (bn_won >> bn_game & 1) add = 0;  /* (won before: its bonus only) */
+            if (add > room) add = room;
+            if (add) {
+                bn_won |= 1 << bn_game; drive_chunks += add; bn_gain = add;
+                for (i = 0; i < 2; i++) fighters[i].drive = (uint16_t)(gmeter.chunk * drive_chunks);
+                hud_reset(); hud_two = 0xFF;     /* the bar's new chunks drawn */
+            }
+            bn_result(GRADE[bn_grade], add == 2 ? "METER +2" : add == 1 ? "METER +1" : bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0,
+                      (uint16_t)bn_grade * 2000);
+        }
+        return;
+    }
+    bn_power += bn_g->step; if (bn_power > 127) bn_power -= 128;   /* (0-127, wrapping: AOF2's) */
+    if (bn_bar.px > (int16_t)bn_power * 2) bn_bar.px = bn_bar.trail = -1;   /* (wrapped: no damage trail) */
+    bar_draw(&bn_bar, bn_power, 127);
+    if (bn_t > 30 && ((JOY_pressed(bn_lead) & JOY_A) || !bn_clock)) {
+        bn_grade = 0;
+        while (bn_grade < 5 && bn_power >= bn_g->grades[bn_grade]) bn_grade++;
+        bn_hit_t = 1; bn_text(20, 0, 0);
+        (void)f;
+    }
+}
+static int16_t bn_px;                            /* the post's screen x: AOF2's place (right), or the left edge when he
+                                                    stands on the right half as it drops (a rush carried him past it) */
+static void bn_post_show(uint8_t img, int16_t dx, int16_t dy, uint8_t tiles) {
+    const bonus_obj_t *o = &bonus_post[img];
+    bn_put(BN_POST_SPR, o, bn_px + o->x - bonus_post[0].x + dx, o->y + dy, 0, 0xF, 0xFF, tiles);
+}
+static void bn_break_flow(fighter_t *f) {
+    uint8_t i, k;
+    int16_t px0 = bn_px + cam_x + 8, px1 = px0 + 48, py0 = bonus_post[0].y + 8, py1 = 224;   /* (world x, screen y) */
+    fighter_meter_fill(f);                       /* the fury always payable (its lock lifted: bonus_play) */
+    if (bn_post == BP_STAND || bn_post == BP_DROP || bn_post == BP_HIT) {   /* a solid post: he stops at it (a rush too) */
+        if (bn_px > 160) { int32_t lim = FIX(px0 - 12); if (f->x > lim) f->x = lim; }
+        else { int32_t lim = FIX(px1 + 12); if (f->x < lim) f->x = lim; }
+    }
+    bn_pt++;
+    if (bn_split) {                              /* the last post's splinters: flying, falling */
+        for (k = 0; k < BN_PIECES; k++) {
+            bn_pc[k].x += bn_pc[k].vx; bn_pc[k].y += bn_pc[k].vy; bn_pc[k].vy += 4;
+            bn_put(BN_FRONT + 2 * k, &bonus_piece[k], bn_pc[k].x >> 4, bn_pc[k].y >> 4, 0, 0xF, 0xFF, 0);
+        }
+        if (!--bn_split) bn_hide(BN_FRONT, 2 * BN_PIECES);
+    }
+    switch (bn_post) {
+    case BP_NONE:                                /* the next post drops in */
+        if (bn_left && bn_pt >= (bn_t < 100 ? 60 : 24)) {
+            bn_post = BP_DROP; bn_pt = 0;
+            bn_px = INT(f->x) - cam_x < 160 ? bonus_post[0].x : 320 - 64 - bonus_post[0].x + 16;   /* (AOF2's 241, mirrored: 31) */
+        }
+        break;
+    case BP_DROP:
+        bn_post_show(0, 0, (int16_t)(bn_pt - 8) * 16, bn_pt == 1);
+        if (bn_pt >= 8) { bn_post = BP_STAND; bn_pt = 0; snd_sfx(ghitsnd.bounce); }
+        break;
+    case BP_STAND:
+        if (bn_thud) { bn_thud--; bn_post_show(0, (bn_thud & 2) ? 2 : -2, 0, 0); if (!bn_thud) bn_post_show(0, 0, 0, 0); }
+        for (i = 0; i < nf; i++) {               /* the fighter and his objects: what strikes the post now */
+            int16_t x0, x1, y0, y1;
+            uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1);
+            if (!cls || order[i]->team || x1 <= px0 || x0 >= px1 || y1 <= py0 || y0 >= py1) continue;
+            if (cls == 2) {                      /* a fury: burnt, then broken */
+                bn_post = BP_HIT; bn_pt = 0; bn_img = 1;
+                spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 16, 1, f->facing);
+                snd_sfx(SFX_HIT_CD);
+                break;
+            }
+            if (!bn_thud) { bn_thud = 16; fighter_guard_sound(); if (!bn_lesson) bn_lesson_show(1); bn_pt = 0; }
+        }
+        if (bn_lesson && bn_t > 150 && bn_pt > 120 && !bn_thud) bn_lesson_show(0);
+        break;
+    case BP_HIT:                                 /* AOF2's burnt post, its three pictures by turns */
+        if (!(bn_pt & 3)) { bn_img = bn_img == 3 ? 1 : bn_img + 1; bn_post_show(bn_img, 0, 0, 1); }
+        if (bn_pt == 1) bn_post_show(1, 0, 0, 1);
+        if (bn_pt >= 18) {                       /* the splinters fly (bn_split), the next post may come meanwhile */
+            bn_post = BP_NONE; bn_pt = 0; bn_hide(BN_POST_SPR, 4); bn_left--; bn_split = 48;
+            FIX_print(34, 9, "  ", 0); FIX_printNum(34, 9, bn_left, 1);
+            for (k = 0; k < BN_PIECES; k++) {
+                const bonus_obj_t *o = &bonus_piece[k];
+                bn_pc[k].x = (o->x - bonus_post[0].x + bn_px) << 4; bn_pc[k].y = o->y << 4;
+                bn_pc[k].vx = (int16_t)((k * 13) & 15) + 8 + (k & 1) * 10; bn_pc[k].vy = -(int16_t)(40 + ((k * 7) & 15) * 4);
+                if (bn_px < 160) bn_pc[k].vx = -bn_pc[k].vx;   /* (away from him) */
+                bn_put(BN_FRONT + 2 * k, o, bn_pc[k].x >> 4, o->y, 0, 0xF, 0xFF, 1);
+            }
+            snd_sfx(SFX_HIT_CD);
+        }
+        break;
+    }
+    {   uint16_t s = div16(bn_clock + 59, 60);       /* the clock, the posts left (AOF2: top right) */
+        if (s != bn_shown_clock) { bn_shown_clock = s; FIX_print(17, 9, "TIME   ", 0); FIX_printNum(22, 9, s, 1); FIX_print(28, 9, "POSTS   ", 0); FIX_printNum(34, 9, bn_left, 1); }
+    }
+    if (!bn_left && bn_post == BP_NONE && !bn_split) {   /* every post broken (its splinters landed) */
+        uint8_t first = !(bn_won >> bn_game & 1);
+        bn_won |= 1 << bn_game;
+        if (bn_g->unlock == BU_FURY) bn_lock0 = 0;
+        fury_lock = bn_lock0; bn_lesson_show(0);
+        bn_result("CONGRATULATIONS!", first && bn_g->unlock == BU_FURY ? "FURY + FURY MAX UNLOCKED ON D" : 0, (uint16_t)bn_g->count * 1000);
+    } else if (!bn_clock) {                      /* time over: as it was (locked stays locked) */
+        fury_lock = bn_lock0; bn_lesson_show(0); bn_hide(BN_POST_SPR, 4); bn_hide(BN_FRONT, 2 * BN_PIECES); bn_split = 0;
+        bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000);
+    }
+}
+static void bonus_input(void) {                  /* this tick's intents: the gauge game plays his A for him; the posts
+                                                    game keeps him on his lane; the result: nothing */
+    intent_t *i = &in[bn_lead];
+    if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
+    if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; i->press = IN_A; return; }   /* the press: his A at the tree */
+    i->dz = 0;
+}
+static void bonus_flow(void) {                   /* the fight tick's flow() for a bonus game (after the fighters' update) */
+    fighter_t *f = &fighters[bn_lead];
+    bn_t++;
+    if (bonus_on == BN_END) {
+        if (bn_t >= BN_END_T || (bn_t > 90 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) bonus_end();
+        return;
+    }
+    if (bn_t == 1 || bn_t == 60) centre(13, bn_t == 1 ? bn_g->name : "                  ");
+    if (bn_clock && !sf_who && !(bn_g->kind == BK_GAUGE && bn_hit_t)) bn_clock--;
+    if (bn_g->kind == BK_GAUGE) bn_gauge_flow(f); else bn_break_flow(f);
 }
 static void unlock_start(uint8_t k);
 static void ending_start(void);
+static void stage_next(void) {                   /* the stage after camp: a bonus first when the data has one there */
+    if (!attract && !lab.active && gbonus.ngames && gbonus.after[camp] && bonus_on == BN_OFF) bonus_start();
+    else stage_begin(camp + 1, 0);
+}
 static void campaign(uint8_t left) {
     uint8_t i;
     phase_t++;
@@ -2611,7 +2937,7 @@ static void campaign(uint8_t left) {
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = fighter_next_stage_ch(&fighters[i]); pl_set[i] = fighters[i].set; }   /* (its base form) */
         if (camp + 1 >= GS_COUNT) ending_start();          /* the last stage: the ending (BOSS UNLOCKED after it) */
         else if (unlock_k) unlock_start(unlock_k - 1);
-        else stage_begin(camp + 1, 0);
+        else stage_next();                                   /* (a bonus stage first: game.json bonus.after) */
         break;
     }
 }
@@ -2963,6 +3289,7 @@ static void lab_enemy(void) {
 static void lab_start(uint8_t kind) {
     uint8_t i, c = lab.fighter < BC_COUNT ? lab.fighter : 0, dm = lab.dummy < BC_COUNT ? lab.dummy : 1;
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2;
+    bonus_off(); fury_lock = 0;                               /* the Lab: never a bonus's lock */
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(0, 1);
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
@@ -2994,6 +3321,8 @@ static void lab_start(uint8_t kind) {
 static void lab_stage(void) {
     uint8_t w = lab.wave, i;
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
+    bonus_off(); fury_lock = 0; bn_won = 0;                   /* (the fury free, as before the bonus stages: a recipe
+                                                                 that tests it starts here; req 6 is the bonus's own) */
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
 #if LAB_BUILD
@@ -3005,6 +3334,18 @@ static void lab_stage(void) {
     fighters[0].x = FIX(cam_x + 60);
     if (w < gs->nwaves) spawn_wave();
     else { for (i = 2; i < NF; i++) fighters[i].state = S_OFF; boss_start(); }
+}
+/* req 6 (scenario.py mode "bonus", the bonus proofs): P1 alone (lab.fighter), a new game as from the select screen
+ * (the fury locked when game.json bonus.fury_lock; lab.wave bit 7: unlocked, as after the posts), then the bonus after
+ * stage lab.dummy + 1: its pick screen (lab.wave & 0x7F = 0) or game k straight away (k + 1) */
+static void lab_bonus(void) {
+    uint8_t w = lab.wave;
+    attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
+    pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
+    fight_start_at(lab.dummy + 1 < GS_COUNT ? lab.dummy : 0);
+    if (w & 0x80) fury_lock = 0;
+    bonus_start();
+    if ((w & 0x7F) && (w & 0x7F) <= gbonus.ngames) bonus_play((w & 0x7F) - 1);
 }
 static void lab_flow(void) {
     fighter_t *p = &fighters[0], *d = &fighters[LAB_DUMMY];
@@ -3057,6 +3398,7 @@ static void lab_tick(void) {                                  /* the page's requ
     if (lab.req == 1 || lab.req == 3) lab_start(lab.req == 3 ? 2 : 1);
     else if (lab.req == 4) lab_stage();
     else if (lab.req == 5) snd_music(lab.dummy);
+    else if (lab.req == 6) lab_bonus();
     else if (lab.req == 2 && lab.active == 2) { fighter_t *p = &fighters[0]; fighter_init(p, p->ch, p->set, 16, 0, cam_x + 110, 34); p->idx = 0; lab_enemy(); }
     else if (lab.req == 2 && lab.active) lab_place();
     lab.req = 0;
@@ -3250,7 +3592,7 @@ static void show_tick(void) {
     if (mode >= 4 || camp + 1 >= GS_COUNT) SYS_return();   /* GAME OVER, the last stage's BOSS UNLOCKED (after the
                                                                 ending): back to the BIOS, which commits the MVS save and
                                                                 shows the title (credits left) or the attract demo */
-    else stage_begin(camp + 1, 0);
+    else stage_next();
 }
 static void select_tick(void) {
     uint8_t a, p, s;
@@ -3327,6 +3669,7 @@ void game_init(void) {
     BANK_init();                                             /* P2 bank 0, its copy agrees (neo_bank.h) */
     coin_in();                                               /* the credits kept from before the power-on: no sound */
     gdata_init();                                            /* the game's tables (game.json) */
+    drive_chunks = gmeter.chunks;                            /* the drive bar's chunks (a bonus adds to them: fighter.c) */
     routes_init();                                           /* the fighters' chain route trees (fighter.h) */
     specs_init();                                            /* their specials by role (fighter.h spec_tab) */
     voices_init();                                           /* their voices (fighter.h voice_tab) */
@@ -3387,6 +3730,7 @@ void game_tick(void) {
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
+    if (mode == 6) { bonus_pick_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus pick screen */
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
@@ -3397,6 +3741,7 @@ void game_tick(void) {
         if (!(attract_t & 31)) FIX_print(14, 13, (attract_t & 32) ? "           " : "INSERT COIN", 0);
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
+    if (bonus_on) bonus_input();                             /* a bonus game: its intents */
 #if !AI_OFF
 #if LAB_BUILD
     if (lab.active != 1 || prac_ai()) ai_update(fighters, NF, 2, in);   /* the practice: dummies with AI on, the waves */
@@ -3419,10 +3764,11 @@ void game_tick(void) {
         if (win_posing(i)) fighter_win_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
         else if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
     if (!attract && !lab.active && phase == PH_CLEAR) win_tick();
-    if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
+    if (bonus_on) bonus_flow();                              /* a bonus game (its clock holds through a super flash) */
+    else if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { camera(); wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); projectiles_update(cam_x, 0); }
+    if (!sf_who) { if (!bonus_on) camera(); wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); projectiles_update(cam_x, 0); }
     else projectiles_update(cam_x, 0x100 | sf_frozen);   /* the flash: only its attacker's effects born in it
                                                                 (KOF98: P1 runs at the flash's priority $5001 and so do the
                                                                 objects it spawns, $5D1C; the rest hold: Kyo's hand fire, #202) */

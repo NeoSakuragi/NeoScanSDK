@@ -857,6 +857,67 @@ def ending_tables(g):
     return h, c
 
 
+BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
+BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
+BONUS_KEYS = ('about', 'after', 'pick', 'fury_lock', 'over_music', 'games')
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'music', 'seconds', 'step', 'grades', 'chunks'),
+                   'break': ('id', 'name', 'kind', 'scene', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
+
+
+def bonus_check(g, songs_known):
+    """game.json "bonus" checked -> the values the tables write (levels.py checks a draft with it too); raises
+    AssertionError(reason)"""
+    b = g.get('bonus') or {'after': [], 'games': [], 'pick': {'seconds': 9, 'music': g['music']['select']}, 'fury_lock': False}
+    for k in b: assert k in BONUS_KEYS, f'bonus: unknown field {k}'
+    n = len(g['stages'])
+    assert isinstance(b['after'], list) and all(isinstance(s, int) and 1 <= s < n for s in b['after']), \
+        f"bonus.after: stage numbers 1-{n - 1} (a bonus needs a stage after it): {b['after']}"
+    assert len(set(b['after'])) == len(b['after']), 'bonus.after: a stage twice'
+    p = b['pick']
+    assert isinstance(p.get('seconds'), int) and 3 <= p['seconds'] <= 30, 'bonus.pick.seconds: 3-30'
+    for k, v in (('bonus.pick.music', p.get('music')), ('bonus.over_music', b.get('over_music', p.get('music')))):
+        assert v in songs_known, f'{k}: {v!r} is no songs.json song'
+    gs = b['games']
+    assert 1 <= len(gs) <= 3 or not b['after'], 'bonus.games: 1-3 games'
+    for x in gs:
+        kind = x.get('kind'); assert kind in BONUS_KINDS, f"bonus game {x.get('id')}: kind {kind!r} (gauge | break)"
+        for k in x: assert k in BONUS_GAME_KEYS[kind], f"bonus game {x['id']}: unknown field {k} for kind {kind}"
+        assert re.fullmatch(r'[A-Z0-9 .!-]{1,18}', x['name']), f"bonus game {x['id']}: name 1-18 characters A-Z 0-9 space . ! -"
+        assert x['scene'] in BONUS_SCENES, f"bonus game {x['id']}: scene {x['scene']!r} ({' | '.join(BONUS_SCENES)})"
+        assert x['music'] in songs_known, f"bonus game {x['id']}: music {x['music']!r} is no songs.json song"
+        assert isinstance(x['seconds'], int) and 5 <= x['seconds'] <= 99, f"bonus game {x['id']}: seconds 5-99"
+        if kind == 'gauge':
+            gr = x['grades']; ch = x['chunks']
+            assert 1 <= x['step'] <= 16, f"bonus game {x['id']}: step 1-16"
+            assert len(gr) == 5 and all(a < b for a, b in zip([0] + gr, gr)) and gr[-1] <= 127, f"bonus game {x['id']}: grades: 5 rising powers 1-127"
+            assert len(ch) == 6 and all(isinstance(v, int) and 0 <= v <= 3 for v in ch), f"bonus game {x['id']}: chunks: 6 values 0-3 (grade 0-5)"
+        else:
+            assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
+            assert x['breaks_with'] == 'fury' and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury, unlock fury | none"
+    assert not b.get('fury_lock') or any(x.get('unlock') == 'fury' for x in gs) and b['after'], \
+        'bonus.fury_lock: no game unlocks the fury (it would stay locked)'
+    return b
+
+
+def bonus_tables(g, songs_known):
+    """game.json "bonus" -> gbonus (gamedata.h gbonus_t, main.c "bonus stages")"""
+    b = bonus_check(g, songs_known)
+    c = ['static const uint8_t gbonus_after[GS_COUNT] = { ' + ', '.join('1' if s + 1 in b['after'] else '0' for s in range(len(g['stages']))) + ' };   /* bonus.after */']
+    rows = []
+    for x in b['games']:
+        f = [f".name = {c_str(x['name'])}", f".kind = {BONUS_KINDS[x['kind']]}", f".scene = {BONUS_SCENES.index(x['scene'])}",
+             f".music = MUS_{x['music']}", f".seconds = {x['seconds']}"]
+        if x['kind'] == 'gauge':
+            f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }']
+        else:
+            f += [f".count = {x['count']}", '.breaks = BB_FURY', f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}"]
+        rows.append('{ ' + ', '.join(f) + ' }')
+    c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
+             f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "
+             f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, .games = {{ {', '.join(rows)} }} }};")
+    return c
+
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -1077,6 +1138,7 @@ def tables(g, build):
     c += retime_tables(g, build)
     eh, ec = ending_tables(g)
     h += eh; c += ec
+    c += bonus_tables(g, known)
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

@@ -795,7 +795,12 @@ static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 
                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static void set_burn(fighter_t *f, uint8_t burn);
 static void burn_show(fighter_t *f);
-#define DRIVE_FULL ((uint16_t)(gmeter.chunk * gmeter.chunks))
+/* the bonus stages (main.c "bonus stages", game.json bonus; TODO T7): drive_chunks = the chunks a player's drive bar
+ * holds now (gmeter.chunks at a new game, a gauge game's reward adds to it for the credit, up to 4); fury_lock = D's
+ * fury and MAX locked for the players (a new game with bonus.fury_lock, until a game that unlocks it is won; never the
+ * attract demo or the Lab) */
+uint8_t drive_chunks, fury_lock;
+#define DRIVE_FULL ((uint16_t)(gmeter.chunk * (drive_chunks ? drive_chunks : gmeter.chunks)))
 uint8_t fighter_low(const fighter_t *f) {
     int16_t full = f->hp_max ? f->hp_max : 60;
     return f->hp > 0 && f->hp * 100 <= full * (int16_t)gmeter.low;
@@ -805,8 +810,8 @@ static uint8_t gauge_full(const fighter_t *f) { return gmeter.infinite || f->fga
  * AND low life (the gauge emptied); at normal life D = the fury with the gauge full (emptied) */
 static uint8_t drive_has(const fighter_t *f, uint8_t chunks) { return gmeter.infinite || f->drive >= (uint16_t)(chunks * gmeter.chunk); }
 /* Bruno 2026-10-09 (0.9.7 note): the fury also costs gmeter.fury_drive drive chunks, the MAX gmeter.max_drive */
-uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && (gauge_full(f) || fighter_low(f)) && drive_has(f, gmeter.fury_drive); }
-static uint8_t max_ready(const fighter_t *f) { return !f->team && gauge_full(f) && fighter_low(f) && drive_has(f, gmeter.max_drive); }
+uint8_t fighter_fury_ready(const fighter_t *f) { return !f->team && !fury_lock && (gauge_full(f) || fighter_low(f)) && drive_has(f, gmeter.fury_drive); }
+static uint8_t max_ready(const fighter_t *f) { return !f->team && !fury_lock && gauge_full(f) && fighter_low(f) && drive_has(f, gmeter.max_drive); }
 static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whether it could -> 1 paid (or payable) */
     if (f->team) return 1;
     if (kind == PAY_SPECIAL) {
@@ -880,6 +885,7 @@ static uint16_t burn_clock;
 void fighter_game_reset(void) {
     ovl_cache[0].ch = ovl_cache[1].ch = 0;
     burn_clock = 0;
+    drive_chunks = gmeter.chunks;                                /* (the bonus stages' reward: from the game's own bar) */
 }
 static void pal_overlay(fighter_t *f) {
     uint8_t want = 0;
@@ -2370,6 +2376,7 @@ static fighter_t *proj_alloc(fighter_t *owner) {
         if (p->state != S_OFF) continue;
         p->state = S_PROJ; p->ch = owner->ch; p->palbase = owner->palbase; p->team = owner->team; p->owner = owner;
         p->dsc = owner->state == S_SPECIAL ? owner->dsc : 0x100; /* its thrower's damage tier ("damage tiers") */
+        p->pfury = owner->state == S_SPECIAL && owner->spec_id == BS_FURY;   /* born in a fury (main.c "bonus stages") */
         p->frame_ovr = 0xFFFF; p->spec_atk = 0; p->hit_mask = 0; p->pdef = 0; p->pown = 0; p->prow = p->pend = 0;
         return p;
     }
@@ -4459,6 +4466,26 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
         }
     }
 }
+/* the bonus stages' objects (main.c "bonus stages": AOF2's wooden posts): what a fighter or a projectile strikes with
+ * this frame, as strike() reads it: a normal's step box, a special's / a projectile's script row box (its bank). A fury's
+ * (or its MAX's) body, or an object born in one (pfury), is class 2 */
+uint8_t fighter_strike_box(const fighter_t *a, int16_t *x0, int16_t *x1, int16_t *y0, int16_t *y1) {
+    bbox_t b;
+    uint8_t cls;
+    int16_t cx, cy;
+    if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
+        const bstep_t *sa = fighter_step(a);
+        if (!(sa->flags & 1)) return 0;
+        b = sa->atk; cls = 1;
+    } else if ((a->state == S_SPECIAL || a->state == S_PROJ) && a->spec_atk) {
+        uint8_t ob = BANK_set(CH_BANK(a->ch)); b = *a->spec_atk; BANK_set(ob);
+        cls = (a->state == S_SPECIAL ? a->spec_id == BS_FURY : a->pfury) ? 2 : 1;
+    } else return 0;
+    cx = box_x(a, b.x); cy = floor_top + INT(a->z) + b.y - INT(a->y);
+    *x0 = cx - b.w; *x1 = cx + b.w; *y0 = cy - b.h; *y1 = cy + b.h;
+    return cls;
+}
+void fighter_meter_fill(fighter_t *f) { f->drive = DRIVE_FULL; f->fgauge = gmeter.fury_max; }
 void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     uint8_t i, j;
     hold_crowd(fs, n, only);

@@ -30,6 +30,10 @@ A recipe (scenarios.json, keyed by note id):
               mode "title": power on, the title screen (as the player reaches it, no mailbox);
               mode "select": the title, a coin, START: the select screen; cursor = the roster name the cursor walks to
                   with the stick (harness sel_goto); unlock = every boss on the select (save.unlocked, until power-off);
+              mode "bonus" (TODO T7): P1 (fighter) in a new game, straight to the bonus after stage `after` (1-based, a
+                  stage of game.json bonus.after; lab req 6, main.c lab_bonus): game "pick" = its pick screen, else a
+                  bonus.games id played at once; unlocked = true: the fury already unlocked (as after the posts);
+              locked = true (any mode): the fury locked (fury_lock, as a credit before the bonus posts are won);
               stage mode, the boss (wave >= the stage's waves): wait = frames run first (the boss walks in), alone =
                   true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
                   P1 put this far in front of it (its lane, facing it); foe = the fighter index these four mean
@@ -39,7 +43,7 @@ A recipe (scenarios.json, keyed by note id):
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
   proof       frames to keep running after do_keys (default 90)
-Every poke used is listed here: fighter_t.x / z / facing / hp / drive / fgauge / state (the minions' OFF) (harness offsets from fighter.h), lives[0], cam_x,
+Every poke used is listed here: fighter_t.x / z / facing / hp / drive / fgauge / state (the minions' OFF) (harness offsets from fighter.h), lives[0], cam_x, fury_lock,
 save.unlocked (select's unlock), and the lab mailbox (fighter.h lab_t). The state is the frame after the setup; the player loads it paused."""
 import argparse, hashlib, json, os, shlex, subprocess, sys, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -92,6 +96,13 @@ def roster(game):
 
 
 # ---- the generator (one core per process: run as `scenario.py _gen`) ---------------------------------------------------
+def bonus_game(game, s):
+    """a bonus recipe's game: "pick" 0, else its index in game.json bonus.games + 1"""
+    g = s.get('game', 'pick')
+    if g == 'pick': return 0
+    return [x['id'] for x in json.load(open(os.path.join(game, 'game.json')))['bonus']['games']].index(g) + 1
+
+
 def setup(b, rec):
     """power on -> the scenario's first frame (see the recipe format above)"""
     s = rec.get('setup', {}); names = roster(b.game)
@@ -122,6 +133,10 @@ def setup(b, rec):
     if s.get('mode', 'lab') == 'lab':
         poke(0, b'LAB1'); poke(LAB_FIGHTER, [fi, names.index(s.get('dummy', 'ryo'))]); poke(LAB_REQ, [1])
         want = lambda: b.r(lab + LAB_ACTIVE, 1) == 1
+    elif s['mode'] == 'bonus':                             # the bonus stages (main.c lab_bonus)
+        poke(0, b'LAB1'); poke(LAB_FIGHTER, [fi, int(s.get('after', 1)) - 1]); poke(LAB_WAVE, [bonus_game(b.game, s) | (0x80 if s.get('unlocked') else 0)])
+        poke(LAB_REQ, [6])
+        want = lambda: b.r(lab + LAB_REQ, 1) == 0 and b.r(b.syms['mode'], 1) in (1, 6)
     else:
         poke(0, b'LAB1'); poke(LAB_FIGHTER, [fi, int(s.get('stage', 0))]); poke(LAB_WAVE, [int(s.get('wave', 0))]); poke(LAB_REQ, [4])
         want = lambda: b.r(lab + LAB_REQ, 1) == 0 and b.r(b.syms['mode'], 1) == 1
@@ -174,6 +189,7 @@ def setup(b, rec):
         if s.get('mode', 'lab') == 'lab': poke(LAB_P1_LIFE, [1])   # the lab's P1 keeps this life (lab.p1_life)
         b.fset(0, 'hp', int(s['hp']))
     if 'lives' in s: b.w(b.syms['lives'], 1, int(s['lives']))
+    if s.get('locked'): b.w(b.syms['fury_lock'], 1, 1)    # the fury locked, as a credit before the posts are won (T7)
     b.run(1)
     if s.get('pre'): b.seq(s['pre'])
 
@@ -282,7 +298,11 @@ def lint_recipe(rid, rec, game):
     for k in ('title', 'do', 'expect'):
         if not str(rec.get(k) or '').strip(): bad.append(f'no {k}')
     mode = s.get('mode', 'lab'); names = roster(game)
-    if mode not in ('lab', 'stage', 'title', 'select'): bad.append(f'unknown mode {mode!r}')
+    if mode not in ('lab', 'stage', 'title', 'select', 'bonus'): bad.append(f'unknown mode {mode!r}')
+    if mode == 'bonus':
+        B = json.load(open(os.path.join(game, 'game.json'))).get('bonus') or {'after': [], 'games': []}
+        if int(s.get('after', 1)) not in B['after']: bad.append(f"after {s.get('after', 1)}: no bonus after that stage ({B['after']})")
+        if s.get('game', 'pick') not in ['pick'] + [x['id'] for x in B['games']]: bad.append(f"game {s.get('game')!r}: pick or a bonus.games id")
     for k in ('fighter', 'dummy', 'cursor'):
         if k in s and s[k] not in names: bad.append(f'{k} {s[k]!r} is not in the roster')
     if mode == 'stage':

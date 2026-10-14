@@ -683,6 +683,29 @@ seed $1D2B + w + 8s; lock points w x (width - 320) / 5 (448 px on the 2560 px st
 the stage end with min(2 + s, 5) minions (pick 3k + s, not the boss, set k + s, tint 1 + (k + s) mod 3, z 6 + 13k),
 seed $5B05 + s; life 100 + 4s, power stage + 1.
 
+### Bonus stages (TODO T7, 2026-10-14; decision sets bonus-game + bonus-followup)
+
+Top-level `bonus` (next to `stages`, build_tables.py `bonus_check` / `bonus_tables` -> `gbonus`, gamedata.h
+`gbonus_t`, main.c "bonus stages"; analysis /data/neogeo_dict/aof/bonus.md). A bonus is a level type the engine plays
+from data, the scenes are Art of Fighting 2's own sprites (tools/aof/bonus_rip.py dumps AOF2's VRAM + palette RAM in
+our emulator to /data/neogeo_dict/aof/rip; tools/brawler/make_bonus.py -> build/bonus.h + 541 tiles, 67 KB of C ROM).
+
+| field | today | meaning |
+|---|---|---|
+| `after` | `[1, 3]` | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
+| `pick` | `{"seconds": 9, "music": "BONUS_SELECT"}` | AOF2's SELECT BONUS GAME: stick + A, the cursor's game when the clock runs out |
+| `fury_lock` | `true` | Fury and Fury MAX (D, down+D) locked for the players from a new credit until a game with `unlock: fury` is won; a fail keeps the lock, a continue too; the attract demo and the Lab never locked |
+| `over_music` | `"BONUS_OVER"` | the result's jingle |
+| games[] `kind` `gauge` | Ki training, scene `tree` | one press on a gauge sweeping 0-127 (`step` a tick, wrapping, `seconds` to press); grade = how many of `grades` it reached (AOF2 Spirit Training's table $17EF8, default row 36 68 92 108 120); `chunks[grade]` drive chunks added to both players' bars for the credit (max 4; today [0,0,0,0,0,2]: AOF2's rule, only the top grade rewards) |
+| games[] `kind` `break` | Super Death Blow, scene `posts` | `count` (9) wooden posts, one at a time, in `seconds` (60; the clock holds during a super flash); `breaks_with` `fury`: only the fury's / MAX's body or its objects break one (fighter.c `fighter_strike_box` class 2), anything else shakes it and shows the lesson box (ONLY YOUR FURY BREAKS THE POSTS, FURY = D, MAX = DOWN + D AT LOW LIFE); all broken: `unlock` |
+
+A game already won this credit plays for its bonus figure only (the game keeps no score). The leading player plays
+alone; P2 sits it out and comes back in the next stage. Editable in the Factory's Levels tab (levels.py `bonus_view` /
+`bonus_merge`: after per stage, the pick clock, the lock, each game's name / song / clock / posts / top-grade chunks).
+Proof: tools/brawler/bonus_proof.py (pick, every grade, posts win / fail, D locked / unlocked in the next stage;
+`--sweep`: every selectable fighter breaks the 9 posts with his fury inside the clock); scenarios t7-* (scenario.py
+mode `bonus`, lab req 6).
+
 ## Retiming (revamp phase 1C, 2026-10-08; docs/brawler_feel.md 6 and 8h)
 
 Bruno's design: the brawler embeds every move's ORIGINAL timing exactly as in its source game; the animation player
