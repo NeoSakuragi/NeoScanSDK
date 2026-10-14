@@ -60,7 +60,7 @@ def bonus_view(g):
     b = g.get('bonus')
     if not b: return None
     return {'after': b['after'], 'pick_seconds': b['pick']['seconds'], 'fury_lock': bool(b.get('fury_lock')),
-            'games': [{'id': x['id'], 'kind': x['kind'], 'scene': x['scene'], 'name': x['name'], 'music': x['music'], 'seconds': x['seconds'],
+            'games': [{'id': x['id'], 'kind': x['kind'], 'scene': x['scene'], 'slot': x.get('slot'), 'name': x['name'], 'music': x['music'], 'seconds': x['seconds'],
                        **({'count': x['count']} if x['kind'] == 'break' else {'top': x['chunks'][5]})} for x in b['games']]}
 
 
@@ -73,7 +73,7 @@ def bonus_merge(game, g, want):
     b['after'] = sorted(want.get('after', b['after'])); b['pick']['seconds'] = want.get('pick_seconds', b['pick']['seconds'])
     b['fury_lock'] = bool(want.get('fury_lock', b.get('fury_lock')))
     for x, w in zip(b['games'], want['games']):
-        for k in ('name', 'music', 'seconds') + (('count',) if x['kind'] == 'break' else ()):
+        for k in ('name', 'music', 'seconds', 'slot') + (('count',) if x['kind'] == 'break' else ()):
             if k in w: x[k] = w[k]
         if x['kind'] == 'gauge' and 'top' in w: x['chunks'] = x['chunks'][:5] + [w['top']]
     songs = {s['name'] for s in json.load(open(os.path.join(game, 'songs.json')))['songs']}

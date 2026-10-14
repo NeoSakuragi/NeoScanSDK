@@ -3,7 +3,8 @@
 every run from scenario.py's mode "bonus" (lab req 6: a new game, then the bonus after stage `after`):
 
     bonus_proof.py GAME_DIR OUT [--sweep]
-      pick    the pick screen, the cursor moved right, its clock run out: the cursor's game starts      -> pick*.png
+      pick    AOF2's BONUS GAME screen, the select (cursor right, an empty slot skipped, the clock), the
+              title card, then the cursor's game                                                       -> intro, pick*, card.png
       grades  the Ki training pressed at a power of each grade (0-5): grade, drive chunks after          -> tree_g*.png
       win     the posts with Terry: D at each post until all are broken: unlocked, the result         -> posts_win*.png
       fail    the posts with A only (shakes, the lesson) to the clock's end: TIME OVER, still locked   -> posts_fail*.png
@@ -16,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness as H, scenario
 from PIL import Image, ImageDraw
 
-BN = {'off': 0, 'pick': 1, 'play': 2, 'end': 3}
+BN = {'off': 0, 'pick': 1, 'play': 2, 'end': 3, 'intro': 4, 'card': 5}
 BP_STAND = 2
 
 
@@ -47,13 +48,27 @@ class Proof:
 
     # ---- the pick screen
     def pick(self):
-        self.setup(game='pick'); self.b.run(40)
-        self.check(self.r('mode') == 6 and self.r('bonus_on') == BN['pick'], 'pick: the pick screen (mode 6)')
-        self.shot('pick', 'pick screen'); self.b.seq('4:R,30:-')
-        self.check(self.r('bn_cur') == 1, 'pick: the stick moves the cursor right')
+        """AOF2's own screens (notes 20261014-085447 / -085507-5d29): BONUS GAME, SELECT BONUS GAME (a slot without a game
+        greyed and skipped), the title card, then the game"""
+        it, ct = self.G.get('intro', {}).get('ticks', 122), self.G.get('card', {}).get('ticks', 186)
+        self.setup(game='pick'); self.b.run(30)
+        self.check(self.r('mode') == 6 and self.r('bonus_on') == BN['intro'], 'pick: AOF2\'s BONUS GAME screen first (mode 6)')
+        self.shot('intro', 'BONUS GAME')
+        last = [0]; k = self.until(lambda: last.__setitem__(0, self.r('bn_t', 2)) if self.r('bonus_on') == BN['intro'] else True, 300)
+        self.check(k >= 0 and self.r('bonus_on') == BN['pick'] and last[0] in (it - 1, it), f'pick: the select after the BONUS GAME screen (its clock at {last[0]}, game.json intro.ticks {it})')
+        self.b.run(200); self.shot('pick', 'SELECT BONUS GAME (the cursor\'s message)')
+        slots = sorted(x['slot'] for x in self.G['games'])
+        self.check(self.r('bn_slot') == slots[0] and self.r('bn_cur') == 0, f'pick: the cursor on the first game\'s slot {slots[0]}')
+        self.b.seq('4:R,30:-')
+        self.check(self.r('bn_cur') == 1 and self.r('bn_slot') == slots[1], f'pick: the stick moves the cursor right, to slot {self.r("bn_slot")} (want {slots[1]}: an empty slot skipped)')
         self.shot('pick_right', 'cursor right')
-        k = self.until(lambda: self.r('bonus_on') == BN['play'], self.G['pick']['seconds'] * 60 + 60)
-        self.check(k >= 0 and self.r('bn_game') == 1, f'pick: the clock ran out -> the cursor\'s game ({self.G["games"][1]["id"]}) after {k} more ticks')
+        self.b.seq('4:R,30:-')
+        self.check(self.r('bn_cur') == 1, 'pick: no slot right of the last game')
+        k = self.until(lambda: self.r('bonus_on') == BN['card'], self.G['pick']['seconds'] * 60 + 200)
+        self.check(k >= 0, f'pick: the clock ran out -> the title card after {k} more ticks')
+        self.b.run(60); self.shot('card', 'the title card')
+        last = [0]; k = self.until(lambda: last.__setitem__(0, self.r('bn_t', 2)) if self.r('bonus_on') == BN['card'] else True, ct + 10)
+        self.check(k >= 0 and self.r('bonus_on') == BN['play'] and last[0] in (ct - 1, ct) and self.r('bn_game') == 1, f'pick: the card (its clock at {last[0]}, card.ticks {ct}) -> the cursor\'s game ({self.G["games"][1]["id"]})')
 
     # ---- the Ki training: one press per grade
     def grades(self):

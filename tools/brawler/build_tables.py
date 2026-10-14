@@ -859,14 +859,16 @@ def ending_tables(g):
 
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
-BONUS_KEYS = ('about', 'after', 'pick', 'fury_lock', 'over_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'music', 'seconds', 'step', 'grades', 'chunks'),
-                   'break': ('id', 'name', 'kind', 'scene', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
+BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'games')
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks'),
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
+BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
+BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
 
-def bonus_check(g, songs_known):
+def bonus_check(g, songs_known, sfx_names=None):
     """game.json "bonus" checked -> the values the tables write (levels.py checks a draft with it too); raises
-    AssertionError(reason)"""
+    AssertionError(reason). sfx_names (songs.json sfx names, upper case): the sounds checked too"""
     b = g.get('bonus') or {'after': [], 'games': [], 'pick': {'seconds': 9, 'music': g['music']['select']}, 'fury_lock': False}
     for k in b: assert k in BONUS_KEYS, f'bonus: unknown field {k}'
     n = len(g['stages'])
@@ -874,17 +876,29 @@ def bonus_check(g, songs_known):
         f"bonus.after: stage numbers 1-{n - 1} (a bonus needs a stage after it): {b['after']}"
     assert len(set(b['after'])) == len(b['after']), 'bonus.after: a stage twice'
     p = b['pick']
-    assert isinstance(p.get('seconds'), int) and 3 <= p['seconds'] <= 30, 'bonus.pick.seconds: 3-30'
+    assert isinstance(p.get('seconds'), int) and 3 <= p['seconds'] <= 9, "bonus.pick.seconds: 3-9 (AOF2's clock: one digit)"
     for k, v in (('bonus.pick.music', p.get('music')), ('bonus.over_music', b.get('over_music', p.get('music')))):
         assert v in songs_known, f'{k}: {v!r} is no songs.json song'
     gs = b['games']
     assert 1 <= len(gs) <= 3 or not b['after'], 'bonus.games: 1-3 games'
+    def snd(k, v):
+        assert sfx_names is None or v is None or v.upper() in sfx_names, f'{k}: {v!r} is no songs.json sfx name (the V ROM has no sample for it)'
+    i, c = b.get('intro', {}), b.get('card', {})
+    for k in i: assert k in ('music', 'voice', 'at', 'ticks'), f'bonus.intro: unknown field {k}'
+    for k in c: assert k in ('ticks', 'sound'), f'bonus.card: unknown field {k}'
+    assert i.get('music', p.get('music')) in songs_known, f"bonus.intro.music: {i.get('music')!r} is no songs.json song"
+    assert 0 <= i.get('at', 0) < i.get('ticks', 122) <= 255 and 30 <= c.get('ticks', 186) <= 255, 'bonus.intro: at < ticks <= 255; bonus.card.ticks 30-255'
+    snd('bonus.intro.voice', i.get('voice')); snd('bonus.card.sound', c.get('sound'))
+    sl = [x.get('slot') for x in gs]
+    assert all(s in BONUS_SLOTS for s in sl) and len(set(sl)) == len(sl), \
+        f"bonus.games: slot = AOF2's select slot, one game each, of {' | '.join(f'{s} ({BONUS_SLOT_NAMES[s]})' for s in BONUS_SLOTS)}: {sl}"
     for x in gs:
         kind = x.get('kind'); assert kind in BONUS_KINDS, f"bonus game {x.get('id')}: kind {kind!r} (gauge | break)"
         for k in x: assert k in BONUS_GAME_KEYS[kind], f"bonus game {x['id']}: unknown field {k} for kind {kind}"
         assert re.fullmatch(r'[A-Z0-9 .!-]{1,18}', x['name']), f"bonus game {x['id']}: name 1-18 characters A-Z 0-9 space . ! -"
         assert x['scene'] in BONUS_SCENES, f"bonus game {x['id']}: scene {x['scene']!r} ({' | '.join(BONUS_SCENES)})"
         assert x['music'] in songs_known, f"bonus game {x['id']}: music {x['music']!r} is no songs.json song"
+        snd(f"bonus game {x['id']}: voice", x.get('voice'))
         assert isinstance(x['seconds'], int) and 5 <= x['seconds'] <= 99, f"bonus game {x['id']}: seconds 5-99"
         if kind == 'gauge':
             gr = x['grades']; ch = x['chunks']
@@ -899,14 +913,15 @@ def bonus_check(g, songs_known):
     return b
 
 
-def bonus_tables(g, songs_known):
-    """game.json "bonus" -> gbonus (gamedata.h gbonus_t, main.c "bonus stages")"""
-    b = bonus_check(g, songs_known)
+def bonus_tables(g, songs_known, sfx_names):
+    """game.json "bonus" -> gbonus (gamedata.h gbonus_t, main.c "bonus stages"); sfx_names: songs.json sfx name -> code"""
+    b = bonus_check(g, songs_known, sfx_names)
+    code = lambda v: sfx_names[v.upper()] if v else 0
     c = ['static const uint8_t gbonus_after[GS_COUNT] = { ' + ', '.join('1' if s + 1 in b['after'] else '0' for s in range(len(g['stages']))) + ' };   /* bonus.after */']
     rows = []
     for x in b['games']:
         f = [f".name = {c_str(x['name'])}", f".kind = {BONUS_KINDS[x['kind']]}", f".scene = {BONUS_SCENES.index(x['scene'])}",
-             f".music = MUS_{x['music']}", f".seconds = {x['seconds']}"]
+             f".music = MUS_{x['music']}", f".seconds = {x['seconds']}", f".slot = {x['slot']}", f".voice = 0x{code(x.get('voice')):02X}"]
         if x['kind'] == 'gauge':
             f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }']
         else:
@@ -914,7 +929,11 @@ def bonus_tables(g, songs_known):
         rows.append('{ ' + ', '.join(f) + ' }')
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
              f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "
-             f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, .games = {{ {', '.join(rows)} }} }};")
+             f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, "
+             f".intro_music = MUS_{b.get('intro', {}).get('music', b['pick']['music'])}, .intro_voice = 0x{code(b.get('intro', {}).get('voice')):02X}, "
+             f".intro_at = {b.get('intro', {}).get('at', 0)}, .intro_ticks = {b.get('intro', {}).get('ticks', 122)}, "
+             f".card_ticks = {b.get('card', {}).get('ticks', 186)}, .card_sound = 0x{code(b.get('card', {}).get('sound')):02X}, "
+             f".games = {{ {', '.join(rows)} }} }};")
     return c
 
 
@@ -1138,7 +1157,7 @@ def tables(g, build):
     c += retime_tables(g, build)
     eh, ec = ending_tables(g)
     h += eh; c += ec
-    c += bonus_tables(g, known)
+    c += bonus_tables(g, known, {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()})
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

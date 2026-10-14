@@ -301,7 +301,9 @@ enum { BB_FURY };
 enum { BU_NONE, BU_FURY };
 typedef struct {
     const char *name;             /* the pick screen's / the title's (fix font) */
-    uint8_t kind, scene, music, breaks, unlock, count, step, pad;   /* BK_*, BONUS_* scene, driver command, BB_*, BU_* */
+    uint8_t kind, scene, music, breaks, unlock, count, step, slot;   /* BK_*, BONUS_* scene, driver command, BB_*, BU_*; slot: AOF2's
+                                     select slot 0-2 (its picture, message, title card: bonus.h bscr_*) */
+    uint8_t voice, pad2;          /* the title card's voice: an sfx code ($1A + code; 0: none) */
     uint16_t seconds;             /* the game's clock (BK_GAUGE: no press by then = grade 0) */
     uint8_t grades[5];            /* BK_GAUGE: the power (0-127) each grade 1-5 needs */
     uint8_t chunks[6];            /* BK_GAUGE: drive chunks a grade 0-5 adds (the bar up to 4) */
@@ -309,6 +311,8 @@ typedef struct {
 #define GB_MAX_GAMES 3
 typedef struct {
     uint8_t ngames, pick_seconds, pick_music, over_music, fury_lock, pad;
+    uint8_t intro_music, intro_voice, intro_at, intro_ticks;   /* AOF2's BONUS GAME screen: song + sfx code at tick intro_at, its length */
+    uint8_t card_ticks, card_sound;   /* the title card's length, its sound (sfx code) with the game's voice */
     const uint8_t *after;         /* [GS_COUNT]: 1 = the pick screen after this stage */
     gbonus_game_t games[GB_MAX_GAMES];
 } gbonus_t;

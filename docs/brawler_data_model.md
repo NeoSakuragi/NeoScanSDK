@@ -688,12 +688,17 @@ seed $5B05 + s; life 100 + 4s, power stage + 1.
 Top-level `bonus` (next to `stages`, build_tables.py `bonus_check` / `bonus_tables` -> `gbonus`, gamedata.h
 `gbonus_t`, main.c "bonus stages"; analysis /data/neogeo_dict/aof/bonus.md). A bonus is a level type the engine plays
 from data, the scenes are Art of Fighting 2's own sprites (tools/aof/bonus_rip.py dumps AOF2's VRAM + palette RAM in
-our emulator to /data/neogeo_dict/aof/rip; tools/brawler/make_bonus.py -> build/bonus.h + 541 tiles, 67 KB of C ROM).
+our emulator to /data/neogeo_dict/aof/rip; tools/brawler/make_bonus.py -> build/bonus.h + 541 tiles, 67 KB of C ROM;
+AOF2's screens around a game: `bonus_rip.py screens` -> make_bonus.py "screens", 193 AOF2 tiles + 157 tiles of its fix-layer
+texts baked into sprites, 43 KB of C ROM; the 4 AOF2 sounds 66 816 bytes of V ROM, song $4E 579 bytes of M ROM + its samples).
 
 | field | today | meaning |
 |---|---|---|
 | `after` | `[1, 3]` | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
-| `pick` | `{"seconds": 9, "music": "BONUS_SELECT"}` | AOF2's SELECT BONUS GAME: stick + A, the cursor's game when the clock runs out |
+| `intro` | `{"music": "BONUS_INTRO", "voice": "AOF2 BONUS GAME", "at": 7, "ticks": 122}` | AOF2's own BONUS GAME screen (notes 20261014-085447 / -085507-5d29): the text zooming in as AOF2's, at tick `at` its jingle ($33) + the announcer (`voice`: a songs.json sfx name, AOF2's $1C $AE), `ticks` long |
+| `pick` | `{"seconds": 9, "music": "BONUS_SELECT"}` | AOF2's original SELECT BONUS GAME (its 3 pictures, title, TIME, message box and texts; song $4E): stick + A, the cursor's frame flickering as AOF2's, the general message until the stick moves or 3 s pass, then the cursor's game's; TIME `seconds` (3-9) counting down, 1 s at 0, then the cursor's game; a pick: the frame steady 1 s |
+| `card` | `{"ticks": 186, "sound": "AOF2 GONG"}` | the picked game's AOF2 title card (white, its kanji + English name), the music off, the game's `voice` + `sound` (AOF2's $1A $20), `ticks` long |
+| games[] `slot` / `voice` | ki 0 / `AOF2 SPIRIT CARD`, posts 2 / `AOF2 SDB CARD` | the game's AOF2 select slot (0 Spirit Training, 2 Super Death Blow: its picture, message, title card); a slot without a game (1 Strength Training) is greyed and the cursor skips it; `voice` = the announcer reading the card (AOF2's $1C $CD / $CE) |
 | `fury_lock` | `true` | Fury and Fury MAX (D, down+D) locked for the players from a new credit until a game with `unlock: fury` is won; a fail keeps the lock, a continue too; the attract demo and the Lab never locked |
 | `over_music` | `"BONUS_OVER"` | the result's jingle |
 | games[] `kind` `gauge` | Ki training, scene `tree` | one press on a gauge sweeping 0-127 (`step` a tick, wrapping, `seconds` to press); grade = how many of `grades` it reached (AOF2 Spirit Training's table $17EF8, default row 36 68 92 108 120); `chunks[grade]` drive chunks added to both players' bars for the credit (max 4; today [0,0,0,0,0,2]: AOF2's rule, only the top grade rewards) |
@@ -701,8 +706,9 @@ our emulator to /data/neogeo_dict/aof/rip; tools/brawler/make_bonus.py -> build/
 
 A game already won this credit plays for its bonus figure only (the game keeps no score). The leading player plays
 alone; P2 sits it out and comes back in the next stage. Editable in the Factory's Levels tab (levels.py `bonus_view` /
-`bonus_merge`: after per stage, the pick clock, the lock, each game's name / song / clock / posts / top-grade chunks).
-Proof: tools/brawler/bonus_proof.py (pick, every grade, posts win / fail, D locked / unlocked in the next stage;
+`bonus_merge`: after per stage, the pick clock, the lock, each game's name / AOF2 slot / song / clock / posts / top-grade chunks).
+Proof: tools/brawler/bonus_screens_proof.py (AOF2 vs brawler side by side, both in our emulator: BONUS GAME, the select,
+the cards; the sounds' loudness per frame), tools/brawler/bonus_proof.py (the screens' order and lengths, the pick, every grade, posts win / fail, D locked / unlocked in the next stage;
 `--sweep`: every selectable fighter breaks the 9 posts with his fury inside the clock); scenarios t7-* (scenario.py
 mode `bonus`, lab req 6).
 

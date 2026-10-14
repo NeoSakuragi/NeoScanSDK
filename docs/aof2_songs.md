@@ -51,7 +51,7 @@ endings `$47-$4C` come from the table `$11092` by the player's character (`$1108
 | `$30` | `$93DE` (0) | `$B1` (44.0) | loops | stage theme, Jack Turner (opponent 4, measured) | 1024 / 1024, 19810 |
 | `$31` | `$A192` (0) | `$B5` (46.3) | loops | stage theme, King (opponent 6, measured) | 778 / 778, 14265 |
 | `$32` | `$A722` (0) | `$80` (27.1) | loops | requested at `$1785E` (not identified) | 14 / 14, 623 |
-| `$33` | `$A7AF` (0) | `$B8` (48.2) | stops (`$40`), 98 ticks | bonus game select (measured) | 8 / 8, 326 |
+| `$33` | `$A7AF` (0) | `$B8` (48.2) | stops (`$40`), 98 ticks | the BONUS GAME screen's jingle, with the announcer $1C $AE (measured 2026-10-14, tools/aof/bonus_rip.py) | 8 / 8, 326 |
 | `$34` | `$A879` (0) | `$BC` (51.1) | loops | ending scene, Geese ("I have invested too much...", measured) | 140 / 140, 1456 |
 | `$35` | `$AA78` (0) | `$BD` (51.8) | loops | Geese defeated (stage counter 17, `$F6D2C`; measured) | 352 / 352, 2863 |
 | `$36` | `$ABD1` (0) | `$B6` (46.9) | loops | title / how to play, after a coin and after a game over (measured) | 167 / 167, 3934 |
@@ -69,14 +69,14 @@ endings `$47-$4C` come from the table `$11092` by the player's character (`$1108
 | `$4B` | `$BFC2` (0) | `$B0` (43.4) | loops | ending, King's and Takuma's (68K table `$11092`, *inferred*) | 153 / 153, 2728 |
 | `$4C` | `$C274` (0) | `$B2` (44.5) | loops | ending, Lee's (68K table `$11092`, *inferred*) | 91 / 91, 1050 |
 | `$4D` | `$C35A` (0) | `$B2` (44.5) | loops | scene before the Geese fight (measured) | 172 / 172, 2544 |
-| `$4E` | `$C4C0` (0) | `$B8` (48.2) | loops | bonus game title card (measured) | 65 / 65, 1222 |
+| `$4E` | `$C4C0` (0) | `$B8` (48.2) | loops | the SELECT BONUS GAME screen (measured 2026-10-14, tools/aof/bonus_rip.py: it starts as the select shows; the title card is silent: $20) | 65 / 65, 1222 |
 | `$50` | `$D888` (1) | `$BC` (51.1) | loops | stage theme, Micky Rogers, after its intro `$46` (opponent 7, measured) | 1144 / 1144, 22933 |
 | `$51` | `$E9E4` (1) | `$B6` (46.9) | loops | stage theme, Temjin (opponent 12, measured) | 863 / 863, 13014 |
 | `$52` | `$C642` (0) | `$CA` (64.3) | loops | stage theme, Geese Howard (opponent 13, measured) | 1199 / 1199, 30261 |
 | `$5F` | `$D689` (0) | `$C0` (54.3) | stops (`$40`), 386 ticks | NEO-GEO logo jingle at boot, started by command `$02` (measured: the same writes) | 259 / 259, 1917 |
 | all 42 | | | | | **18265 / 18265**, 347698 |
 
-The one-player order measured with Ryo: Ryo, Yuri, Jack, bonus game (strength training: `$33` select, `$4E` title card,
-`$20`, `$43`, `$2D`), Lee, Robert, King, bonus game, Micky, Eiji, John, bonus game (Haoh Shoko-ken: `$33`, `$4E`, `$20`,
+The one-player order measured with Ryo: Ryo, Yuri, Jack, bonus game (strength training: `$33` BONUS GAME, `$4E` select,
+`$20`, `$43`, `$2D`), Lee, Robert, King, bonus game, Micky, Eiji, John, bonus game (Haoh Shoko-ken: `$33`, `$4E`, `$20` (the title card),
 `$2B`, `$2E`), Temjin, Takuma, Mr. Big, `$4D`, Geese, `$35`, `$34`, `$48`, `$2A`. `$40` plays between matches. `$2C` and
 `$32` have constant requests (`$18D2C`, `$18D6C`, `$18DB2`; `$1785E`) not reached in our runs.

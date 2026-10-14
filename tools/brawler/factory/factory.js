@@ -327,10 +327,12 @@
         oninput: e => { e.target.value = e.target.value.toUpperCase(); gm.name = e.target.value; } })),
       h('label', { class: 'lf' }, h('span', { text: 'Music' }), h('select', { onchange: e => { gm.music = e.target.value; } },
         G.songs.map(sg => h('option', { value: sg.name, selected: sg.name === gm.music ? '' : null, text: sg.name })))),
+      h('label', { class: 'lf' }, h('span', { text: 'AOF2 slot' }), h('select', { onchange: e => { gm.slot = parseInt(e.target.value, 10); } },
+        [[0, 'Spirit Training'], [2, 'Super Death Blow']].map(([s, t]) => h('option', { value: String(s), selected: s === gm.slot ? '' : null, text: t })))),
       num(gm, 'seconds', 5, 99, 'Clock (s)'),
       gm.kind === 'break' ? num(gm, 'count', 1, 20, 'Posts') : num(gm, 'top', 0, 3, 'Meter chunks at PERFECT')));
     return h('div', { class: 'ledit' },
-      num(v, 'pick_seconds', 3, 30, 'Pick screen clock (s)'),
+      num(v, 'pick_seconds', 3, 9, 'Pick screen clock (s)'),
       h('label', { class: 'lf' }, h('input', { type: 'checkbox', checked: v.fury_lock ? '' : null, onchange: e => { v.fury_lock = e.target.checked; } }),
         h('span', { text: 'Fury + MAX locked until the posts are won' })),
       games,

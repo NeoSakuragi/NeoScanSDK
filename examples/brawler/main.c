@@ -193,7 +193,7 @@ static uint8_t bz_x[2][2], bz_xa[2][2], bz_z[2][2], bz_za[2][2];   /* the Blitz 
 static uint8_t ab_age[2][2];                     /* A+B = C (read_player): frames since A / B was pressed */
 enum { PH_WAVE, PH_GO, PH_BOSS, PH_END, PH_CLEAR };   /* campaign phases (see "campaign") */
 static uint8_t phase;
-enum { BN_OFF, BN_PICK, BN_PLAY, BN_END };             /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
+enum { BN_OFF, BN_PICK, BN_PLAY, BN_END, BN_INTRO, BN_CARD };           /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
                                                           game won this credit; sh_n = the entities shadows() handles */
 static uint8_t bonus_on, bn_won, sh_n = NE;
 
@@ -1173,7 +1173,7 @@ static void draw(void) {
         block_placed[i] = n; block_spr[i] = spr;
     }
     if (land_on) land_clip(0);                               /* their trims back */
-    else shadows();                                          /* (the select's land holds the shadows' sprites) */
+    else if (mode != 6) shadows();                           /* (the select's land holds the shadows' sprites; AOF2's bonus screens, mode 6, theirs) */
     sparks_draw();
     if (mode == 1) sf_draw();
     tfx_draw();
@@ -2569,8 +2569,8 @@ uint8_t game_start_accept(uint8_t flags) {
 }
 /* ---- bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; game.json "bonus",
  * gamedata.h gbonus_t, AOF2's scenes: tools/brawler/make_bonus.py -> bonus.h). After a stage with gbonus.after set (and
- * its BOSS UNLOCKED screen), mode 6: AOF2's SELECT BONUS GAME, each game's picture (its scene's object, shrunk), the
- * stick + A (any button, START), gbonus.pick_seconds on the clock, the cursor's game at 0. Then the game, played in the
+ * its BOSS UNLOCKED screen), mode 6: AOF2's own BONUS GAME screen, SELECT BONUS GAME and the game's title card (see "AOF2's own
+ * screens" below: data in game.json bonus intro / pick / card / games[].slot + voice). Then the game, played in the
  * fight's tick (mode 1, bonus_on): its scene as the stage (stage_use, the camera fixed at its cam), the leading player
  * alone (P1, else P2), no enemies, the HUD up:
  *   BK_GAUGE (the tree, AOF2 Spirit Training): the gauge (fix row 9) sweeps 0-127, step a tick, wrapping; one A (no
@@ -2624,54 +2624,102 @@ static void bn_put(uint16_t spr, const bonus_obj_t *o, int16_t sx, int16_t sy, u
 }
 static void bn_hide(uint16_t spr, uint8_t n) { while (n--) cmd_push(VRAM_SCB3 + spr++, 0); }
 static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row, "                                      ", 0); if (t) { uint8_t n = 0; while (t[n]) n++; FIX_print(20 - (n >> 1), row, t, pal); } }
-static const bonus_obj_t *bn_pic(uint8_t scene) { return scene == BONUS_TREE ? &bonus_tree[0] : &bonus_post[0]; }
-static void bn_pick_draw(void) {                 /* the names, the cursor's highlighted, its arrows */
-    uint8_t k;
-    for (k = 0; k < gbonus.ngames; k++) {
-        const gbonus_game_t *g = &gbonus.games[k];
-        uint8_t n = 0, cx = gbonus.ngames == 2 ? (k ? 29 : 11) : (uint8_t)(7 + 13 * k), on = k == bn_cur;
-        while (g->name[n]) n++;
-        FIX_print(cx - (n >> 1) - 2, 23, " ", 0); FIX_print(cx - (n >> 1) + n + 1, 23, " ", 0);
-        if (on) { FIX_print(cx - (n >> 1) - 2, 23, ">", 1); FIX_print(cx - (n >> 1) + n + 1, 23, "<", 1); }
-        FIX_print(cx - (n >> 1), 23, g->name, on);
-        FIX_print(cx - 6, 25, (bn_won >> k & 1) ? "   CLEARED   " : g->kind == BK_GAUGE ? "  METER UP   " : g->unlock == BU_FURY ? " FURY UNLOCK " : "             ", on);
-    }
+/* AOF2's own screens before a game (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14 "AOF2's ORIGINAL bonus
+ * select screen"; bonus.h bscr_*: make_bonus.py "screens", AOF2's order and timing: tools/aof/bonus_rip.py), mode 6,
+ * on sprites 1..BSCR_SPRS - 1 (cleared when one ends; bonus_play gives the stage, shadows and fighters theirs back):
+ *   BN_INTRO "BONUS GAME" (black): AOF2's two chains zooming in (bscr_zoom, a step a tick), at gbonus.intro_at its song +
+ *     the announcer (intro_music / intro_voice), the select after intro_ticks;
+ *   BN_PICK SELECT BONUS GAME: AOF2's three pictures in its slots 0-2, a slot without a game (game.json games[].slot)
+ *     greyed and skipped by the stick; the cursor's frame on every other tick, the general message until the stick
+ *     moves or 180 ticks pass, then the cursor's game's; TIME counts pick_seconds down a step per 60 ticks, 60 more at 0,
+ *     then the cursor's game; A (any button, START) picks: the frame steady 60 ticks;
+ *   BN_CARD the game's title card (its slot's: the kanji + the English name), the music off, the game's voice + the
+ *     card's sound (card_sound), card_ticks, then the game. */
+static uint8_t bn_slot, bn_moved, bn_conf, bn_msg, bn_slot_game[3];
+static void bscr_put(const bscr_obj_t *b, int16_t x, int16_t y, uint8_t hs, uint8_t vs) { bn_put(b->spr, &b->o, x, y, 0, hs, vs, 1); }
+static void bscr_clear(void) { uint16_t i, *y = cmd_run(VRAM_SCB3 + 1, BSCR_SPRS - 1); for (i = 0; i < BSCR_SPRS - 1; i++) y[i] = 0; }
+static void bscr_pals(const uint16_t *p, uint8_t n) { uint8_t i; for (i = 0; i < n; i++) PAL_setPalette(BSCR_PAL + i, p + i * 16); }
+static void bn_msg_show(uint8_t k) {             /* the message box's text: 0 the general one, 1-3 slot 0-2's */
+    const bscr_obj_t *m = &bscr_msg[k];
+    bn_msg = k; bscr_put(m, m->o.x, m->o.y, 0xF, 0xFF);
+    if (m->o.w < BSCR_MSG_W) bn_hide(m->spr + m->o.w, BSCR_MSG_W - m->o.w);
 }
-static void bonus_start(void) {                  /* after stage camp: the pick screen */
-    uint8_t k, i;
-    const bonus_scene_t *t = &bonus_scenes[BONUS_TREE], *p = &bonus_scenes[BONUS_POSTS];
-    mode = 6; bonus_on = BN_PICK; bn_t = 0; bn_cur = 0; nf = 0; cam_x = 0; bn_shown_clock = 0xFFFF;
+static void bn_frame_show(uint8_t on) {
+    if (on) bscr_put(&bscr_frame, bscr_frame_x[bn_slot], bscr_frame.o.y, 0xF, 0xFF); else bn_hide(bscr_frame.spr, bscr_frame.o.w);
+}
+static void bonus_start(void) {                  /* after stage camp: AOF2's BONUS GAME screen */
+    uint8_t i;
+    mode = 6; bonus_on = BN_INTRO; bn_t = 0; bn_cur = 0; nf = 0; cam_x = 0; bn_shown_clock = 0xFFFF;
+    snd_stop_music();                            /* (AOF2: silence until its BONUS GAME jingle) */
     bn_lead = pl_on[0] ? 0 : 1;
     for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     FIX_clear(); arcade_line_reset();
-    stage_hide(); dbg_init();
+    stage_hide(); dbg_init(); bscr_clear();
     bd_set(COLOR_BLACK);
-    for (i = 0; i < t->st.npal; i++) PAL_setPalette(STAGE_PAL + i, t->st.pal + i * 16);   /* both scenes' palettes */
-    for (i = 0; i < p->st.npal; i++) PAL_setPalette(STAGE_PAL + t->st.npal + i, p->st.pal + i * 16);
-    centre(4, "SELECT BONUS GAME");
-    for (k = 0; k < gbonus.ngames; k++) {        /* the pictures: the tree at half size, the post at 3 / 4 */
-        uint8_t sc = gbonus.games[k].scene, tr = sc == BONUS_TREE;
-        const bonus_obj_t *o = bn_pic(sc);
-        int16_t cx = gbonus.ngames == 2 ? (k ? 232 : 88) : 56 + 104 * k, w = tr ? o->w * 8 : o->w * 12, h = tr ? o->h * 8 : o->h * 12;
-        bn_put(BN_FRONT + k * 12, o, cx - (w >> 1), 172 - h, sc == BONUS_POSTS ? t->st.npal : 0, tr ? 7 : 11, tr ? 0x7F : 0xBF, 1);
-    }
-    bn_pick_draw();
-    snd_music(gbonus.pick_music);
+    bscr_pals(bscr_intro_pal, BSCR_INTRO_NPAL);
+    for (i = 0; i < 3; i++) bn_slot_game[i] = 0xFF;
+    for (i = 0; i < gbonus.ngames; i++) bn_slot_game[gbonus.games[i].slot] = i;
 }
 static void bonus_play(uint8_t k);
-static void bonus_pick_tick(void) {
-    uint16_t pr = JOY_pressed(bn_lead), left;
-    if (++bn_t == 1) return;
-    left = (uint16_t)(gbonus.pick_seconds * 60) > bn_t ? div16((uint16_t)(gbonus.pick_seconds * 60) - bn_t + 59, 60) : 0;
-    if (left != bn_shown_clock) { bn_shown_clock = left; FIX_print(35, 4, "  ", 0); FIX_printNum(35, 4, left, 1); }
-    if ((pr & JOY_RIGHT) && bn_cur + 1 < gbonus.ngames) { bn_cur++; snd_ssg(SSG_CURSOR); bn_pick_draw(); }
-    if ((pr & JOY_LEFT) && bn_cur) { bn_cur--; snd_ssg(SSG_CURSOR); bn_pick_draw(); }
-    if (!left || (bn_t > 20 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) {
-        uint8_t k;
-        snd_ssg(SSG_CONFIRM);
-        for (k = 0; k < gbonus.ngames; k++) bn_hide(BN_FRONT + k * 12, 12);
-        bonus_play(bn_cur);
+static void bn_select_start(void) {
+    uint8_t i, k;
+    bonus_on = BN_PICK; bn_t = 0; bn_moved = 0; bn_conf = 0; bn_shown_clock = 0xFFFF;
+    bscr_clear(); bscr_pals(bscr_sel_pal, BSCR_SEL_NPAL); bd_set(COLOR_BLACK);
+    for (i = 0; i < BSCR_SEL_N; i++) bscr_put(&bscr_sel[i], bscr_sel[i].o.x, bscr_sel[i].o.y, 0xF, 0xFF);
+    for (k = 0; k < 3; k++) {                    /* the pictures: a slot without a game greyed */
+        const bscr_obj_t *p = bn_slot_game[k] != 0xFF ? bscr_pics[k].on : bscr_pics[k].off;
+        for (i = 0; i < bscr_pics[k].n; i++) bscr_put(&p[i], p[i].o.x, p[i].o.y, 0xF, 0xFF);
+    }
+    for (bn_slot = 0; bn_slot < 2 && bn_slot_game[bn_slot] == 0xFF; bn_slot++) ;   /* AOF2's cursor: the first slot */
+    bn_cur = bn_slot_game[bn_slot];
+    bn_msg_show(0);
+    snd_music(gbonus.pick_music);
+}
+static void bn_card_start(void) {
+    const bscr_card_t *c = &bscr_cards[bn_slot];
+    uint8_t i;
+    bonus_on = BN_CARD; bn_t = 0;
+    bscr_clear(); bscr_pals(c->pal, c->npal); bd_set(c->backdrop);
+    for (i = 0; i < c->n; i++) bscr_put(&c->objs[i], c->objs[i].o.x, c->objs[i].o.y, 0xF, 0xFF);
+    snd_stop_music();                            /* (AOF2's $20: silence) */
+    if (gbonus.games[bn_cur].voice) snd_sfx(gbonus.games[bn_cur].voice);
+    if (gbonus.card_sound) snd_sfx(gbonus.card_sound);
+}
+static void bonus_screen_tick(void) {
+    uint16_t pr = JOY_pressed(bn_lead), t = bn_t++;
+    if (bonus_on == BN_INTRO) {
+        if (t < BSCR_ZOOM_N) {
+            uint8_t j;
+            for (j = 0; j < BSCR_INTRO_N; j++) {
+                const int16_t *z = bscr_zoom[t][j];
+                if (z[3] < 0) bn_hide(bscr_intro[j].spr, bscr_intro[j].o.w);
+                else bscr_put(&bscr_intro[j], z[0], z[1], (uint8_t)z[2], (uint8_t)z[3]);
+            }
+        }
+        if (t == gbonus.intro_at) { if (gbonus.intro_voice) snd_sfx(gbonus.intro_voice); snd_music(gbonus.intro_music); }
+        if (t + 1 >= gbonus.intro_ticks) bn_select_start();
+        return;
+    }
+    if (bonus_on == BN_CARD) {
+        if (t + 1 >= gbonus.card_ticks) { bscr_clear(); bonus_play(bn_cur); }
+        return;
+    }
+    {                                            /* BN_PICK */
+        uint16_t secs = div16(t, 60);
+        uint8_t left = secs < gbonus.pick_seconds ? (uint8_t)(gbonus.pick_seconds - secs) : 0, s;
+        if (left != bn_shown_clock) { bn_shown_clock = left; bscr_put(&bscr_digit[left], bscr_digit[left].o.x, bscr_digit[left].o.y, 0xF, 0xFF); }
+        if (bn_conf) { if (++bn_conf > 60) bn_card_start(); return; }
+        bn_frame_show(!(t & 1));                 /* (AOF2: the frame on every other frame while picking) */
+        s = bn_slot;
+        if (t && (pr & JOY_RIGHT)) { do s++; while (s < 3 && bn_slot_game[s] == 0xFF); if (s >= 3) s = bn_slot; }
+        if (t && (pr & JOY_LEFT)) { uint8_t q = bn_slot; while (q && bn_slot_game[--q] == 0xFF) ; if (bn_slot_game[q] != 0xFF) s = q; }
+        if (s != bn_slot) { bn_slot = s; bn_cur = bn_slot_game[s]; bn_moved = 1; snd_ssg(SSG_CURSOR); bn_msg_show(1 + s); bn_frame_show(!(t & 1)); }
+        if (!bn_moved && t == 180) bn_msg_show(1 + bn_slot);
+        if (t >= (uint16_t)(gbonus.pick_seconds + 1) * 60 || (t > 20 && (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) {
+            bn_conf = 1; snd_ssg(SSG_CONFIRM); bn_frame_show(1);
+            if (bn_msg != 1 + bn_slot) bn_msg_show(1 + bn_slot);
+        }
     }
 }
 static void bn_lesson_show(uint8_t on) {         /* the break game's lesson box: what breaks the posts, how (AOF2's
@@ -2684,7 +2732,7 @@ static void bn_lesson_show(uint8_t on) {         /* the break game's lesson box:
 static void bonus_play(uint8_t k) {
     uint8_t i;
     fighter_t *f = &fighters[bn_lead];
-    bn_hide(BN_FRONT, 3 * 12);                   /* (the pick screen's pictures) */
+    bscr_clear(); shadow_init();                 /* (AOF2's screens: their sprites go, the shadows' tiles back) */
     bn_game = k; bn_g = &gbonus.games[k]; bonus_on = BN_PLAY; bn_t = 0; bn_clock = bn_g->seconds * 60; bn_shown_clock = 0xFFFF;
     mode = 1; phase = PH_WAVE; phase_t = 0; cont_ov = 0; wave = 0;
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;
@@ -2717,6 +2765,7 @@ static void bonus_play(uint8_t k) {
 static void bonus_off(void) {                    /* out of a bonus: its sprites hidden, the shadows' back */
     if (sh_n != NE) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_POST_SPR, 4); sh_n = NE; shadow_init(); }
     if (bonus_on) bn_hide(BN_FRONT, 48);
+    if (bonus_on == BN_PICK || bonus_on >= BN_INTRO) { bscr_clear(); shadow_init(); }   /* (cut short on one of AOF2's screens) */
     bonus_on = BN_OFF;
 }
 static void bonus_end(void) {                    /* the result shown: the next stage */
@@ -3730,7 +3779,7 @@ void game_tick(void) {
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
-    if (mode == 6) { bonus_pick_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus pick screen */
+    if (mode == 6) { bonus_screen_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus screens (AOF2's) */
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */

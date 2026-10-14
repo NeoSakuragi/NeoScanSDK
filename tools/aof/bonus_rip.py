@@ -6,6 +6,21 @@ Spirit Training (the tree) and Initiate Super Death Blow (the wooden posts, inta
 
     bonus_rip.py capture      -> /data/neogeo_dict/aof/rip/{spirit,posts}_<frame>.{vram,pal}, <name>_snaps/snap_<frame>.ppm
     bonus_rip.py sprites NAME FRAME   the frame's sprite chains (index, x, y, height, first tiles, palette) on stdout
+    bonus_rip.py screens      -> /data/neogeo_dict/aof/rip/{intro_<frame>,select_*,card_*}.{vram,pal}: AOF2's own screens
+                              around a bonus game (notes 20261014-085447-5d29 / -085507-5d29: "BONUS GAME", SELECT BONUS
+                              GAME, the title card), from power-on (bonus_cap.py's keys: one credit, Ryo, the stage
+                              counter $108428 held at 4 = the first bonus stage)
+
+AOF2's order (measured in our emulator, frames of the `screens` run; sound commands from SNDLOG): the fight's end, then
+  "BONUS GAME" (black; sprites 1-15 = 2 chains, palette $D4) from 2964: the text zooms in 2966-2980 (SCB2 $011F..$0FFF, a
+  step a frame), $1C $AE (the announcer: "bonus game!") + song $33 at 2971; held to 3085 (122 frames);
+  SELECT BONUS GAME from 3086 (song $4E, loops): grass sprites 1-20, the pictures 21-59 (slot 0 Spirit Training, 1
+  Strength Training, 2 Initiate Super Death Blow), the cursor frame 60-64 (on every other frame: a 30 Hz flicker), the
+  message box 65-81, the texts in the fix layer (title rows 4-5, TIME row 20, message rows 23-26): the general message
+  until the stick moves or 180 frames pass, then the cursor's game's; TIME 9 counts down a step per 60 frames, stays at 0
+  60 more frames, then the cursor's game; the stick: SSG $60; a pick: SSG $61 and the frame steady 60 frames; then
+  the title card (white, the game's kanji + English name in the fix layer) with $20 (silence), $1C $CD / $CE (the
+  announcer reads the kanji: Spirit Training / Super Death Blow) and $1A $20 (a gong): 186 frames, then the game.
 
 tools/brawler/make_bonus.py reads the dumps (and aof2.neo's C ROM) and builds the brawler's bonus.h + tiles."""
 import os, subprocess, sys
@@ -35,6 +50,23 @@ def capture():
         print(name, len([f for f in os.listdir(OUT) if f.startswith(name + '_') and f.endswith('.vram')]), 'dumps')
 
 
+BOOT = '1500:-,6:o,54:-,6:o,34:-,6:s,194:-,6:a,94:-,6:a,94:-,6:a,'   # to frame 2006 (bonus_cap.py state's keys)
+SCREENS = {                                  # run: R pressed that many times (3200, 3240), A at 3360; dump name: frame
+    0: dict({f'intro_{f}': f for f in range(2964, 2984)}, select_gen=3100, select_0=3300, card_0=3800),   # (no A: the clock)
+    2: dict(select_1=3220, select_2=3300, card_2=3500),
+}
+
+
+def screens():
+    for c, dumps in SCREENS.items():
+        seq = BOOT + '1194:-,' + ('4:R,36:-,' * c + f'{160 - 40 * c}:-,4:a,1000:-' if c else '1500:-')
+        poke = ';'.join(f'{f}:108428=00,108429=04' for f in range(1721, 4100))
+        env = dict(os.environ, SEQ=seq, POKE=poke, VRAMDUMP=';'.join(f'{f}:{OUT}/{n}.vram' for n, f in dumps.items()),
+                   PALDUMP=';'.join(f'{f}:{OUT}/{n}.pal' for n, f in dumps.items()))
+        subprocess.run(['timeout', '900', EMU, ROM, '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print('screens', c, sum(os.path.exists(f'{OUT}/{n}.vram') for n in dumps), '/', len(dumps), 'dumps')
+
+
 def sprites(v):
     """the VRAM words -> [{i, x, y, h, sticky, tiles: [(tile, attr)]}] for every sprite with a height (SCB3)"""
     w = lambda a: v[a * 2] << 8 | v[a * 2 + 1]
@@ -55,6 +87,7 @@ def sprites(v):
 if __name__ == '__main__':
     a = sys.argv[1:]
     if a and a[0] == 'capture': capture()
+    elif a and a[0] == 'screens': screens()
     elif len(a) == 3 and a[0] == 'sprites':
         for s in sprites(open(f'{OUT}/{a[1]}_{a[2]}.vram', 'rb').read()):
             nz = [t for t, _ in s['tiles'] if t]
