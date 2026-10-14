@@ -3639,6 +3639,441 @@
      ]
     }
    ]
+  },
+  {
+   "id": "results-1014",
+   "title": "Results to review (0.10.83 – 0.10.100)",
+   "intro": "Screenshots and clips from our emulator, newest first. One answer per item; Needs work = say what in the note (type or speak).",
+   "sections": [
+    {
+     "title": "New screens",
+     "questions": [
+      {
+       "id": "r-bigfont",
+       "title": "Big font (Savage Reign)",
+       "context": "0.10.100: Savage Reign's round-call letters (R O U N D 1-4 kept pixel for pixel), the rest built in its style. Top: Savage Reign; below: our STAGE START, STAGE CLEAR, GAME OVER, TIME OVER, FURY UNLOCKED. Known: TIME OVER overlaps the small TIME/POSTS line.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/bigfont.png",
+         "caption": "Savage Reign vs the brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-intro",
+       "title": "Stage intro",
+       "context": "0.10.99: fade-in with nobody on screen, STAGE N START, the hero walks in, then the waves (rows: stage 1 / stage 2, 1P / 2P). The title is now the big font (see above).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/stageintro.png",
+         "caption": "fade → title → walk-in → play"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-bonus-screens",
+       "title": "Bonus intro (AOF2's own screens)",
+       "context": "0.10.86: BONUS GAME zoom, AOF2's original select (Strength Training greyed), the kanji title cards. Left AOF2, right ours.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/bonus_screens.png",
+         "caption": "AOF2 vs brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-pillars",
+       "title": "Super Death Blow: 3 posts, regular attacks",
+       "context": "0.10.99: 3 posts, 4 hits each, 30 s, any attack; win = FURY UNLOCKED message (now in the big font).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/pillars.png",
+         "caption": "posts game"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-ki",
+       "title": "Ki training: per-grade outcome + tree sounds",
+       "context": "0.10.89/0.10.95: only PERFECT passes (AOF2), the tree cracks and falls with AOF2's sounds.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/clip_20261014-133606-5d29.gif",
+         "caption": "Ki training run"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Haggar",
+     "questions": [
+      {
+       "id": "r-hfury",
+       "title": "Haggar's new fury",
+       "context": "0.10.95: D = jab jab finisher ×3 + 8-hit spin, nobody launched until the last hit, invincible throughout.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/haggar_fury.png",
+         "caption": "one frame per hit"
+        },
+        {
+         "image": "decisions-media/results-1014/clip_20261014-171937-5d29.gif",
+         "caption": "clip"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-hwalk",
+       "title": "Walk while holding",
+       "context": "0.10.94: Final Fight's hold walk (top FF, bottom ours).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/holdwalk.png",
+         "caption": "FF vs brawler"
+        },
+        {
+         "image": "decisions-media/results-1014/clip_20261014-171133-5d29.gif",
+         "caption": "clip"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-piledriver",
+       "title": "Piledriver on B / forward+B / back+B",
+       "context": "0.10.86: FF's piledriver carried 94 px the held way (top FF, bottom ours).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/piledriver.png",
+         "caption": "FF vs brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-blitz",
+       "title": "Blitz slide (forward forward A)",
+       "context": "0.10.97: a 20 px slide over 12 frames from his run speed.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/clip_20261014-192939-5d29.gif",
+         "caption": "clip"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-bodies",
+       "title": "Thrown bodies hit other enemies",
+       "context": "0.10.88: a backdrop into two Terrys: both go down (8 damage each). They fly higher than in FF (our knockdown arc).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/bodies.png",
+         "caption": "throw into a group"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-grabfury",
+       "title": "Fury from a grab: no more screen garbage",
+       "context": "0.10.97: the bad animation step that corrupted video memory is fixed; this replays the case.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/clip_20261014-193405-5d29.gif",
+         "caption": "clip"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Other fighters",
+     "questions": [
+      {
+       "id": "r-kyo-edge",
+       "title": "Kyo throw at the screen edge",
+       "context": "0.10.90: no more teleport (columns: KOF98, 0.10.88, fixed).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/kyo_edge.png",
+         "caption": "KOF98 vs before vs after"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-scissor",
+       "title": "Kyo scissor kick: second kick on press",
+       "context": "0.10.92: early press (top) vs late press (bottom), KOF98 vs ours.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/scissor_early.png",
+         "caption": "early press"
+        },
+        {
+         "image": "decisions-media/results-1014/scissor_late.png",
+         "caption": "late press"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-moriya-jr",
+       "title": "Moriya jump attacks + run",
+       "context": "0.10.93: jump A/B/C hit again; the run is LB2's run loop (LB2 vs ours).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/moriya_jump_run.png",
+         "caption": "LB2 vs brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-moriya-trails",
+       "title": "Moriya slash trails",
+       "context": "0.10.83: LB2's slash trails on his normals (LB2 rows above ours).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/moriya_trails.png",
+         "caption": "LB2 vs brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-rock",
+       "title": "Rock Howard (Lab-only)",
+       "context": "Shine Knuckle, Garou (top) vs ours (bottom). Selectable via Roster & select.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/rock.png",
+         "caption": "Garou vs brawler"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Engine",
+     "questions": [
+      {
+       "id": "r-lag",
+       "title": "CPU meter with LAG",
+       "context": "0.10.98: speed-ups (about half the dropped frames gone); LAG n shows dropped frames next to CPU %.",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/lag.png",
+         "caption": "LAG 2 CPU 95 %"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "r-bossmusic",
+       "title": "Boss death: music after landing",
+       "context": "0.10.96: the clear music waits until the boss lies still and the landing sound has ended (listen in game; clip is silent).",
+       "media": [
+        {
+         "image": "decisions-media/results-1014/clip_20261014-172113-5d29.gif",
+         "caption": "clip"
+        }
+       ],
+       "options": [
+        {
+         "label": "Looks right"
+        },
+        {
+         "label": "Needs work (say what in the note)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ]
 }
