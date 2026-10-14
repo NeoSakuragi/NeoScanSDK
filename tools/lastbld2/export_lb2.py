@@ -86,6 +86,33 @@ class Builder:
         self.frames.append({'record': f'{ch}:{fid}', 'parts': parts, 'weapon': None, 'lb2': {'frame': fid, 'char': ch,
                             'layers': [[l['sid'], l['x'], l['y'], l['flips']] for l in lay]}})
         return self.index[key]
+    def pal_order(self):
+        """(T4) the palettes in their first use by the frames WITHOUT a trail (the order before the trails: the trail
+        frames only use palettes other frames use, but registered them early, and a Lab slot over the game's 8 palettes
+        shows its later ones in other colours, export_bm pal_slots), the parts renumbered"""
+        order = []
+        for fr in self.frames:
+            if fr['lb2'].get('lnk'): continue
+            for p in fr['parts']:
+                if self.pals[p['pal']] not in order: order.append(self.pals[p['pal']])
+        order += [k for k in self.pals if k not in order]
+        new = {i: order.index(k) for i, k in enumerate(self.pals)}
+        for fr in self.frames:
+            for p in fr['parts']: p['pal'] = new[p['pal']]
+        self.pals[:] = order
+    def frame_lnk(self, fid, lnk):
+        """T4 (2026-10-14): his frame fid with a linked-frame trail drawn on it (lnk = (frame id, x, y): the OBJ LNK object
+        of a normal's script, at his place + (x, y) in the art's own orientation, in front of him: its layers after his)"""
+        if lnk is None: return self.frame(fid)
+        key = ('lnk', fid) + tuple(lnk)
+        if key in self.index: return self.index[key]
+        parts = list(self.frames[self.frame(fid)]['parts'])
+        lay = [dict(l, x=l['x'] + lnk[1], y=l['y'] + lnk[2]) for l in L.frame_layers(self.ch, lnk[0])]
+        for k in sorted(range(len(lay)), key=lambda k: (lay[k]['prio'], -k), reverse=True): parts += self.layer(lay[k])
+        self.index[key] = len(self.frames)
+        self.frames.append({'record': f'{self.ch}:{fid}+{lnk[0]}', 'parts': parts, 'weapon': None,
+                            'lb2': {'frame': fid, 'char': self.ch, 'lnk': list(lnk)}})
+        return self.index[key]
     def layer(self, L_, ch=None):
         sd = L.sprite_def(self.ch if ch is None else ch, L_['sid'])
         if sd is None or not sd['cols'] or not sd['rows']: return []
@@ -155,19 +182,40 @@ def collapse(B, rows, cuts=()):
     steps = []
     for k, r in enumerate(rows):
         bx = kof_boxes(r['boxes'])
-        key = (r['frame'], json.dumps(bx, sort_keys=True))
+        key = (r['frame'], json.dumps(bx, sort_keys=True), r.get('lnk'))
         if steps and steps[-1]['_key'] == key and k not in cuts: steps[-1]['ticks'] += 1; continue
-        steps.append({'_key': key, 'frame': B.frame(r['frame']), 'ticks': 0, 'flags': 0x100 if '11' in bx else 0,
-                      'dx': 0, 'boxes': bx, 'lb2': [r['anim'], r['frame']], '_atk': [v for v in r['boxes'].values() if 0 < v[0] < 0xC0]})
+        steps.append({'_key': key, 'frame': B.frame_lnk(r['frame'], r.get('lnk')), 'ticks': 0, 'flags': 0x100 if '11' in bx else 0,
+                      'dx': 0, 'boxes': bx, 'lb2': [r['anim'], r['frame']] + ([r['lnk'][0]] if r.get('lnk') else []),
+                      'lb2_atk': sorted({v[0] for v in r['boxes'].values() if 0 < v[0] < 0xC0}),
+                      '_atk': [v for v in r['boxes'].values() if 0 < v[0] < 0xC0]})
     for i, s in enumerate(steps):                     # an attack continued by the next step (the same records): one hit
         n = steps[i + 1] if i + 1 < len(steps) else None
         if s['_atk'] and n is not None and n['_atk'] == s['_atk']: s['flags'] |= 0x4000
     for s in steps: s.pop('_key'); s.pop('_atk')
     return steps
 
-def anim_steps(B, ch, a, loop=False):
-    rows, _ = timeline(ch, a, loop=loop)
-    return collapse(B, rows)
+def trails(rows, ev):
+    """T4 (2026-10-14): each row's linked-frame trail (frame id, x, y) or None: an $AE / $9A spawn (OBJ LNK, $2D8F6) shows
+    from its row while his step index and frame stay the ones it was born on ($2D99E: +$B8 / +$C6 unchanged, else it frees
+    itself) [code]; (x, y) = the command's offset in the art's own orientation (handlers_lb2.spawn_info: fwd = -x, up = -y)"""
+    import handlers_lb2 as H
+    born = {}
+    for e in ev:
+        if e[1] == 'spawn' and H.SPAWN_KIND.get(e[2]) == 'lnk':
+            i = H.spawn_info(e[2], e[3]); born[e[0]] = (i['word'] & 0xFFF, -i['fwd'], -i['up'])
+    cur, at = None, None
+    for k, r in enumerate(rows):
+        if k in born: cur, at = born[k], (r['step'], r['frame'])
+        elif cur is not None and (r['step'], r['frame']) != at: cur = None
+        r['lnk'] = cur
+    return rows
+
+def anim_steps(B, ch, a, loop=False, lnk=True):
+    """lnk: its OBJ LNK trails drawn on its frames (T4); off for the Lab's dictionary (handlers_lb2.lab_special): its
+    every animation with trails takes a 30th palette and the Lab slot's palettes no longer fold into the 8 the game loads
+    (pal_pack: the effects' palettes then show other colours)"""
+    rows, ev = timeline(ch, a, loop=loop)
+    return collapse(B, trails(rows, ev) if lnk else rows)
 
 def physics(ch):
     """walk: measured px / frame (the walk script's $84 gives 1.5; the control adds: README); jump: anim $0C's $84
@@ -206,7 +254,8 @@ def export(names, outdir, only=None, extra=None, lab=None):
         anims = {}
         for mv, a in MOVES.items():
             if only is not None and mv not in only and mv != 'watch': continue
-            anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, loop=mv in LOOP)}
+            anims[mv] = {'slot': a, 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, ch, a, loop=mv in LOOP),
+                         **({'hitsnd': 'LB2 ' + H.NORMAL_SND[a]} if a in H.NORMAL_SND else {})}   # (T5: its impacts' pick list)
         w = (extra or {}).get(name, {}).get('watch')
         if w: anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, ch, w[0])[w[1]:][:1]}
         for mv, hx in ((extra or {}).get(name, {}).get('moves') or {}).items():
@@ -219,6 +268,7 @@ def export(names, outdir, only=None, extra=None, lab=None):
             e, bad = H.lab_special(B, ch, Lb); sps.append(e)
             if bad: print(f'{name}: LAB special: {len(bad)} animations left out:', bad[:8])
         for t, th in throws.items(): anims[t] = th.pop('anim')
+        B.pal_order()
         sets = colours(B, ch)
         out['characters'][name] = {'id': ch, 'frames': B.frames, 'anims': anims, 'block_palettes': sets,
                                    'palette': sets[0][0], 'palette_mirror': sets[1][0], 'physics': physics(ch),

@@ -3679,5 +3679,44 @@
   "expect": "Terry's body sits in Krauser's hands through the whole lift and the slam (he used to hang 10-35 px off them).",
   "do_keys": "3:Ra,150:-",
   "proof": 150
+ },
+ "t4-moriya-slash-trails": {
+  "title": "Moriya's sword normals draw Last Blade 2's slash trails",
+  "setup": {
+   "mode": "lab",
+   "fighter": "moriya",
+   "dummy": "ryo",
+   "gap": 200
+  },
+  "do": "Press A, wait, press A again, then B (his chain) and forward + B, with Ryo out of reach.",
+  "expect": "Each sword swing shows the yellow slash streak along the blade for a few frames, as in The Last Blade 2 (the kicks have none).",
+  "do_keys": "2:a,40:-,2:a,40:-,2:b,60:-,2:Rb",
+  "proof": 90
+ },
+ "t5-lb2-impact-sounds": {
+  "title": "Moriya's slashes hit with The Last Blade 2's impact sounds",
+  "setup": {
+   "mode": "lab",
+   "fighter": "moriya",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Hit Ryo with A, then C (the rising slash), then down + C; listen to each impact.",
+  "expect": "Every hit plays one of Last Blade 2's own cut sounds (a different one of its set each time, the heavy ones deeper), not the KOF punch / slash sounds.",
+  "do_keys": "2:a,50:-,2:c,90:-,2:Dc",
+  "proof": 120
+ },
+ "t6-moriya-sougetsu": {
+  "title": "Moriya's dragon punch follow-up: C, then C again once it hit (Ittou Sougetsu)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "moriya",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press C next to Ryo (Ittou Shingetsu, the rising moon slash), and press C again while it plays. Then try it with Ryo out of reach.",
+  "expect": "On a hit the second moon slash (Ittou Sougetsu) follows right after the first. If the first slash misses, the second never comes, as in The Last Blade 2.",
+  "do_keys": "2:c,8:-,2:c,6:-,2:c,6:-,2:c",
+  "proof": 120
  }
 }
