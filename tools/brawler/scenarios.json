@@ -3953,5 +3953,31 @@
   "expect": "Kyo steps forward a little, as in KOF98, and is never slid across the screen. Terry flies forward and stops against the screen's edge, then falls there (KOF98 stops the thrown victim at the edge the same way).",
   "do_keys": "3:Ra",
   "proof": 120
+ },
+ "20261014-141046-5d29": {
+  "title": "Genjuro Blitz: forward,forward + A = SS2's far A+B, with his scream",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 120
+  },
+  "do": "Stand 120 px from Ryo (far, as the scenario starts): tap forward, forward, A.",
+  "expect": "Genjuro plays SS2's standing far A+B (the big overhead slash, the sword sweeping low at full reach) without stepping, screams as it starts (SS2's own long scream for the move), and knocks Ryo down with SS2's heavy-slash impact sound. Up close (inside ~64 px) the far blade passes over him, as SS2's far A+B.",
+  "do_keys": "1:R,1:-,1:R,1:Ra,90:-",
+  "proof": 60
+ },
+ "20261014-141702-5d29": {
+  "title": "Run animation no longer plays too fast (Genjuro, every runner)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "genjuro",
+   "dummy": "ryo",
+   "gap": 300
+  },
+  "do": "Tap forward, forward and hold forward: Genjuro runs.",
+  "expect": "His legs keep pace with the ground: each run frame shows about 4-5 frames (it flipped every 3 before), so his stride covers the floor as in SS2 instead of spinning. Every fighter's run slowed the same way (the walk keeps its 1.5x pace); the dashes (Kim, Cheng-Fu, Billy) and Haggar are unchanged.",
+  "do_keys": "1:R,1:-,90:R",
+  "proof": 30
  }
 }

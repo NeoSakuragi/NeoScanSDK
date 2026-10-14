@@ -78,6 +78,12 @@ static void walk_rate(fighter_t *f) {                           /* wspd, wrate f
     if (f->wrate < 0x40) f->wrate = 0x40;
     if (f->wrate > 0x400) f->wrate = 0x400;
 }
+static uint16_t run_rate(const fighter_t *f) {                  /* the run animation's rate: the walk's x grun_anim
+                                                                    (game.json walk.run_anim: no walk.anim boost, note
+                                                                    20261014-141702-5d29) */
+    uint16_t r = (uint16_t)(((uint32_t)f->wrate * grun_anim[f->ch->id]) >> 8);
+    return r < 0x40 ? 0x40 : r;
+}
 #define X_MIN 16
 #define X_MAX (world_w - 16)
 
@@ -3864,7 +3870,7 @@ static void update(fighter_t *f, const intent_t *in) {
             f->wdz = in->dz > 0 ? 1 : in->dz < 0 ? -1 : 0;       /* 2026-10-10, note 20261010-143820-b3f3): the run ends */
             break;                                               /* into the hold */
         }
-        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = fighter_dash(f) ? 0x100 : f->wrate; break; }   /* (its stride: walk_rate; a dash: its own timing) */
+        if (in->run && in->dx) { enter(f, S_RUN); play(f, BA_RUN); f->speed = fighter_dash(f) ? 0x100 : run_rate(f); break; }   /* (its stride: run_rate; a dash: its own timing) */
         to_neutral(f, in);
         if (f->state == S_WALK) {                                /* the walk by archetype, sub-pixel (walk_rate) */
             f->x += dir_mul(in->dx, in->slow ? f->wspd >> 1 : f->wspd); f->z += dir_mul(in->dz, in->slow ? FIX(1) >> 1 : FIX(1)); clamp(f);
