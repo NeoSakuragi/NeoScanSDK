@@ -3104,6 +3104,240 @@
      ]
     }
    ]
+  },
+  {
+   "id": "ff-sounds",
+   "title": "Final Fight sounds: arcade vs ours",
+   "intro": "Your question: are FF's hits really clipped in the original? The decoded data touches the chip's limit on one side, but the arcade doesn't sound distorted. Listen and compare per hit; your answer sets which conversion ships. Headphones recommended.",
+   "sections": [
+    {
+     "title": "Per hit",
+     "questions": [
+      {
+       "id": "ffs-C1",
+       "title": "Hit (every jab)",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C1_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C1_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C1_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C1_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-C2",
+       "title": "Knee",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C2_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C2_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C2_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C2_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-C3",
+       "title": "Heavy hit (finishers)",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C3_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C3_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C3_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C3_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-C4",
+       "title": "Haggar finisher hit",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C4_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C4_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C4_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C4_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-C5",
+       "title": "Headbutt",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C5_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C5_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C5_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C5_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-C6",
+       "title": "Body on the floor",
+       "context": "Four versions, same hit. 1 = Final Fight's sound chip output (the reference). 2 = our old conversion (0.10.85, the saturated one). 3 = what 0.10.86 plays now. 4 = candidate: the arcade board's filtering applied first (DC removed + its high-frequency roll-off), then converted.",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/C6_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C6_old.wav",
+         "caption": "2 · old, 0.10.85"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C6_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/C6_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ]
 }
