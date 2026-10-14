@@ -1310,7 +1310,7 @@ static uint16_t div16(uint16_t n, uint16_t d) { uint32_t r = n; __asm__("divu.w 
 /* 2 px a life point (60 = a full fighter bar); a life that would not fit (hp_max: difficulty HARD / MANIAC enemies,
  * bosses) is drawn to scale, max = the full bar */
 static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
-    int16_t full = (b->n << 3) - 2 + b->open, px, x0 = 0;
+    int16_t full = (b->n << 3) - 2 + b->open, px, x0 = 0, opx = b->px, otr = b->trail;
     if (!max) max = LIFE;
     px = hp <= 0 ? 0 : max * 2 > full ? (int16_t)div16((uint16_t)hp * (uint16_t)full, max) : hp * 2;
     if (px > full) px = full;
@@ -1319,6 +1319,8 @@ static void bar_draw(bar_t *b, int16_t hp, int16_t max) {
     if (px < b->px) b->wait = 20;
     b->px = px;
     if (b->trail > px) { if (b->wait) b->wait--; else b->trail--; } else b->trail = px;
+    if (px == opx && b->trail == otr) return;                   /* (CPU budget A: the cells show this life and trail
+                                                                   already; px -1 = never drawn / cleared) */
     for (c = 0; c < b->n; c++) {                                 /* c counts from the bar's outer edge */
         uint8_t kind = c == 0 ? 0 : c == b->n - 1 && !b->open ? 2 : 1, w = kind == 1 ? 8 : 7, t, sc = b->mirror ? b->n - 1 - c : c;
         int16_t f = px - x0;
