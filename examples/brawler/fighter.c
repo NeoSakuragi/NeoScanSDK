@@ -4900,22 +4900,33 @@ static int16_t half_w(const fighter_t *f) {
     const bstep_t *s = &f->ch->anims[BA_IDLE].steps[0];          /* (steps: the first MB, no bank) */
     return (s->flags & 2) && s->hurt.w ? s->hurt.w : 16;
 }
-void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x) {
+/* (cpu budget G) the pass after the camera notes each fighter it kept (sk_x / sk_ch, bit idx of sk_ok): the pass after
+ * the combat (again) skips the ones still where that left them, whose test it would only repeat */
+#define SK_N 8                     /* the fighters (main.c NF) */
+static int32_t sk_x[SK_N];
+static const bchar_t *sk_ch[SK_N];
+static uint8_t sk_ok;
+#define SCRIPT_MAYBE(s) ((s) == S_HITSTUN || ((s) >= S_GRAB && (s) <= S_THROWN))   /* script_owned can be 1 (its states) */
+void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x, uint8_t again) {
     uint8_t i;
+    if (!again) sk_ok = 0;
     for (i = 0; i < n; i++) {
         fighter_t *f = fs[i];
         int16_t w;
         int32_t lo, hi, d;
-        if (f->state == S_OFF || f->state == S_PROJ || script_owned(f)) continue;   /* (a script's pair: placed once, */
-        w = half_w(f);                                           /* pair_fit) */
+        uint8_t s = f->state, bit = f->idx < SK_N ? 1 << f->idx : 0;
+        if (again && (sk_ok & bit) && f->x == sk_x[f->idx] && f->ch == sk_ch[f->idx]) continue;
+        if (s == S_OFF || s == S_PROJ || (SCRIPT_MAYBE(s) && script_owned(f))) continue;   /* (a script's pair: placed */
+        w = half_w(f);                                           /* once, pair_fit) */
         lo = FIX(cam_x + SCREEN_IN + w); hi = FIX(cam_x + 320 - SCREEN_IN - w);
-        if (!f->inb) { if (f->x >= lo && f->x <= hi) f->inb = 1; continue; }   /* (walking in: free until it is in) */
-        d = f->x < lo ? lo - f->x : f->x > hi ? hi - f->x : 0;
-        if (!d) continue;
-        f->x += d;                                               /* (a script's anchor moves with it: a throw, a special's */
-        if (f->state == S_THROW || f->state == S_THROWN || f->state == S_SPECIAL) f->throw_x0 += d;   /* program) */
-        if (f->state == S_SPECIAL && f->target && script_owned(f->target) && f->target->wall_by == f) f->target->x += d;
-    }                                                            /* (its caught victim with it: one body) */
+        if (!f->inb) { if (f->x >= lo && f->x <= hi) f->inb = 1; }   /* (walking in: free until it is in) */
+        else if ((d = f->x < lo ? lo - f->x : f->x > hi ? hi - f->x : 0)) {
+            f->x += d;                                           /* (a script's anchor moves with it: a throw, a special's */
+            if (s == S_THROW || s == S_THROWN || s == S_SPECIAL) f->throw_x0 += d;   /* program) */
+            if (s == S_SPECIAL && f->target && script_owned(f->target) && f->target->wall_by == f) f->target->x += d;
+        }                                                        /* (its caught victim with it: one body) */
+        if (!again && bit) { sk_ok |= bit; sk_x[f->idx] = f->x; sk_ch[f->idx] = f->ch; }
+    }
 }
 static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi) {   /* screen_keep's edges this frame, the stage's */
     int16_t cam = wall_lo - WALL_EDGE, w = half_w(f);            /* (wall_update keeps wall_lo: the camera + WALL_EDGE) */

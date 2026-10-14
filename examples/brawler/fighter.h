@@ -689,7 +689,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only);   /* attack boxes
                                                                flash: its fury hits the frozen world, nothing else does) */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
-void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: a fighter that has fully entered the view
+void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x, uint8_t again);   /* after the camera: a fighter that has fully entered the view
                                      stays inside it (note 20261009-114826-5d29; fighter.c "the screen's edges") */
 void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: the wall rule (a special's victims and
                                                                   their attacker inside the screen's walls) */
