@@ -3201,7 +3201,9 @@ static void bonus_end(void) {                    /* the result shown: the next s
 static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won, uint8_t big) {   /* big: its gbig use (l1 in
                                                     the big font when game.json big_text lists it), 0xFF none */
     bonus_on = BN_END; bn_t = 0; bn_hold = BN_END_T; bn_skip = 90;
-    if (big < BIG_USES && gbig[big].on) { bn_text(13, 0, 0); bt_show(l1, big); } else bn_text(13, l1, 1);
+    if (big < BIG_USES && gbig[big].on) {        /* the big headline covers row 9: its TIME / POSTS line cleared */
+        bn_text(13, 0, 0); FIX_print(17, 9, "                    ", 0); bt_show(l1, big);
+    } else bn_text(13, l1, 1);
     bn_text(16, l2, 0);
     FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
     snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
@@ -3387,7 +3389,7 @@ static void bn_break_flow(fighter_t *f) {
                 bn_text(13, 0, 0); bn_text(18, 0, 0);
                 bn_text(10, "CONGRATULATIONS!", 1);
                 FIX_print(13, 12, "BONUS", 0); FIX_printNum(20, 12, (uint16_t)bn_g->count * 1000, 1);
-                bt_show(bn_g->won_text[0], BIG_BONUS_WON); bn_text(24, bn_g->won_text[1], 0); bn_text(25, bn_g->won_text[2], 0);
+                FIX_print(17, 9, "                    ", 0); bt_show(bn_g->won_text[0], BIG_BONUS_WON); bn_text(24, bn_g->won_text[1], 0); bn_text(25, bn_g->won_text[2], 0);
             } else { bn_text(20, bn_g->won_text[0], 1); bn_text(22, bn_g->won_text[1], 0); bn_text(24, bn_g->won_text[2], 0); }
             bn_hold = bn_g->won_ticks; bn_skip = bn_hold >> 1;
         }
