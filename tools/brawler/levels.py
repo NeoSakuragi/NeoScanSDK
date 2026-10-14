@@ -87,6 +87,7 @@ def intro_merge(g, want):
         if k in want: b[k] = want[k]
     try:
         for si in range(len(g['stages'])): build_tables.intro_of({**g, 'stage_intro': b}, si)
+        build_tables.big_tables({**g, 'stage_intro': b})          # (a title the big font draws: its characters)
     except (AssertionError, KeyError, TypeError) as e: raise ValueError(f'intro: {e}')
     new = intro_view({'stage_intro': b})
     return b, [f'levels: intro {k} {json.dumps(old[k])} -> {json.dumps(new[k])}' for k in INTRO_EDIT if new[k] != old[k]]

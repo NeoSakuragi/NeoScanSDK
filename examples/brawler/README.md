@@ -282,7 +282,15 @@ on its moves as KOF plays them (game.json `roster[].voices`: `"kof"` for all 16)
 
 ## Debug box viewer
 P1 START in a fight (keyboard 1; P2 START joins) toggles it: the four corners of every hurt box (green) and attack
-box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind).
+box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kind). While a big message shows (sprites
+324-347, "Big text") the boxes wait.
+
+## Big text (2026-10-14)
+Headlines in Savage Reign's round-call letters (R O U N D 1-4 ripped, the rest of A-Z / 0-9 / ! . - ' : ? built in
+their construction: `tools/brawler/make_bigfont.py`): STAGE n START, STAGE CLEAR, GAME OVER, the bonus game's TIME OVER
+and FURY UNLOCKED! / PRESS D. Which screens use it, where and how (slide-in, blink): game.json `big_text`
+(docs/brawler_data_model.md "Big text"); a glyph column = one sprite of 3 tiles (48 px), palette 250. Proof:
+`tools/brawler/bigfont_proof.py`.
 
 ## Controls (P1 and P2) (TODO #71, 2026-10-05)
 Stick walks on the floor (up/down = depth), forward twice = run.

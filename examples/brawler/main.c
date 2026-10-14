@@ -21,6 +21,7 @@
 #include "staff_roll.h"
 #include "bm_wins.h"
 #include "bonus.h"
+#include "bigfont.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
 #include "labslot.h"
@@ -762,6 +763,7 @@ _Static_assert(DBG_SPR + DBG_BOXES * 8 <= SF_RAYS_SPR, "debug boxes below the su
 static const uint16_t DBG_HURT_COL[16] = { 0x8000, RGB(4, 31, 12), 0x0000 };
 static const uint16_t DBG_ATK_COL[16] = { 0x8000, RGB(31, 6, 4), 0x0000 };
 static uint8_t dbg_on, dbg_shown;
+static uint8_t bt_n;                     /* the big text's sprites on screen (main.c "big text"): the boxes wait meanwhile */
 static void dbg_init(void) {
     uint8_t i;
     for (i = 0; i < DBG_BOXES * 8; i++) cmd_push(VRAM_SCB3 + DBG_SPR + i, 0);   /* hidden, the viewer's boxes too */
@@ -785,6 +787,7 @@ static void dbg_draw(void) {
     uint16_t *y, *x;
     uint8_t i, nh = 0, na = 0;
     if (!(dbg_on && mode == 1) && !dbg_shown) return;            /* fights only: the select cursor shares 300-343 */
+    if (bt_n) return;                                            /* a big message on 324-347 ("big text") */
     y = cmd_run(VRAM_SCB3 + DBG_SPR, DBG_BOXES * 8); x = cmd_run(VRAM_SCB4 + DBG_SPR, DBG_BOXES * 8);
     for (i = 0; i < DBG_BOXES * 8; i++) y[i] = x[i] = 0;
     dbg_shown = dbg_on && mode == 1;
@@ -803,6 +806,94 @@ static void dbg_draw(void) {
             uint8_t ob = BANK_set(CH_BANK(f->ch)); ab = *f->spec_atk; BANK_set(ob); atk = &ab;
         }
         if (atk && na < DBG_BOXES) { dbg_box(y + DBG_BOXES * 4 + na * 4, x + DBG_BOXES * 4 + na * 4, f, atk); na++; }
+    }
+}
+
+/* ---- big text (Bruno 2026-10-14: "a BIG bitmap font, for big messages on the screen. I like the one from SAVAGE
+ * REIGN"): a screen's headline in Savage Reign's round-call letters, completed to A-Z / 0-9 / ! . - ' : ? in their
+ * construction (tools/brawler/make_bigfont.py -> bigfont.h: per character its advance and 16 px columns, each column 3
+ * tiles = 48 px, Savage Reign's palette $BD). Which screens use it and how: game.json big_text (build_tables.py
+ * big_tables -> gbig[]): stage_intro, stage_clear, game_over, time_over, bonus_won; a screen not listed keeps its
+ * fix-layer line. bt_show(text, use): centred, a line wider than BT_W breaks at its first double space (two lines,
+ * `pitch` apart); a sprite per glyph column (BT_SPR.., BT_MAX: the debug boxes' last 24, hidden while a message shows;
+ * the bonus game's splinters / chips stay below 324), palette BT_PAL (the title banner's / staff roll's: never on
+ * screen with a message); the line guard counts its columns on every band (bt_n, as the drama portrait's). bt_draw (in
+ * draw(), a tick): the slide-in from the right over `slide` ticks, the blink; bt_hide: gone, the debug boxes' tiles
+ * back. ---- */
+#define BT_SPR (DBG_SPR + 24)
+#define BT_MAX 24
+#define BT_PAL 250                       /* BN_PAL / SR_PAL: the title banner's, the staff roll's */
+#define BT_W 304                         /* the widest line */
+_Static_assert(BT_SPR + BT_MAX <= DBG_SPR + DBG_BOXES * 8, "big text: inside the debug boxes' sprites");
+static uint8_t bt_t, bt_k, bt_off, bt_dirty;
+static uint16_t bt_step;
+static const gbig_t *bt_s;
+static int16_t bt_x[BT_MAX], bt_y[BT_MAX];
+static uint8_t bt_glyph(char c) {                            /* a character -> its bigf_* index (0: a space) */
+    uint8_t u = (uint8_t)c;
+    if (u >= 'a' && u <= 'z') u -= 32;
+    return u >= BIGF_FIRST && u < BIGF_FIRST + BIGF_N && bigf_adv[u - BIGF_FIRST] ? u - BIGF_FIRST : 0;
+}
+static int16_t bt_width(const char *t, uint8_t n) { int16_t w = 0; while (n--) w += bigf_adv[bt_glyph(*t++)]; return w; }
+static void bt_hide(void) {
+    uint8_t i;
+    if (!bt_n) return;
+    for (i = 0; i < bt_n; i++) {
+        uint16_t *w = cmd_run(VRAM_SCB1 + (BT_SPR + i) * 64, 2);   /* the debug boxes' corner tile back (dbg_init's) */
+        cmd_push(VRAM_SCB3 + BT_SPR + i, 0);
+        w[0] = CORNER_TILE + ((BT_SPR - DBG_SPR + i) & 3); w[1] = DBG_ATK_PAL << 8;
+    }
+    bt_n = 0;
+}
+static void bt_line(const char *t, uint8_t n, int16_t y) {   /* one line, centred: its glyphs' columns as sprites */
+    int16_t x = (320 - bt_width(t, n)) >> 1;
+    while (n--) {
+        uint8_t g = bt_glyph(*t++), c;
+        for (c = 0; g && c < bigf_ncol[g] && bt_n < BT_MAX; c++) {
+            const uint16_t *m = bigf_map + (bigf_col0[g] + c) * (BIGF_ROWS * 2);
+            uint16_t *w = cmd_run(VRAM_SCB1 + (BT_SPR + bt_n) * 64, BIGF_ROWS * 2);
+            uint8_t r;
+            for (r = 0; r < BIGF_ROWS; r++) { *w++ = m[r * 2]; *w++ = m[r * 2 + 1] | (BT_PAL << 8); }
+            cmd_push(VRAM_SCB2 + BT_SPR + bt_n, 0x0FFF);
+            bt_x[bt_n] = x + (c << 4); bt_y[bt_n] = y; bt_n++;
+        }
+        x += bigf_adv[g];
+    }
+}
+static void bt_show(const char *t, uint8_t use) {           /* t: the text (gbig[use].text first, when it has one) */
+    const gbig_t *s = &gbig[use];
+    uint8_t n = 0, b = 0, e;
+    bt_hide();
+    if (s->text) t = s->text;
+    if (!t) return;
+    while (t[n]) n++;
+    while (n && t[n - 1] == ' ') n--;
+    bt_s = s; bt_t = 0; bt_k = 0; bt_off = 0; bt_dirty = 1;
+    PAL_setPalette(BT_PAL, bigf_pal);
+    if (bt_width(t, n) > BT_W)                               /* two lines: at the first double space */
+        for (b = 1; b + 1 < n && !(t[b] == ' ' && t[b + 1] == ' '); b++) ;
+    if (b && b + 1 < n) {
+        for (e = b; e < n && t[e] == ' '; e++) ;
+        bt_line(t, b, s->y); bt_line(t + e, n - e, s->y + s->pitch);
+    } else bt_line(t, n, s->y);
+    bt_step = 0;
+    if (s->slide) { uint16_t a = 0; while (a < 336) { a += s->slide; bt_step++; } }   /* px a tick: 336 / slide, up */
+}
+static void bt_draw(void) {                                  /* a tick: the slide, the blink */
+    uint8_t i, off = 0;
+    uint16_t *y, *x;
+    int16_t d;
+    if (!bt_n) return;
+    if (bt_s->blink && ++bt_k >= bt_s->blink) { bt_k = 0; bt_off ^= 1; bt_dirty = 1; }
+    d = bt_t < bt_s->slide ? (int16_t)(bt_s->slide - bt_t) * (int16_t)bt_step : 0;
+    if (d || bt_t == bt_s->slide) bt_dirty = 1;
+    if (bt_t < 255) bt_t++;
+    if (!bt_dirty) return;
+    bt_dirty = 0; off = bt_off;
+    y = cmd_run(VRAM_SCB3 + BT_SPR, bt_n); x = cmd_run(VRAM_SCB4 + BT_SPR, bt_n);
+    for (i = 0; i < bt_n; i++) {
+        y[i] = off ? 0 : (uint16_t)((((496 - bt_y[i]) & 0x1FF) << 7) | BIGF_ROWS);
+        x[i] = (uint16_t)((bt_x[i] + d > 320 ? 320 : bt_x[i] + d) & 0x1FF) << 7;   /* (past the right edge: parked there) */
     }
 }
 
@@ -1121,7 +1212,7 @@ static void line_guard(void) {
     uint16_t total;
     guard_parity ^= 1;
     guard_hidden = guard_thinned = 0;
-    base = mode == 1 ? BG_N + dr_cols + (tfx_on ? TFX_COLS : 0) : 0;
+    base = mode == 1 ? BG_N + dr_cols + bt_n + (tfx_on ? TFX_COLS : 0) : 0;
     total = base;
     if (land_on) { uint8_t m = 0; for (k = 0; k < BANDS; k++) if (land_band[k] > m) m = land_band[k]; total += m; }
     for (i = 0; i < nf; i++) {                                    /* who is drawn at all; the scene's columns */
@@ -1304,6 +1395,7 @@ static void draw(void) {
     if (mode == 1) sf_draw();
     tfx_draw();
     dbg_draw();
+    bt_draw();
 }
 
 static intent_t in[NF];                          /* this frame's intent per fighter (player pad or AI) */
@@ -2714,6 +2806,11 @@ static void intro_title(void) {                              /* the title's line
     uint8_t n = 0;
     char sp[40];
     if (!gi->title[0]) return;
+    if (gbig[BIG_STAGE_INTRO].on) {                          /* in the big font (game.json big_text.stage_intro) */
+        if (in_t == gi->title_at) bt_show(gi->title, BIG_STAGE_INTRO);
+        else if (in_t == gi->title_at + gi->title_hold) bt_hide();
+        return;
+    }
     if (in_t == gi->title_at) centre(13, gi->title);
     else if (in_t == gi->title_at + gi->title_hold) { while (gi->title[n] && n < 39) sp[n++] = ' '; sp[n] = 0; centre(13, sp); }
 }
@@ -2777,6 +2874,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     inputs_reset();
     if (!attract) snd_music(stage_song(s));                  /* the attract demo: no music (voice note 20261011-114853-5d29:
                                                                 no music before a credit, as an arcade's attract) */
+    bt_hide();                                               /* (a message of the screen before) */
     dbg_init();                                              /* the title's banner reused sprites 300-318 */
     sparks_init();
     sf_reset();
@@ -3090,6 +3188,7 @@ static void bonus_play(uint8_t k) {
 static void bonus_off(void) {                    /* out of a bonus: its sprites hidden, the shadows' back */
     if (sh_n != NE) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_POST_SPR, 4); sh_n = NE; shadow_init(); }
     if (bonus_on) bn_hide(BN_FRONT, 48);
+    bt_hide();                                   /* (TIME OVER, the won headline: on 324-347) */
     if (bonus_on == BN_PICK || bonus_on >= BN_INTRO) { bscr_clear(); shadow_init(); }   /* (cut short on one of AOF2's screens) */
     bonus_on = BN_OFF;
 }
@@ -3097,9 +3196,11 @@ static void bonus_end(void) {                    /* the result shown: the next s
     bonus_off();
     stage_begin(camp + 1, 0);
 }
-static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won) {
+static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won, uint8_t big) {   /* big: its gbig use (l1 in
+                                                    the big font when game.json big_text lists it), 0xFF none */
     bonus_on = BN_END; bn_t = 0; bn_hold = BN_END_T; bn_skip = 90;
-    bn_text(13, l1, 1); bn_text(16, l2, 0);
+    if (big < BIG_USES && gbig[big].on) { bn_text(13, 0, 0); bt_show(l1, big); } else bn_text(13, l1, 1);
+    bn_text(16, l2, 0);
     FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
     snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
 }
@@ -3163,7 +3264,7 @@ static void bn_gauge_flow(fighter_t *f) {
                 hud_reset(); hud_two = 0xFF;     /* the bar's new chunks drawn */
             }
             bn_result(GRADE[bn_grade], !bn_pass ? "TRAINING FAILED" : add == 2 ? "METER +2" : add == 1 ? "METER +1" :
-                      bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0, (uint16_t)bn_grade * 2000, bn_pass);
+                      bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0, (uint16_t)bn_grade * 2000, bn_pass, 0xFF);
         }
         return;
     }
@@ -3275,14 +3376,21 @@ static void bn_break_flow(fighter_t *f) {
         bn_won |= 1 << bn_game;
         if (bn_g->unlock == BU_FURY) bn_lock0 = 0;
         fury_lock = bn_lock0; bn_lesson_show(0);
-        bn_result("CONGRATULATIONS!", 0, (uint16_t)bn_g->count * 1000, 1);
+        bn_result("CONGRATULATIONS!", 0, (uint16_t)bn_g->count * 1000, 1, 0xFF);
         if (first && bn_g->unlock == BU_FURY) {  /* the unlock's message box (games[].won_text), held won_ticks */
-            bn_text(20, bn_g->won_text[0], 1); bn_text(22, bn_g->won_text[1], 0); bn_text(24, bn_g->won_text[2], 0);
+            if (gbig[BIG_BONUS_WON].on) {        /* its headline in the big font (big_text.bonus_won, y 104 and two
+                                                    lines 42 px apart by default): CONGRATULATIONS and BONUS go up to
+                                                    rows 10 / 12, the detail lines under it on rows 24 / 25 (26: the HUD's CPU) */
+                bn_text(13, 0, 0); bn_text(18, 0, 0);
+                bn_text(10, "CONGRATULATIONS!", 1);
+                FIX_print(13, 12, "BONUS", 0); FIX_printNum(20, 12, (uint16_t)bn_g->count * 1000, 1);
+                bt_show(bn_g->won_text[0], BIG_BONUS_WON); bn_text(24, bn_g->won_text[1], 0); bn_text(25, bn_g->won_text[2], 0);
+            } else { bn_text(20, bn_g->won_text[0], 1); bn_text(22, bn_g->won_text[1], 0); bn_text(24, bn_g->won_text[2], 0); }
             bn_hold = bn_g->won_ticks; bn_skip = bn_hold >> 1;
         }
     } else if (!bn_clock) {                      /* time over: as it was (locked stays locked) */
         fury_lock = bn_lock0; bn_lesson_show(0); bn_hide(BN_POST_SPR, 4); bn_hide(BN_FRONT, 2 * BN_PIECES); bn_split = 0;
-        bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000, 0);
+        bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000, 0, BIG_TIME_OVER);
     }
 }
 static void bonus_input(void) {                  /* this tick's intents: the gauge game plays his A for him; the posts
@@ -3311,6 +3419,7 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
 static void unlock_start(uint8_t k);
 static void ending_start(void);
 static void stage_next(void) {                   /* the stage after camp: a bonus first when the data has one there */
+    bt_hide();                                   /* (STAGE CLEAR) */
     if (!attract && !lab.active && gbonus.ngames && gbonus.after[camp] && bonus_on == BN_OFF) bonus_start();
     else stage_begin(camp + 1, 0);
 }
@@ -3346,7 +3455,8 @@ static void campaign(uint8_t left) {
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
-        FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
+        if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
+        if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
@@ -3363,7 +3473,7 @@ static void campaign(uint8_t left) {
                                                                 scenes skip a player whose fighter has none (if_portrait) */
             win_dr = 1;                                      /* (the last stage: none, the ending shows the portrait) */
             if (DR_WIN < DR_COUNT && !attract && camp + 1 < GS_COUNT && (dr = &gdramas[DR_WIN], dr_next(0) < dr->n)) {
-                FIX_print(14, 13, "           ", 0); drama_start(DR_WIN, 0xFF); break;
+                FIX_print(14, 13, "           ", 0); bt_hide(); drama_start(DR_WIN, 0xFF); break;
             }
         }
         for (i = 0; i < 2; i++)
@@ -3447,7 +3557,7 @@ static void gameover_start(void) {
     fighter_t *f = &fighters[0];
     show_start(5, char_index(f->ch), f->set, RGB8(0, 0, 0));
     fighter_play(&fighters[0], BA_DOWN);                     /* the player lies on the floor */
-    centre(10, "GAME OVER");
+    if (gbig[BIG_GAME_OVER].on) bt_show(0, BIG_GAME_OVER); else centre(10, "GAME OVER");   /* (big_text) */
     centre(13, gstage_names[camp]);                          /* the stage's name (game.json stages[].name) */
     if (GAME_MUS_OVER) snd_music(GAME_MUS_OVER);             /* (0: KOF98's way, the continue song fading out: cont_tick) */
 }
@@ -3843,7 +3953,7 @@ static uint16_t scr_t;
 static void show_start(uint8_t m, uint8_t c, uint8_t set, uint16_t wall) {
     uint8_t i;
     mode = m; scr_t = 0; nf = NE; cam_x = 0;
-    FIX_clear(); arcade_line_reset();
+    FIX_clear(); arcade_line_reset(); bt_hide();
     stage_hide();
     floor_top = SELECT_FLOOR;
     bd_set(wall);
@@ -4122,6 +4232,7 @@ static void attract_start(void);
 void game_enter(uint8_t request) {
     BIOS_USER_MODE = 1;                                      /* title / demo (game_init ran on request 0) */
     BANK_init();                                             /* the BIOS ran in between: the register and its copy agree */
+    bt_hide();                                               /* (GAME OVER's big text: the BIOS ran in between) */
     { uint8_t k; for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k];
       PAL_setPalette(0, TEXT_PAL);                           /* the BIOS's own screens overwrite palette 0 */
       for (k = 0; k < 4; k++) TEXT_PAL[2 + k] = hilite_colours[k];   /* 1: highlighted text (GO, OPTIONS, drama names) */

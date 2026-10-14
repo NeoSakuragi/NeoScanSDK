@@ -1113,6 +1113,56 @@ def intro_tables(g):
     return h, ['const gintro_t gintro[GS_COUNT] = {', ',\n'.join(rows), '};']
 
 
+BIG_USES = {                                   # game.json big_text: the screens whose headline the big font can draw (main.c
+    'stage_intro': None,                       # "big text"); text None = the screen's own (stage_intro.title, the bonus's
+    'stage_clear': 'STAGE CLEAR',              # won_text[0]), else the default here, a use's "text" over it
+    'game_over': 'GAME OVER',
+    'time_over': 'TIME OVER',
+    'bonus_won': None,
+}
+BIG_KEYS = ('y', 'slide', 'blink', 'pitch', 'text')
+
+
+def big_tables(g):
+    """game.json big_text (Bruno 2026-10-14, Savage Reign's letters: tools/brawler/make_bigfont.py) -> gbig[BIG_USES]: per
+    screen whether its headline is drawn in the big font (a use listed) and how (y, slide-in, blink, line pitch); a use
+    not listed keeps the fix layer's line. Every text a use can draw is checked against the font's characters."""
+    from make_bigfont import CHARS, SPACE, font
+    adv = {c: a.shape[1] for c, (a, _) in font().items()}; adv[' '] = SPACE
+    B = {k: v for k, v in (g.get('big_text') or {}).items() if k != 'about'}
+    for k, v in B.items():
+        assert k in BIG_USES, f'big_text: unknown use {k} ({", ".join(BIG_USES)})'
+        for f in v: assert f in BIG_KEYS, f'big_text.{k}: unknown field {f} ({", ".join(BIG_KEYS)})'
+        assert 'text' not in v or BIG_USES[k], f'big_text.{k}: its text is the screen\'s own (no "text")'
+    texts = {'stage_intro': [intro_of(g, si)['title'] for si in range(len(g['stages']))],
+             'bonus_won': [b['won_text'][0] for b in (g.get('bonus') or {}).get('games', []) if b.get('won_text')]}
+    rows = []
+    for k, dflt in BIG_USES.items():
+        v = B.get(k)
+        if v is None: rows.append(f'    {{ 0, 0, 0, 0, 0, 0 }},   /* {k}: the fix layer */'); continue
+        y, sl, bl, pi = v.get('y', 80), v.get('slide', 0), v.get('blink', 0), v.get('pitch', 44)
+        for f, x, lo, hi in (('y', y, 0, 176), ('slide', sl, 0, 120), ('blink', bl, 0, 120), ('pitch', pi, 32, 64)):
+            assert isinstance(x, int) and lo <= x <= hi, f'big_text.{k}.{f} {x!r}: {lo}-{hi}'
+        t = v.get('text', dflt)
+        for s in ([t] if dflt else texts[k]):
+            bad = sorted({c for c in s.upper() if c not in CHARS})
+            assert s and not bad, f'big_text.{k}: {s!r}: the big font has no {"".join(bad)!r} (it draws {CHARS!r})'
+            words = [w for w in re.split(r' {2,}', s.upper().strip())]
+            for w in (words if sum(adv[c] for c in s.upper().strip()) > 304 else [s.upper().strip()]):
+                assert sum(adv[c] for c in w) <= 304, f'big_text.{k}: {w!r} is wider than 304 px (two lines at most: they break at a double space)'
+            assert len(words) <= 2, f'big_text.{k}: {s!r}: two lines at most'
+        rows.append(f'    {{ {c_str(t) if dflt else 0}, {y}, {sl}, {bl}, {pi}, 1 }},   /* {k} */')
+    h = ['typedef struct {                  /* a screen\'s headline in the big font (game.json big_text; main.c "big text") */',
+         '    const char *text;             /* 0 = the screen\'s own text */',
+         '    int16_t y;                    /* the glyphs\' top on screen (48 px cells) */',
+         '    uint8_t slide, blink, pitch;  /* ticks sliding in from the right (0 = in place); blink half-period (0 = steady); px between two lines */',
+         '    uint8_t on;                   /* 0: this screen keeps the fix layer\'s line */',
+         '} gbig_t;',
+         'enum { ' + ', '.join(f'BIG_{k.upper()}' for k in BIG_USES) + ', BIG_USES };',
+         'extern const gbig_t gbig[BIG_USES];']
+    return h, ['const gbig_t gbig[BIG_USES] = {', '\n'.join(rows), '};']
+
+
 def tables(g, build):
     M = model(g, build)
     presets = M['presets']
@@ -1363,6 +1413,8 @@ def tables(g, build):
     eh, ec = ending_tables(g)
     h += eh; c += ec
     eh, ec = intro_tables(g)
+    h += eh; c += ec
+    eh, ec = big_tables(g)
     h += eh; c += ec
     c += bonus_tables(g, known, {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()})
     h.append('#endif')

@@ -719,6 +719,29 @@ former start places), gait walk, wave_delay 20. The attract demo and the Lab's s
 here", the bonus test) keep their immediate start. The Factory's Levels tab edits the game-wide block (row "Stage
 intro"; levels.py `intro`, the marks and a stage's own `intro` stay in game.json).
 
+### Big text (Bruno 2026-10-14: "a BIG bitmap font ... I like the one from SAVAGE REIGN")
+
+`big_text` -> `gbig[BIG_USES]` (build_tables.py `big_tables`; main.c "big text"): which screens draw their headline in
+the big font, and how. Uses: `stage_intro` (the stage intro's `title`), `stage_clear`, `game_over`, `time_over` (the
+bonus break game's clock out), `bonus_won` (the bonus game's `won_text[0]`); a use left out keeps its fix-layer line,
+and the detail lines stay small either way. Fields: `y` (the glyphs' top, px; the cell is 48 high), `slide` (ticks
+sliding in from the right, 0 = in place), `blink` (half-period in ticks, 0 = steady), `pitch` (px between the two lines
+of a text wider than 304 px, which breaks at its first double space; default 44), `text` (stage_clear / game_over /
+time_over only). With `bonus_won`, CONGRATULATIONS! and BONUS move up to fix rows 10 / 12 and won_text[1] / [2] down
+to rows 24 / 25. Every text a use can draw is checked against the font's characters (A-Z 0-9 space ! . - ' : ?) and
+the 304 px width at build time (levels.py checks a title edit the same way).
+
+The font (tools/brawler/make_bigfont.py, after staff_roll.py): Savage Reign's round call ("ROUND n", palette $BD, a
+16 x 48 sprite a letter; measured in our emulator, bigfont_proof.py) has only R O U N D and the digits 1-4 (+ the small
+"-FINAL-" strip, and FIGHT! as one 128 x 64 picture: no letters to cut, none of K.O. / TIME OVER / WINNER exist big).
+Those 9 glyphs are kept pixel for pixel; the rest (A-Z, 0, 5-9, ! . - ' : ?) is built in their construction: fill
+masks of 5 px stems / 5-row bars with the top-right and bottom-left corners cut at 45 degrees, coloured by
+make_bigfont.render (Savage Reign's row gradient, left edge, top highlight, outline), which re-draws R O U N D at 96-98 %
+of their pixels. 42 glyphs, 47 sprite columns, 99 tiles (12.4 KB) appended to the C ROM (24.51 -> 24.52 MB of the
+32 MB package). In play a glyph column = one sprite (3 tiles), sprites 324-347 (24: the debug boxes' last half,
+which wait while a message shows), palette 250; the line guard counts them on every band. Proof: bigfont_proof.py
+(/data/tmp/bigfont/proof: sheet.png, Savage Reign's calls next to the brawler's headlines at 1:1; glyphs.png).
+
 ### Bonus stages (TODO T7, 2026-10-14; decision sets bonus-game + bonus-followup)
 
 Top-level `bonus` (next to `stages`, build_tables.py `bonus_check` / `bonus_tables` -> `gbonus`, gamedata.h
