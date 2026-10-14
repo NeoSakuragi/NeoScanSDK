@@ -218,7 +218,8 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         }
 
         /** the upload URL: <ROM base>/../feedback/upload (canneji.duckdns.org/brawler/feedback/upload) */
-        fun url(ctx: Context, what: String = "upload"): URL? = RomFetch.base(ctx)?.let { URL(URL(it), "../feedback/$what") }
+        /** the shared Player (TODO T2): its base is <...>/brawler/feedback/share/, the service one level up */
+        fun url(ctx: Context, what: String = "upload"): URL? = RomFetch.base(ctx)?.let { URL(URL(it), (if (BuildConfig.SHARED) "../" else "../feedback/") + what) }
 
         /** a voice file transcribed by the server at once (blocking: off the UI thread) -> (text, model, tx_id);
          *  null = offline / the server failed */

@@ -12,6 +12,7 @@
 //                         the ship service plays in our emulator (/brawler-factory/songs/). Waves: not here
 //   ?tab=chars (the cast) also carries Roster & select (roster.js, tools/brawler/roster.py): the Selectable switches and
 //                         the select layout editor, the "roster" draft section (lab/roster), shipped by Ship pending changes
+//   ?tab=players         the shared Player's accounts and the build each gets (players.js, the "players" section, live)
 //   ?tab=game             the game-wide numbers and texts (game.js, tools/brawler/gamecfg.py): the "game" draft section
 //                         (lab/game), shipped by Ship pending changes
 // The base URL is /brawler-lab/: cast.json, faces/, the scripts and feedback-api/ are the Lab's.
@@ -24,7 +25,7 @@
     .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
   const Q = new URLSearchParams(location.search);
   const F = Q.get('f');
-  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild'), levels: document.getElementById('pLevels'), game: document.getElementById('pGame') };
+  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild'), levels: document.getElementById('pLevels'), game: document.getElementById('pGame'), players: document.getElementById('pPlayers') };
   const FG = window.FactoryGame;                    // the Game tab (game.js)
   const FR = window.FactoryRoster;                  // Roster & select (roster.js, the cast view)
   const tabs = [...document.querySelectorAll('.ftabs button[data-tab]')];
@@ -40,15 +41,16 @@
   const revOf = (r, f) => r.revs ? r.revs[f] : r.fighter === f ? r.rev : undefined;
 
   // ---- tabs ----
-  let tab = ['build', 'levels', 'game'].includes(Q.get('tab')) ? Q.get('tab') : 'chars';
+  let tab = ['build', 'levels', 'game', 'players'].includes(Q.get('tab')) ? Q.get('tab') : 'chars';
   function show(k) {
     tab = k;
     for (const [n, el] of Object.entries(P)) el.hidden = n !== k;
     tabs.forEach(b => b.dataset.tab === k ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
     const u = new URL(location.href); u.searchParams.set('tab', k); history.replaceState(null, '', u.pathname + u.search);
-    document.title = ({ build: 'Build', levels: 'Levels', game: 'Game' }[k] || F || 'Characters') + ' · Brawler Factory';
+    document.title = ({ build: 'Build', levels: 'Levels', game: 'Game', players: 'Players' }[k] || F || 'Characters') + ' · Brawler Factory';
     if (k === 'build') drawBuild();
     if (k === 'game') FG.draw();
+    if (k === 'players') window.FactoryPlayers.draw();
     if (k !== 'levels') stopPreview();
     poll();
   }
@@ -65,7 +67,7 @@
     FG.poll(gm, S.rows, tab === 'game');
     FR.poll(ro, S.rows, tab === 'chars' && !F);
     drawDaemon();
-    if (tab === 'build') drawBuild(); else if (tab === 'game') { /* (FG.poll: its marks) */ } else if (tab === 'levels') { if (lvOpenStage < 0) drawLevels(); } else drawCastTags();   // (an open editor: not redrawn under his fingers)
+    if (tab === 'build') drawBuild(); else if (tab === 'game') { /* (FG.poll: its marks) */ } else if (tab === 'levels') { if (lvOpenStage < 0) drawLevels(); } else if (tab === 'players') { /* (players.js: drawn on open and on Save) */ } else drawCastTags();   // (an open editor: not redrawn under his fingers)
     pollT = setTimeout(poll, tab === 'build' ? 5000 : 20000);
   }
   function daemonState() {

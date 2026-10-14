@@ -38,8 +38,8 @@ object Auth {
     /** TESTER MODE (Player 0.0.26): the Oros account's role, as /api/login gives it (and every renewal refreshes it):
      *  "admin" (Oros add-user --role=admin: bruno) sees everything; any other account (role viewer) is a tester and
      *  sees only the game, the pad and the Feedback button */
-    fun admin(ctx: Context): Boolean = prefs(ctx).getString("role", "") == "admin"
-    fun loginUrl(): URL = URL(URL(BuildConfig.AUTH_URL), "api/login")
+    fun admin(ctx: Context): Boolean = !BuildConfig.SHARED && prefs(ctx).getString("role", "") == "admin"   // the shared Player: never
+    fun loginUrl(): URL = URL(URL(BuildConfig.AUTH_URL), BuildConfig.LOGIN_PATH)   // shared Player: share/login (TODO T2)
 
     /** someone is signed in: a token not expired yet, or a saved password to get a new one */
     fun signedIn(ctx: Context): Boolean {

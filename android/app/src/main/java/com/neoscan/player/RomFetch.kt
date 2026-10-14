@@ -37,7 +37,9 @@ object RomFetch {
             val info = JSONObject(get(base + "latest.json", hdr).inputStream.use { it.readBytes() }
                 .toString(Charsets.UTF_8))
             val build = info.getLong("build"); val version = info.optString("version", "?")
-            if (rom.exists() && prefs.getLong("build", 0) >= build) return true
+            // the shared Player (TODO T2): the account's assigned build, whatever it is (Bruno may move it back); the house
+            // Player: only a newer one
+            if (rom.exists() && (if (BuildConfig.SHARED) loaded(ctx).sha == info.getString("sha256") else prefs.getLong("build", 0) >= build)) return true
             val size = info.getLong("size"); val sha = info.getString("sha256")
             val tmp = File(rom.parentFile, rom.name + ".part")
             val md = MessageDigest.getInstance("SHA-256")
@@ -74,9 +76,15 @@ object RomFetch {
         return try {
             val c = get(base + "latest.json", mapOf("X-Install-Id" to id, "X-Rom-Version" to installed(ctx), "X-Poll" to "1"))
             val j = JSONObject(c.inputStream.use { it.readBytes() }.toString(Charsets.UTF_8))
-            latestVersion = j.optString("version", "?"); j.getLong("build")
+            latestVersion = j.optString("version", "?"); latestSha = j.optString("sha256"); j.getLong("build")
         } catch (e: Exception) { -1 }
     }
+
+    @Volatile var latestSha: String? = null
+    /** the update decision after [latest] gave [b]: the house Player = a newer build number; the shared Player = another
+     *  build than the one there (its assignment moved, either way) */
+    fun newer(ctx: Context, b: Long): Boolean = if (BuildConfig.SHARED) b > 0 && latestSha != null && latestSha != loaded(ctx).sha
+                                              else b > 0 && b > installedBuild(ctx)
 
     /** the build number of the last download (the update decision: is the server's newer?) */
     fun installedBuild(ctx: Context): Long = ctx.getSharedPreferences("fetch", 0).getLong("build", 0)
