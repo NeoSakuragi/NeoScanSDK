@@ -3718,5 +3718,75 @@
   "expect": "On a hit the second moon slash (Ittou Sougetsu) follows right after the first. If the first slash misses, the second never comes, as in The Last Blade 2.",
   "do_keys": "2:c,8:-,2:c,6:-,2:c,6:-,2:c",
   "proof": 120
+ },
+ "t7-bonus-pick": {
+  "title": "Bonus pick screen after stage 1: Ki training or Super Death Blow",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "pick",
+   "after": 1
+  },
+  "do": "Move the cursor with the stick (left / right) and pick a game with A. Or wait: the clock counts 9 to 0.",
+  "expect": "SELECT BONUS GAME with AOF2's big tree and wooden post; the cursor's name is highlighted between arrows; A (or the clock at 0) starts the game under the cursor.",
+  "do_keys": "20:-,4:R,30:-,4:a",
+  "proof": 120
+ },
+ "t7-ki-training": {
+  "title": "Ki training: one press on the sweeping gauge, the grade sets the meter reward",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "ryo",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Watch the gauge fill and wrap; press A once when it is full (the far right).",
+  "expect": "He punches the big tree; it shakes and leaves fall (more for a better grade). PERFECT (power 120-127) adds 2 drive chunks for the rest of the credit (the HUD bar grows to 4); any other grade adds nothing (AOF2: only the top grade counts).",
+  "do_keys": "100:-,4:a",
+  "proof": 200
+ },
+ "t7-posts-fury": {
+  "title": "Super Death Blow: only the fury breaks the wooden posts",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Walk up to the post and press D (your fury). Then try A, B or C on the next post.",
+  "expect": "The lesson box says ONLY YOUR FURY BREAKS THE POSTS / FURY = D. The fury burns the post and it splinters (POSTS counts down); a normal or a special only shakes it. All 9 before the clock: FURY + FURY MAX UNLOCKED ON D.",
+  "do_keys": "70:-,40:R,4:d",
+  "proof": 150
+ },
+ "t7-fury-locked": {
+  "title": "Fury locked until the bonus posts are won",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 0,
+   "fury": "full",
+   "drive": "full",
+   "locked": true
+  },
+  "do": "Press D (the fury) with the gauge full.",
+  "expect": "Nothing happens and he does not blink white: Fury and Fury MAX stay locked until the Super Death Blow posts are all broken (a time over keeps them locked for the credit, a continue too).",
+  "do_keys": "4:d",
+  "proof": 90
+ },
+ "t7-fury-unlocked": {
+  "title": "After the posts: D plays the fury",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 0,
+   "fury": "full",
+   "drive": "full"
+  },
+  "do": "Press D with the gauge full (the posts won).",
+  "expect": "The fury plays with its super flash (down+D at low life: the MAX).",
+  "do_keys": "4:d",
+  "proof": 120
  }
 }

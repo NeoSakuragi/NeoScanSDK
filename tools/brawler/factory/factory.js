@@ -102,8 +102,12 @@
   const lvGame = () => (S.lv.game && S.lv.game.stages) || null;
   const lvWant = () => { const g = lvGame(), d = S.lv.draft && S.lv.draft.stages; return g && d && d.length === g.length ? d : g; };
   const lvDiff = () => { const g = lvGame(), w = lvWant(); return g ? g.map((x, i) => LF.filter(k => x[k] !== w[i][k])) : []; };
+  // the bonus stages (TODO T7, levels.py bonus_view): the draft's bonus (or the game's), whether it differs
+  const bnGame = () => (S.lv.game && S.lv.game.bonus) || null;
+  const bnWant = () => (S.lv.draft && S.lv.draft.bonus) || bnGame();
+  const bnDiff = () => !!bnGame() && JSON.stringify(bnWant()) !== JSON.stringify(bnGame());
   const lvOpen = () => S.rows.find(r => r.levels && (r.status === 'pending' || r.status === 'building'));
-  const lvPending = () => !lvOpen() && lvDiff().some(d => d.length);
+  const lvPending = () => !lvOpen() && (lvDiff().some(d => d.length) || bnDiff());
   const pendingFighters = () => [...new Set(S.configs.map(c => c.fighter))].filter(f => shipState(f).unshipped);
 
   // ---- Characters ----
@@ -234,9 +238,10 @@
     drawLevels();
   }
   const bgImg = i => h('img', { class: 'lbg', src: 'stages/bg' + i + '.jpg', alt: 'background ' + i, loading: 'lazy' });
-  async function saveLevels(stages, what) {
+  async function saveLevels(stages, what, bonus) {
     L.msg.className = 'msg'; L.msg.textContent = 'Saving…';
-    try { S.lv = await postJ(LAB + 'levels', { stages }); L.msg.textContent = what + ': saved. Ship it from the Build tab (Ship pending changes).'; lvEdit = null; }
+    const b = bonus || (bnDiff() ? bnWant() : undefined);          // (a stage's save keeps an unshipped bonus draft)
+    try { S.lv = await postJ(LAB + 'levels', b ? { stages, bonus: b } : { stages }); L.msg.textContent = what + ': saved. Ship it from the Build tab (Ship pending changes).'; lvEdit = null; }
     catch (e) { L.msg.className = 'msg bad'; L.msg.textContent = 'Not saved: ' + e.message; }
     drawLevels(); drawDaemon();
   }
@@ -246,14 +251,25 @@
     const want = lvWant(), diff = lvDiff(), open = lvOpen();
     const songOf = n => G.songs.find(x => x.name === n) || { name: n, source: '?' };
     const rows = want.map((st, i) => {
-      const ed = diff[i].length, isOpen = lvOpenStage === i;
+      const ed = diff[i].length, isOpen = lvOpenStage === i, bn = bnWant(), after = !!bn && bn.after.includes(i + 1);
       const row = h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
         onclick: () => { lvOpenStage = isOpen ? -1 : i; lvEdit = null; lvScroll = null; L.msg.textContent = ''; drawLevels(); } },
         h('b', { class: 'ln', text: String(i + 1) }), bgImg(st.background),
         h('span', { class: 'lt' }, h('b', { text: st.name }), h('span', { text: '♪ ' + st.music + (i === 0 ? ' *' : '') })),
+        after ? h('span', { class: 'tag', text: '+ bonus' }) : null,
         ed ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? (open.status === 'building' ? 'building' : 'queued') : 'unshipped' }) : null);
       return [row, isOpen ? editor(i, st, G) : null];
     });
+    const bn = bnWant();
+    if (bn) {                                                      // the bonus games: one row, tap to edit
+      const isOpen = lvOpenStage === 'bonus';
+      rows.push([h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
+        onclick: () => { lvOpenStage = isOpen ? -1 : 'bonus'; lvEdit = null; L.msg.textContent = ''; drawLevels(); } },
+        h('b', { class: 'ln', text: 'B' }), h('span', {}),
+        h('span', { class: 'lt' }, h('b', { text: 'Bonus games' }), h('span', { text: 'after stage ' + (bn.after.join(', ') || 'none') + ' · ' + bn.games.map(x => x.name).join(' / ') + (bn.fury_lock ? ' · fury locked' : '') })),
+        bnDiff() ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? 'queued' : 'unshipped' }) : null),
+        isOpen ? bonusEditor(bn, G) : null]);
+    }
     P.levels.replaceChildren(h('div', { class: 'card' },
       h('h2', {}, 'Levels', h('span', { class: 'sp' }), h('span', { class: 'gv', text: 'in game ' + (G.version || '?') })),
       h('div', { class: 'lrows' }, rows),
@@ -288,7 +304,40 @@
       h('label', { class: 'lf' }, h('span', { text: 'Name' }), name), nmsg,
       h('div', { class: 'lf' }, h('span', { text: 'Background' })), bgs,
       h('div', { class: 'lf' }, h('span', { text: 'Music' }), h('small', { class: 'msg', text: i === 0 ? 'stage 1: P1\'s own theme when he has one, else this' : '' })), songs,
+      bnAfterToggle(i, G),
       h('div', { class: 'btns' }, save, undo, h('button', { type: 'button', text: 'Close', onclick: () => { lvOpenStage = -1; lvEdit = null; drawLevels(); } })));
+  }
+  // a stage's "bonus games after it" switch (not the last stage: a bonus needs a stage after it); saved at once
+  function bnAfterToggle(i, G) {
+    const bn = bnWant();
+    if (!bn || i + 1 >= G.stages.length) return null;
+    const on = bn.after.includes(i + 1);
+    return h('label', { class: 'lf' }, h('input', { type: 'checkbox', checked: on ? '' : null, onchange: () => {
+      const after = on ? bn.after.filter(x => x !== i + 1) : bn.after.concat([i + 1]).sort((a, b) => a - b);
+      saveLevels(lvWant().map(x => ({ name: x.name, background: x.background, music: x.music })), 'Bonus after stage ' + (i + 1) + (on ? ': off' : ': on'), { ...bn, after });
+    } }), h('span', { text: 'Bonus games after this stage' }));
+  }
+  // the bonus games: the pick clock, the fury lock, each game's name / song / clock / posts or top-grade reward
+  function bonusEditor(bn, G) {
+    const v = lvEdit || (lvEdit = JSON.parse(JSON.stringify(bn)));
+    const num = (o, k, lo, hi, label) => h('label', { class: 'lf' }, h('span', { text: label }),
+      h('input', { type: 'number', min: String(lo), max: String(hi), value: String(o[k]), style: 'width:5em', onchange: e => { o[k] = Math.max(lo, Math.min(hi, parseInt(e.target.value, 10) || lo)); } }));
+    const games = v.games.map(gm => h('div', { class: 'ledit' },
+      h('label', { class: 'lf' }, h('span', { text: 'Name' }), h('input', { type: 'text', value: gm.name, maxlength: '18', autocapitalize: 'characters', spellcheck: 'false',
+        oninput: e => { e.target.value = e.target.value.toUpperCase(); gm.name = e.target.value; } })),
+      h('label', { class: 'lf' }, h('span', { text: 'Music' }), h('select', { onchange: e => { gm.music = e.target.value; } },
+        G.songs.map(sg => h('option', { value: sg.name, selected: sg.name === gm.music ? '' : null, text: sg.name })))),
+      num(gm, 'seconds', 5, 99, 'Clock (s)'),
+      gm.kind === 'break' ? num(gm, 'count', 1, 20, 'Posts') : num(gm, 'top', 0, 3, 'Meter chunks at PERFECT')));
+    return h('div', { class: 'ledit' },
+      num(v, 'pick_seconds', 3, 30, 'Pick screen clock (s)'),
+      h('label', { class: 'lf' }, h('input', { type: 'checkbox', checked: v.fury_lock ? '' : null, onchange: e => { v.fury_lock = e.target.checked; } }),
+        h('span', { text: 'Fury + MAX locked until the posts are won' })),
+      games,
+      h('div', { class: 'btns' },
+        h('button', { type: 'button', class: 'primary', text: 'Save bonus games', onclick: () => saveLevels(lvWant().map(x => ({ name: x.name, background: x.background, music: x.music })), 'Bonus games', v) }),
+        bnDiff() ? h('button', { type: 'button', text: 'Back to the game\'s', onclick: () => saveLevels(lvWant().map(x => ({ name: x.name, background: x.background, music: x.music })), 'Bonus games back to the game\'s', bnGame()) }) : null,
+        h('button', { type: 'button', text: 'Close', onclick: () => { lvOpenStage = -1; lvEdit = null; drawLevels(); } })));
   }
 
   // ---- start ----

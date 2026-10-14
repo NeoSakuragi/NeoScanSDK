@@ -289,4 +289,28 @@ extern const genemy_t *genemies;
 extern const gstagex_t *gstagex;  /* the stages' triggers and boss scenes: the ROM's, or an installed pack's (version 4) */
 extern ai_preset_t ai_presets[];  /* the ROM's AI rows in RAM (a lab may poke them) */
 extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an installed pack's */
+
+/* ---- layer 3: the bonus stages (TODO T7; game.json "bonus", build_tables.py bonus_tables; main.c "bonus stages"):
+ * after each stage with after[stage] set, a pick screen of the games; a game = a scene (make_bonus.py: AOF2's) and a
+ * kind the engine plays: BK_GAUGE one press on a sweeping gauge (power + step a frame, 0-127 wrapping; grade = how many
+ * of grades[] it reached; chunks[grade] drive chunks added for the credit), BK_BREAK `count` objects broken one at a
+ * time before `seconds` run out, only by the class `breaks` (BB_FURY: a fury's / MAX's body or objects); won: `unlock`
+ * (BU_FURY: Fury and Fury MAX on D). fury_lock: D's fury locked from a new game until a BU_FURY game is won ---- */
+enum { BK_GAUGE, BK_BREAK };
+enum { BB_FURY };
+enum { BU_NONE, BU_FURY };
+typedef struct {
+    const char *name;             /* the pick screen's / the title's (fix font) */
+    uint8_t kind, scene, music, breaks, unlock, count, step, pad;   /* BK_*, BONUS_* scene, driver command, BB_*, BU_* */
+    uint16_t seconds;             /* the game's clock (BK_GAUGE: no press by then = grade 0) */
+    uint8_t grades[5];            /* BK_GAUGE: the power (0-127) each grade 1-5 needs */
+    uint8_t chunks[6];            /* BK_GAUGE: drive chunks a grade 0-5 adds (the bar up to 4) */
+} gbonus_game_t;
+#define GB_MAX_GAMES 3
+typedef struct {
+    uint8_t ngames, pick_seconds, pick_music, over_music, fury_lock, pad;
+    const uint8_t *after;         /* [GS_COUNT]: 1 = the pick screen after this stage */
+    gbonus_game_t games[GB_MAX_GAMES];
+} gbonus_t;
+extern const gbonus_t gbonus;
 #endif
