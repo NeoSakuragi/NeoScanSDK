@@ -337,6 +337,17 @@ def run_bobs(g):
                   '[start, frames, x a frame..., height a frame..., air_buttons] (roster[].run.mode dash), 0 = a run */']
 
 
+def walk_phys(g, r):
+    """roster[].walk_rate (note 20261014-084140-5d29, Final Fight's Haggar: "the walk plays too fast"): the walk / run
+    animations' rate, fixed (1 = its steps' own ticks, the source's measured cadence) instead of the engine's rule (its
+    archetype's speed / its source's walk x walk.anim, fighter.c walk_rate). -> the bphys_t walk (px a frame) that makes
+    the rule give it: archetype speed x walk.anim / walk_rate"""
+    w = r['walk_rate']
+    assert isinstance(w, (int, float)) and 0.25 <= w <= 4, f"roster {r['name']}: walk_rate {w} (0.25-4)"
+    wk = g['walk']
+    return wk[r['archetype']] * wk.get('anim', 1) / w
+
+
 def roster_export(g):
     """what the fighter export (export_bm.py) needs of each roster fighter, in bm_chars order"""
     for r in g['roster']:                          # (revamp 3b) a grab fury: provisional, Bruno's choice pending (throws1)
@@ -347,6 +358,7 @@ def roster_export(g):
              'specials': [r['specials'].get(k) for k in SPECIAL_KEYS],
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
+             **({'walk_phys': walk_phys(g, r)} if 'walk_rate' in r else {}),
              **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'run', 'slot_of') if k in r}} for r in g['roster']]
 
 

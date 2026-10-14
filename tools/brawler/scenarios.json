@@ -3788,5 +3788,58 @@
   "expect": "The fury plays with its super flash (down+D at low life: the MAX).",
   "do_keys": "4:d",
   "proof": 120
+ },
+ "20261014-084140-5d29": {
+  "title": "Haggar: the walk at Final Fight's pace",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 200
+  },
+  "do": "Hold forward and watch Haggar's legs for two seconds.",
+  "expect": "Each walk picture stays about 3 frames, a whole stride is 34 frames (more than half a second), as in Final Fight; before, the 12 pictures changed every frame.",
+  "do_keys": "120:R",
+  "proof": 30
+ },
+ "20261014-084211-5d29": {
+  "title": "Final Fight sounds: clean, at KOF's loudness",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 50
+  },
+  "do": "Press A, A, A (the chain). Then walk into the dummy, press A (headbutt) and B (piledriver).",
+  "expect": "The punches, the finisher crack, the headbutt and the body slam sound like Final Fight's, without the crackling buzz, and no louder than the KOF fighters' hits.",
+  "do_keys": "4:a,20:-,4:a,20:-,4:a,90:-",
+  "proof": 60
+ },
+ "20261014-084234-5d29": {
+  "title": "Haggar: down + A dive in a forward jump",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 120
+  },
+  "do": "Jump forward (forward + B) and press down + A in the air.",
+  "expect": "Haggar's Final Fight down attack (the flying body press) plays to the landing, as in a straight jump, and hits the dummy (a reel: the brawler's down + A standard); before, a forward jump played the plain jump kick.",
+  "do_keys": "12:Rb,10:R,4:Da,60:-",
+  "proof": 60
+ },
+ "20261014-084718-5d29": {
+  "title": "Haggar: piledriver on B, forward + B, back + B",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold the dummy. Press forward + B (also try B alone and back + B).",
+  "expect": "Haggar jumps with the dummy and piledrives it: B straight up, forward + B carried about 94 px forward, back + B about 94 px back, as in Final Fight. Up / down + A are headbutts now.",
+  "do_keys": "3:Rb",
+  "proof": 160
  }
 }

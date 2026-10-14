@@ -602,6 +602,9 @@ typedef struct fighter {
     uint16_t vrn;
     int16_t  swdx, swdy;
     uint8_t  swn, vanc;
+    int16_t  jdx, jprev;          /* a hold + B throw's travel (bxthr_t pad, fighter.c "B in the hold"): px over its airborne
+                                     rows, signed by the stick (0: none); jprev the part already added to throw_x0 */
+    uint16_t jr0;                 /* its first airborne row (the thrower's script leaves the floor) */
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */

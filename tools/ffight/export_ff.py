@@ -38,7 +38,7 @@ MOVES = {
             'jump_back_rise': (0xFAEC, 0, 1), 'jump_back_fall': (0xFAEC, 1, None),
             'atk_a_far': 0x10258, 'atk_a_close': 0x10258, 'atk_b_far': 0x102FC, 'atk_b_close': 0x103B8,
             'atk_c_close': 0xFCE2, 'atk_c_far': 0xFCE2, 'atk_d_close': 0x10686, 'atk_d_far': 0x10686,
-            'atk_c_jump': 0xFEFA, 'atk_d_jump': 0xFE16, 'atk_c_jump_diag': 0xFE16, 'atk_d_jump_diag': 0xFE16, 'atk_a_jump': 0xFC3A,
+            'atk_c_jump': 0xFEFA, 'atk_d_jump': 0xFE16, 'atk_c_jump_diag': 0xFE16, 'atk_d_jump_diag': 0xFE16, 'atk_a_jump': 0xFC3A, 'atk_a_jump_diag': 0xFC3A,
             'hit_stand_light': 0x106CE, 'hit_stand_heavy': 0x106DA, 'hit_air': 0x1093E, 'blowback': 0x1093E, 'blowback_n': 0x1093E,
             'knockdown_flight': 0x1093E, 'knockdown_bounce': 0x1093E, 'knockdown_fall': 0x1093E, 'trip': 0x1093E,
             'down': 0x10946, 'getup': 0x10772, 'win': 0xF6B4, 'grab': 0x10636},
@@ -47,7 +47,7 @@ MOVES = {
              'jump_fwd_fall': (0x116B4, 2, None), 'jump_back_rise': (0x116B4, 0, 2), 'jump_back_fall': (0x116B4, 2, None),
              'atk_a_far': 0x120E4, 'atk_a_close': 0x120E4, 'atk_b_far': 0x12188, 'atk_b_close': 0x12188,
              'atk_c_close': 0x12240, 'atk_c_far': 0x12240, 'atk_d_close': 0x1197A, 'atk_d_far': 0x1197A,
-             'atk_c_jump': 0x11E16, 'atk_d_jump': 0x11D1A, 'atk_c_jump_diag': 0x11D1A, 'atk_d_jump_diag': 0x11D1A, 'atk_a_jump': 0x11C4A,
+             'atk_c_jump': 0x11E16, 'atk_d_jump': 0x11D1A, 'atk_c_jump_diag': 0x11D1A, 'atk_d_jump_diag': 0x11D1A, 'atk_a_jump': 0x11C4A, 'atk_a_jump_diag': 0x11C4A,
              'hit_stand_light': 0x12412, 'hit_stand_heavy': 0x12412, 'hit_air': 0x12382, 'blowback': 0x12382, 'blowback_n': 0x12382,
              'knockdown_flight': 0x12382, 'knockdown_bounce': 0x12382, 'knockdown_fall': 0x12382, 'trip': 0x12382,
              'down': 0x1238A, 'getup': 0x124B2, 'win': 0x111B6, 'grab': 0x11870},
@@ -56,16 +56,31 @@ MOVES = {
                'jump_fwd_fall': (0x133D4, 1, None), 'jump_back_rise': (0x133D4, 0, 1), 'jump_back_fall': (0x133D4, 1, None),
                'atk_a_far': 0x1397C, 'atk_a_close': 0x1397C, 'atk_b_far': 0x13A94, 'atk_b_close': 0x13A94,
                'atk_c_close': 0x13A94, 'atk_c_far': 0x13A94, 'atk_d_close': 0x14938, 'atk_d_far': 0x14938,
-               'atk_c_jump': 0x13558, 'atk_d_jump': 0x13558, 'atk_c_jump_diag': 0x13558, 'atk_d_jump_diag': 0x13558, 'atk_a_jump': 0x134B0,
+               'atk_c_jump': 0x13558, 'atk_d_jump': 0x13558, 'atk_c_jump_diag': 0x13558, 'atk_d_jump_diag': 0x13558, 'atk_a_jump': 0x134B0, 'atk_a_jump_diag': 0x134B0,
                'hit_stand_light': 0x13F6C, 'hit_stand_heavy': 0x13F78, 'hit_air': 0x13EBE, 'blowback': 0x13EBE, 'blowback_n': 0x13EBE,
                'knockdown_flight': 0x13EBE, 'knockdown_bounce': 0x13EBE, 'knockdown_fall': 0x13EBE, 'trip': 0x13EBE,
                'down': 0x13EC6, 'getup': 0x1401A, 'win': 0x12CFC, 'grab': 0x143C8},
 }
 LOOP = {'idle', 'walk_fwd', 'run', 'win'}
+# atk_a_jump = FF's down-attack (attack + down in a jump), the same animation in a neutral and a forward jump (rec_ff.py
+# jatk_d / jatk_fd 2026-10-14: Guy $FC3A, Cody $11C4A, Haggar $134B0 from either): atk_a_jump_diag names it for the
+# forward / back jump (the brawler's air down + A plays its _diag twin there; without one export_bm fell back to the
+# jump's own attack: note 20261014-084234-5d29, "the dive is missing in a forward jump")
 # jump attacks: FF keeps the attack frame to the landing (its entry's ticks run out first: the game holds it) [meas]
 WALK = {'guy': 2.10, 'cody': 1.95, 'haggar': 1.85}                # px a frame [meas, study]
 DEPTH = {'guy': 1.0, 'cody': 0.797, 'haggar': 0.699}
 FJUMP = {'guy': 108, 'cody': 101, 'haggar': 82}                   # forward jump travel px over its 42 air frames [meas]
+# the walk: its 12 entries all say 1 tick, but FF holds each for about 3 frames (its walk code steps the animation on its own
+# clock, not the entry's ticks): one 12-entry cycle = 39 / 44 / 34 frames (rec_ff.py walk 2026-10-14: 3.24 / 3.67 / 2.84
+# frames an entry; note 20261014-084140: Haggar's walk played 12 frames a cycle, 2.8x too fast) [meas]
+WALK_CYCLE = {'guy': 39, 'cody': 44, 'haggar': 34}
+CYCLED = ('walk_fwd', 'run')
+
+def cycle_ticks(steps, frames):
+    """spread `frames` over the steps (Bresenham: the measured cadence's 3s and 4s) -> each step's ticks (= frames - 1)"""
+    n = len(steps)
+    for i, s in enumerate(steps): s['ticks'] = (i + 1) * frames // n - i * frames // n - 1
+    return steps
 
 def neo_colour(w):
     import importlib.util
@@ -194,7 +209,9 @@ def export(names, outdir, only=None, extra=None, lab=None):
         anims = {}
         for mv, spec in MOVES[name].items():
             if only is not None and mv not in only and mv not in ('watch', 'grab'): continue
-            anims[mv] = {'slot': entries(spec)[1], 'mode': 'loop' if mv in LOOP else 'hold', 'steps': anim_steps(B, name, spec)}
+            st = anim_steps(B, name, spec)
+            if mv in CYCLED: cycle_ticks(st, WALK_CYCLE[name])
+            anims[mv] = {'slot': entries(spec)[1], 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
         w = (extra or {}).get(name, {}).get('watch')
         if w: anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, name, w[0])[w[1]:][:1]}
         th = throws(B, name)

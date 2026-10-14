@@ -1175,7 +1175,12 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  *     script (bxthr_t sup: a special played as a fury: its super flash, flash pose, invincibility; or its throw_x), else
  *     the throw pressed (XT_FWD) at the super tier with the super flash; damage gmeter.sthrow_dmg (a special's through
  *     dtier_rom's super scale); short of the meter: the plain throw (no life paid). C with up / down / no stick: the
- *     slot's special out of the hold, as before. */
+ *     slot's special out of the hold, as before.
+ *   B in the hold (bxthr_t pad, game.json roster[].throws.b; note 20261014-084718-5d29, Final Fight's Haggar: jump in the
+ *     hold = the piledriver, straight, forward or back with the stick): its extra paired throw x, played as its data with
+ *     B alone; forward / back + B adds a travel of (pad - 1) x 2 px that way, spread evenly over the script's airborne
+ *     rows (from the first row the thrower leaves the floor to its landing row bthrow_t.land; FF measured: the same
+ *     piledriver, carried 95 / 94 px at a steady 1.77 px a frame from take-off to the slam). 0: B does nothing (as before). */
 #define GRAB_DX      32
 #define GRAB_TIME    90               /* frames without a hit before the victim breaks free (~1.5 s, Final Fight) */
 #define GRAB_HITS    3                /* hold hits; the third is the finisher */
@@ -1608,9 +1613,19 @@ static uint8_t paired_update(fighter_t *f) {
         return 0;                                                /* plays on alone from it (throw_free); unplaced, it */
     }                                                            /* held last row's place a frame: a hitch in its flight (#196) */
     r = &th->rows[i];
+    if (f->jdx && i > f->jr0 && th->land < th->nrows) {          /* hold + B's travel, by rows (the throws comment) */
+        uint16_t k = i < th->land ? i - f->jr0 : th->land - f->jr0, n = th->land - f->jr0;
+        int16_t d = part16(f->jdx, (uint8_t)(k > 255 ? 255 : k), (uint8_t)(n > 255 ? 255 : n)), e = d - f->jprev;
+        f->throw_x0 += dir_mul(f->throw_face, FIX(e)); f->jprev = d;
+        if (v) v->throw_x0 = f->throw_x0;                        /* (the victim's origin rides along) */
+    }
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx + (i < f->swn ? part16(f->swdx, f->swn - i, f->swn) : 0)));   /* (the
                                                                     start's glide: pair_fit's move, throw_start) */
+    if (f->jdx) {                                                /* (the travel stops at the stage's ends: the pair's */
+        int32_t e = f->x < FIX(X_MIN) ? FIX(X_MIN) - f->x : f->x > FIX(X_MAX) ? FIX(X_MAX) - f->x : 0;   /* origin with it) */
+        f->x += e; f->throw_x0 += e; if (v) v->throw_x0 = f->throw_x0;
+    }
     f->y = FIX(r->ty);
     f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
     if (v) place_victim(f, v, vrow(v, th, i, &tmp), f->throw_face);
@@ -1651,6 +1666,7 @@ static uint8_t lands_behind(const bthrow_t *th) {
     return r->tx + r->vx < 0;
 }
 static void victim_side(fighter_t *f, fighter_t *v, uint8_t t);
+static int16_t pend_jdx;           /* the next throw_start's travel (hold + B: hold_update), px signed by the stick */
 static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3); dir TD_*: the side wanted */
     const bthrow_t *th;
@@ -1659,6 +1675,8 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     if (dir != TD_ASIS && !th->stun && lands_behind(th) != (dir == TD_BACK)) f->facing = -f->facing;   /* the direction
                                                                     rule above: played turned */
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
+    f->jdx = pend_jdx; f->jprev = 0; pend_jdx = 0;               /* (hold + B's travel: its airborne rows, paired_update) */
+    for (f->jr0 = 0; f->jdx && f->jr0 < th->land && th->rows[f->jr0].ty <= 0; f->jr0++) {}
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;              /* (a press before it: not for its cancel) */
@@ -2144,6 +2162,13 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         if (lab_on && !f->idx && !f->team && lab_hold(f, in->dx == f->facing ? LS_GRAB_FWD : LS_GRAB_BACK)) return;   /* (the Lab's sheet) */
         throw_start(f, in->dx == f->facing ? BT_THROW_C : BT_THROW_D, in->dx == f->facing ? TD_FWD : TD_BACK);   /* any
                                                                     time (a hold hit playing too) */
+        return;
+    }
+    if ((in->press & IN_B) && bm_xthr[f->ch->id].pad && bm_xthr[f->ch->id].x && !f->srow) {   /* B: the jump throw (the
+                                                                    throws comment, "B in the hold"); the stick its travel */
+        int16_t t = (int16_t)(bm_xthr[f->ch->id].pad - 1) << 1;
+        pend_jdx = !in->dx ? 0 : in->dx == f->facing ? t : -t;
+        throw_start(f, BT_XTHROW, TD_ASIS);
         return;
     }
     if ((in->press & IN_A) && in->dz) {                          /* up / down + A: the extra throw, when it has one */

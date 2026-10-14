@@ -9475,7 +9475,7 @@ null,
 "throw_x": {
 "anim": 78928,
 "name": "Piledriver",
-"inputs": "hold + up / down + A (FF: jump, then attack)",
+"inputs": "hold + B, forward / back + B carried 94 px (FF: jump, then attack)",
 "timeline": [
 [
 78940,

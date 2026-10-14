@@ -62,9 +62,24 @@ USED = {0x2F: 'swing (jab)', 0x00: 'hit', 0x02: 'Guy finisher swing', 0x03: 'Cod
         0x1D: 'Haggar special', 0x05: 'Guy flying knee', 0x1B: 'Cody flying knee'}
 
 _V = None
+GAIN = 1216 / 2048     # the phrases' level into the ADPCM-A encoder: FF's phrases peak at the OKI's full scale (2048, hard
+                       # clipped: hundreds of clamped samples in most), SNK's ADPCM-A samples peak at 1216 (KOF98's hits
+                       # $11-$15, KOF94 / 95 / SS2 imports: 1163-1217 measured in the built V ROM 2026-10-14); at this gain
+                       # FF's hit RMS lands on KOF98's (Haggar's finisher hit 751 vs KOF98 HIT D 724)
+def resampled(pcm):
+    """an OKI phrase (12-bit, 7576 Hz) -> 16-bit PCM at the ADPCM-A rate (18518 Hz), band-limited (polyphase, Kaiser
+    window: no zero-order-hold images above 3.8 kHz, the former nearest-sample copy's buzz), scaled by GAIN and kept in
+    range (the filter's overshoot of FF's hard-clipped peaks)"""
+    import numpy as np
+    from scipy.signal import resample_poly
+    up = resample_poly(np.asarray(pcm, np.float64) * 16 * GAIN, 18518, RATE, window=('kaiser', 8.0))
+    return np.clip(np.round(up), -32768, 32767).astype(np.int16)
+
+_V = None
 def vrom():
-    """the USED commands' phrases as a YM2610 ADPCM-A bank (resampled 7576 -> 18518 Hz, linear; each sample on its own
-    256-byte pages, page 0 empty): (bytes, {command: (first page, last page)}) for build_snd / voices.py"""
+    """the USED commands' phrases as a YM2610 ADPCM-A bank (resampled(): 7576 -> 18518 Hz; wav_encoder.encode_adpcma,
+    the chip-exact encoder; each sample on its own 256-byte pages, page 0 empty): (bytes, {command: (first page, last
+    page)}) for build_snd / voices.py"""
     global _V
     if _V is None:
         sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -72,11 +87,8 @@ def vrom():
         o, z = rom(); ph = phrases(o); cmd = commands(z)
         v = bytearray(256); idx = {}
         for c in sorted(USED):
-            st, en = ph[cmd[c][0]]; pcm = decode(o[st:en + 1])
-            n = len(pcm) * 18518 // RATE
-            up = [pcm[min(len(pcm) - 1, int(i * RATE / 18518))] << 4 for i in range(n)]
-            import numpy as np
-            a = WE.encode_adpcma(np.array(up, dtype=np.int16))
+            st, en = ph[cmd[c][0]]
+            a = WE.encode_adpcma(resampled(decode(o[st:en + 1])))
             a = bytes(a) + bytes((-len(a)) % 256)
             idx[c] = (len(v) >> 8, (len(v) + len(a) >> 8) - 1); v += a
         _V = (bytes(v), idx)

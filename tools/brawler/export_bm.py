@@ -1340,7 +1340,12 @@ def xthr_c(ch, n):
             return XT_PAIRED
         return spec_index(pool, next(sp for sp in ch['specials'] if sp['input'] == inp))
     ex = t.get('extra') or {}
-    return f'{{{f"&{n}_xthrow" if has_x else "0"}, {one(ex.get("u"), XT_NONE)}, {one(ex.get("d"), XT_NONE)}, {one(t.get("super"), XT_FWD)}, 0}}'
+    b = t.get('b')                                   # hold + B (note 20261014-084718-5d29): its throw_x, forward / back + B
+    if b is not None:                                # carried b.travel px that way (fighter.c "B in the hold"): pad =
+        assert has_x, f'{n}: throws.b plays its {THROW_X}, its bank has none'   # 1 + travel / 2, 0 = none
+        assert 0 <= b.get('travel', 0) <= 508, f'{n}: throws.b.travel {b.get("travel")} (0-508 px)'
+    pad = 0 if b is None else 1 + b.get('travel', 0) // 2
+    return f'{{{f"&{n}_xthrow" if has_x else "0"}, {one(ex.get("u"), XT_NONE)}, {one(ex.get("d"), XT_NONE)}, {one(t.get("super"), XT_FWD)}, {pad}}}'
 
 
 def fury_special(ch, name):
@@ -2170,7 +2175,7 @@ def write_c(chars, outdir):
          'enum { VK_THROW = BA_COUNT, VK_HIT = BA_COUNT + BT_COUNT, VK_KO, VK_SELECT, VK_SPEC };   /* voice keys (voices.py keys): BA_*, VK_THROW + BT_*, the events, VK_SPEC + its special\'s index in the pool */',
          'typedef struct { const uint8_t *map; const bproj_t *sparks; } bhspark_t;   /* (TODO #215, vocabulary fx.hit_spark) a fighter\'s source game\'s own hit sparks (Double Dragon: tools/doubledr/sparks_dd.py; map 0 = none: the engine\'s KOF98 spark): map = [where (its special index, 0xFE a normal: its BA_ animation), animation index (a special\'s anims), step, spark] each, 0xFF ends, in its bank; a hit landing on that step spawns sparks[(spark & 0x3F) - 1] (an effect object, bproj_t kind PK_FX) at its game\'s hit point (fighter.c hit_spark); spark 0x40 = turned (the other way), 0x80 = the screen strobe (DD\'s super hits: fighter.c hitflash) */',
          'typedef const uint8_t *bair_t;   /* (TODO #221) */',
-         'typedef struct { const bthrow_t *x; uint8_t up, down, sup, pad; } bxthr_t;   /* (revamp 3, game.json roster[].throws extra / super) a fighter\'s throws beyond forward / back: x = its extra paired throw (0 none: tools/kof96/throwrom.py, Ralf\'s 426B); up / down = hold + up / down + A, sup = the super throw (hold + forward / back + C with the meter): a special\'s index in its pool (a grab special played from its ROM program on the held victim, role BS_THROW), XT_PAIRED its x, XT_FWD (sup) the throw pressed at the super tier, XT_NONE none (up / down: the hold hit) */',
+         'typedef struct { const bthrow_t *x; uint8_t up, down, sup, pad; } bxthr_t;   /* (revamp 3, game.json roster[].throws extra / super) a fighter\'s throws beyond forward / back: x = its extra paired throw (0 none: tools/kof96/throwrom.py, Ralf\'s 426B); up / down = hold + up / down + A, sup = the super throw (hold + forward / back + C with the meter): a special\'s index in its pool (a grab special played from its ROM program on the held victim, role BS_THROW), XT_PAIRED its x, XT_FWD (sup) the throw pressed at the super tier, XT_NONE none (up / down: the hold hit); pad = hold + B (game.json throws.b, 2026-10-14): 0 none, else x played with forward / back + B carried (pad - 1) x 2 px that way over its airborne rows (fighter.c "B in the hold"; the byte keeps its name: the pack format\'s ABI) */',
          f'enum {{ XT_FWD = {XT_FWD}, XT_PAIRED = {XT_PAIRED}, XT_NONE = {XT_NONE} }};',
          'extern const bxthr_t bm_xthr[BC_COUNT];   /* (revamp 3) by bchar_t.id (outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef const uint16_t *bseg_t;   /* (retiming) */', 'extern const bseg_t bm_seg[BC_COUNT];   /* (retiming, retime.py) by bchar_t.id: [BA_COUNT + nspec, offset of each move (BA_* then its specials; 0 = no segments)], then per move [n, the source frames of its n segments: startup, active 1, recovery 1, ...] (fighter.c rt_*) */',
@@ -2451,6 +2456,8 @@ def write_c(chars, outdir):
     for game, n, ch, off in chars:
         p = ch['physics']; sets = ch['block_palettes']
         p = {'hop_vy0': p['jump_vy0'], 'hop_gravity': p['gravity'], 'hop_dx': p['jump_dx'], 'prejump': 3, **p}   # KOF94/95: no hop
+        if 'walk_phys' in (roster().get(n) or {}): p['walk_fwd'] = roster()[n]['walk_phys']   # (roster[].walk_rate: the walk's
+                                                                    # rate fixed, build_tables.walk_phys)
         land = ch['anims'].get('land') if game in ('kof96', 'kof98', 'kof99', 'kizuna', 'doubledr', 'samsho2', 'lastbld2', 'ffight', 'garou') else None   # SS4 / WHP: KOF's usual 4
         p['land'] = sum(s['ticks'] + 1 for s in land['steps']) + 1 if land else 4
         c.append(f'  {{{n + "_name" if n in ALIAS else chr(34) + (roster()[n].get("display") or n).upper() + chr(34)}, {len(used[n])}, {len(sets)}, {n}_pals, {n}_frames, {n}_anims, {{{fx(p["walk_fwd"])}, {fx(p["jump_vy0"])}, {fx(p["gravity"])}, {fx(p["jump_dx"])}, {fx(p["hop_vy0"])}, {fx(p["hop_gravity"])}, {fx(p["hop_dx"])}, {p["prejump"]}, {p["land"]}}}, {n}_throws, {n}_vposes, {n}_specials, {(off + SRC_BASE) >> 16}, {sum(1 << k for k, m in enumerate(CMDS) if m in ch['anims'])}, {n}_routes, {[q[1] for q in chars].index(n)}, {len(special_pool(ch, n))}, {n}_spmap, {n}_voices, {len(V.bank(n))}, {spec_index(special_pool(ch, n), fury_special(ch, n))}, {{{', '.join(map(str, char_sfx(n)))}}}, {n}_vmore, {spec_index(special_pool(ch, n), fury_max_special(ch, n))}{form_tail(chars, ch, n)}, {n}_holds, {n}_pvox, {n}_pfx, {n}_fpose, {len(fpose_steps(ch))}, {{{', '.join(map(str, ch.get('flash_head', (0, 0))))}}}, {n}_fpal, {used[n].index(ch['flash_pal']['index']) if ch.get('flash_pal') else 0xFF}, {used[n].index(flk_of(ch)['index']) if flk_of(ch) else 0xFF}, {n}_flk, {len(air_specials(ch, n))}, {spec_index(special_pool(ch, n), down_special(ch, n))}}},')
