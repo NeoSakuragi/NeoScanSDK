@@ -166,10 +166,10 @@ extern const gflash_t gflash;
  * (fighter_guard_sound, no guard yet); boss_ko: the boss's killing hit, its death voice scream_delay frames later
  * (main.c boss_ko_start); bounce: each floor contact of the boss's death fall (fighter.c floor_thud, KOF94's KO
  * landing); hurt: when the victim's hurt voice (its VK_HIT) plays, HV_* bits (game.json hit_sounds.hurt_voice, note
- * 20261014-170634-5d29: launch + land only, players and enemies alike; the impact sounds stay on every hit) ---- */
+ * 20261014-170634-5d29: launch + land only, players and enemies alike; the impact sounds stay on every hit); rest_music: the clear music this many frames after the KO'd boss came to rest on the floor (main.c boss_ko_tick) ---- */
 enum { HV_HIT = 1, HV_LAUNCH = 2, HV_LAND = 4 };   /* every hit / sent off the floor by a hit / its first floor contact */
 typedef struct {
-    uint8_t n[2], guard, boss_ko, bounce, hurt;
+    uint8_t n[2], guard, boss_ko, bounce, hurt, rest_music;
     uint16_t scream_delay;
     const uint8_t *cycle[2];
 } ghitsnd_t;

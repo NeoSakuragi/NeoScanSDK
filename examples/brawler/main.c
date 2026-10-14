@@ -2254,13 +2254,16 @@ static uint8_t tq_n;
 enum { KO_OFF, KO_SLOWMO, KO_DONE };
 static uint8_t ko_seq, ko_sub;                   /* KO_*; frames to the next logic tick */
 static uint16_t ko_t, ko_next;                   /* frames since the killing hit; the next fall */
-#define KO_WIN 60                                /* the win music this many frames after the boss's second floor contact sound
-                                                    (fighter.c floor_thud, its bounce: note 20261009-231937-b3f3 "one second
-                                                    after the second bounce sound has been triggered, cue in the music";
-                                                    was 180 after the death voice). Fallback: no second contact by the slow
-                                                    motion's end (KO_SLOW) -> the music then */
-static uint8_t ko_win;                           /* 1: the win music already started by the KO sequence (PH_END doesn't restart it) */
-static uint8_t ko_wt;                            /* frames left to the win music after the second contact (0: not counting) */
+/* the stage clear's music (note 20261014-172113-5d29, Bruno: "the music must not depend on anything else than: has the
+ * boss really fallen completely on the floor -- then start the music"): one event, the KO'd boss at rest (ko_at_rest:
+ * its final landing after every bounce, S_DOWN on the floor, or already dead / gone), then game.json
+ * hit_sounds.rest_music frames (the landing sample's length: its sound has finished) + the bytes still queued ahead of
+ * it, then the music. Nothing else starts it: no timer from the killing hit, not the slow motion's end, not PH_END;
+ * the next screen waits for it (PH_CLEAR). Was: 60 frames after the second floor contact + fallbacks at the slow
+ * motion's end and at STAGE CLEAR (note 20261009-231937-b3f3) -> the clear song over the landing sound's tail. */
+static uint8_t ko_win;                           /* 1: the clear music started by the KO sequence */
+static uint8_t ko_rest;                          /* 1: the boss has come to rest, ko_wt counting */
+static uint8_t ko_wt;                            /* frames left to the clear music once at rest */
 static uint8_t win_dr;                           /* PH_CLEAR: 1 once the win drama (DR_WIN) played or was passed */
 static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
@@ -2323,7 +2326,7 @@ static uint8_t win_done(void) {                  /* every pose played and held W
     for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || (win_st[i] == WIN_POSE && win_t[i] < WIN_HOLD)) return 0;
     return 1;
 }
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
+static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_rest = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -2344,18 +2347,19 @@ static void boss_ko_start(void) {                /* the boss's killing hit */
     ko_seq = KO_SLOWMO; ko_t = 0; ko_sub = 0; ko_next = KO_FIRST; tq_n = 0;
     snd_stop_music();                            /* the music first, then this tick's sounds (the killing hit's), then
                                                     the KO blow (note 20261009-120007-5d29: $04 after the blow cut it) */
-    snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0; ko_wt = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
+    snd_cmd(0x1A); snd_cmd(ghitsnd.boss_ko); b->ko_voice = 1; ko_scream = 1; ko_win = 0; ko_rest = 0; ko_wt = 0;   /* (ko_voice: none at its S_DEAD, boss_ko_tick screams) */
     b->kthud = 1;                                /* its fall's floor contacts: hit_sounds.bounce (fighter.c floor_thud) */
+}
+static uint8_t ko_at_rest(const fighter_t *b) { /* its fall over: lying on the floor (after every bounce), dead, gone */
+    return (b->state == S_DOWN || b->state == S_DEAD || b->state == S_OFF) && b->y <= 0;
 }
 static uint8_t boss_ko_tick(void) {              /* every frame of the sequence; 1: a logic tick this frame */
     uint8_t i;
     for (i = 0; i < 2; i++) if (fighters[i].inv < 2) fighters[i].inv = 2;   /* the players: untouchable to the clear (2: still
                                                              set in combat after their update counted one down) */
-    if (!ko_win) {                               /* the win music: KO_WIN frames after the boss's second floor contact */
-        if (!ko_wt && fighters[BOSS_IDX].kthud >= 3) ko_wt = KO_WIN;   /* (measured: the music's commands 60 frames
-                                                                          after the contact's in the sound queue) */
-        else if (ko_wt && !--ko_wt) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }
-        else if (!ko_wt && ko_seq == KO_DONE) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }   /* fallback: no second contact */
+    if (!ko_win) {                               /* the clear music: only once the boss is at rest + rest_music */
+        if (!ko_rest) { if (ko_at_rest(&fighters[BOSS_IDX])) { ko_rest = 1; ko_wt = ghitsnd.rest_music + snd_pending(); } }
+        else if (!ko_wt || !--ko_wt) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }
     }
     if (ko_seq != KO_SLOWMO) return 1;
     if (++ko_t >= ghitsnd.scream_delay && ko_scream) {      /* the death voice, after the KO sound */
@@ -3002,7 +3006,7 @@ static void campaign(uint8_t left) {
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
-        FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_win && !ko_wt) snd_music(GAME_MUS_CLEAR);   /* (counting: boss_ko_tick starts it) */
+        FIX_print(14, 13, "STAGE CLEAR", 0); if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
@@ -3011,7 +3015,8 @@ static void campaign(uint8_t left) {
         save_write();
         break;
     case PH_CLEAR:
-        if (phase_t < 200 || (!win_done() && phase_t < WIN_MAX)) break;   /* the win poses played, then the next screen: a
+        if (phase_t < 200 || (!win_done() && phase_t < WIN_MAX) || (ko_seq && !ko_win)) break;   /* the win poses played (and a
+                                                                boss KO's clear music started), then the next screen: a
                                                                 cut (no fades) */
         if (!win_dr) {                                       /* first the winner's big portrait, KOF's win screen in drama
                                                                 mode (game.json win_drama; note 20261009-230403-b3f3): its

@@ -48,4 +48,5 @@ void snd_stop_music(void) {
     for (i = 0; i < n; i++) snd_cmd(keep[i]);
     qm = qt;
 }
+uint8_t snd_pending(void) { return (qt - qh) & (QN - 1); }
 void snd_reset(void) { qh = qt; }       /* the BIOS reset the sound CPU: a queued prefix would pair with the wrong byte */

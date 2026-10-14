@@ -1167,19 +1167,26 @@ def tables(g, build):
     c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .sound = 0x{fl['sound']}, .sound_max = 0x{fl.get('sound_max', fl['sound'])}, .dx = {fl['anchor'][0]}, "
              f".dy = {fl['anchor'][1]}, .white_col = {fl['white_colour']}, .dark_col = {fl['dark_colour']} }};")
     hs = g['hit_sounds']                                 # the hit cycles, the guard and the boss KO sounds (gamedata.h
-    for k in hs: assert k in ('about', 'light', 'strong', 'guard', 'boss_ko', 'bounce', 'scream_delay', 'hurt_voice'), f'hit_sounds: unknown field {k}'   # ghitsnd_t)
+    for k in hs: assert k in ('about', 'light', 'strong', 'guard', 'boss_ko', 'bounce', 'scream_delay', 'hurt_voice', 'rest_music'), f'hit_sounds: unknown field {k}'   # ghitsnd_t)
     names = {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()}
     def code(v):
         assert v.upper() in names, f'hit_sounds: {v!r} is no songs.json sfx name (the V ROM has no sample for it)'
         return names[v.upper()]
     assert 1 <= len(hs['light']) <= 32 and 1 <= len(hs['strong']) <= 32 and 0 <= hs['scream_delay'] < 300, 'hit_sounds values (scream_delay inside main.c KO_SLOW)'
+    assert 0 <= hs['rest_music'] <= 224, 'hit_sounds.rest_music: 0..224 frames (main.c ko_wt, + the queued bytes)'
+    rep = os.path.join(build, 'snd', 'snd_report.json')   # the landing sample's length (build_snd: ADPCM-A bytes, 2 samples
+    if os.path.exists(rep):                               # each at 18.5 kHz): the music never over its tail (note 20261014-172113-5d29)
+        sb = json.load(open(rep)).get('sfx_from', {}).get(f"{code(hs['bounce']):02X}", {}).get('bytes')
+        if sb:
+            fr = -(-sb * 2 * 60 // 18518)
+            assert hs['rest_music'] >= fr, f"hit_sounds.rest_music {hs['rest_music']}: the bounce sample {hs['bounce']} lasts {fr} frames"
     hv = hs.get('hurt_voice', ['hit'])                   # when the hurt voice plays (gamedata.h HV_*): every hit, the launch, the landing
     assert set(hv) <= {'hit', 'launch', 'land'}, f'hit_sounds.hurt_voice {hv}: hit / launch / land'
     hurt = sum(b for k, b in (('hit', 1), ('launch', 2), ('land', 4)) if k in hv)
     for k in ('light', 'strong'):
         c.append(f"static const uint8_t hcycle_{k}[] = {{ {', '.join(f'0x{code(v):02X}' for v in hs[k])} }};   /* {', '.join(hs[k])} */")
     c.append(f"const ghitsnd_t ghitsnd = {{ .n = {{ {len(hs['light'])}, {len(hs['strong'])} }}, .guard = 0x{code(hs['guard']):02X}, "
-             f".boss_ko = 0x{code(hs['boss_ko']):02X}, .bounce = 0x{code(hs['bounce']):02X}, .scream_delay = {hs['scream_delay']}, .hurt = {hurt}, .cycle = {{ hcycle_light, hcycle_strong }} }};")
+             f".boss_ko = 0x{code(hs['boss_ko']):02X}, .bounce = 0x{code(hs['bounce']):02X}, .scream_delay = {hs['scream_delay']}, .hurt = {hurt}, .rest_music = {hs['rest_music']}, .cycle = {{ hcycle_light, hcycle_strong }} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
     erows = []
