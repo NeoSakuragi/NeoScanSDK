@@ -71,8 +71,13 @@ def resampled(pcm):
     window: no zero-order-hold images above 3.8 kHz, the former nearest-sample copy's buzz), scaled by GAIN and kept in
     range (the filter's overshoot of FF's hard-clipped peaks)"""
     import numpy as np
-    from scipy.signal import resample_poly
-    up = resample_poly(np.asarray(pcm, np.float64) * 16 * GAIN, 18518, RATE, window=('kaiser', 8.0))
+    from scipy.signal import resample_poly, butter, lfilter
+    x = np.asarray(pcm, np.float64) * 16
+    # the CPS1 board's output first (Bruno 2026-10-14, decisions "ff-sounds": closer to the arcade on all six hits):
+    # AC coupling (1st-order high-pass 20 Hz: the phrases' DC drift) + the output roll-off (2nd-order low-pass 3.4 kHz)
+    b, a = butter(1, 20 / (RATE / 2), 'high'); x = lfilter(b, a, x)
+    b, a = butter(2, 3400 / (RATE / 2), 'low'); x = lfilter(b, a, x)
+    up = resample_poly(x * GAIN, 18518, RATE, window=('kaiser', 8.0))
     return np.clip(np.round(up), -32768, 32767).astype(np.int16)
 
 _V = None

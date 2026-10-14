@@ -3841,5 +3841,31 @@
   "expect": "Haggar jumps with the dummy and piledrives it: B straight up, forward + B carried about 94 px forward, back + B about 94 px back, as in Final Fight. Up / down + A are headbutts now.",
   "do_keys": "3:Rb",
   "proof": 160
+ },
+ "20261014-085447-5d29": {
+  "title": "Bonus intro: AOF2's BONUS GAME screen, then AOF2's original select",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "pick",
+   "after": 1
+  },
+  "do": "Watch after stage 1: the BONUS GAME screen, then the select (Strength Training greyed, the cursor skips it).",
+  "expect": "BONUS GAME zooms in with the announcer and jingle; AOF2's three-picture select, the middle one grey; the pink frame jumps from the tree to the posts.",
+  "do_keys": "20:-,4:R,30:-,4:a",
+  "proof": 120
+ },
+ "20261014-085507-5d29": {
+  "title": "Bonus intro: the kanji title card with the announcer and gong",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "pick",
+   "after": 1
+  },
+  "do": "After the BONUS GAME screen, pick a bonus game with A.",
+  "expect": "A white card with the game's kanji and English name (気力鍛錬の行 / 超必殺技伝授), the announcer reads it, then the gong.",
+  "do_keys": "140:-,4:a",
+  "proof": 360
  }
 }
