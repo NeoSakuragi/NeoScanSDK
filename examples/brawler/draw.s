@@ -214,7 +214,10 @@ fighter_tiles:
     adda.w  %d2, %a2
     adda.l  %a5, %a1                | the first tile copied (vflip: backwards from it)
     and.w   #63, %d0
-    move.w  %d3, (%a4)+             | SCB1 address
+    cmp.w   #32, %d0                | a column past 32 rows (a bad frame's data, note 20261014-193405-5d29): the copy
+    bls.s   7f                      | block holds 32, more ran the queue out of step and the flush wrote RAM over the
+    moveq   #32, %d0                | sprite tables and the fix layer; clamped, a bad frame can only look wrong
+7:  move.w  %d3, (%a4)+             | SCB1 address
     add.w   %d0, %d0
     move.w  %d0, (%a4)+             | run length = shown rows * 2
     add.w   %d0, %d0
