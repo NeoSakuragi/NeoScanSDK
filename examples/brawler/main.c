@@ -138,12 +138,18 @@ extern volatile uint32_t wait_cycles;
  * 768 68000 cycles. prof[] holds the worst line count of each section over the last 16 frames. */
 #define LINE() ((*(volatile uint16_t *)0x3C0006) >> 7)
 enum { P_FLUSH, P_AI, P_UPDATE, P_COMBAT, P_SORT, P_TILES, P_GUARD, P_PLACE, P_HUD, P_N };
+#if PROFILE_HUD
 static uint16_t prof[P_N], prof_max[P_N], prof_t;
 static void mark(uint8_t sec) {
     uint16_t now = LINE(), d = now >= prof_t ? now - prof_t : now + 264 - prof_t;
     if (d > prof[sec]) prof[sec] = d;
     prof_t = now;
 }
+#define PROF_START() (prof_t = LINE())
+#else
+#define mark(sec) ((void)0)          /* (a normal build: the section clock is compiled out, cpu budget G) */
+#define PROF_START() ((void)0)
+#endif
 
 #define NF 8                         /* 2 players + 6 enemies: the POC target */
 #define NE (NF + NPJ)                /* entities drawn: fighters + projectiles */
@@ -467,11 +473,24 @@ static uint8_t sel_rank[NA];                     /* the select screen: each acto
 static int32_t depth(const fighter_t *f) { return nf > NE ? sel_rank[f->idx] : f->z; }   /* the select: its layout's order */
 static void depth_sort(void) {
     uint8_t i, j;
-    for (i = 1; i < nf; i++)
-        for (j = i; j > 0 && (depth(order[j]) < depth(order[j - 1]) ||
-                              (depth(order[j]) == depth(order[j - 1]) && order[j]->zfront < order[j - 1]->zfront)); j--) {
-            fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
+    if (nf <= NE)                                /* a fight: by z, then zfront (an insertion sort: the list is nearly */
+        for (i = 1; i < nf; i++) {               /* sorted, one compare per entity most ticks; cpu budget G) */
+            fighter_t *t = order[i], *p;
+            int32_t z = t->z;
+            int8_t zf = t->zfront;
+            for (j = i; j > 0; j--) {
+                p = order[j - 1];
+                if (z > p->z || (z == p->z && zf >= p->zfront)) break;
+                order[j] = p;
+            }
+            order[j] = t;
         }
+    else
+        for (i = 1; i < nf; i++)
+            for (j = i; j > 0 && (depth(order[j]) < depth(order[j - 1]) ||
+                                  (depth(order[j]) == depth(order[j - 1]) && order[j]->zfront < order[j - 1]->zfront)); j--) {
+                fighter_t *t = order[j]; order[j] = order[j - 1]; order[j - 1] = t;
+            }
     blocks_layout(nf > NE ? SEL_COLS : MAX_COLS);
     if (blk_cols == MAX_COLS) {                  /* the pool's widths: in use = its own widest frame, within PJ_SPRS */
         uint8_t used = 0;
@@ -497,11 +516,15 @@ static void depth_sort(void) {
     }
     {
         uint16_t s = blk_cols == SEL_COLS ? SEL_SPR : SPR_BASE;   /* blocks back to front, each its entity's width */
-        for (i = 0; i < NA; i++) {
+        uint8_t n = nf < NA ? nf : NA;
+        for (i = 0; i < n; i++) {
+            fighter_t *f = order[i];
             slot_spr[i] = s;
-            if (i < nf && order[i]->spr != s) { order[i]->spr = s; order[i]->shown_frame = 0xFFFF; }
-            s += i < nf ? block_w(order[i]) : blk_cols;
+            if (f->spr != s) { f->spr = s; f->shown_frame = 0xFFFF; }
+            s += blk_cols != MAX_COLS ? blk_cols : f->idx >= NF ? pj_w[f->idx - NF] : MAX_COLS;   /* = block_w (a fight's
+                                                                    fighters idx < NF, its projectiles NF + i) */
         }
+        for (; i < NA; i++) { slot_spr[i] = s; s += blk_cols; }
     }
 }
 
@@ -1294,20 +1317,28 @@ static void inputs_reset(void) {                 /* a select / fight starts: not
     }
 }
 static void close_marks(void) {                 /* intent.close: an opponent within CLOSE_X (A takes a route's close link); */
-    uint8_t i, j;                               /* intent.lie: the nearest opponent lying within DOWN_REACH (up / down + A: */
-    for (i = 0; i < NF; i++) {                  /* the down attack at it, TODO #218) */
-        const fighter_t *f = &fighters[i];
-        int16_t best = DOWN_REACH + 1;
-        in[i].close = 0; in[i].lie = 0;
-        if (f->state == S_OFF) continue;
-        for (j = 0; j < NF; j++) {
-            fighter_t *o = &fighters[j];
-            int16_t dx = INT(o->x) - INT(f->x), dz = INT(o->z) - INT(f->z);
-            if (o->team == f->team || o->state == S_OFF || o->state == S_DEAD) continue;
-            if (dx >= -CLOSE_X && dx <= CLOSE_X && dz >= -Z_HIT && dz <= Z_HIT) in[i].close = 1;
-            if (dx < 0) dx = -dx;
-            if (o->state == S_DOWN && o->hp > 0 && dx < best) { best = dx; in[i].lie = o; }
-        }
+    static fighter_t *op0[NF + 1], *op1[NF + 1];   /* intent.lie: the nearest opponent lying within DOWN_REACH (up / */
+    fighter_t **p0 = op0, **p1 = op1, *f;          /* down + A: the down attack at it, TODO #218). The opponents (not */
+    intent_t *it = in;                             /* OFF / DEAD) are listed once by team, in slot order, 0-ended */
+    for (f = fighters; f < fighters + NF; f++) {   /* (cpu budget G: 64 pair tests -> 2 x 6 + 6 x 2) */
+        if (f->state == S_OFF || f->state == S_DEAD) continue;
+        if (f->team) *p1++ = f; else *p0++ = f;
+    }
+    *p0 = 0; *p1 = 0;
+    for (f = fighters; f < fighters + NF; f++, it++) {
+        fighter_t **pp = f->team ? op0 : op1, *o, *lie = 0;   /* (its opponents) */
+        uint8_t close = 0;
+        int16_t best = DOWN_REACH + 1, x = INT(f->x), z = INT(f->z);
+        if (f->state != S_OFF)
+            while ((o = *pp++)) {
+                int16_t dx = INT(o->x) - x, dz = INT(o->z) - z;
+                if ((uint16_t)(dx + CLOSE_X) <= 2 * CLOSE_X && (uint16_t)(dz + Z_HIT) <= 2 * Z_HIT) close = 1;   /* |dx| <= */
+                if (o->state == S_DOWN && o->hp > 0) {                                               /* CLOSE_X, |dz| <= Z_HIT */
+                    if (dx < 0) dx = -dx;
+                    if (dx < best) { best = dx; lie = o; }
+                }
+            }
+        it->close = close; it->lie = lie;
     }
 }
 static void read_player(uint8_t p, intent_t *in, const fighter_t *f) {
@@ -1401,7 +1432,7 @@ static uint16_t hud_lag, hud_lag_v, hud_lag_t;   /* (CPU budget H) frames droppe
 extern volatile uint32_t game_ticks;             /* (crt0) */
 static uint8_t wave;
 static void fix_put(uint8_t col, uint8_t row, uint16_t v) { cmd_push(VRAM_FIX + col * 32 + row + 2, v); }
-static uint8_t char_index(const bchar_t *ch) { uint8_t i; for (i = 0; i < BC_COUNT; i++) if (&bm_chars[i] == ch) return i; return 0; }
+static uint8_t char_index(const bchar_t *ch) { return ch->id < BC_COUNT ? ch->id : 0; }   /* (bchar_t.id: its index in bm_chars) */
 /* a portrait in HUD slot `side` (0 left, 1 right) uses fix palette 2 + side, loaded with the fighter's colours when it
  * is drawn: fix palettes are 4-bit (0-15), so 16 roster fighters cannot each keep one (2026-10-05: the bosses made 16) */
 static void portrait(uint8_t col, uint8_t row, uint8_t ch, uint8_t side) {      /* ch 0xFF = clear */
@@ -1561,8 +1592,6 @@ static void hud(void) {
             FIX_print(28, 23, "ET    ", 0); FIX_printNum(31, 23, stat_throws, 0);
             FIX_print(28, 24, "PE    ", 0); FIX_printNum(31, 24, stat_escapes, 0); /* player escapes */
         }
-#else
-        for (i = 0; i < P_N; i++) { prof_max[i] = prof[i]; prof[i] = 0; }
 #endif
     }
 }
@@ -3977,7 +4006,7 @@ void game_enter(uint8_t request) {
 
 void game_tick(void) {
     uint8_t i;
-    prof_t = LINE();
+    PROF_START();
     vblank_flush();                 /* we are in vblank: last tick's VRAM commands and backdrop go out now, tear-free (1 frame latency) */
     mark(P_FLUSH);
     SYS_kickWatchdog();
@@ -4032,16 +4061,27 @@ void game_tick(void) {
     else if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
-    if (!sf_who) { if (!bonus_on) camera(); wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); projectiles_update(cam_x, 0); }
-    else projectiles_update(cam_x, 0x100 | sf_frozen);   /* the flash: only its attacker's effects born in it
+    if (!sf_who) {
+        fighter_t *fl[NF];                                   /* the fighters in order[]'s order: the edges' entities */
+        uint8_t n = 0;                                       /* (projectiles have none; cpu budget G) */
+        for (i = 0; i < nf; i++) if (order[i] >= fighters && order[i] < fighters + NF && n < NF) fl[n++] = order[i];
+        if (!bonus_on) camera();
+        wall_update(fl, n, cam_x); screen_keep(fl, n, cam_x, 0); projectiles_update(cam_x, 0);
+        mark(P_UPDATE);
+        combat(order, nf, sf_who);
+        if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)
+            boss_ko_start();                                 /* its killing hit: the death sequence (#172) */
+        wall_update(fl, n, cam_x); screen_keep(fl, n, cam_x, 1);   /* (again: a catch / a hit this frame placed its
+                                                                victim; screen_keep: those it moved) */
+    } else {
+        projectiles_update(cam_x, 0x100 | sf_frozen);       /* the flash: only its attacker's effects born in it
                                                                 (KOF98: P1 runs at the flash's priority $5001 and so do the
                                                                 objects it spawns, $5D1C; the rest hold: Kyo's hand fire, #202) */
-    mark(P_UPDATE);
-    combat(order, nf, sf_who);                               /* a super flash: its attacker's own boxes only */
-    if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)
-        boss_ko_start();                                     /* its killing hit: the death sequence (#172) */
-    if (!sf_who) { wall_update(order, nf, cam_x); screen_keep(order, nf, cam_x); }   /* (again: a catch / a hit this frame
-                                                                placed its victim) */
+        mark(P_UPDATE);
+        combat(order, nf, sf_who);                           /* a super flash: its attacker's own boxes only */
+        if (!ko_seq && phase == PH_BOSS && !attract && !lab.active && fighters[BOSS_IDX].state != S_OFF && fighters[BOSS_IDX].hp <= 0)
+            boss_ko_start();
+    }
     mark(P_COMBAT);
     depth_sort();
     mark(P_SORT);

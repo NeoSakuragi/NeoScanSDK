@@ -106,9 +106,11 @@ uint8_t ai_rank_power(void) {
     while (r >= gai.rank_dmg) { r -= gai.rank_dmg; n++; }
     return n;
 }
+/* (cpu budget F: the loops over fighters walk pointers; fs[i] multiplies i by sizeof(fighter_t), a 68000 mulu each) */
 static void rank_tick(const fighter_t *fs, uint8_t nf, uint8_t np) {
-    uint8_t p, i, n = 0;
-    for (i = np; i < nf; i++) if (fs[i].state != S_OFF && fs[i].state != S_DEAD) n++;
+    uint8_t p, n = 0;
+    const fighter_t *f;
+    for (f = fs + np; f < fs + nf; f++) if (f->state != S_OFF && f->state != S_DEAD) n++;
     for (p = 0; p < np && p < 2; p++) {
         if (rk_primed && fs[p].state != S_OFF) {
             if (fs[p].hp < rk_hp[p]) { rk_clean = 0; rk_hit = 1; }             /* a hit taken */
@@ -138,29 +140,34 @@ void ai_init(uint16_t seed, uint8_t preset) {
     for (i = 0; i < MAX_F; i++) {
         ai_t *a = &AI[i];
         a->p = &ai_tab[preset]; a->mode = AM_FREE; a->jumping = 0; a->posed = 0; a->wound = 0; rest(a, a->p->rest_start);
-        a->presses = 0; a->press_t = 0; a->moving = 0; a->slot = i & 7; a->tm = 0;
+        a->presses = 0; a->press_t = 0; a->moving = 0; a->slot = i & 7; a->tm = 0; a->target = 0xFF;
     }
 }
 
 void ai_set(uint8_t i, uint8_t preset) {
     ai_t *a = &AI[i];
     a->p = &ai_tab[preset]; a->mode = AM_FREE; a->jumping = 0; a->posed = 0; a->wound = 0; a->presses = 0;
+    a->target = 0xFF;                             /* (until its first think: nobody, ai_update) */
     rest(a, a->p->rest_start);
 }
 
 /* ---- tokens and formation ------------------------------------------------------------------------------------------- */
 static uint8_t held(const fighter_t *fs, uint8_t nf, uint8_t np) {
-    uint8_t i, n = 0;
-    for (i = np; i < nf; i++) if (AI[i].mode != AM_FREE && fs[i].state != S_OFF) n++;
+    uint8_t n = 0;
+    const fighter_t *f;
+    const ai_t *a = AI + np;
+    for (f = fs + np; f < fs + nf; f++, a++) if (a->mode != AM_FREE && f->state != S_OFF) n++;
     return n;
 }
 /* may enemy i take a token now: fewer than gai.attackers held; a minion leaves one free for each `token` enemy (the boss)
  * standing without one */
 static uint8_t may_take(const fighter_t *fs, uint8_t nf, uint8_t np, uint8_t i) {
-    uint8_t k, n = held(fs, nf, np), resv = 0;
+    uint8_t n = held(fs, nf, np), resv = 0;
+    const fighter_t *f;
+    const ai_t *a = AI + np;
     if (AI[i].p->flags & AIF_TOKEN) return n < gai.attackers;
-    for (k = np; k < nf; k++)
-        if ((AI[k].p->flags & AIF_TOKEN) && AI[k].mode == AM_FREE && fs[k].state != S_OFF && fs[k].state != S_DEAD) resv++;
+    for (f = fs + np; f < fs + nf; f++, a++)
+        if ((a->p->flags & AIF_TOKEN) && a->mode == AM_FREE && f->state != S_OFF && f->state != S_DEAD) resv++;
     return n + resv < gai.attackers;
 }
 /* the formation (Final Fight's waiting spots, Captain Commando's slots): 4 a side of the player, near ring at hover_dx
@@ -302,37 +309,68 @@ static void execute(fighter_t *e, ai_t *a, intent_t *o, int16_t dx) {   /* READY
     }
 }
 
+/* THE THINK SPLIT (cpu budget F, docs/brawler_cpu_budget.md; Bruno 2026-10-14: "AI reacts one frame later" accepted):
+ * a minion THINKS (its target, then the decisions: ready, approach, formation, the chances of a jump-in / projectile /
+ * hop) every other tick, slot parity against the AI's tick (slots 2 4 6 on even ticks, 3 5 7 on odd: half the crowd
+ * each tick, deterministic); a boss (AIF_TOKEN) every tick. Every tick, everyone: the wind-up, the cooldown, the
+ * reactions to being hurt, and what an attack under way needs on its own frames (a hold's hits, a combo's follow-up
+ * presses, a jump-in's B / air attack). A tick it does not think, an able minion keeps its last intent's walk (dx, dz,
+ * face, slow, grab: its presses are not repeated) and its decision clocks run (READY's wait to 1, APPROACH's and a grab
+ * walk's tm, the tint pulse), so its waits keep their length; its per-tick chances are doubled for the ticks it skips
+ * (a threshold x 2, a 2^k - 1 mask halved). */
+static void off_clocks(ai_t *a) {                                /* a tick it does not think: its decision clocks */
+    if (a->mode == AM_READY) {
+        if (a->wait > 1) a->wait--;                              /* (its think tick takes the last one: execute) */
+        if (a->pulse_t + 1 < gai.pulse) a->pulse_t++;            /* (show_ready wraps it) */
+    } else if ((a->mode == AM_APPROACH || a->mode == AM_ACT) && a->tm < 0xFE) a->tm++;   /* (0xFF: a hold's mark) */
+}
+static uint8_t twice(uint8_t c, uint8_t on) { return !on ? c : c > 127 ? 255 : c << 1; }   /* a chance rnd() < c */
+static uint8_t halve(uint8_t m, uint8_t on) { return on ? m >> 1 : m; }                    /* a chance !(rnd() & m) */
 void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
     int16_t px[2], pz[2];                                    /* players in pixels, once a frame */
-    uint8_t i, p;
+    uint8_t i, p, t = tick;
     uint8_t alive[2];
     rank_tick(fs, nf, np);
     for (p = 0; p < np; p++) {
         px[p] = INT(fs[p].x); pz[p] = INT(fs[p].z);
         alive[p] = fs[p].state != S_DEAD && fs[p].state != S_OFF;
     }
-    for (i = np; i < nf; i++) {                              /* nearest player in play and distance, once a frame */
-        int16_t ex = INT(fs[i].x), ez = INT(fs[i].z), bd = 0x7FFF;
-        AI[i].target = 0xFF;
+    for (i = np; i < nf; i++) {                              /* nearest player in play and distance, on its think ticks */
+        const fighter_t *f = fs + i;
+        ai_t *a = AI + i;
+        int16_t ex, ez, bd = 0x7FFF;
+        if (f->state == S_OFF) { a->mode = AM_FREE; a->target = 0xFF; continue; }   /* gone (or taken off): no token */
+        if (((i ^ t) & 1) && !(a->p->flags & AIF_TOKEN)) continue;   /* (not its tick: last one's) */
+        ex = INT(f->x); ez = INT(f->z);
+        a->target = 0xFF;
         for (p = 0; p < np; p++) {
             if (!alive[p]) continue;
             int16_t d = iabs(px[p] - ex) + iabs(pz[p] - ez);
-            if (d < bd) { bd = d; AI[i].target = p; }
+            if (d < bd) { bd = d; a->target = p; }
         }
-        AI[i].dist = bd;
+        a->dist = bd;
 #if LAB_BUILD
-        if (ai_skip >> i & 1) AI[i].target = 0xFF;             /* a practice dummy (ai.h): nobody to fight, its token given back */
+        if (ai_skip >> i & 1) a->target = 0xFF;                /* a practice dummy (ai.h): nobody to fight, its token given back */
 #endif
-        if (fs[i].state == S_OFF) AI[i].mode = AM_FREE;          /* gone (or taken off): no token */
     }
     if (!(tick++ & 15)) deal(fs, nf, np, px, pz);
-    for (i = np; i < nf; i++) {
-        fighter_t *e = &fs[i];
-        ai_t *a = &AI[i];
-        intent_t *o = &in[i];
+    {
+    fighter_t *e = fs + np;
+    ai_t *a = AI + np;
+    intent_t *o = in + np;
+    for (i = np; i < nf; i++, e++, a++, o++) {
         const ai_preset_t *P = a->p;
         int16_t ex, ez, tx, tz, dx, dz, adx, adz, gx, gz;
-        int8_t side;
+        int8_t side, kdx = o->dx, kdz = o->dz, kface = o->face;
+        uint8_t kslow = o->slow, kgrab = o->grab, skip = ((i ^ t) & 1) && !(P->flags & AIF_TOKEN), dbl = !(P->flags & AIF_TOKEN);
+        if (skip && able(e) && !a->jumping && a->target != 0xFF) {   /* the common case of a tick it does not think, short:
+                                                                    = the path below to its "skip" (intent kept, no press) */
+            o->press = 0; o->run = 0; o->hold = 0; o->blitz = o->chord = 0; o->ai = 1;
+            a->wound = 0;
+            if (a->cooldown) a->cooldown--;
+            off_clocks(a);
+            continue;
+        }
         o->dx = o->dz = 0; o->press = 0; o->run = 0; o->face = 0; o->grab = 0; o->ai = 1; o->slow = 0; o->hold = 0; o->blitz = o->chord = 0;
         if (e->state == S_OFF) continue;
         /* the wind-up: an attack starting now has its first frame held */
@@ -365,6 +403,11 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             a->jumping = 0;
         }
         if (!able(e)) continue;                                  /* a special, a throw, a landing...: its own course */
+        if (skip) {                                              /* not its think tick: the last walk, the clocks run */
+            o->dx = kdx; o->dz = kdz; o->face = kface; o->slow = kslow; o->grab = kgrab;
+            off_clocks(a);
+            continue;
+        }
         if (a->mode == AM_ACT) {                                 /* able again: the attack is over (a grab: still walking in) */
             if (a->kind == K_GRAB && a->tm < 45 && adx + 4 >= P->range_min) { a->tm++; o->dx = sgn(dx); o->grab = 1; continue; }
             release(e, a);
@@ -372,7 +415,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if ((P->flags & AIF_REVERSAL) && a->cooldown == 0 && (a->mode != AM_FREE || may_take(fs, nf, np, i))) {   /* boss: */
             fighter_t *t = &fs[a->target];                       /* an attack this close: down + C, the rising reversal */
             if ((t->state == S_ATTACK || t->state == S_AIR_ATTACK) && adx < P->rev_dx && adz <= P->rev_dz &&
-                spec_ix(e->ch, BS_DOWN_D) != 0xFF && (rnd() & P->rev_mask) == 0) {
+                spec_ix(e->ch, BS_DOWN_D) != 0xFF && (rnd() & halve(P->rev_mask, dbl)) == 0) {
                 unpose(e, a); o->press = IN_C; o->dz = 1; a->mode = AM_ACT; a->kind = K_REV; rest(a, P->rest_rev); continue;
             }
         }
@@ -388,12 +431,13 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         }
         if (a->mode == AM_FREE) {
             if ((P->flags & AIF_JUMP_IN) && P->hop_chance && a->cooldown && adx < P->hop_dx && adz <= P->jump_dz &&
-                e->facing == sgn(dx) && rnd() < P->hop_chance) {   /* resting close: a back-hop (B let go at once) */
+                e->facing == sgn(dx) && rnd() < twice(P->hop_chance, dbl)) {   /* resting close: a back-hop (B let go at once) */
                 o->press = IN_B; o->dx = -sgn(dx); continue;
             }
         }
         if (a->mode != AM_READY && (P->flags & AIF_PROJECTILE) && a->cooldown == 0 && adz <= P->spec_dz && adx >= P->spec_min &&
-            adx <= P->spec_max && spec_ix(e->ch, BS_D) != 0xFF && !(rnd() & P->proj_mask) && (rnd() & P->proj_mask2) == P->proj_mask2 &&
+            adx <= P->spec_max && spec_ix(e->ch, BS_D) != 0xFF && !(rnd() & halve(P->proj_mask, dbl && P->proj_mask)) &&
+            (rnd() & halve(P->proj_mask2, dbl && !P->proj_mask)) == halve(P->proj_mask2, dbl && !P->proj_mask) &&
             (a->mode != AM_FREE || may_take(fs, nf, np, i))) {   /* mid range, any enemy: the projectile, 1 in (proj_mask + 1) (proj_mask2 + 1) a frame */
             ready(e, a, K_PROJ); continue;
         }
@@ -403,9 +447,9 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (a->mode == AM_APPROACH) {
             if (++a->tm > gai.approach_max) { release(e, a); rest(a, P->rest_start); continue; }   /* could not get there */
             if ((P->flags & AIF_SPECIALS) && adz <= P->bspec_dz && adx >= P->bspec_min && adx <= P->bspec_max &&
-                (rnd() & P->bspec_mask) == 0) { ready(e, a, K_BSPEC); continue; }   /* boss: a special on his line */
+                (rnd() & halve(P->bspec_mask, dbl)) == 0) { ready(e, a, K_BSPEC); continue; }   /* boss: a special on his line */
             if ((P->flags & AIF_JUMP_IN) && adz <= P->jump_dz && adx >= P->jump_min && adx <= P->jump_max &&
-                rnd() < P->jump_chance && e->facing == sgn(dx)) { ready(e, a, K_JUMP); continue; }   /* the jump-in */
+                rnd() < twice(P->jump_chance, dbl) && e->facing == sgn(dx)) { ready(e, a, K_JUMP); continue; }   /* the jump-in */
             if (adz <= P->range_dz && adx <= P->range_max) {
                 if (a->plan_grab && adx + 4 >= P->range_min) { ready(e, a, K_GRAB); continue; }   /* then walk into him */
                 if (adx + 4 < P->range_min) a->plan_grab = 0;    /* too close to walk in (he is busy): punch */
@@ -419,6 +463,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (a->moving) { if (iabs(gx - ex) <= 2 && iabs(gz - ez) <= 2) a->moving = 0; }
         else if (iabs(gx - ex) > P->hover_go_dx || iabs(gz - ez) > P->hover_go_dz) a->moving = 1;
         if (a->moving) walk_to(o, a, gx, gz, ex, ez, 2, 2);
+    }
     }
     ai_tokens = held(fs, nf, np);
 }
