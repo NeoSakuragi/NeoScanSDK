@@ -3867,5 +3867,23 @@
   "expect": "A white card with the game's kanji and English name (気力鍛錬の行 / 超必殺技伝授), the announcer reads it, then the gong.",
   "do_keys": "140:-,4:a",
   "proof": 360
+ },
+ "20261014-132326-5d29": {
+  "title": "Haggar's throw: the slam knocks the other enemies down (Final Fight)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-",
+   "extra": [
+    60,
+    100
+   ]
+  },
+  "do": "You hold Terry; two more Terrys stand in a line in front of Haggar. Press forward + A (the backdrop). Then try it with Terry, Ryo or any fighter: grab, forward or back + A next to a group.",
+  "expect": "When the thrown Terry hits the floor, the two others are knocked down too (8 damage each, with a heavy hit sound and a short freeze on the impact), as in Final Fight. Players are never hit by a thrown body.",
+  "do_keys": "3:Ra",
+  "proof": 120
  }
 }

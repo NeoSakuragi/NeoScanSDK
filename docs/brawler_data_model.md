@@ -549,6 +549,22 @@ jabs, colour set 2, 45 life).
 `meter` (`gmeter_t`, ROM only): the meter, players only (revamp phase 2: "Meter, breaker, damage tiers" below).
 `tiers`: the damage tiers (the same section).
 
+`throw_body` (`gtbody_t`, ROM only; Bruno's note 20261014-132326-5d29, "like in Final Fight"): the thrown body, one rule
+for every throw of every fighter (fighter.c combat "THROWN BODIES", build_tables `tbody_tables`). A paired throw's victim
+from its release row to its landing row (inclusive), a throw special's victim while it falls, then `floor` frames once it
+is on the floor (its impact: `fighter_t.tb_fl`, armed by thrown_land or the first floor frame, also past the landing row
+of a throw without a hand-off, Haggar's backdrop rel = land), knocks down every other enemy it touches, each once, the
+throw's way: `damage` 8, `hitstop` 6 (the hit one), `body_hitstop` 6 (the body's own, with its thrower while it still
+holds it: the pair freezes), `floor` 4, `depth` 12 px, `sound` "15" (songs.json sfx code), `players` false (a thrown body
+never hits a player: an enemy's victim never hits its own teammates, a boss's thrown player never hits P2). Hold hits
+never make a body (Final Fight's 3rd knee drops its victim where it stands). Final Fight measured in FBNeo (Cody / Guy,
+pinned bystanders: /data/tmp/body5d29): 8 + knockdown, 6 frames of freeze on the bystander and on the body, the whole
+flight and the landing's first frames (the slide after does not), depth +-9; the chain finisher's and the 3rd knee's
+knockdowns hit nobody. Game-wide because it is FF's single rule and Bruno's note asks for it everywhere; a per-throw
+override exists for the exceptions: `roster[].throws.body` {`throw_c` | `throw_d` | `throw_x` | `special`: {any of the
+fields} | false (that throw's body hits nobody)} -> `gtbody_ovr[]` (none set). Absent: the rule before the note (6, 7,
+the flight only, 12 px, $15, players never).
+
 `super_flash` (TODO #139, `gflash_t`, ROM only): fx.super_flash, the engine's rule for every fury (D) and MAX fury
 (down+D): `start` 1 (the fury's frame it starts on), `freeze` 28 (frames the game freezes except the attacker and the stage
 is hidden), `white` 4 (of them, frames the backdrop is `white_colour`, then `dark_colour`), `anchor` [0, -96] (px from the

@@ -1161,7 +1161,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  * tools/kof96/throwrom.py) and acts again; the victim plays its rows on alone (thrown_update) to its RELEASE row
  * (bthrow_t.rel), then it is the engine's knocked-down body (thrown_release: S_KNOCKDOWN with its script's velocity there;
  * no release row: to the end, then it lies down, S_DOWN). From the release to its landing it is a THROWN BODY (spawn.body,
- * tb_by): combat() knocks down every other enemy it touches, each once (BODY_DAMAGE, falling the throw's way). A throw's
+ * tb_by): combat() knocks down every other enemy it touches, each once (game.json throw_body: gtbody, falling the throw's way). A throw's
  * damage is shared by its impact rows before the release (the landing is no impact: thrown_release). Postures are KOF's shared victim states; each fighter has its own frame for
  * them (bchar_t.vposes).
  * Revamp phase 3 (Bruno 2026-10-08, docs/brawler_feel.md 8h: no command-grab inputs ever; grab specials become throws;
@@ -1186,7 +1186,6 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
 #define GRAB_HITS    3                /* hold hits; the third is the finisher */
 #define GRAB_DAMAGE  3
 #define THROW_DAMAGE 12
-#define BODY_DAMAGE  6                /* a thrown body knocking another enemy down (TODO #146 rule 9) */
 #define ESCAPE_PRESSES 4
 #define THROW_FREEZE 21           /* KOF98 Ryo's forward+C: step 10 held 21 frames past its ticks (the only throw freeze
                                      among the roster's: every other throw step lasts its ROM ticks + 1, KOF96/98/99) */
@@ -1195,6 +1194,13 @@ enum { BT_HOLD_HIT = BT_COUNT, BT_HOLD_FIN, BT_XTHROW };        /* throw_id of a
 #define IS_THROW(id) ((id) < BT_COUNT || (id) == BT_XTHROW)        /* a throw (damage, voice, effect), not a hold hit */
 #define IS_HOLD(id)  ((id) == BT_HOLD_HIT || (id) == BT_HOLD_FIN)
 static const bbox_t BODY_BOX = { 0, -32, 32, 24 };              /* a thrown body as an attack box (centre, half extents) */
+/* a thrown body's rule (game.json throw_body, gamedata.h gtbody_t): its thrower's override for that throw
+ * (roster[].throws.body), else the game's */
+static const gtbody_t *tbody_of(const fighter_t *v, const fighter_t *by) {
+    const gtbody_ovr_t *o;
+    if (by && by->ch) for (o = gtbody_ovr; o->ch != 0xFF; o++) if (o->ch == by->ch->id && o->kind == v->tb_kind) return &o->b;
+    return &gtbody;
+}
 
 static const bthrow_t *thr_of(const fighter_t *f, uint8_t id) {
     return id < BT_COUNT ? &f->ch->throws[id] : id == BT_XTHROW ? bm_xthr[f->ch->id].x : &f->ch->holds[id - BT_COUNT];
@@ -1487,6 +1493,8 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
     }
     thrown_place(v, vrow(v, th, h, &t0));
     v->held = 0; v->thr = 0; v->zfront = 0; v->tb_by = 0;
+    if (v->thr_by && v->thr_by != v) v->tb_fl = 0x80 | tbody_of(v, v->thr_by)->floor;   /* its floor impact still knocks
+                                                                    others down (combat "thrown bodies") */
     enter(v, S_KNOCKDOWN);
     v->vx = dir_mul(v->throw_face, muls16(dx, sp) << 8) >> 1;   /* (16.16: px x 8.8 speed; halved: the floor's bounce,
                                                                     as S_KNOCKDOWN's floor contact) */
@@ -1679,6 +1687,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     for (f->jr0 = 0; f->jdx && f->jr0 < th->land && th->rows[f->jr0].ty <= 0; f->jr0++) {}
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
+    v->tb_fl = 0; v->tb_kind = t < BT_COUNT ? t : t == BT_XTHROW ? TBK_XTHROW : 0xFF;   /* (its thrown body's rule) */
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;              /* (a press before it: not for its cancel) */
     v->thr_dmg = THROW_DAMAGE;                                   /* (the super throw: its tier, super_throw) */
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
@@ -3698,6 +3707,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     (presses in hit-stop count) */
     meter_tick(f);
     if (f->tb_by && f->state != S_KNOCKDOWN && f->state != S_HITSTUN) f->tb_by = 0;   /* a throw special's body: landed */
+    if (f->tb_fl && f->state != S_KNOCKDOWN && f->state != S_THROWN) f->tb_fl = 0;   /* (its floor impact: over) */
     if (f->jug_by && f->state != S_THROWN && f->state != S_KNOCKDOWN && f->state != S_HITSTUN) f->jug_by = 0;   /* landed:
                                                                     the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
@@ -4099,7 +4109,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     rk = reaction == RK_HIGH ? R_LAUNCH | 16 : reaction;         /* (KOF's high launch, 299: kof_react) */
     reaction = reaction == RK_HIGH ? R_LAUNCH : reaction & 7;
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
-    if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr) && v->tb_by != a) { v->tb_by = a; v->hit_mask = 0; }   /* a
+    if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr) && v->tb_by != a) { v->tb_by = a; v->hit_mask = 0; v->tb_fl = 0; v->tb_kind = TBK_SPECIAL; }   /* a
                                                                     throw special's victim: a thrown body (revamp 3) */
     if (v->state == S_THROWN) {                                  /* rule 5: hit in its throw's flight: the script ends */
         if (IS_THROW(v->throw_id)) v->hp -= v->thr_dmg - v->throw_dealt;   /* (the throw's damage still dealt) */
@@ -4587,39 +4597,62 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             best = dx; a->popp = o;
         }
     }
-    for (i = 0; i < n; i++) {                                    /* thrown bodies (TODO #146 rule 9, spawn.body): from */
-        fighter_t *v = fs[i];                                    /* the release to the landing a thrown victim knocks down */
-        const bthrow_t *th = v->thr;                             /* every other enemy it touches (its teammates), each */
-        uint16_t row;                                            /* once, falling the throw's way (Final Fight, Streets */
-        if (only || v->freeze) continue;                         /* of Rage 2); a throw special's victim (revamp 3, tb_by) */
-        if (v->tb_by) {                                          /* from its catch while it falls, until it touches the */
-            if (v->state != S_KNOCKDOWN || v->y <= 0 || v->kfloor) continue;   /* floor (no chain credit: its thrower */
-        } else {                                                 /* keeps its target) */
-            if (v->state != S_THROWN || !th || th->rel == 0xFFFF) continue;
-            row = v->srow ? v->srow - 1 : 0;
-            if (row < th->rel || row >= th->land) continue;
-        }
+    for (i = 0; i < n; i++) {                                    /* THROWN BODIES (TODO #146 rule 9, spawn.body; note */
+        fighter_t *v = fs[i];                                    /* 20261014-132326-5d29: "like in Final Fight"): a */
+        const bthrow_t *th = v->thr;                             /* thrown victim knocks down every other enemy it */
+        const gtbody_t *p;                                       /* touches (its teammates, never a player unless */
+        fighter_t *by;                                           /* throw_body.players), each once, falling the throw's */
+        uint16_t row;                                            /* way: a paired throw's victim from its release row */
+        uint8_t hit = 0;                                         /* to its landing row, a throw special's (revamp 3, */
+        if (only || v->freeze || v->tb_kind == 0xFF) continue;   /* tb_by) while it falls; then, on the floor, its */
+        if (v->state == S_THROWN && !v->tb_by) {                 /* impact: throw_body.floor frames (tb_fl, from */
+            if (!th || th->rel == 0xFFFF) continue;              /* thrown_land or its first floor frame). FF measured: */
+            row = v->srow ? v->srow - 1 : 0;                     /* the whole flight and the floor impact; a finisher's */
+            if (row < th->rel) continue;                         /* / the 3rd knee's knockdown none (tb_kind 0xFF) */
+            by = v->thr_by;
+            if (row > th->land) {                                /* past its landing row, still scripted (no hand-off: */
+                if (!(v->tb_fl & 0x80)) v->tb_fl = 0x80 | tbody_of(v, by)->floor;   /* Haggar's backdrop, rel = land): */
+                if (!(v->tb_fl & 0x7F)) continue;                /* its floor impact's frames */
+                v->tb_fl--;
+            }
+        } else if (v->state == S_KNOCKDOWN && (v->tb_by || (v->tb_fl & 0x7F))) {
+            by = v->tb_by ? v->tb_by : v->thr_by;
+            if (v->y > 0 && !v->kfloor) { if (!v->tb_by) continue; }   /* (in the air: a body until it lands) */
+            else {
+                if (!(v->tb_fl & 0x80)) v->tb_fl = 0x80 | tbody_of(v, by)->floor;   /* its first floor frame */
+                if (!(v->tb_fl & 0x7F)) continue;
+                v->tb_fl--;
+            }
+        } else continue;
+        if (!by || by == v) continue;
+        p = tbody_of(v, by);
+        if (!p->on) continue;
         for (j = 0; j < n; j++) {
             fighter_t *o = fs[j];
             const bstep_t *so;
             const bbox_t *hb;
             int16_t dz;
             int8_t dir;
-            if (o == v || o->team != v->team || (v->hit_mask & (1 << o->idx)) || o->inv || o->hp <= 0) continue;
+            if (o == v || o->team != v->team || (!o->team && !p->players) || (v->hit_mask & (1 << o->idx)) || o->inv || o->hp <= 0) continue;
             if (o->state != S_IDLE && o->state != S_WALK && o->state != S_RUN && o->state != S_ATTACK && o->state != S_HITSTUN &&
                 o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK) continue;
-            dz = INT(o->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
+            dz = INT(o->z) - INT(v->z); if (dz < -(int16_t)p->depth || dz > (int16_t)p->depth) continue;
             so = fighter_hurt_step(o);
             hb = (so->flags & 2) ? &so->hurt : &JUGGLE_BOX;
             if (!boxes_meet(v, &BODY_BOX, o, hb)) continue;
             dir = v->vx > 0 ? 1 : v->vx < 0 ? -1 : (INT(o->x) >= INT(v->x) ? 1 : -1);   /* the throw's way */
             v->hit_mask |= 1 << o->idx;
-            o->hp -= BODY_DAMAGE; o->freeze = HITSTOP;
-            if (v->tb_by) v->tb_by->target = o; else if (v->thr_by) v->thr_by->target = o;   /* (the HUD's life; no chain credit) */
+            o->hp -= p->dmg; o->freeze = p->stop;
+            by->target = o;                                      /* (the HUD's life; no chain credit) */
             if (o->state == S_SPECIAL) { carry_drop(o); special_end(o); }
             react(o, dir, R_KNOCKDOWN, 0);
-            snd_sfx(SFX_HIT_CD);
+            snd_sfx(p->snd);
             spark_hit(INT(o->x), floor_top + INT(o->z) - INT(o->y) - 48, 1, dir);
+            hit = 1;
+        }
+        if (hit && p->bstop) {                                   /* the body's own hit-stop (FF: 6, both): with its */
+            v->freeze = p->bstop;                                /* thrower while it still holds it (the pair's script) */
+            if (v->held && v->held->held == v) v->held->freeze = p->bstop;
         }
     }
     for (i = 0; i < n; i++) {                                    /* grabs: walking (or running / dashing: S_RUN) into a */

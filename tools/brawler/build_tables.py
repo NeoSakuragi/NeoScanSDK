@@ -674,6 +674,51 @@ def air_of(r):
 TIER_KEYS = ('about', 'special', 'fury', 'max', 'super_throw', 'spread', 'measured')
 
 
+TBODY_KEYS = ('about', 'damage', 'hitstop', 'body_hitstop', 'floor', 'depth', 'sound', 'players')
+TBODY_KINDS = {'throw_c': 'BT_THROW_C', 'throw_d': 'BT_THROW_D', 'throw_x': 'TBK_XTHROW', 'special': 'TBK_SPECIAL'}
+
+
+def tbody_tables(g, build):
+    """the thrown body (Bruno's note 20261014-132326-5d29, "like in Final Fight"; gamedata.h gtbody_t, fighter.c "thrown
+    bodies"): game.json "throw_body" = the game's rule (every throw of every fighter), roster[].throws.body = per-throw
+    overrides {"throw_c" | "throw_d" | "throw_x" | "special": {fields to change} | false (that throw's body hits nobody)}.
+    Fields: damage, hitstop (the one hit), body_hitstop (the body's own), floor (frames it still hits once on the floor:
+    the impact), depth (px), sound (songs.json sfx code), players (bool: thrown bodies hit players too)"""
+    tb = g.get('throw_body')
+    sfx = json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['codes']
+    def row(d, base, what):
+        if d is False: return dict(base, on=0)
+        assert isinstance(d, dict), f'{what}: an object or false'
+        for k in d: assert k in TBODY_KEYS, f'{what}: unknown field {k}'
+        r = dict(base, on=1)
+        for k, f in (('damage', 'dmg'), ('hitstop', 'stop'), ('body_hitstop', 'bstop'), ('floor', 'floor'), ('depth', 'depth')):
+            if k in d:
+                hi = 127 if k == 'floor' else 255
+                assert isinstance(d[k], int) and 0 <= d[k] <= hi, f'{what}.{k}: 0-{hi}'
+                r[f] = d[k]
+        if 'sound' in d:
+            assert str(d['sound']).upper() in [x.upper() for x in sfx], f"{what}.sound {d['sound']}: not in songs.json sfx codes"
+            r['snd'] = int(str(d['sound']), 16)
+        if 'players' in d: r['players'] = 1 if d['players'] else 0
+        return r
+    lit = lambda r: (f"{{ .on = {r['on']}, .dmg = {r['dmg']}, .stop = {r['stop']}, .bstop = {r['bstop']}, .floor = {r['floor']}, "
+                     f".depth = {r['depth']}, .snd = 0x{r['snd']:02X}, .players = {r['players']} }}")
+    # (absent: the rule before the note: 6 damage, hit-stop 7, the flight only, 12 px, $15, players never)
+    base = row(tb if tb is not None else {}, dict(on=1, dmg=6, stop=7, bstop=0, floor=0, depth=12, snd=0x15, players=0), 'throw_body')
+    c = [f'const gtbody_t gtbody = {lit(base)};']
+    ov = []
+    for i, r in enumerate(g['roster']):
+        b = (r.get('throws') or {}).get('body')
+        if b is None: continue
+        assert isinstance(b, dict), f"{r['name']}: throws.body = {{kind: {{...}} | false}}"
+        for k, d in b.items():
+            assert k in TBODY_KINDS, f"{r['name']}: throws.body.{k}: one of {', '.join(TBODY_KINDS)}"
+            ov.append(f"{{ {i}, {TBODY_KINDS[k]}, {lit(row(d, base, r['name'] + ': throws.body.' + k))} }}")
+    ov.append('{ 0xFF, 0, { 0 } }')
+    c.append('const gtbody_ovr_t gtbody_ovr[] = { ' + ', '.join(ov) + ' };')
+    return c
+
+
 def dtier_tables(g, build, dmul):
     """revamp 2, the damage tiers (Bruno 2026-10-08: specials about equal across all characters +-15 %, furies +-20 %, MAX
     +-20 %, special < fury < MAX): game.json "tiers" {special, fury, max} = the whole damage of every special / fury / MAX
@@ -1069,6 +1114,7 @@ def tables(g, build):
     assert 0 <= sw.get('frames', 0) <= 30 and 0 <= sw.get('arc', 0) <= 64, 'throw_swap: frames 0-30, arc 0-64 px'
     c.append(f"const gthrow_t gthrow = {{ .handoff = {'TH_LANDING' if ho == 'landing' else 'TH_RELEASE'}, "
              f".swap_n = {sw.get('frames', 0)}, .swap_arc = {sw.get('arc', 0)} }};")
+    c += tbody_tables(g, build)                          # the thrown body (note 20261014-132326-5d29, gamedata.h gtbody_t)
     fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
     for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound', 'sound_max'), f'super_flash: unknown field {k}'
     assert 1 <= fl['start'] <= 255 and 1 <= fl['white'] <= fl['freeze'] <= 255 and len(fl['anchor']) == 2, 'super_flash values'

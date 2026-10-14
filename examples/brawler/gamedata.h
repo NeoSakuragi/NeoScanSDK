@@ -131,6 +131,19 @@ extern const gchain_t gchain;
 typedef struct { uint8_t handoff, swap_n, swap_arc, pad; } gthrow_t;
 enum { TH_RELEASE, TH_LANDING };
 extern const gthrow_t gthrow;
+/* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown
+ * body is a projectile, 8 damage + knockdown on every other enemy it touches, through its whole flight AND its floor
+ * impact; a finisher's / the 3rd knee's knockdown is none; players are never hit): every paired throw's victim from its
+ * release row to its landing row, every throw special's victim while it falls, then `floor` frames on the floor; dmg the
+ * damage, stop the hit-stop of the one hit, bstop the body's own (with its thrower while it still holds it), depth = px
+ * of depth difference reached, snd the hit sound ($1A code), players = it also hits players (the victim's teammates when
+ * the victim is a player: off in FF), on 0 = no thrown body. gtbody is the game's; gtbody_ovr[] the per-throw overrides
+ * (game.json roster[].throws.body {"throw_c" | "throw_d" | "throw_x" | "special": {...} | false}), ch 0xFF ends ---- */
+typedef struct { uint8_t on, dmg, stop, bstop, floor, depth, snd, players; } gtbody_t;
+typedef struct { uint8_t ch, kind; gtbody_t b; } gtbody_ovr_t;   /* kind: BT_THROW_C / BT_THROW_D / TBK_XTHROW / TBK_SPECIAL */
+enum { TBK_XTHROW = 0xFD, TBK_SPECIAL = 0xFE };
+extern const gtbody_t gtbody;
+extern const gtbody_ovr_t gtbody_ovr[];
 
 /* ---- layer 2: the super flash (fx.super_flash, TODO #139; game.json "super_flash"): an engine rule, every fury (D) and
  * MAX fury (down+D) of every fighter: from the fury's frame `start` the game freezes except the attacker for `freeze`
