@@ -628,6 +628,9 @@ enum { BL_JAB, BL_FIN, BL_FWD };   /* fighter_blow's slots: the chain's first li
                                    finisher (A all the way), its forward finisher (the last link's forward + A) */
 uint8_t fighter_blow(fighter_t *f, uint8_t slot);   /* plays his tree's move for slot now, from neutral, no input (the
                                    Ki training's blow by grade: main.c bn_gauge_flow, game.json bonus games[].blows) -> its node */
+uint8_t fighter_prop_hit(fighter_t *a, uint8_t sound);   /* a strike on a breakable prop (a bonus post) counts as a hit for
+                                   the attacker: its hit-stop, chain credit (landed), cancel / follow-up windows, its hit sound
+                                   (sound 1) -> 0 when no credit (a grab, catch, hold or throw: nobody to hold) */
 uint8_t fighter_strike_box(const fighter_t *a, int16_t *x0, int16_t *x1, int16_t *y0, int16_t *y1);   /* its attack box this
                                    frame on screen (world x, screen y) -> 0 none, 1 a normal / special, 2 a fury's (MAX's)
                                    body or one of its objects */

@@ -4169,7 +4169,7 @@
    "cursor": "terry"
   },
   "do": "The select screen, the cursor on Terry. Press A and watch the stage start.",
-  "expect": "While the street fades in, STAGE 1 START slides in from the right in big letters (Savage Reign's ROUND 1 style: tall, red to white to red, black outline), stops centred above the street and goes before Terry walks in.",
+  "expect": "While the street fades in, STAGE 1 START slides in from the right in big letters (Savage Reign's ROUND 1 style: tall, red to white to red, black outline), stops centred near the top of the screen and goes before Terry walks in.",
   "do_keys": "30:-,3:a,200:-",
   "proof": 60
  },
@@ -4186,7 +4186,7 @@
    "gap": 50
   },
   "do": "The stage 1 boss alone with almost no life. Press A through his lines, then hit him once.",
-  "expect": "After his death sequence STAGE CLEAR slides in from the right in the big letters and stays centred while Terry plays his win pose; then the next screen, with no letters left behind.",
+  "expect": "After his death sequence STAGE CLEAR slides in from the right in the big letters and stays centred right under the top life bars, above Terry, while Terry plays his win pose; then the next screen, with no letters left behind.",
   "do_keys": "4:a,20:-,4:a,20:-,4:a,20:-,4:a,20:-,4:a,30:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,600:-",
   "proof": 120
  },
@@ -4199,7 +4199,7 @@
    "after": 1
   },
   "do": "Break the 3 posts with punches and kicks (walk up to each, press A until it splinters).",
-  "expect": "CONGRATULATIONS! and BONUS 3000 small near the top, FURY UNLOCKED! over PRESS D in two lines of big letters in the middle, the two detail lines (MAX = DOWN + D AT LOW LIFE, FOR THE WHOLE CREDIT) small under them; held about 8 seconds, then stage 2 with nothing left on screen.",
+  "expect": "CONGRATULATIONS! and BONUS 3000 small right under the top life bars, FURY UNLOCKED! over PRESS D in two lines of big letters under them, the two detail lines (MAX = DOWN + D AT LOW LIFE, FOR THE WHOLE CREDIT) small under those, Terry's body in view below; held about 8 seconds, then stage 2 with nothing left on screen.",
   "do_keys": "70:-,40:R,4:a,8:-,4:a,8:-,4:a,8:-,4:a",
   "proof": 200
  },
@@ -4212,7 +4212,7 @@
    "after": 1
   },
   "do": "Do nothing: let the posts game's clock run out.",
-  "expect": "TIME OVER in the big letters in the middle, THE FURY STAYS LOCKED and BONUS 0 small under it; then stage 2 with nothing left on screen.",
+  "expect": "TIME OVER in the big letters right under the top life bars, THE FURY STAYS LOCKED and BONUS 0 small just under it, Terry in view below; then stage 2 with nothing left on screen.",
   "do_keys": "1900:-",
   "proof": 200
  },
@@ -4257,6 +4257,36 @@
   "do": "Press D next to Ryo (the fury gauge is full).",
   "expect": "The super flash: Haggar holds his first pose, completely still, for the whole white-then-dark freeze; no hit lands while the screen is dark. Only when the stage comes back does he start jab, jab, finisher (x3), then the 8-hit spin. He cannot be hit from the D press to the end.",
   "do_keys": "1:d,400:-",
+  "proof": 120
+ },
+ "20261014-231537-5d29": {
+  "title": "Posts bonus: A, A, A on a post links the chain",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Walk up to the first post and press A, A, A, A in rhythm (as on an enemy). Do the same on the other two posts.",
+  "expect": "Each hit on the post freezes a moment (hit-stop) with the hit sound and a chip, and the next A goes on to the next link of Terry's chain up to his finisher (no restart at the jab); a full chain (4 hits) breaks a post; the 3 posts go in a few seconds each.",
+  "do_keys": "70:-,40:R,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a",
+  "proof": 160
+ },
+ "20261014-231446-5d29": {
+  "title": "Big messages raised: STAGE CLEAR above the fighters",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "The stage 1 boss alone with almost no life. Press A through his lines, then hit him once.",
+  "expect": "STAGE CLEAR slides in and stops right under the top life bars (not over them), above Terry's head as he plays his win pose, his whole body in view; the same height for STAGE 1 START, TIME OVER and FURY UNLOCKED! (the small lines go up with them).",
+  "do_keys": "4:a,20:-,4:a,20:-,4:a,20:-,4:a,20:-,4:a,30:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,600:-",
   "proof": 120
  }
 }

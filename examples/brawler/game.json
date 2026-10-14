@@ -904,12 +904,12 @@
   "wave_delay": 20
  },
  "big_text": {
-  "about": "The BIG font for the screens' headlines (Bruno 2026-10-14: 'I like the one from SAVAGE REIGN'): Savage Reign's round-call letters (R O U N D 1-4: 16 x 48 px, its palette) completed to A-Z, 0-9, ! . - ' : ? in their construction (tools/brawler/make_bigfont.py). A use listed here draws that screen's headline in the big font (sprites, a 48 px row), the small fix-layer text staying for the detail lines; a use left out keeps its fix-layer line. Uses: stage_intro (stage_intro.title), stage_clear, game_over, time_over (the bonus game's clock out), bonus_won (the bonus's won_text[0]). Fields: y = the glyphs' top on screen (px, the cell is 48 high, 0-176), slide = ticks sliding in from the right (0 = in place), blink = half-period in ticks (0 = steady), pitch = px between the two lines of a text wider than 304 px (it breaks at a double space; default 44), text = the line (stage_clear / game_over / time_over only; defaults STAGE CLEAR / GAME OVER / TIME OVER). Centred; one message at a time (main.c 'big text': up to 24 sprites, 324-347, counted by the line guard).",
-  "stage_intro": {"y": 80, "slide": 16},
-  "stage_clear": {"y": 80, "slide": 16},
+  "about": "The BIG font for the screens' headlines (Bruno 2026-10-14: 'I like the one from SAVAGE REIGN'): Savage Reign's round-call letters (R O U N D 1-4: 16 x 48 px, its palette) completed to A-Z, 0-9, ! . - ' : ? in their construction (tools/brawler/make_bigfont.py). A use listed here draws that screen's headline in the big font (sprites, a 48 px row), the small fix-layer text staying for the detail lines; a use left out keeps its fix-layer line. Uses: stage_intro (stage_intro.title), stage_clear, game_over, time_over (the bonus game's clock out), bonus_won (the bonus's won_text[0]). Fields: y = the glyphs' top on screen (px, the cell is 48 high, 0-176) (note 20261014-231446-5d29: 36 = right under the top HUD, which ends at y 32, so the fighters stay in view; the bonus results' detail lines follow y: the line under the headline, BONUS 2 rows lower; bonus_won's CONGRATULATIONS / BONUS on the 2 rows over it, its lines under the second line), slide = ticks sliding in from the right (0 = in place), blink = half-period in ticks (0 = steady), pitch = px between the two lines of a text wider than 304 px (it breaks at a double space; default 44), text = the line (stage_clear / game_over / time_over only; defaults STAGE CLEAR / GAME OVER / TIME OVER). Centred; one message at a time (main.c 'big text': up to 24 sprites, 324-347, counted by the line guard).",
+  "stage_intro": {"y": 36, "slide": 16},
+  "stage_clear": {"y": 36, "slide": 16},
   "game_over": {"y": 52},
-  "time_over": {"y": 80},
-  "bonus_won": {"y": 104, "pitch": 42}
+  "time_over": {"y": 36},
+  "bonus_won": {"y": 58, "pitch": 42}
  },
  "stages": [
   {

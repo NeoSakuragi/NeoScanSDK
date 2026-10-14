@@ -3201,11 +3201,15 @@ static void bonus_end(void) {                    /* the result shown: the next s
 static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won, uint8_t big) {   /* big: its gbig use (l1 in
                                                     the big font when game.json big_text lists it), 0xFF none */
     bonus_on = BN_END; bn_t = 0; bn_hold = BN_END_T; bn_skip = 90;
-    if (big < BIG_USES && gbig[big].on) {        /* the big headline covers row 9: its TIME / POSTS line cleared */
+    uint8_t r = 16;                              /* its detail line's row, BONUS 2 rows under it */
+    if (big < BIG_USES && gbig[big].on) {        /* the big headline covers row 9: its TIME / POSTS line cleared; the
+                                                    detail lines right under it (note 20261014-231446-5d29: up with it,
+                                                    above the fighters' heads) */
         bn_text(13, 0, 0); FIX_print(17, 9, "                    ", 0); bt_show(l1, big);
+        r = (uint8_t)((gbig[big].y + 48 + 7) >> 3);
     } else bn_text(13, l1, 1);
-    bn_text(16, l2, 0);
-    FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
+    bn_text(r, l2, 0);
+    FIX_print(13, r + 2, "BONUS", 0); FIX_printNum(20, r + 2, bonus, 1);
     snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
 }
 /* the top grade's tree (note 20261014-133606-5d29, AOF2 measured: tools/aof/bonus_rip.py spirit_top): AOF2 only passes
@@ -3333,8 +3337,10 @@ static void bn_break_flow(fighter_t *f) {
                 k = 1;
                 if (bn_touch) break;
                 spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 16, 0, f->facing);
+                fighter_prop_hit(order[i], bn_hp > 1);   /* a hit for the chain as on a fighter (note 20261014-231537-5d29:
+                                                    its hit-stop, chain credit, cancel windows, its hit sound) */
                 if (bn_hp > 1) {                 /* it holds: it shakes, a chip flies off */
-                    bn_hp--; bn_thud = 16; snd_sfx(ghitsnd.bounce); bn_pt = 0;
+                    bn_hp--; bn_thud = 16; bn_pt = 0;
                     bn_chip_t = 30; bn_pc[BN_PIECES].x = (bn_px + 24) << 4; bn_pc[BN_PIECES].y = (py0 + 40 + 8 * (bn_hp & 3)) << 4;
                     bn_pc[BN_PIECES].vx = bn_px < 160 ? -24 : 24; bn_pc[BN_PIECES].vy = -48;
                     bn_put(BN_LEAF_SPR, &bonus_piece[bn_hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 1);
@@ -3383,13 +3389,16 @@ static void bn_break_flow(fighter_t *f) {
         fury_lock = bn_lock0; bn_lesson_show(0);
         bn_result("CONGRATULATIONS!", 0, (uint16_t)bn_g->count * 1000, 1, 0xFF);
         if (first && bn_g->unlock == BU_FURY) {  /* the unlock's message box (games[].won_text), held won_ticks */
-            if (gbig[BIG_BONUS_WON].on) {        /* its headline in the big font (big_text.bonus_won, y 104 and two
-                                                    lines 42 px apart by default): CONGRATULATIONS and BONUS go up to
-                                                    rows 10 / 12, the detail lines under it on rows 24 / 25 (26: the HUD's CPU) */
-                bn_text(13, 0, 0); bn_text(18, 0, 0);
-                bn_text(10, "CONGRATULATIONS!", 1);
-                FIX_print(13, 12, "BONUS", 0); FIX_printNum(20, 12, (uint16_t)bn_g->count * 1000, 1);
-                FIX_print(17, 9, "                    ", 0); bt_show(bn_g->won_text[0], BIG_BONUS_WON); bn_text(24, bn_g->won_text[1], 0); bn_text(25, bn_g->won_text[2], 0);
+            if (gbig[BIG_BONUS_WON].on) {        /* its headline in the big font (big_text.bonus_won: y, its two
+                                                    lines pitch px apart): CONGRATULATIONS and BONUS on the two rows over
+                                                    it, the detail lines on the two under it (note 20261014-231446-5d29:
+                                                    the block above the fighters, under the top HUD) */
+                const gbig_t *g = &gbig[BIG_BONUS_WON];
+                uint8_t r0 = (uint8_t)(g->y >> 3), r1 = (uint8_t)((g->y + g->pitch + 48 + 7) >> 3);
+                bn_text(13, 0, 0); bn_text(16, 0, 0); bn_text(18, 0, 0);
+                bn_text(r0 - 2, "CONGRATULATIONS!", 1);
+                FIX_print(13, r0 - 1, "BONUS", 0); FIX_printNum(20, r0 - 1, (uint16_t)bn_g->count * 1000, 1);
+                FIX_print(17, 9, "                    ", 0); bt_show(bn_g->won_text[0], BIG_BONUS_WON); bn_text(r1, bn_g->won_text[1], 0); bn_text(r1 + 1, bn_g->won_text[2], 0);
             } else { bn_text(20, bn_g->won_text[0], 1); bn_text(22, bn_g->won_text[1], 0); bn_text(24, bn_g->won_text[2], 0); }
             bn_hold = bn_g->won_ticks; bn_skip = bn_hold >> 1;
         }

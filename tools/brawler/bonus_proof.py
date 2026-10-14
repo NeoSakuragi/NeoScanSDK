@@ -117,6 +117,7 @@ class Proof:
         self.setup(fighter=fighter, game=posts['id'])
         lock0 = self.r('bn_lock0')                  # (the lock as the game came in: lifted while it plays)
         t = 0; shot_hit = shot_split = shot_lesson = False; px = 241
+        self.links = 0; self.stops = 0; run = 0; last_node = -1    # the longest chain (links in one string), hit-stop ticks
         limit = limit or (posts['seconds'] * 60 + 400)
         while self.r('bonus_on') == BN['play'] and t < limit:
             st = self.b.states[self.b.fget(0, 'state')]; fx = self.b.fget(0, 'x'); post = self.r('bn_post')
@@ -129,6 +130,19 @@ class Proof:
                 elif gap > (36 if use_d else 12): keys = 'R' if right else 'L'
                 elif (face > 0) != right: keys = 'R' if right else 'L'   # (turned to it first)
                 elif t & (15 if use_d else 7) == 0: keys = key
+            elif key == 'a' and post == BP_STAND and st == 'ATTACK' and t & 7 == 0:   # A, A, A: the chain (on a post in
+                px = self.r('bn_px', 2); right = px > 160                                # front of him, near: else he
+                gap = px - fx if right else fx - (px + 64)                               # lets it end, then turns / walks)
+                face = self.b.fget(0, 'facing'); face = face - 256 if face > 127 else face
+                if gap <= 12 and (face > 0) == right: keys = key
+            node = self.b.fget(0, 'node')                  # (note 20261014-231537-5d29: a post hit links the chain)
+            if st == 'ATTACK':
+                if node != last_node:
+                    run += 1; last_node = node
+                    if shots and key and run >= 2 and run > self.links: self.shot(f'posts_chain_{run}', f'posts: A, A, A: link {run} of the chain (node {node})')
+                self.links = max(self.links, run)
+            else: run = 0; last_node = -1
+            if self.b.fget(0, 'freeze') and st == 'ATTACK': self.stops += 1
             self.b.run(1, p1=keys); t += 1
             if shots and t == 30: self.shot(f'posts_{"win" if key else "fail"}_lesson', 'posts: the lesson box')
             if shots and key and not shot_lesson and self.r('bn_chip_t') == 28: self.shot('posts_win_chip', f'a hit: it shakes, a chip flies ({self.r("bn_hp")} left)'); shot_lesson = True
@@ -138,6 +152,8 @@ class Proof:
     def posts(self):
         posts = next(x for x in self.G['games'] if x['kind'] == 'break')
         lock0, t, left = self.play_posts('terry', 'a', shots=True)
+        self.check(self.links >= 3 and self.stops > 0, f'posts win (terry, A, A, A): the post hits link his chain ({self.links} links in one string, '
+                   f'{self.stops} hit-stop ticks; note 20261014-231537-5d29: was 1, no hit-stop)')
         self.b.run(20); self.shot('posts_win', 'posts won: the unlock message')
         self.check(lock0 == 1 and left == 0 and self.r('fury_lock') == 0 and self.r('bonus_on') == BN['end'],
                    f'posts win (terry, A: normals): locked before ({lock0}), {posts["count"] - left} / {posts["count"]} broken in {t} ticks, unlocked after ({self.r("fury_lock") == 0})')
@@ -158,7 +174,7 @@ class Proof:
         posts = next(x for x in self.G['games'] if x['kind'] == 'break')
         self.setup(fighter='terry', game=posts['id']); self.b.run(90)
         for i, v in (('drive', 240 * self.r('drive_chunks')), ('fgauge', 100)): self.b.fset(0, i, v)
-        self.b.run(1, p1='d'); self.b.run(12)
+        self.b.run(3, p1='d'); self.b.run(10)                   # (held 3 frames: a lag frame drops a 1-frame press)
         st = self.b.states[self.b.fget(0, 'state')]; fury = st == 'SPECIAL' and self.b.fget(0, 'spec_id') == 6
         self.shot('posts_d', 'posts game, D: ' + ('the fury' if fury else 'nothing (locked)'))
         self.check(not fury and self.r('fury_lock') == 1, f'posts game: D with gauge + drive full: {"fury" if fury else "no fury"} (want none: locked while it plays), state {st}')
@@ -169,7 +185,7 @@ class Proof:
         self.until(lambda: self.r('in_ph') != 0, 60); self.until(lambda: self.r('in_ph') == 0, 900)   # (stage 2's intro: the walk in, the first wave)
         self.b.run(30)
         for i, v in (('drive', 240 * self.r('drive_chunks')), ('fgauge', 100)): self.b.fset(0, i, v)
-        self.b.run(1, p1='d'); self.b.run(12)
+        self.b.run(3, p1='d'); self.b.run(10)                   # (held 3 frames: a lag frame drops a 1-frame press)
         st = self.b.states[self.b.fget(0, 'state')]; fury = st == 'SPECIAL' and self.b.fget(0, 'spec_id') == 6
         self.shot(name, 'stage 2, D: ' + ('the fury' if fury else 'nothing (locked)'))
         self.check(fury == want_fury, f'stage 2 D with gauge + drive full: {"fury" if fury else "no fury"} (want {"fury" if want_fury else "none: locked"}), state {st}')
@@ -180,11 +196,13 @@ class Proof:
         for f in [n for n in self.names if n in sel]:          # (a form's target, Super Billy: never picked)
             try: lock0, t, left = self.play_posts(f, 'a', limit=self.G['games'][1]['seconds'] * 60 + 400)
             except Exception as e: res[f] = {'error': str(e)}; print('sweep', f, 'error', e); continue
-            n = self.G['games'][1]['count']; res[f] = {'broken': n - left, 'ticks': t}
-            print(f'sweep {f}: {n - left} / {n} posts in {t} ticks', flush=True)
+            n = self.G['games'][1]['count']; res[f] = {'broken': n - left, 'ticks': t, 'links': self.links, 'stop_ticks': self.stops}
+            print(f'sweep {f}: {n - left} / {n} posts in {t} ticks, chain up to {self.links} links, {self.stops} hit-stop ticks', flush=True)
         json.dump(res, open(os.path.join(self.out, 'sweep.json'), 'w'), indent=1)
         bad = [f for f, v in res.items() if v.get('broken') != self.G['games'][1]['count']]
         self.check(not bad, f'sweep: every fighter breaks every post with his normals in time (short: {bad})')
+        one = [f for f, v in res.items() if v.get('links', 0) < 2]
+        self.check(not one, f'sweep: every fighter chains on the posts (A, A, A: 2+ links; stuck at link 1: {one})')
 
     def sheet(self):
         ims = [(Image.open(p).convert('RGB'), l) for p, l in self.shots]

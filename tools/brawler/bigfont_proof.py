@@ -152,6 +152,14 @@ def one(want):
             for L in range(max(0, yy), min(224, yy + 16 * h)): cnt[L] += 1
         check(max(cnt) <= 96, f'{label}: at most {max(cnt)} sprites on a line (96)')
         txt = ''.join(chr(v) if 0x20 < v < 0x7F else ' ' for v in (vram[0x7000 + c * 32 + row + 2] & 0xFFF for c in range(1, 39))).strip()   # (FIX_print's row r = VRAM row r + 2)
+        ys = []                                            # note 20261014-231446-5d29: raised above the fighters, under
+        for i in range(bt, bt + n_spr):                    # the top HUD (its last line: y 31), no small line under it
+            s3 = vram[0x8200 + i]
+            if not (s3 & 0x40): y = 496 - (s3 >> 7); ys.append(y if y < 256 else y - 512)
+        y0, y1 = min(ys), max(ys) + 48
+        fixrow = lambda r: ''.join(chr(v) if 0x20 < v < 0x7F else ' ' for v in (vram[0x7000 + c * 32 + r + 2] & 0xFFF for c in range(1, 39))).strip()
+        under = [(r, fixrow(r)) for r in range(28) if fixrow(r) and 8 * r < y1 and 8 * r + 8 > y0]
+        check(y0 >= 32 and not under, f'{label}: the big text on lines {y0}-{y1 - 1}: under the top HUD (y >= 32), no small line under it {under}')
         check(not any(w in txt for w in ('START', 'CLEAR', 'GAME OVER', 'TIME OVER', 'FURY')), f'{label}: the fix row {row} it replaced holds {txt!r}')
     return shots
 

@@ -4328,6 +4328,26 @@ static void update(fighter_t *f, const intent_t *in) {
 }
 
 /* ---- being hit ---------------------------------------------------------------------------------------------------- */
+static uint8_t hit_stop(const fighter_t *a) {                   /* a hit's stop frames: a normal's node's (the chain core's
+                                                                    scale), a Lab chain press's (RF_LAB) node's, else HITSTOP */
+    if ((a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop) return NODE(a, a->node)->hitstop;
+    if (a->state == S_SPECIAL && lab_cnode && !a->idx && !a->team && NODE(a, lab_cnode)->hitstop) return NODE(a, lab_cnode)->hitstop;
+    return HITSTOP;
+}
+static void hit_credit(fighter_t *a, uint8_t hs) {               /* the attacker's side of a hit (a fighter or a bonus post:
+                                                                    note 20261014-231537-5d29): its hit-stop, the contact
+                                                                    the chain / cancels / follow-ups read */
+    if (a->state != S_PROJ) a->freeze = hs;                      /* hit-stop; projectiles fly on (nothing updates them) */
+    a->landed = 1;
+    {   fighter_t *o = a->owner ? a->owner : a;                  /* the cancel rule: a special that landed (its body, */
+        if (o->state == S_SPECIAL && may_cancel(o) && (o == a || o->proj[0] == a || o->proj[1] == a || o->shot == a ||
+                                                       (o->spec_id == BS_FURY && a->owner == o)))
+            o->scancel = 1;                                      /* or a projectile it threw) may cancel into the fury
+                                                                    (a fury: into its MAX, its program's objects too:
+                                                                    Raging Storm's pillars) */
+    }
+    if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
+}
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
@@ -4386,9 +4406,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         gauge_add(v, (uint16_t)d * gmeter.fury_taken);
     }
     hurt_voice(v, HV_HIT);                                       /* (the KO voice: once, at the death, S_DEAD) */
-    {   uint8_t hs = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop ? NODE(a, a->node)->hitstop : HITSTOP;
-        if (a->state == S_SPECIAL && lab_cnode && !a->idx && !a->team && NODE(a, lab_cnode)->hitstop) hs = NODE(a, lab_cnode)->hitstop;   /* a Lab
-                                                                    chain press (RF_LAB): its node's */
+    {   uint8_t hs = hit_stop(a);
         v->freeze = !caught ? hs : a->pdeadn > HITSTOP - CATCH_STOP + 1 ? CATCH_STOP : HITSTOP + 1 - a->pdeadn;   /* a normal:
                                                                     its node's (the chain core's scale) */
     }
@@ -4397,16 +4415,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         if (!v->team && v->state != S_PROJ) { v->guard = gchain.guard_player; v->guard_by = o; }   /* a player: untouchable
                                                                     to all but this attacker a moment ("guard") */
     }
-    if (a->state != S_PROJ) a->freeze = v->freeze;               /* hit-stop; projectiles fly on (nothing updates them) */
-    a->hit_mask |= 1 << v->idx; a->landed = 1; v->chain_t = 0;
-    {   fighter_t *o = a->owner ? a->owner : a;                  /* the cancel rule: a special that landed (its body, */
-        if (o->state == S_SPECIAL && may_cancel(o) && (o == a || o->proj[0] == a || o->proj[1] == a || o->shot == a ||
-                                                       (o->spec_id == BS_FURY && a->owner == o)))
-            o->scancel = 1;                                      /* or a projectile it threw) may cancel into the fury
-                                                                    (a fury: into its MAX, its program's objects too:
-                                                                    Raging Storm's pillars) */
-    }
-    if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
+    a->hit_mask |= 1 << v->idx; v->chain_t = 0;
+    hit_credit(a, v->freeze);
     if (!(a->state == S_SPECIAL && (a->pflags & PF_HOLD) && a->target && a->target != v && a->target->dance == a &&
           a->target->state == S_HITSTUN))
         (a->owner ? a->owner : a)->target = v;                   /* (a hold keeps its caught victim: a crowd hit on the way) */
@@ -4642,6 +4652,38 @@ static uint8_t share(uint8_t total, uint8_t k, uint8_t n) {     /* total * k / n
     while (v >= n) { v -= n; q++; }
     return q;
 }
+static uint8_t normal_rc(const fighter_t *a, uint8_t *total, uint8_t *later) {   /* a normal's reaction this hit (R_*), */
+    static const uint8_t EFFECT_R[6] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_KNOCKDOWN };   /* its hits in all */
+    const rnode_t *c = NODE(a, a->node);                         /* and after this step */
+    const banim_t *an = &a->ch->anims[a->anim];
+    uint8_t rc = c->effect ? EFFECT_R[c->effect] : c->weight ? R_HEAVY : R_LIGHT, k;
+    *total = *later = 0;
+    for (k = 0; k < an->nsteps; k++)                             /* multi-hit normal: the knockdown on its last */
+        if (an->steps[k].flags & 4) { (*total)++; if (k > a->step) (*later)++; }   /* hit */
+    if (*total > 1 && *later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
+    return rc;
+}
+static void hit_noise(fighter_t *a) {                            /* an attack's hit sound (once per attack, whatever it hits:
+                                                                    a fighter, a bonus post) */
+    if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {      /* a normal: its own sound for this hit of the move, else */
+        const rnode_t *c = NODE(a, a->node);                     /* the rule */
+        uint8_t total, later, rc = normal_rc(a, &total, &later), s = own_sound(a, a->anim, total - later - 1);
+        snd_sfx(s ? s : hit_sound(a, (c->flags & RF_HEAVY_SFX) ? BA_ATK_D_CLOSE : c->anim, rc >= R_KNOCKDOWN));
+    } else {                                                     /* its step's own sound (step_sound), else its kind's */
+        uint8_t s = step_sound(a);
+        if (s) snd_sfx(s); else if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD);
+    }
+}
+uint8_t fighter_prop_hit(fighter_t *a, uint8_t sound) {
+    if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr || (a->spec_prev_hit & (8 | 16 | 128)))) {
+        if (sound) hit_noise(a);                                 /* a grab / catch / hold / throw: nobody to hold, no credit */
+        return 0;
+    }
+    if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) a->pflags |= PF_HITANY;
+    if (sound) hit_noise(a);
+    hit_credit(a, hit_stop(a));
+    return 1;
+}
 static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
     const bbox_t *atk;
     bbox_t abox;                                                 /* a script row's box: in the attacker's bank, copied */
@@ -4701,19 +4743,11 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
             overlap_xy(a, atk, v, hb, &sx, &sy);
             if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                 const rnode_t *c = NODE(a, a->node);
-                const banim_t *an = &a->ch->anims[a->anim];
-                static const uint8_t EFFECT_R[6] = { 0, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_KNOCKDOWN };
-                uint8_t dmg = c->damage, rc = c->effect ? EFFECT_R[c->effect] : c->weight ? R_HEAVY : R_LIGHT, k, total = 0, later = 0;
-                for (k = 0; k < an->nsteps; k++)                 /* multi-hit normal: the knockdown on its last */
-                    if (an->steps[k].flags & 4) { total++; if (k > a->step) later++; }   /* hit */
-                if (total > 1 && later && rc >= R_KNOCKDOWN) rc = R_HEAVY;
+                uint8_t total, later, dmg = c->damage, rc = normal_rc(a, &total, &later);
                 dmg = (a->ldmg & (1 << v->idx)) ? 0 : dmg;      /* fixed damage (revamp 1A): the node's whole damage on */
                 a->ldmg |= 1 << v->idx;                          /* its first hit on each victim, its later hits none */
                 big = rc >= R_KNOCKDOWN || hit_btn(c->anim) >= SX_C;
-                if (!sounded++) {                                /* its own sound for this hit of the move, else the rule */
-                    uint8_t s = own_sound(a, a->anim, total - later - 1);
-                    snd_sfx(s ? s : hit_sound(a, (c->flags & RF_HEAVY_SFX) ? BA_ATK_D_CLOSE : c->anim, rc >= R_KNOCKDOWN));
-                }
+                if (!sounded++) hit_noise(a);
                 fighter_hit(a, v, dmg, rc, c->push);
                 if (c->effect == RE_SLAM && !later && v->state == S_KNOCKDOWN) {   /* the slam (the chain's down */
                     v->vy = v->y > 0 ? -FIX(6) : 0; v->kslam = 1;    /* finisher): to the floor now, then its */
@@ -4742,10 +4776,7 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                     if (c + 1 < nh) { rc = R_HEAVY; a->vcnt += 1 << sh; }   /* its damage split over them, a reel */
                     else a->vdone |= 1 << v->idx;                /* until the last (its own reaction) */
                 }
-                if (!sounded++) {                            /* its step's own sound (step_sound), else its kind's */
-                    uint8_t s = step_sound(a);
-                    if (s) snd_sfx(s); else if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD);
-                }
+                if (!sounded++) hit_noise(a);
                 fighter_hit(a, v, dmg, rc, lpush);
                 if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);
