@@ -768,6 +768,45 @@ static void route_go(fighter_t *f, const rnode_t *prev, uint8_t node, uint8_t b,
     else if ((c->flags & RF_SPECIAL) && node_special(f, node, how)) return;
     else start_node(f, node, how);
 }
+/* a blow by slot (fighter.h fighter_blow; Bruno 2026-10-14, results-1014: the Ki training's blow by grade, a jab when the
+ * tree holds, the forward finisher when it breaks): from neutral, no input. BL_JAB his light punch
+ * (light A: a ground node of his tree playing far A, else close A, else that animation as it is; a heavy chain starts on close C); BL_FIN the A links followed to the last (the neutral finisher); BL_FWD the forward + A link
+ * of the first link that has one (the last builder: routes.py chain_tree's fA, a blowback), none: the neutral finisher.
+ * Played as route_go plays a link (a special finisher free; a throw finisher has no victim here: the neutral one). */
+uint8_t fighter_blow(fighter_t *f, uint8_t slot) {
+    uint8_t ob = BANK_set(CH_BANK(f->ch)), n = NODE(f, TREE(f)->root)->next[RI_A], k, fw = 0, j;
+    if (slot == BL_JAB)                                          /* his light punch: a ground node of his tree playing
+                                                                    far A, else close A (a heavy chain starts on close C) */
+        for (j = 0; j < 2 && !fw; j++)
+            for (k = 1; k < TREE(f)->nnodes; k++) {
+                const rnode_t *c = NODE(f, k);
+                if (!(c->flags & (RF_SPECIAL | RF_AIR | RF_THROW | RF_LAB)) && c->anim == (j ? BA_ATK_A_CLOSE : BA_ATK_A_FAR)) { fw = k; break; }
+            }
+    if (slot == BL_JAB && !fw)                                   /* (no tree node plays it: his far / close A as it is) */
+        for (j = 0; j < 2; j++) {
+            uint8_t a = j ? BA_ATK_A_CLOSE : BA_ATK_A_FAR;
+            if (!f->ch->anims[a].nsteps) continue;
+            if (!own_swing(f)) snd_sfx(SFX_SWING_LIGHT);
+            f->node = 0; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_node = f->chain_t = 0;
+            f->spec_buf = f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0;
+            enter(f, S_ATTACK); play(f, a); f->speed = 0x100;
+            BANK_set(ob);
+            return 0xFF;
+        }
+    for (k = 0; slot != BL_JAB && n && k < TREE(f)->nnodes; k++) {
+        const rnode_t *c = NODE(f, n);
+        if (slot == BL_FWD && c->next[RI_FA] && !(NODE(f, c->next[RI_FA])->flags & RF_THROW)) { fw = c->next[RI_FA]; break; }
+        if (!c->next[RI_A] || (NODE(f, c->next[RI_A])->flags & RF_THROW)) break;
+        n = c->next[RI_A];
+    }
+    if (fw) n = fw;
+    if (n) {
+        f->chain_node = 0; f->chain_t = 0;
+        if (!((NODE(f, n)->flags & RF_SPECIAL) && node_special(f, n, LH_NEUTRAL))) start_node(f, n, LH_NEUTRAL);
+    }
+    BANK_set(ob);
+    return n;
+}
 /* ---- the Blitz (Bruno 2026-10-08, docs/brawler_gold.md; game.json roster[].blitz -> gblitz_rom, "blitz" -> gblitz) -------
  * A double direction + A (main.c read_player: forward,forward / down,down / down,up / up,up, the taps and the A within
  * gblitz.window frames; run + A = the ff slot): the slot's move, free (no drive), NOT invincible, its own recovery: a
@@ -3785,9 +3824,29 @@ static void fpose_pal(fighter_t *f, uint8_t on) {               /* the pose's ow
     for (j = 1; j < 16; j++) buf[j] = fighter_colour(f, ch->fpal[(f->set << 4) + j]);
     PAL_setPalette(f->palbase + ch->fpal_ix, buf);
 }
+/* A fury that WAITS (gfury_wait, game.json roster[].fury_flash; default for a sequence fury, roster[].fury = a list:
+ * Bruno results-1014, Haggar "make him wait a bit during the freeze animation"), a fighter without a flash pose: on
+ * frame gflash.start its first piece's first frame plays (special_update), the flash starts, and that frame holds through
+ * the whole freeze (nothing of the fury runs, no motion; invincible from the trigger as every fury); the piece goes on
+ * from the first frame after the freeze, the world moving. The fury (D) only, not its MAX. */
+static uint8_t fury_waits(const fighter_t *f) {
+    return !f->ch->nfpose && !f->fmax && gfury_wait[f->ch->id] && !seq_piece(f);
+}
 static uint8_t flash_pose(fighter_t *f) {
     const bchar_t *ch = f->ch;
     uint8_t k, i, at;
+    if (f->spec_id == BS_FURY && f->fpose != 0xFF && fury_waits(f)) {
+        if (!f->fpose) {
+            if (f->state_t != gflash.start) return 0;
+            special_update(f);                                   /* its first frame, shown through the freeze */
+            if (f->state != S_SPECIAL) return 1;
+            super_flash(f); f->fpose = 1; f->vx = f->vy = f->vz = 0;
+            return 1;
+        }
+        if (f->fpose >= gflash.freeze) { f->fpose = 0xFF; f->state_t = gflash.start; return 0; }   /* (the world moves again) */
+        f->fpose++;
+        return 1;
+    }
     if (f->spec_id != BS_FURY || !ch->nfpose || f->fpose == 0xFF) return 0;
     if (!f->fpose) {
         if (f->state_t != gflash.start) return 0;
@@ -4260,7 +4319,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                       f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
-        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose && !seq_piece(f))
+        if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose && !seq_piece(f) && !f->fpose)
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
                                                                     super_flash: state_t 1 = its first frame) */
         break;

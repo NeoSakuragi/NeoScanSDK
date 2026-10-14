@@ -327,6 +327,9 @@ typedef struct {
     uint16_t seconds;             /* the game's clock (BK_GAUGE: no press by then = grade 0) */
     uint8_t grades[5];            /* BK_GAUGE: the power (0-127) each grade 1-5 needs */
     uint8_t chunks[6];            /* BK_GAUGE: drive chunks a grade 0-5 adds (the bar up to 4) */
+    uint8_t blows[6];             /* BK_GAUGE: the blow a grade 0-5 throws at the tree, fighter.h BL_* (fighter_blow: his
+                                     jab, chain finisher or forward finisher; game.json games[].blows, Bruno results-1014: a
+                                     jab when the tree holds, the forward finisher when it breaks) */
     uint8_t nfall, fall_t[GB_FALL_SND], fall_sfx[GB_FALL_SND];   /* BK_GAUGE (note 20261014-171700-5d29): the passed
                                      tree's sounds as it falls, sfx code fall_sfx[k] at tick fall_t[k] from the blow (game.json
                                      games[].fall_sounds: AOF2's crack and fall at its frames from the punch mark) */

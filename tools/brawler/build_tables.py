@@ -955,9 +955,10 @@ def ending_tables(g):
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds'),
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds', 'blows'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks')}
-GB_FALL_SND = 6                                          # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
+BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
+GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
@@ -1003,6 +1004,8 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert len(gr) == 5 and all(a < b for a, b in zip([0] + gr, gr)) and gr[-1] <= 127, f"bonus game {x['id']}: grades: 5 rising powers 1-127"
             assert len(ch) == 6 and all(isinstance(v, int) and 0 <= v <= 3 for v in ch), f"bonus game {x['id']}: chunks: 6 values 0-3 (grade 0-5)"
             assert x.get('win_grade', 5) in range(1, 6), f"bonus game {x['id']}: win_grade 1-5 (the lowest grade that passes)"
+            bl = x.get('blows', ['jab'] * 6)
+            assert len(bl) == 6 and all(v in BONUS_BLOWS for v in bl), f"bonus game {x['id']}: blows: 6 slots (grade 0-5) of {' | '.join(BONUS_BLOWS)}"
             fs = x.get('fall_sounds') or []
             assert len(fs) <= GB_FALL_SND and all(isinstance(t, int) and 0 <= t < 255 for t, _ in fs) and \
                 [t for t, _ in fs] == sorted(t for t, _ in fs), f"bonus game {x['id']}: fall_sounds: up to {GB_FALL_SND} [tick 0-254, sfx name], ticks rising"
@@ -1032,7 +1035,8 @@ def bonus_tables(g, songs_known, sfx_names):
              f".music = MUS_{x['music']}", f".seconds = {x['seconds']}", f".slot = {x['slot']}", f".voice = 0x{code(x.get('voice')):02X}"]
         if x['kind'] == 'gauge':
             f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }',
-                  f".win_grade = {x.get('win_grade', 5)}"]
+                  f".win_grade = {x.get('win_grade', 5)}",
+                  '.blows = { ' + ', '.join('BL_' + BONUS_BLOWS[v] for v in x.get('blows', ['jab'] * 6)) + ' }']   # (fighter.h BL_*)
             fs = x.get('fall_sounds') or []              # (the tree's sounds as it falls: AOF2's, ticks from the blow)
             f += [f".nfall = {len(fs)}", '.fall_t = { ' + ', '.join(str(t) for t, _ in fs) + ' }' if fs else '.fall_t = { 0 }',
                   '.fall_sfx = { ' + ', '.join(f'0x{code(v):02X}' for _, v in fs) + ' }' if fs else '.fall_sfx = { 0 }']
@@ -1191,7 +1195,8 @@ def tables(g, build):
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
          'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NORMAL its blitz entry, BZ_NONE */',
-         'extern const uint8_t gfury_area[BC_COUNT][3];   /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
+         'extern const uint8_t gfury_wait[BC_COUNT];   /* 1: the fury (D) holds its first frame through the super flash\'s freeze, its move after (roster[].fury_flash, default wait for a sequence fury: fighter.c flash_pose) */',
+         'extern const uint8_t gfury_area[BC_COUNT][3];  /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
          'extern const int32_t gblitz_slide[BC_COUNT][4][3];   /* per fighter per Blitz slot: its slide [frames, first frame\'s glide, its loss a frame] (16.16 px; roster[].blitz_slide; fighter.c blitz_slide), frames 0 = none */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
@@ -1231,6 +1236,12 @@ def tables(g, build):
              f".scale = {round(bz['damage'] * 256 / g['tiers']['special'])} }};   /* scale: {bz['damage']} / tiers.special {g['tiers']['special']} (8.8) */")
     c.append('const uint8_t gblitz_rom[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_rows(g, build)) + '\n};')
+    fw = []                                              # the fury's wait for the super flash (Bruno results-1014, Haggar:
+    for r in g['roster']:                                # "make him wait a bit during the freeze animation"): a fury that is
+        ff = r.get('fury_flash', 'wait' if isinstance(r.get('fury'), list) else 'move')   # a sequence of pieces waits
+        assert ff in ('wait', 'move'), f"roster {r['name']}: fury_flash wait | move"      # (its first piece's first frame
+        fw.append(('1' if ff == 'wait' else '0') + f'   /* {r["name"]} */')               # held through the freeze)
+    c.append('const uint8_t gfury_wait[BC_COUNT] = {\n    ' + ',\n    '.join(fw) + '\n};')
     c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
     c.append('const int32_t gblitz_slide[BC_COUNT][4][3] = {\n' + ',\n'.join(

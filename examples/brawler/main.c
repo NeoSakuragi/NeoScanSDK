@@ -2981,7 +2981,7 @@ uint8_t game_start_accept(uint8_t flags) {
  * alone (P1, else P2), no enemies, the HUD up:
  *   BK_GAUGE (the tree, AOF2 Spirit Training): the gauge (fix row 9) sweeps 0-127, step a tick, wrapping; one A (no
  *     press in `seconds`: grade 0) freezes it, grade = how many of grades[] it reached (AOF2's table $17EF8, default
- *     row); the fighter throws his A at the tree, the tree shakes, the bark mark shows, grade x 3 leaves fall; chunks[grade]
+ *     row); the fighter throws the grade's blow (blows[grade], fighter_blow: jab / forward finisher), the tree shakes, the bark mark shows, grade x 3 leaves fall; chunks[grade]
  *     drive chunks are added to the bar (drive_chunks, both players, for the credit, up to MAX_CHUNKS).
  *   BK_BREAK (the posts, AOF2 Initiate Super Death Blow): `count` posts, one at a time at AOF2's place, before `seconds`
  *     run out. BB_ANY (Bruno 2026-10-14, "bonus-pillars-normals"): any strike (fighter_strike_box) is a hit each time one
@@ -3005,6 +3005,8 @@ _Static_assert(BONUS_TREE == 0 && BONUS_POSTS == 1, "build_tables.py BONUS_SCENE
 #define BN_MARK_SPR (BN_LEAF_SPR + BN_LEAVES)    /* 334-338 (bonus_off hides BN_FRONT .. + 48) */
 #define BN_FEET_Z   10                           /* the fighter's lane: feet at the scene's floor_top + 10 (AOF2's) */
 #define BN_TREE_X   124                          /* the fighter's world x in front of the tree / before the posts */
+#define BN_TREE_STOP 146                         /* the trunk's face: the blow never carries his feet past it
+                                                    (a rush finisher, Kim's flip kick: he stops at the tree, results-1014) */
 #define BN_POSTS_X  90
 #define BN_END_T    300                          /* ticks of the result before the next stage */
 #define BN_FALL_LEAP 62                          /* the fall's tick the fighter leaps back (AOF2: Ryo at ~762, mark 700) */
@@ -3238,6 +3240,7 @@ static void bn_gauge_flow(fighter_t *f) {
     uint8_t k;
     if (bn_hit_t) {                              /* after the press: the punch, the shake, the leaves */
         bn_hit_t++;
+        if (f->x > FIX(BN_TREE_STOP)) f->x = FIX(BN_TREE_STOP);   /* (the trunk stops a blow that travels) */
         if (bn_hit_t == 12 && bn_pass) bn_fall_t = 1;   /* (the top grade: the tree falls from here) */
         bn_fall_step();
         if (bn_hit_t == 12) {                    /* the blow lands */
@@ -3401,7 +3404,8 @@ static void bonus_input(void) {                  /* this tick's intents: the gau
         *i = (intent_t){ 0 }; i->dx = -1; i->hold = IN_B; if (bn_fall_t == BN_FALL_LEAP) i->press = IN_B; return;
     }
     if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
-    if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; i->press = IN_A; return; }   /* the press: his A at the tree */
+    if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; fighter_blow(&fighters[bn_lead], bn_g->blows[bn_grade]); return; }   /* the
+                                                    press: the grade's blow at the tree (games[].blows: his jab, his forward finisher) */
     i->dz = 0;
 }
 static void bonus_flow(void) {                   /* the fight tick's flow() for a bonus game (after the fighters' update) */

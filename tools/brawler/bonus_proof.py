@@ -14,7 +14,7 @@ every run from scenario.py's mode "bonus" (lab req 6: a new game, then the bonus
               the fury after the win                                                                    -> d_locked.png, d_unlocked.png
       --sweep every selectable fighter: the posts won with normals (A), posts broken / ticks used (OUT/sweep.json)
     a contact sheet OUT/sheet.png; prints one OK / FAIL line per check, exit 1 on any FAIL"""
-import json, os, sys
+import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness as H, scenario
 from PIL import Image, ImageDraw
@@ -84,7 +84,12 @@ class Proof:
             self.setup(game=ki['id']); self.b.run(40)
             c0 = self.r('drive_chunks')
             k = self.until(lambda: abs(self.r('bn_power') - want) <= ki['step'] and lo <= self.r('bn_power') + ki['step'] < hi, 400)
-            self.b.run(1, p1='a'); self.b.run(30)
+            self.b.run(1, p1='a'); self.b.run(3)
+            ba = re.search(r'enum \{ (BA_IDLE[^}]*)\}', open(os.path.join(self.game, 'build', 'bm_chars.h')).read()).group(1).replace(' ', '').split(',')
+            mv = ba[self.b.fget(0, 'anim')] if self.b.states[self.b.fget(0, 'state')] == 'ATTACK' else self.b.states[self.b.fget(0, 'state')]
+            blow = ki.get('blows', ['jab'] * 6)[g]       # (results-1014: a jab when the tree holds, the forward finisher when it breaks)
+            self.check((mv in ('BA_ATK_A_FAR', 'BA_ATK_A_CLOSE')) == (blow == 'jab'), f'tree grade {g}: the blow {blow}: Terry plays {mv}')
+            self.b.run(27)
             if g in (0, 5): self.shot(f'tree_g{g}_hit', f'tree grade {g}: the blow')
             win = g >= ki.get('win_grade', 5)
             if win:                                 # (AOF2's top grade: the tree breaks, note 20261014-133606-5d29)

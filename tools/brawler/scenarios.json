@@ -4230,5 +4230,33 @@
   "expect": "The GAME OVER screen: Terry lying on the floor, GAME OVER in the big letters above him, the stage's name (STAGE 1) small under it.",
   "do_keys": "1500:-",
   "proof": 300
+ },
+ "ki-blow-by-grade": {
+  "title": "Ki training: a jab when the tree holds, the forward finisher when it breaks",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "The recipe presses A with the gauge full (PERFECT). Then play it again and press A early, with the gauge about half full (a weak grade).",
+  "expect": "PERFECT: Terry throws his forward finisher (his forward + A strike, the chain's forward finisher) at the tree, the tree cracks and falls as in AOF2. A weak grade: Terry throws only his light jab, the tree shakes and stands, TRAINING FAILED. Every fighter throws his own jab / forward finisher; one that rushes forward stops at the trunk.",
+  "do_keys": "120:-,4:a,400:-",
+  "proof": 200
+ },
+ "haggar-fury-flash-wait": {
+  "title": "Haggar's fury waits for the super flash before the first jab",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D next to Ryo (the fury gauge is full).",
+  "expect": "The super flash: Haggar holds his first pose, completely still, for the whole white-then-dark freeze; no hit lands while the screen is dark. Only when the stage comes back does he start jab, jab, finisher (x3), then the 8-hit spin. He cannot be hit from the D press to the end.",
+  "do_keys": "1:d,400:-",
+  "proof": 120
  }
 }

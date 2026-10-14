@@ -46,7 +46,7 @@ def main():
         snd, qt = sound_bytes(b, qt)
         r = dict(f=f, state=s0, ix=b.fget(0, 'spec_ix'), sid=b.fget(0, 'spec_id'), inv=b.fget(0, 'inv'), hp=b.fget(0, 'hp'),
                  v=st[b.fget(2, 'state')], vy=round(b.fget(2, 'y'), 1), vhp=b.fget(2, 'hp'), snd=snd,
-                 sf=b.r(b.syms['sf_t'], 1) if 'sf_t' in b.syms else 0)
+                 sf=b.r(b.syms['sf_who'], 4) != 0, x=b.fget(0, 'x'), fr=b.fget(0, 'shown_frame'))
         if s0 == 'SPECIAL' and started is None: started = f
         rows.append(r)
         if started is not None and s0 != 'SPECIAL': break
@@ -82,6 +82,29 @@ def main():
     ]
     flashes = sum(1 for r in rows for k in range(len(r['snd']) - 1) if r['snd'][k] == 0x1A and r['snd'][k + 1] == 0x3A)
     checks[-1] = (flashes == 1, f'one super flash (its charge sound $1A $3A sent {flashes} time(s))')
+    # results-1014 (Bruno: "make him wait a bit during the freeze animation"): a sequence fury waits for the flash: its
+    # first piece's first frame held through the whole freeze (no motion, no hit), the first jab after it
+    fl = [r for r in rows if r['sf']]
+    still = fl and len({(r['fr'], r['x']) for r in fl}) == 1
+    checks += [
+        (len(fl) == G['super_flash']['freeze'] - 1, f"the flash: sf_who seen on {len(fl)} frames (want super_flash.freeze - 1 = {G['super_flash']['freeze'] - 1}: it clears inside its last frozen frame)"),
+        (bool(still) and all(r['state'] == 'SPECIAL' and r['ix'] == 1 for r in fl),
+         f"Haggar holds still through the flash: {len({(r['fr'], r['x']) for r in fl})} distinct (frame, x) on its frames, the first piece (pool 1)"),
+        (bool(hits) and bool(fl) and hits[0]['f'] > fl[-1]['f'] and not any(fl[0]['f'] <= h['f'] <= fl[-1]['f'] for h in hits),
+         f"no hit under the flash; the first jab lands {hits[0]['f'] - fl[-1]['f'] if hits and fl else '-'} frames after it ends"),
+    ]
+    if fl:                                              # the flash sheet: its first / middle / last frames, the first jab
+        scenario.setup(b, rec); b.fset(2, 'hp', 200)
+        pick = {fl[0]['f']: 'flash start', fl[len(fl) // 2]['f']: 'flash middle', fl[-1]['f']: 'flash last frame',
+                fl[-1]['f'] + 1: 'flash over: the jab starts', hits[0]['f'] if hits else -1: 'the first jab lands'}
+        fsh = []
+        for f in range(max(pick) + 1):
+            b.run(1, p1='d' if f < 1 else '')
+            if f in pick: p = os.path.join(OUT, f'flash_{f:03d}.png'); b.screenshot(p); fsh.append((p, f'f{f - started} {pick[f]}'))
+        ims = [Image.open(p) for p, _ in fsh]; w, h = ims[0].size
+        sh = Image.new('RGB', (len(ims) * w, h + 14), 'white'); d = ImageDraw.Draw(sh)
+        for k, (im, (_, lab)) in enumerate(zip(ims, fsh)): sh.paste(im, (k * w, 14)); d.text((k * w + 2, 1), lab, fill='black')
+        sh.save(os.path.join(OUT, 'flash_sheet.png')); print('flash sheet', os.path.join(OUT, 'flash_sheet.png'))
     ok = all(c for c, _ in checks)
     for c, w in checks: print(('OK  ' if c else 'FAIL') + ' ' + w)
     rep = dict(ok=ok, checks=[dict(ok=c, what=w) for c, w in checks], hits=hits, sounds=sent, frames=rows)
