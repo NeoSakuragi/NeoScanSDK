@@ -120,6 +120,16 @@ static void voice_id(const bchar_t *ch, uint8_t team, uint8_t id) {
     }
 }
 void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) { voice_id(ch, team, voice_tab[ch->id][key * 2]); }
+/* the hurt voice (its VK_HIT; note 20261014-170634-5d29, Bruno: "only when they are being launched off the ground and
+ * when they touch the ground"): one game-wide rule, game.json hit_sounds.hurt_voice (ghitsnd.hurt, HV_* bits), players
+ * and enemies alike. hurt_voice: a hit's (HV_HIT), a launch's (HV_LAUNCH: fighter_hit sent the body into its knockdown
+ * from any other state; a juggle re-hit is no launch) or a landing's (HV_LAND: hurt_land, the first floor contact after
+ * a launch or a throw: fighter_t.hv). A body with no life left: none (its KO voice at the death, S_DEAD). The impact
+ * sounds are not this: every hit keeps its own. */
+static void hurt_voice(const fighter_t *f, uint8_t why) {
+    if (!mute && f->hp > 0 && (ghitsnd.hurt & why)) voice_play(f->ch, f->team, VK_HIT);
+}
+static void hurt_land(fighter_t *f) { if (f->hv) { f->hv = 0; hurt_voice(f, HV_LAND); } }
 /* the extra throw (BT_XTHROW: its throw_x, hold + B / up / down / the super one) has no key of its own in the table (its
  * layout stands for the Lab packs): its voices are bchar_t.vmore entries under VK_XTHROW (export_bm xthrow_voices: its
  * source's sends on its animation, Final Fight's piledriver $0B); a fighter without any plays throw_c's (voice_throw) */
@@ -1203,7 +1213,14 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  *     hold = the piledriver, straight, forward or back with the stick): its extra paired throw x, played as its data with
  *     B alone; forward / back + B adds a travel of (pad - 1) x 2 px that way, spread evenly over the script's airborne
  *     rows (from the first row the thrower leaves the floor to its landing row bthrow_t.land; FF measured: the same
- *     piledriver, carried 95 / 94 px at a steady 1.77 px a frame from take-off to the slam). 0: B does nothing (as before). */
+ *     piledriver, carried 95 / 94 px at a steady 1.77 px a frame from take-off to the slam). 0: B does nothing (as before).
+ *   The walk in the hold (note 20261014-171133-5d29, Final Fight's Haggar: "he can walk in the grab position with the
+ *     victim in his hand"; game.json roster[].hold_walk, gamedata ghold_walk; none: the holder stands, KOF's and FF's Guy /
+ *     Cody): the stick moves the holder and its victim together at hold_walk.speed x its walk on both axes, the facing kept
+ *     (FF: backward it walks backward), its BA_HOLD_WALK frames stepped forward / backward with the way it goes on the
+ *     walk's clock; the stick let go: its hold pose again. The hold's timer (GRAB_TIME) runs on; every hold input above
+ *     works from the walk (FF measured: a direction + attack throws, attack alone the hit, jump + attack the piledriver).
+ *     Players only (an AI holder stands, as FF's enemies never walk a hold). */
 #define GRAB_DX      32
 #define GRAB_TIME    90               /* frames without a hit before the victim breaks free (~1.5 s, Final Fight) */
 #define GRAB_HITS    3                /* hold hits; the third is the finisher */
@@ -1586,7 +1603,8 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             if (by) gauge_add(by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
             gauge_add(v, (uint16_t)d * gmeter.fury_taken);
         }
-        if (!mute && v->hp > 0) voice_play(v->ch, v->team, VK_HIT);   /* the KO voice: at the death (S_DEAD) */
+        if (v->hv) { v->hv = 0; hurt_voice(v, HV_LAND); }    /* its first impact: the body meets the floor (hurt_voice; */
+        else hurt_voice(v, HV_HIT);                          /* the KO voice: at the death, S_DEAD) */
         if (r->flags & 16) { v->freeze = THROW_FREEZE; if (by && by->held == v) by->freeze = THROW_FREEZE; }   /* only where KOF froze (Ryo's forward+C) */
         if (by) { uint8_t sx = SX_THROW_C + (v->throw_id == BT_XTHROW ? 0 : v->throw_id);   /* (the extra throw: C's) */
             snd_sfx(by->ch->sfx[sx] ? by->ch->sfx[sx] : SFX_HIT_CD); }   /* Krauser's back breaker: $3D */
@@ -1734,6 +1752,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     f->jdx = pend_jdx; f->jprev = 0; pend_jdx = 0;               /* (hold + B's travel: its airborne rows, paired_update) */
     for (f->jr0 = 0; f->jdx && f->jr0 < th->land && th->rows[f->jr0].ty <= 0; f->jr0++) {}
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
+    v->hv = IS_THROW(t);                                         /* a throw's victim: its landing voice to come (hurt_land) */
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
     v->tb_fl = 0; v->tb_kind = t < BT_COUNT ? t : t == BT_XTHROW ? TBK_XTHROW : 0xFF;   /* (its thrown body's rule) */
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;              /* (a press before it: not for its cancel) */
@@ -2189,6 +2208,32 @@ static uint8_t lab_hold(fighter_t *f, uint8_t s) {
 /* the super throw (revamp 3) is DROPPED (Bruno 2026-10-08); hold + forward / back + C threw until 2026-10-10, now C is
  * the C special for the stick (forward / back + A the throws), for everyone (bm_xthr sup and tiers.super_throw stay in the data, unused; Rugal / Yamazaki / Genjuro keep their grab fury on
  * D: fury_grab) */
+/* the walk in the hold (the throws comment, "The walk in the hold"): f->anim = BA_HOLD_WALK while it walks (its step and
+ * time in f->step / f->acc: the animation player leaves a hold alone), the frame shown through frame_ovr */
+static void hold_walk(fighter_t *f, fighter_t *v, const intent_t *in) {
+    uint16_t k = f->ch->id < BC_COUNT ? ghold_walk[f->ch->id] : 0;
+    const banim_t *an = &f->ch->anims[BA_HOLD_WALK];
+    int8_t back;
+    if (!k || in->ai || !an->nsteps) return;
+    if (!in->dx && !in->dz) {                                    /* standing: the hold pose */
+        if (f->anim == BA_HOLD_WALK) { f->anim = BA_IDLE; f->frame_ovr = grab_frame(f); }
+        return;
+    }
+    back = in->dx && in->dx != f->facing;                        /* backward: the cycle in reverse, no turn */
+    if (f->anim != BA_HOLD_WALK) { f->anim = BA_HOLD_WALK; f->step = back ? an->nsteps - 1 : 0; f->acc = 0; f->anim_done = 0; }
+    f->acc += (uint16_t)(((uint32_t)f->wrate * k) >> 8);         /* the walk's clock (walk_rate) x its speed */
+    for (;;) {
+        uint32_t d = (uint32_t)(an->steps[f->step].ticks + 1) << 8;
+        if (f->acc < d) break;
+        f->acc -= d;
+        if (back) f->step = f->step ? f->step - 1 : an->nsteps - 1;
+        else f->step = f->step + 1 < an->nsteps ? f->step + 1 : 0;
+    }
+    f->frame_ovr = an->steps[f->step].frame;
+    f->x += dir_mul(in->dx, mul88(f->wspd, k)); f->z += dir_mul(in->dz, mul88(FIX(1), k)); clamp(f);
+    hold_fit(f, v);                                              /* the pair inside the view (an edge stops it) */
+    place_victim(f, v, f->ch->holds[0].rows, f->facing);         /* the victim carried in its held pose */
+}
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
@@ -2259,6 +2304,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         paired_update(f);                                        /* its first row now */
         return;
     }
+    hold_walk(f, v, in);                                         /* (the walk in the hold: the timer runs on) */
     if (f->state_t >= GRAB_TIME) {                               /* the victim breaks free */
         release(f); v->x += dir_mul(f->facing, FIX(10)); clamp(v); v->inv = 20;
     }
@@ -2981,7 +3027,7 @@ static uint8_t src_fall(fighter_t *f) {                          /* S_KNOCKDOWN 
         f->kmode = 1;                                            /* (its bounce: no box, Kizuna's lying steps) */
     }
     if (f->y + f->vy <= 0) {                                     /* the floor */
-        f->y = 0; f->vy = 0; f->kmode = 0; f->kfloor = 1;
+        f->y = 0; f->vy = 0; f->kmode = 0; f->kfloor = 1; hurt_land(f);
         if (r->land == 0xFF) { f->ksr = 0; return 0; }
         f->vx = 0;
         if (r->land != 0xFF) floor_thud(f);
@@ -4036,11 +4082,12 @@ static void update(fighter_t *f, const intent_t *in) {
         /* KOF98's fall (a C+D captured on Yuri: 285 / 283 counter rising 26 frames, 287 falling 13, 309 hitting the floor
          * 4, 313 a 2 px bounce 10, 328 down): blowback up, flight down, bounce on the floor, the small hop, down */
         if (f->y <= 0 && f->kslam) {                             /* a slam (the chain's down finisher, RE_SLAM): it */
-            f->y = 0; f->kslam = 0; f->kmode = 0; f->vy = FIX(6); f->vx = dir_mul(-f->facing, FIX(1));   /* bounces up off */
+            hurt_land(f); f->y = 0; f->kslam = 0; f->kmode = 0; f->vy = FIX(6); f->vx = dir_mul(-f->facing, FIX(1));   /* bounces up off */
             play(f, BA_BLOWBACK_N); break;                       /* the floor at once, juggle-able ("chain core") */
         }
         if (f->y <= 0) {
             f->y = 0; f->kmode = 0; f->kvfr = 0; f->kfloor = 1;  /* (downed: untouchable from here, "juggle cap") */
+            hurt_land(f);                                        /* its first floor contact: the landing voice */
             if (f->anim == BA_KNOCKDOWN_BOUNCE) {                /* on the floor until it played, then the hop */
                 f->vy = 0; f->vx -= f->vx >> 2;
                 if (f->anim_done) { f->vy = FIX(1); play(f, BA_KNOCKDOWN_FALL); }
@@ -4151,6 +4198,7 @@ static void update(fighter_t *f, const intent_t *in) {
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
+    uint8_t was;                                                 /* its state before the hit */
     uint8_t held = a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr || ((a->pflags & PF_HOLD) && v == a->target));
                                                                  /* the victim is held by this special (a throw special,
                                                                     a command grab, its hold's caught one): its flight stays
@@ -4166,6 +4214,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     else if (reaction == R_LAUNCH) reaction |= 8;                /* a bare R_*: KOF's defaults (only the launch, 286) */
     rk = reaction == RK_HIGH ? R_LAUNCH | 16 : reaction;         /* (KOF's high launch, 299: kof_react) */
     reaction = reaction == RK_HIGH ? R_LAUNCH : reaction & 7;
+    was = v->state;                                              /* (its launch: hurt_voice at the end) */
     v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
     if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr) && v->tb_by != a) { v->tb_by = a; v->hit_mask = 0; v->tb_fl = 0; v->tb_kind = TBK_SPECIAL; }   /* a
                                                                     throw special's victim: a thrown body (revamp 3) */
@@ -4203,7 +4252,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         if (o->team != v->team && !(o->state == S_SPECIAL && o->spec_id == BS_FURY)) gauge_add(o, (uint16_t)d * gmeter.fury_dealt);
         gauge_add(v, (uint16_t)d * gmeter.fury_taken);
     }
-    if (v->hp > 0) voice_play(v->ch, v->team, VK_HIT);          /* the KO voice: once, at the death (S_DEAD) */
+    hurt_voice(v, HV_HIT);                                       /* (the KO voice: once, at the death, S_DEAD) */
     {   uint8_t hs = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && NODE(a, a->node)->hitstop ? NODE(a, a->node)->hitstop : HITSTOP;
         if (a->state == S_SPECIAL && lab_cnode && !a->idx && !a->team && NODE(a, lab_cnode)->hitstop) hs = NODE(a, lab_cnode)->hitstop;   /* a Lab
                                                                     chain press (RF_LAB): its node's */
@@ -4270,6 +4319,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     slide out of the dance's reach) */
         if (a->pflags & PF_HOLD) hold_apply(a);
     }
+    if (v->state == S_KNOCKDOWN && was != S_KNOCKDOWN) { v->hv = 1; hurt_voice(v, HV_LAUNCH); }   /* launched: its voice,
+                                                                    its landing's to come (hurt_land) */
 }
 
 /* ---- combat: every attacker's live attack box against every opponent's hurt box --------------------------------------- */
