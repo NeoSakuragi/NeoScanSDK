@@ -1252,8 +1252,21 @@ static void show_pose(fighter_t *v, const bthrow_row_t *r) {
  * either of them: no screen edge (screen_keep), no wall (wall_update), no stage clamp, no push (script_owned); the
  * script's height is the data's, below the floor included (the sources draw slammed / lying victims under their
  * origin: no y >= 0 clamp, one floor rule with the victim lists); a blow on a held victim is damage, sound and spark
- * only. The victim's offsets are its own (vrow: KOF's per-victim lists, else the posture anchors, vthrow.h). */
+ * only. The victim's offsets are its own (vrow: KOF's per-victim lists, else the posture anchors, vthrow.h).
+ * The FLIGHT is not the pair's (note 20261014-134238-5d29: Kyo's forward throw slid him 231 px across the screen): the
+ * pair is fitted over the HELD rows only (the thrower's to its control return, the victim's to its release row); from
+ * the release on the thrown body stops at the screen's edge (thrown_edge: its row's place clamped to the view, the
+ * origin untouched, so no drift), as KOF98's throw edge routine $255B0 keeps a victim inside the camera. Kyo's forward
+ * throw sends its victim 245 px (KOF98, measured): no screen fits that and the thrower, KOF's camera scrolls with it. */
+static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi);
+static int32_t thrown_edge(const fighter_t *v, int32_t x) {     /* a thrown victim past its release: inside the view */
+    int16_t lo, hi;
+    if (!v->thr || v->thr->rel == 0xFFFF || v->srow <= v->thr->rel) return x;   /* (held: pair_fit placed it) */
+    view_bounds(v, &lo, &hi);
+    return x < FIX(lo) ? FIX(lo) : x > FIX(hi) ? FIX(hi) : x;
+}
 static void place_at(fighter_t *v, int32_t x, int32_t y, int32_t z, int8_t face, const bthrow_row_t *r) {
+    x = thrown_edge(v, x);
     v->vx = x - v->x;                                            /* its motion: a thrown body knocks others its way */
     v->x = x; v->y = y + FIX(r->vy);                             /* (no floor clamp: the script's height) */
     v->z = z;
@@ -1318,7 +1331,6 @@ static uint16_t grab_frame(const fighter_t *a) {
  * view (screen_keep's edges) and the stage over their whole script: x0 the pair's origin, [otl, oth] the attacker's and
  * [ovl, ovh] the victim's offsets from it over the script (world px). The least move that fits; a script wider than
  * the screen: centred (its overflow split between the two edges) */
-static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi);
 static int16_t fit_shift(const fighter_t *a, const fighter_t *v, int16_t x0, int16_t otl, int16_t oth, int16_t ovl, int16_t ovh) {
     int16_t al, ah, vl, vh, lo, hi;
     view_bounds(a, &al, &ah); view_bounds(v, &vl, &vh);
@@ -1327,17 +1339,21 @@ static int16_t fit_shift(const fighter_t *a, const fighter_t *v, int16_t x0, int
     if (lo > hi) return (int16_t)((lo + hi) >> 1);
     return lo > 0 ? lo : hi < 0 ? hi : 0;
 }
-/* a paired script (throw_start): every row's thrower place up to its control return and every row's victim place (its
- * own side, vrow), from the throw's origin: the pair moved once so the whole script plays inside the screen (it used
- * to be clamped frame by frame, each body on its own: the victim's origin drifted, a teleport at the release) */
+/* a paired script (throw_start): every row's thrower place up to its control return and every HELD row's victim place
+ * (its own side, vrow; up to its release row, excluded: from it the flight stops at the screen's edge, thrown_edge), from the
+ * throw's origin: the pair moved once so the held part plays inside the screen (it used to be clamped frame by frame,
+ * each body on its own: the victim's origin drifted, a teleport at the release; then the whole flight was fitted: a
+ * 245 px throw slid the thrower across the screen, note 20261014-134238-5d29) */
 static int16_t pair_fit(fighter_t *a, fighter_t *v, const bthrow_t *th) {
     int16_t otl = 0x7FFF, oth = -0x7FFF, ovl = 0x7FFF, ovh = -0x7FFF, s;
-    uint16_t i, ret = th->ret < th->nrows ? th->ret : th->nrows;
+    uint16_t i, ret = th->ret < th->nrows ? th->ret : th->nrows, held = th->rel < th->nrows ? th->rel : th->nrows;
     bthrow_row_t tmp;
     for (i = 0; i < th->nrows; i++) {
+        if (i >= ret && i >= held && i) break;
         const bthrow_row_t *r = vrow(v, th, i, &tmp);
         int16_t ot = (int16_t)dir_mul(a->throw_face, r->tx), ov = (int16_t)dir_mul(a->throw_face, r->tx + r->vx);
         if (i < ret || !i) { if (ot < otl) otl = ot; if (ot > oth) oth = ot; }
+        if (i >= held && i) continue;                           /* (the flight: thrown_edge; row 0 always) */
         if (ov < ovl) ovl = ov;
         if (ov > ovh) ovh = ov;
     }
@@ -1706,6 +1722,10 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
         if (gthrow.swap_n) {                                     /* both glide there over swap_n rows (vrow, */
             v->swn = f->swn = gthrow.swap_n;                     /* paired_update): no one-frame jump */
             v->swdx = hdx; v->swdy = hdy; f->swdx = -(int16_t)dir_mul(f->throw_face, s);
+            if (gthrow.glide_px) {                               /* the pair's own move (pair_fit's s) glides at most */
+                uint16_t n = div16((uint16_t)(s < 0 ? -s : s) + gthrow.glide_px - 1, gthrow.glide_px);   /* glide_px a */
+                if (n > f->swn) f->swn = n > 255 ? 255 : (uint8_t)n;   /* row (note 20261014-134238-5d29: no slide */
+            }                                                    /* across the screen in 4 frames) */
             if ((off0 < 0) != (off0 + hdx < 0) && hdx) v->vanc |= 2;   /* (it passes over the thrower: lifted) */
         }
     }

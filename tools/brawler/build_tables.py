@@ -1110,10 +1110,11 @@ def tables(g, build):
     ho = g.get('throw_handoff', 'release')               # throws part 1 (docs/throws_audit.md "After", gamedata.h
     assert ho in ('release', 'landing'), f"throw_handoff: 'release' or 'landing', not {ho!r}"   # gthrow_t)
     sw = g.get('throw_swap', {})
-    for k in sw: assert k in ('about', 'frames', 'arc'), f'throw_swap: unknown field {k}'
+    for k in sw: assert k in ('about', 'frames', 'arc', 'glide_px'), f'throw_swap: unknown field {k}'
     assert 0 <= sw.get('frames', 0) <= 30 and 0 <= sw.get('arc', 0) <= 64, 'throw_swap: frames 0-30, arc 0-64 px'
+    assert 0 <= sw.get('glide_px', 0) <= 64, 'throw_swap: glide_px 0-64'
     c.append(f"const gthrow_t gthrow = {{ .handoff = {'TH_LANDING' if ho == 'landing' else 'TH_RELEASE'}, "
-             f".swap_n = {sw.get('frames', 0)}, .swap_arc = {sw.get('arc', 0)} }};")
+             f".swap_n = {sw.get('frames', 0)}, .swap_arc = {sw.get('arc', 0)}, .glide_px = {sw.get('glide_px', 0)} }};")
     c += tbody_tables(g, build)                          # the thrown body (note 20261014-132326-5d29, gamedata.h gtbody_t)
     fl = g['super_flash']                                # the super flash (TODO #139): one rule for every fury
     for k in fl: assert k in ('about', 'start', 'freeze', 'white', 'anchor', 'white_colour', 'dark_colour', 'sound', 'sound_max'), f'super_flash: unknown field {k}'

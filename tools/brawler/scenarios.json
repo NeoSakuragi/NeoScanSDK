@@ -3885,5 +3885,20 @@
   "expect": "When the thrown Terry hits the floor, the two others are knocked down too (8 damage each, with a heavy hit sound and a short freeze on the impact), as in Final Fight. Players are never hit by a thrown body.",
   "do_keys": "3:Ra",
   "proof": 120
+ },
+ "20261014-134238-5d29": {
+  "title": "Kyo's throw near the screen's edge: he stays where he throws, the victim stops at the edge",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "terry",
+   "x": 200,
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Terry with the screen's right edge close in front of you. Press forward + A (Kyo's forward throw). Then try back + A with your back to the left edge, and any fighter's throws near an edge.",
+  "expect": "Kyo steps forward a little, as in KOF98, and is never slid across the screen. Terry flies forward and stops against the screen's edge, then falls there (KOF98 stops the thrown victim at the edge the same way).",
+  "do_keys": "3:Ra",
+  "proof": 120
  }
 }

@@ -127,8 +127,10 @@ extern const gchain_t gchain;
  * from there an ordinary knocked-down body, Bruno's 2026-10-08 rule) or TH_LANDING (the script plays the flight too, to
  * its landing row; the release row only starts the thrown body that hits others); swap_n / swap_arc = the throw start's
  * swap segment: over its first swap_n rows the victim travels from where it was held to the script's row 0 place (a
- * turned play, a grab drawn turned), lifted swap_arc px at its middle ---- */
-typedef struct { uint8_t handoff, swap_n, swap_arc, pad; } gthrow_t;
+ * turned play, a grab drawn turned), lifted swap_arc px at its middle; glide_px = the most px a row the pair's own
+ * start move (pair_fit: its held part kept inside the screen) glides at, over more rows than swap_n when it is longer
+ * (0: over swap_n rows; note 20261014-134238-5d29) ---- */
+typedef struct { uint8_t handoff, swap_n, swap_arc, glide_px; } gthrow_t;
 enum { TH_RELEASE, TH_LANDING };
 extern const gthrow_t gthrow;
 /* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown
