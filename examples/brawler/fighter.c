@@ -114,6 +114,10 @@ static void voice_id(const bchar_t *ch, uint8_t team, uint8_t id) {
     }
 }
 void voice_play(const bchar_t *ch, uint8_t team, uint8_t key) { voice_id(ch, team, voice_tab[ch->id][key * 2]); }
+/* the extra throw (BT_XTHROW: its throw_x, hold + B / up / down / the super one) has no key of its own in the table (its
+ * layout stands for the Lab packs): its voices are bchar_t.vmore entries under VK_XTHROW (export_bm xthrow_voices: its
+ * source's sends on its animation, Final Fight's piledriver $0B); a fighter without any plays throw_c's (voice_throw) */
+#define VK_XTHROW 0xFE
 static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */
     const uint8_t *e = voice_tab[f->ch->id] + key * 2;
     if (mute || f->state == S_PROJ) return;
@@ -535,6 +539,18 @@ static uint8_t own_sound(const fighter_t *f, uint8_t key, uint8_t idx) {
         if (*e == key) return e[1] & 0x80 ? e[2 + ((uint8_t)game_ticks & ((e[1] & 0x7F) - 1))] : idx < e[1] ? e[2 + idx] : 0;
     return 0;
 }
+/* an attack's swing (Bruno 2026-10-14, decisions ff-sounds H5: "there's a sound in Final Fight for every jab, even
+ * though it's not necessarily connecting"): every attack sends the engine's whoosh as it starts, hit or whiff, unless
+ * the fighter's data says its swings are its own (game.json roster[].swing "own", bm_hsnd key HS_SWING: the Lab pack
+ * format stands): then its voice table carries them, per animation at the step its source sends it (voices.py: Final
+ * Fight's $2F on the jab, $02 / $03 on the finisher, the jump attacks'), and an attack its source sends nothing on is
+ * silent until it hits, as there */
+#define HS_SWING 0xEE
+static uint8_t own_swing(const fighter_t *f) {
+    const uint8_t *e;
+    for (e = bm_hsnd[f->ch->id]; *e != 0xFF; e += 2 + (e[1] & 0x7F)) if (*e == HS_SWING) return 1;
+    return 0;
+}
 /* ---- jumps (tools/kof96/capture/jumps.py, KOF96/98/99 measured 2026-10-04) ------------------------------------------
  * Two heights, KOF's: C held through the prejump = the regular jump, C released before take-off = the hop (3/4 of the
  * launch speed, same gravity and horizontal speed: bphys_t, from the ROM). Each kind and direction has its own animations
@@ -552,8 +568,9 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     const rnode_t *c = NODE(f, node);
     uint8_t a = c->anim;
     if (c->flags & RF_LAB) { lab_node(f, node, how); return; }   /* a Lab chain press: a lab entry, not a move */
-    snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
-            a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);
+    if (!own_swing(f))                                           /* the engine's whoosh (KOF98's), unless its data */
+        snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
+                a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);   /* gives its attacks their own (own_swing) */
     f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
         if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : f->jump_dir ? BA_ATK_CD_JUMP_DIAG : BA_ATK_CD_JUMP;   /* KOF's
@@ -1576,6 +1593,15 @@ static uint16_t script_advance(fighter_t *f, uint16_t nrows, const bspec_t *sp) 
     }
     return from;
 }
+static void voice_throw(const fighter_t *f, uint16_t from, uint16_t to) {   /* a throw's voices, its script rows [from, to] */
+    const uint8_t *e = f->ch->vmore;
+    if (f->throw_id != BT_XTHROW) { voice_at(f, VK_THROW + f->throw_id, from, to); return; }
+    if (voice_tab[f->ch->id] == f->ch->voices)                   /* (a pack's table: throw_c's, as before) */
+        while (*e != 0xFF && e[0] != VK_XTHROW) e += 3;
+    if (voice_tab[f->ch->id] != f->ch->voices || *e == 0xFF) { voice_at(f, VK_THROW, from, to); return; }
+    if (mute || f->state == S_PROJ) return;
+    for (; *e != 0xFF; e += 3) if (e[0] == VK_XTHROW && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
+}
 /* a paired script's frame, the thrower's side (a throw: S_THROW; a hold hit: S_GRAB with srow set). Rows advance at
  * the script's speed (bthrow_t.speed, 8.8; per throw in data); an impact row passed over still lands on the frame that
  * passes it. The attached victim follows (victim_rows, placed from the thrower). Returns 0 once the thrower's part is
@@ -1586,7 +1612,7 @@ static uint8_t paired_update(fighter_t *f) {
     const bthrow_row_t *r;
     bthrow_row_t tmp;
     uint16_t j = script_advance(f, th->nrows, 0), i = f->srow - 1;
-    if (IS_THROW(f->throw_id)) voice_at(f, VK_THROW + (f->throw_id == BT_XTHROW ? 0 : f->throw_id), j, i);
+    if (IS_THROW(f->throw_id)) voice_throw(f, j, i);
     if (IS_THROW(f->throw_id) && th->fx_row != 0xFFFF && th->fx_row >= j && th->fx_row <= i && !mute) {   /* the throw
                                                                     starts: KOF96/98's effect + its sound (#166 a) */
         throw_fx(INT(f->throw_x0) + (f->throw_face > 0 ? th->fx_dx : -th->fx_dx), floor_top + INT(f->z) - th->fx_dy, f->throw_face);

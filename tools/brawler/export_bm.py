@@ -1924,7 +1924,30 @@ def voice_data(ch, n, game, pool, sps):
     mp = V.mapping(roster()[n].get('voices'), sug)
     more = V.extras(n, ks, sug, mp, [(sp['input'], p['keep']) for sp, p in zip(pool, sps) if sp['input'] not in pv])
     more = sorted(more + V.anim_extras(n, ks, sug, mp, 'win', slot_of['win']))   # the win pose's further voices (#184)
+    more += xthrow_voices(ch, n, game, mp)
     return ks, sug, mp, V.table(ks, sug, mp, len(V.bank(n)), n), more
+
+VK_XTHROW = 0xFE                                        # (fighter.c VK_XTHROW)
+def xthrow_voices(ch, n, game, mp):
+    """the extra throw's own voices (its throw_x, the hold + B / up / down / super one): [VK_XTHROW, voice id | fx, at =
+    its script row] in bchar_t.vmore (no voice table key: the table's layout stands for the Lab packs); none = it plays
+    throw_c's (fighter.c paired_update). Its source's sends on its animation (voices.py suggest, the throws' rule), where
+    the roster keeps the source's voices (mapping: a key 'throw_x' in its "set" picks one, null silences it)"""
+    th, an = ch.get('throws', {}).get(THROW_X), ch['anims'].get(THROW_X)
+    field = roster()[n].get('voices')
+    if not th or not an or not field: return []
+    st = [s['frame'] for s in an['steps']]          # (voice_data's rows: the step each script row shows)
+    k, rows = 0, []
+    for r in th['timeline']:
+        if k + 1 < len(st) and r[0] == st[k + 1]: k += 1
+        rows.append(k)
+    slot = an['slot']
+    sug = V.suggest(n, game, {}, {THROW_X: (slot, rows)}, [])
+    pick = field.get('set', {}) if isinstance(field, dict) else {}
+    if THROW_X in pick: vid, at = pick[THROW_X], (sug.get(THROW_X) or [0, 0])[1]
+    elif field == 'kof' or field.get('kof', True): vid, at = (sug.get(THROW_X) or [0, 0])
+    else: return []
+    return [[VK_XTHROW, vid | V.fx_bit(n, vid), min(255, at)]] if vid else []
 
 WINS = {}                                               # per fighter: (its win poses besides 'win', any step effect)
 def win_voices(ch, n, game, m):
@@ -2182,7 +2205,7 @@ def write_c(chars, outdir):
          'extern const uint32_t bm_srcfly[BC_COUNT];   /* (note 20261011-201729-5d29, game.json roster[].source_flight) by bchar_t.id: bit k = its specials[k] leaves the victims of its body hits on their source\'s reaction path (KOF98\'s slide and arc: fighter.c kof_react), not the brawler\'s standard arc (std_flight); the shell\'s slot 0 */',
          'extern const uint8_t bm_stage_end[BC_COUNT];   /* (note 20261011-115334-5d29, game.json roster[].stage_end_form) by bchar_t.id: the bm_chars index its stage-clear win animation turns it into (Super Billy\'s turn-back -> Billy Lee: the next stage starts as it, fighter_next_stage_ch), 0xFF = none */',
          'extern const bair_t bm_air[BC_COUNT];   /* (TODO #221) by bchar_t.id: its air specials, [input, special index] each, 0xFF ends (bchar_t.nair entries) */',
-         'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) (T5, fighter.c HS_PICK / HS_STEP: keys 0xC0 + i a pick list, 0xEF a special step\'s sound [0xEF, 4, special, animation, step, pick list i]; kept out of this header: the Lab pack format stands) */',
+         'enum { HS_HOLD = 0xF0 };   /* bm_hsnd key of a hold script: HS_HOLD + its index in bchar_t.holds (hit, fin) (T5, fighter.c HS_PICK / HS_STEP: keys 0xC0 + i a pick list, 0xEF a special step\'s sound [0xEF, 4, special, animation, step, pick list i], 0xEE HS_SWING [0xEE, 0]: its attacks\' swings are its own voices, no engine whoosh; kept out of this header: the Lab pack format stands) */',
          'extern const bair_t bm_hsnd[BC_COUNT];   /* (Kim\'s hit sounds, Bruno 2026-10-09) by bchar_t.id: its hits\' own sounds, [key, n, n sound commands] each, 0xFF ends; key = a move (BA_*: routes.py hit_sounds, a route node\'s "sound" list) or HS_HOLD + k (game.json roster[].throws.hold.sound {hit, fin}); a command per hit of the move / impact of the script, in order (fighter.c own_sound; a hit past the list: the engine\'s rule); n | 0x80: a pick list instead, one of its n (a power of two) per hit (SS2\'s impacts, export_ss2 ss2snd) */',
          'extern const bhspark_t bm_hspark[BC_COUNT];   /* by bchar_t.id (bm_spec.c: the first program MB; outside bchar_t, whose 128 bytes index by a shift) */',
          'typedef struct { int32_t vx, ax, vy, g, bvx, bvy, bg; uint8_t r, n, land, anim; } bsreact_t;   /* a source reaction (TODO #136, vocabulary reaction.source_motion; tools/kizuna/export_kz.sr_motion: Kizuna\'s reaction animations\' step commands, decoded from its hit code): the victim\'s motion when a SF_SREACT special\'s step hits it, 16.16 px a frame, x away from the attacker: vx += ax a frame while a reel slides (n frames), a flight vy -= g a frame to the floor (it lands where its next move would take it under, without moving), land frames on the floor (0xFF: none, the brawler\'s own landing), then the bounce bvx / bvy / bg; r: the victim\'s posture R_* (| 8: hittable in its flight, its source\'s reaction steps carry boxes); anim: the source\'s reaction animation (Hayate\'s, for reading) */',
@@ -2430,6 +2453,9 @@ def write_c(chars, outdir):
         for i, nm in enumerate(PICK_IDS.get(n, ())):          # (T5) the pick lists its specials' steps name: key HS_PICK + i
             pc = pick_codes(n, nm); hsnd.append((0xC0 + i, 0x80 | len(pc), pc))
         hsnd += [(0xEF, 4, list(e)) for e in HSSM.get(n, ())]  # (T5) its specials' steps' sounds: key HS_STEP (fighter.c step_sound)
+        sw = roster()[n].get('swing')                          # roster[].swing "own": its attacks' swings are its source's
+        assert sw in (None, 'own'), f'{n}: swing {sw!r} (absent = the engine\'s whoosh, "own" = its voices\' only)'
+        if sw == 'own': hsnd.append((0xEE, 0, []))             # own (voice table), no engine whoosh: key HS_SWING
         c.append(f'static const uint8_t {n}_hsnd[] = {{' + ''.join(f'{k}, {nb}, ' + ''.join(f'0x{x:02X}, ' for x in v) for k, nb, v in hsnd) + '0xFF};   /* its hits\' own sounds */')
         lab['fighters'].append({'id': ci, 'game': game, 'name': n, 'tree': tree, 'default': R.default_tree(), 'has': sorted(has), 'routes_file': roster()[n]['routes'] is not None,
                                 'moves': {m: R.frame_data(source(ch, m)['steps']) for m in R.MOVE_NAMES if m in has},

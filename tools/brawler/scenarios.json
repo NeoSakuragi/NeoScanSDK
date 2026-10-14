@@ -3867,5 +3867,45 @@
   "expect": "A white card with the game's kanji and English name (気力鍛錬の行 / 超必殺技伝授), the announcer reads it, then the gong.",
   "do_keys": "140:-,4:a",
   "proof": 360
+ },
+ "20261014-132437-5d29": {
+  "title": "Haggar: his scream on the jump down + A dive",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 200
+  },
+  "do": "Jump (B) and press down + A in the air, far from the dummy.",
+  "expect": "Haggar screams as the dive starts (Final Fight's own scream for it, $0A), hit or miss; no KOF whoosh with it.",
+  "do_keys": "12:b,10:-,4:Da,60:D",
+  "proof": 60
+ },
+ "20261014-132458-5d29": {
+  "title": "Haggar: his scream on the jump kick (dropkick)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 200
+  },
+  "do": "Jump (B) and press A in the air; then jump forward (forward + B) and press A.",
+  "expect": "Haggar shouts as the dropkick starts (Final Fight's $08), in both jumps, hit or miss; no KOF whoosh with it.",
+  "do_keys": "4:b,10:-,4:a,60:-,4:Rb,10:R,4:Ra,60:-",
+  "proof": 40
+ },
+ "20261014-132621-5d29": {
+  "title": "Haggar: the piledriver's own voice",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold the dummy. Press B (also try forward + B and back + B; and forward / back + A for the backdrop).",
+  "expect": "The piledriver plays Final Fight's piledriver shout ($0B) as the slam starts, 5 frames after the jump, in all three; the backdrop's shout ($07) only on forward / back + A. Before, the piledriver played the backdrop's shout.",
+  "do_keys": "3:b",
+  "proof": 160
  }
 }
