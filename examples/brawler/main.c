@@ -1210,13 +1210,19 @@ static void blk_check(uint8_t i, fighter_t *f, uint8_t m, int32_t b) {
 static void draw(void) {
     uint8_t i;
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
-    for (i = 0; i < nf; i++)
-        if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
-            uint8_t bc = blk_cols, ob = BANK_set(CH_BANK(order[i]->ch));   /* its frames: its bank (fighter.h) */
-            blk_new[order[i]->idx] = order[i]->shown_frame == 0xFFFF;   /* (CPU budget D: rewritten in place) */
-            blk_cols = block_w(order[i]); trim_cur = &col_trim[order[i]->idx]; fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
-            BANK_set(ob);
+    {   uint8_t bc = blk_cols, ob = neo_bank, w;             /* (CPU budget D: one pass, the bank put back once) */
+        fighter_t **o = order, **oe = order + nf;
+        for (; o < oe; o++) {
+            fighter_t *f = *o;
+            if (f->state == S_OFF || (f->state == S_PROJ && f->frame_ovr == 0xFFFF)) continue;
+            w = bc != MAX_COLS || f < projectiles || f >= projectiles + NPJ ? bc : pj_w[f->idx - NF];   /* (block_w) */
+            if (!w) continue;
+            BANK_set(CH_BANK(f->ch));                            /* its frames: its bank (fighter.h) */
+            blk_new[f->idx] = f->shown_frame == 0xFFFF;          /* (CPU budget D: rewritten in place) */
+            blk_cols = w; trim_cur = &col_trim[f->idx]; fighter_tiles(f);   /* clipped to its block */
         }
+        blk_cols = bc; BANK_set(ob);
+    }
     mark(P_TILES);
     if (pal_pend) pal_pend_tick();                           /* (after the tiles: their columns) */
     if (land_on) { land_draw(); land_clip(1); }             /* the select: the Neo Geo Land, the actors' columns off screen */
@@ -1229,42 +1235,45 @@ static void draw(void) {
             block_placed[i] = 0;
         }
     if (mode != 1 || land_on) { blk_key_reset(); bg_ok = 0; }   /* (the caches: the fight's blocks and stage only) */
-    for (i = 0; i < NA; i++) {
-        fighter_t *f = order[i];
-        uint8_t vis = i < nf && !hidden[i], n = vis ? f->ncols : 0, m = n > block_placed[i] ? n : block_placed[i];
-        uint16_t spr = slot_spr[i], *y, *x;
-        if (m) {
-            if (vis) {
-                int32_t fy = f->y, b = run_bob(f);
-                uint32_t pos = (uint32_t)(uint16_t)(INT(f->x) - cam_x) << 16 | (uint16_t)(floor_top + INT(f->z) - INT(fy + b)),
-                         frm = (uint32_t)f->shown_frame << 8 | (uint8_t)f->facing, sm = (uint32_t)spr << 8 | m;
+    {   uint8_t ob = neo_bank, keep = mode == 1 && !land_on;
+        for (i = 0; i < NA; i++) {
+            fighter_t *f = order[i];
+            uint8_t n = 0, m;
+            uint16_t spr = slot_spr[i], *y, *x;
+            if (i < nf && !hidden[i]) {                          /* visible */
+                int32_t fy = f->y, b = f->state == S_RUN ? run_bob(f) : 0;
+                uint32_t pos, frm, sm;
+                n = f->ncols; m = n > block_placed[i] ? n : block_placed[i];
+                if (!m) goto next;
+                pos = (uint32_t)(uint16_t)(INT(f->x) - cam_x) << 16 | (uint16_t)(floor_top + INT(f->z) - INT(fy + b));
+                frm = (uint32_t)f->shown_frame << 8 | (uint8_t)f->facing; sm = (uint32_t)spr << 8 | m;
                 if (bk_f[i] == f && bk_pos[i] == pos && bk_frm[i] == frm && bk_sm[i] == sm) {
 #if BLK_CHECK
                     blk_check(i, f, m, b);
 #endif
-                    block_placed[i] = n; block_spr[i] = spr; continue;
+                    goto next;
                 }
                 y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
-                {   uint8_t ob = BANK_set(CH_BANK(f->ch));
-                    f->y += b;                                   /* (the run's float: drawn only, the shadow on the floor) */
-                    trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob);
-                    f->y = fy;
-                }
-                bk_f[i] = mode == 1 && !land_on && f->shown_frame != 0xFFFF && !blk_new[f->idx] ? f : 0;   /* (thinned this
-                                                                    frame: its trims come back next frame) */
+                BANK_set(CH_BANK(f->ch));
+                f->y += b;                                       /* (the run's float: drawn only, the shadow on the floor) */
+                trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m);
+                f->y = fy;
+                bk_f[i] = keep && f->shown_frame != 0xFFFF && !blk_new[f->idx] ? f : 0;   /* (thinned this frame: its
+                                                                    trims come back next frame) */
                 bk_pos[i] = pos; bk_frm[i] = frm; bk_sm[i] = sm;
 #if BLK_CHECK
                 { uint8_t c; for (c = 0; c < m; c++) { blk_sy[i][c] = y[c]; blk_sx[i][c] = x[c]; } }
 #endif
-            }
-            else {
+            } else if ((m = block_placed[i])) {                  /* hidden or none: its sprites height 0 */
                 uint8_t c;
                 y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
                 for (c = 0; c < m; c++) y[c] = x[c] = 0;
                 bk_f[i] = 0;
             }
+        next:
+            block_placed[i] = n; block_spr[i] = spr;
         }
-        block_placed[i] = n; block_spr[i] = spr;
+        BANK_set(ob);
     }
     if (land_on) land_clip(0);                               /* their trims back */
     else if (mode != 6) shadows();                           /* (the select's land holds the shadows' sprites; AOF2's bonus screens, mode 6, theirs) */
