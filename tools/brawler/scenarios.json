@@ -9,9 +9,9 @@
    "drive": "full",
    "fury": "full"
   },
-  "do": "Press down + C next to Ryo (both kicks of the scissors kick) and watch him fly and fall. Then press C while he is still in the air.",
+  "do": "Press down + C next to Ryo, then down + C again as Kyo rises from the first kick (both kicks of the scissors kick) and watch Ryo fly and fall. Then press C while he is still in the air.",
   "expect": "Ryo rises and falls in a plain, even arc, as after the chain's launchers: he stays on screen and lands a short way off, no slow float up out of the screen. C while he falls still hits him in the air.",
-  "do_keys": "2:Dc,64:-,2:c",
+  "do_keys": "2:Dc,14:-,2:Dc,48:-,2:c",
   "proof": 90
  },
  "20261006-194211-5d29": {
@@ -3979,5 +3979,21 @@
   "expect": "His legs keep pace with the ground: each run frame shows about 4-5 frames (it flipped every 3 before), so his stride covers the floor as in SS2 instead of spinning. Every fighter's run slowed the same way (the walk keeps its 1.5x pace); the dashes (Kim, Cheng-Fu, Billy) and Haggar are unchanged.",
   "do_keys": "1:R,1:-,90:R",
   "proof": 30
+ },
+ "20261014-142848-5d29": {
+  "title": "Kyo's scissors kick: the second kick comes on a second down + C, as late as you press it",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "ryo",
+   "x": 16,
+   "gap": 280,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press down + C (Ryo is far: the kicks miss) and again at once, during the first kick. Then down + C, and the second down + C late, near the top of the jump.",
+  "expect": "An early second press: the second kick as soon as the jump allows. A late one (up to the top of the jump): Kyo rises a moment longer, then kicks, as in KOF98 (where both kicks are D). Without a second press he lands from the jump with no second kick.",
+  "do_keys": "2:Dc,14:-,2:Dc,90:-,2:Dc,24:-,2:Dc",
+  "proof": 90
  }
 }

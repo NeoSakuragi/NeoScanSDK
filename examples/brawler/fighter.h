@@ -524,6 +524,9 @@ typedef struct fighter {
     uint8_t  mash, spmash;        /* a mash (vocabulary input.mash, TODO #220, fighter.c MASH_GAP): frames left for the
                                    * next press to count as one (from the special's start, again from each one read);
                                    * spmash: this frame's link presses made inside that window (P_CHECK b 2) */
+    uint8_t  spbuf, spage;        /* a ROM special's buffered link presses (P_CHECK b 3, handlers98 FOLLOW_READ, note
+                                   * 20261014-142848-5d29): the links pressed since the special started and the frames
+                                   * of its program since the last one (KOF's input path delay as a buffer) */
     uint8_t  vsigp, vspad;        /* its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220) */
     /* the chain core (revamp 1A, fighter.c "chain core"): buf_age = frames since the buffered press (hit-stop frames not
      * counted: a press in the freeze is latched), the attack buffer's age; jug_n = air hits taken in this juggle (the cap,

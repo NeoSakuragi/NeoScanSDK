@@ -186,12 +186,13 @@ export_bm `link_c`; the program decides when it counts: `P_CHECK` on the frames 
 | Iori ufD (214A Aoi Hana) | 214 + A / C, twice (parts 2, 3) | `again` = up-forward + C, twice |
 | Iori uD (623D Kototsuki In) | on hit / block only: 214 + A / C during the kick's hit-stop -> Aoi Hana (A) at the landing, then its two parts | `again` = up + C in the hit-stop, then twice more |
 | Kyo fD (236C Dokugami) | 63214 + A / C -> Tsumi Yomi; then 6 + A / C -> Batsu Yomi | `again` = forward + C; then `fA` = forward + A |
+| Kyo dD (236D 75 Shiki Kai) | B / D pressed during the jump's rise (145), up to its apex: the second kick (148) on the rise's $0080 step or at once past it (a late press = a visible delay, up to 7 frames); none: the jump lands without it (handlers98 FOLLOW_READ, note 20261014-142848-5d29) | `again` = down + C, made in the rise or up to 6 program frames before it (P_CHECK b 3: KOF's 6-frame input path delay as a buffer) |
 | K' D (236C Ein Trigger) | 6 + B -> state 134; 6 + D -> state 135 | `fA` = forward + A; `fAB` = forward + C (the token keeps the old name) |
 | K' dD (623C Crow Bites) | 6 + B or D during the rise -> 146 / 147 (the same part) | `fA` or `fAB` |
 
 `again` = the slot's own input (C + its direction). Every other slot special of the three (and their furies) has no follow-up in the
 ROM (brute force in our emulator, whiff / hit / block). Proof: `tools/brawler/followups_proof.py` (game vs model,
-brawler vs model, both facings), `romspecials_check.py` with `+LINK@T` cases.
+brawler vs model, both facings), `romspecials_check.py` with `+LINK@T` cases; Kyo dD: `tools/brawler/scissor5d29_proof.py`.
 
 
 ## Chains: the chain core (revamp phase 1A, 2026-10-08; docs/brawler_feel.md 8h, docs/brawler_revamp_plan.md 1A)

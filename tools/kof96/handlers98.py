@@ -114,22 +114,25 @@ FOLLOW_MASH = {('kof98', 0x4FD46): {'at': 0x4FE2E, 'field': 0xD6}}
 # set, replays the flurry, +$32 counting the replays down (4 DM / 8 MAX), then the finisher. The decode reads the latch
 # as set at every test: the flurry plays 1 + 4 / 1 + 8 times (KOF98 mashed: 13 hits DM, 23 MAX), no button read
 FOLLOW_MAXED = {('kof98', 0x64B9C): (0xD1, 7)}
-FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again']}   # the brawler's press per
+FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again'], 'press': ['again']}   # the brawler's press per
                                                                   # link (export_bm link_c)
 FOLLOW_LAG = {'kof98': 4, 'kof99': 5}
 # KOF98's $1ED30 reads the stick and the buttons of the input record (fp), 6 frames after the button (brute force, TODO
 # #140: Kyo 236C's 6A presses 20..40 switch at press + 6); a part's input clear ($24F52 / $176AE, ('clrinput',)) drops
 # a press made before it that the handler has not read yet
-FOLLOW_LAG_KIND = {'fP': 6}
+FOLLOW_LAG_KIND = {'fP': 6, 'press': 6}   # (press: Kyo 236D's $3C90E, a press at t switches at max(20, t + 6), brute force 2026-10-14)
 # a follow-up that starts another special's handler reads that special's button from its command (Iori 623D -> 214A's
 # $70E48: a3@(125), 214's buttons): the brawler's version = its own slot's (214A: A, $10)
 FOLLOW_BTN = {('kof98', 0x70E48): 0x10}
-# a follow-up press played as made (Bruno's rule for Yashiro's mash, FOLLOW_MAXED, here for a button read in the frame
-# loop: Kyo's notes 20261011-175124-5d29, "the scissors kick of regular Kyo with the D button" = 75 Shiki Kai's both
-# kicks): the read of this frame's buttons at that address returns the special's own button, so the walk takes the
-# continuation (KOF98 Kyo 236B / D $3C7D6: `move.b fp@(1), d0; andi.b #$A0` in the jump -> +$D2 = 1, the second kick
-# +$C4 on the next event step)
-FOLLOW_PRESSED = {('kof98', 0x3C90E)}
+# an inline press read in a handler's frame loop (note 20261014-142848-5d29, Kyo's 75 Shiki Kai: "D for both kicks, with
+# the source's delay before the 2nd"): `move.b fp@(1), d0; andi.b #mask, d0; beq` at that address = the buttons pressed
+# THIS frame (KOF98 Kyo 236B / D $3C7D6 at $3C90E: B or D, $A0, the same second kick for either; read on every frame of
+# the jump's rise 144 / 145 from its first to the apex, the press switching to the second kick 147 / 148 on the jump's
+# $0080 step or at once past it, measured in our emulator: tools/brawler/scissor5d29_proof.py). It becomes ('check',
+# mask) of link 'again' (the move's own input pressed again) and the beq a link test: the brawler's press starts the
+# second kick when made; none by the apex, the jump lands without it. (Was FOLLOW_PRESSED: the press
+# assumed made, both kicks back to back, note 20261011-175124-5d29)
+FOLLOW_READ = {('kof98', 0x3C90E)}
 # a3 in a special's frame code (KOF98): the speed record its wall-slam's jump back loads (`move.l 30(a3), +$50`, +$54
 # friction, +$58 vy, +$5C gravity; TODO #173). Not a pointer the decoder sees: measured in our emulator (Rugal 624A's
 # jump back after the slam, state 169: vx -10.3125, friction $E900, vy 4.125, gravity 0.6055 = the ROM's $AC88E..$AC89D)
@@ -310,7 +313,6 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
         if field(o, 'a3') is not None or o.startswith('%fp@'):           # the buttons pressed (a3 = the input record): the
             PROBE.append((cur[0], o, resumed[0]))
             if resumed[0] and (dec.game, cur[0]) in FOLLOW_BTN: return FOLLOW_BTN[(dec.game, cur[0])]
-            if resumed[0] and (dec.game, cur[0]) in FOLLOW_PRESSED: return F.get(0x1A4, 1, False)   # (pressed again)
             if nofollow and o.startswith('%fp@'): return 0               # (a part alone: no button pressed this frame)
             return 0 if resumed[0] else F.get(0x1A4, 1, False)           # special's own on its first frame, then none
         if o == '%a0@' and isinstance(A0, int) and A0 < 0x100000:       # a ROM table (a state list: +$32 / +$C2 pointers)
@@ -552,6 +554,12 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             elif o[0].startswith('%d') and isinstance(D.get(o[0]), int): cc = ('val', D[o[0]])
             else: cc = ('f%X' % (f if f is not None else -1), 'N')
             a = nx; continue
+        if mn == 'moveb' and (dec.game, a) in FOLLOW_READ and o[0].startswith('%fp@'):   # an inline press read
+            if nofollow: D[o[1]] = 0; cc = ('val', 0); a = nx; continue  # (a part alone: no press)
+            follow[0] = follow[0] or 'press'; mk = lmask('press'); emit(a, 'check', mk, 'buf', llag['again'])
+            D[o[1]] = ('link', mk); cc = (f'link:{mk}', 'Zinv'); a = nx; continue
+        if base == 'andi' and o[1].startswith('%d') and isinstance(D.get(o[1]), tuple) and D[o[1]][0] == 'link':
+            cc = (f'link:{D[o[1]][1]}', 'Zinv'); a = nx; continue      # (its buttons: the brawler's link press)
         mash = FOLLOW_MASH.get((dec.game, dec.top)) if depth == 0 else None
         if mn == 'btst' and mash and a == mash['at']:            # the mash check (FOLLOW_MASH): a press of its button now
             follow[0] = follow[0] or 'mash'; mk = lmask('mash'); emit(a, 'check', mk, 'now')   # (this frame's press:

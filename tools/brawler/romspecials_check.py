@@ -42,7 +42,9 @@ FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   
               ('kyo', 'again'): [(-8, 2, 'R'), (-6, 2, 'DR'), (-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   # 63214A (236C)
               ('kyo', 'fA'): [(-2, 2, 'R'), (0, 6, 'Ra')],                                          # 6A (236C's 2nd)
               ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')],
-              ('ralf', 'again'): [(0, 3, 'a')]}                                                    # AAAA's mash (TODO #220)
+              ('ralf', 'again'): [(0, 3, 'a')],                                                    # AAAA's mash (TODO #220)
+              ('kyo', 'again', '236D'): [(0, 2, 'd')]}             # 75 Shiki Kai's second kick: D again (B too; handlers98
+                                                                  # FOLLOW_READ, note 20261014-142848-5d29)
 FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
@@ -212,7 +214,8 @@ def main(game, out, cases):
             pool = [p['input'] for p in fi['pool']].index(inp)
         kg, cid = cid if isinstance(cid, tuple) else ('kof98', cid)
         links = prog_links(kg, cid, inp) if fus else []
-        kfol = [(t, FOLLOW_KOF[(name, l)], 1 << links.index(l)) for l, t in fus]
+        kfol = [(t, FOLLOW_KOF.get((name, l, inp)) or FOLLOW_KOF[(name, l)], 1 << links.index(l)) for l, t in fus]   # (keyed by
+                                                         # the input too where a fighter's moves read different presses)
         bpad = [((ROLES[role].split(':')[1], 0) if l == 'again' else FOLLOW_PAD[l]) for l, t in fus]
         for branch in BRANCHES:
             tag = f'{name}_{"MAX" if sdm else ""}{inp.replace(" ", "").replace("[", "c").replace("]", "")}' + ''.join(f'+{l}{t}' for l, t in fus) + (f'_h{hold}' if hold else '') + f'_{branch}'

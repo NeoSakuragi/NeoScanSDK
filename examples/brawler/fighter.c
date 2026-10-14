@@ -2415,7 +2415,7 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
             return;
         }
         for (k = 0; k < sp->nlinks && k < 8; k++) if (link_in(f, &sp->links[k], in)) {
-            f->spend |= 1 << k;
+            f->spend |= 1 << k; f->spbuf |= 1 << k; f->spage = 0;
             if (f->mash && f->freeze <= MASH_LAG) f->spmash |= 1 << k;   /* (inside the mash window) */
             if (f->freeze) f->phl |= 1 << k;                     /* made in a hit-stop: latched (P_CHECK b) */
         }
@@ -2508,7 +2508,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].sflags & SF_INV) f->inv = INV_FURY;   /* a move the roster makes invincible (game.json
                                                                     roster[].invincible, Bruno: Kyo's EX 421D, TODO #202):
                                                                     the fury's rule, from its first frame to its end */
-    f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = 0;   /* its first part, no follow-up armed, no hit */
+    f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = f->spbuf = 0; f->spage = 0xFF;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
     f->fpose = 0;                                                /* a fury's flash pose: not yet ("flash pose") */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
@@ -3470,6 +3470,11 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
                 if (m) f->mash = MASH_GAP;
                 break;
             }
+            if (p->b == 3) {                                     /* (b 3: or one made in its last v program frames:
+                                                                    KOF's input path delay as a buffer, Kyo's 75 Shiki
+                                                                    Kai's second kick, note 20261014-142848-5d29) */
+                f->plink |= (f->spend | (f->spage <= v ? f->spbuf : 0)) & p->a; break;
+            }
             f->plink |= (p->b ? f->phl : f->spend) & p->a; break;   /* the follow-up check: this frame's presses
                                                                     of links a (b: those made in its last hit-stop, KOF
                                                                     +$1AC: Iori 623D's landing, TODO #140) */
@@ -3516,6 +3521,7 @@ frame_done:
     if (f->pvl_n && !--f->pvl_n) prog_voice(f, f->pvl_id);    /* a voice sent later: KOF counts +$1B6 down after the
                                                                     code, the frame it was set included (KOF98 $17074) */
     f->spend = f->spmash = 0;                                    /* a press counts on the frame it is read */
+    if (f->spage < 0xFF) f->spage++;                             /* (P_CHECK b 3: its age) */
     for (n = 0; n < 2; n++) {                                    /* its pinned effects follow this frame's move */
         fighter_t *p = f->proj[n];
         if (p && p->pdef && p->pdef->follow) { p->throw_x0 = pin_of(p)->x; p->facing = f->facing; proj_row(p); }

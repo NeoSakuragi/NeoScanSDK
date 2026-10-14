@@ -1110,8 +1110,10 @@ def rom_c(n, k, sp, game, vres=None):
             reg = P_REGS[op[1]]; ops.append((c, reg, 0, round(op[2] * 65536) if reg < 3 else int(op[2])))
         elif op[0] == 'nudge': ops.append((c, 0, round(op[1]), round(op[2])))
         elif op[0] == 'br': ops.append((c, op[1] | op[2] << 7, -1 if op[3] == 'yield' else op[3], op[4] if len(op) > 4 else 0))
-        elif op[0] == 'check': ops.append((c, op[1], {'hl': 1, 'now': 2}[op[2]] if len(op) > 2 else 0, 0))   # b 1: the presses
-                                                       # of its hit-stop; 2: none of them (a mash, TODO #220)
+        elif op[0] == 'check': ops.append((c, op[1], {'hl': 1, 'now': 2, 'buf': 3}[op[2]] if len(op) > 2 else 0, op[3] if len(op) > 3 else 0))   # b 1: the presses
+                                                       # of its hit-stop; 2: none of them (a mash, TODO #220); 3: one
+                                                       # made in the last v frames too (handlers98 FOLLOW_READ, note
+                                                       # 20261014-142848-5d29: KOF's input path delay as a buffer)
         elif op[0] == 'sigclr': ops.append((c, 0, 0, op[1]))
         elif op[0] in ('resume_at', 'jmp'): ops.append((c, 0, op[1], 0))
         elif op[0] == 'onhit': ops.append((c, op[2] if len(op) > 2 else 0, op[1], 0))   # a: the catch's hit-stop (its dead frames - 1)
