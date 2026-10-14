@@ -32,7 +32,11 @@ STATE = '/data/tmp/t7/aof2_sel.state'
 OUT = '/data/neogeo_dict/aof/rip'
 HSK = ['R', 'L', 'DL', 'D', 'DR', 'Ra']             # the Super Haoh Shoko-ken: forward, back, down-back, down, down-forward, forward + A
 GAMES = {                                             # name: (choice on the select screen, frames dumped, P1's inputs after the choice)
-    'spirit': (0, list(range(200, 1000, 50)), '600:-,4:a,3000:-'),
+    'spirit': (0, list(range(200, 1000, 50)), '600:-,4:a,3000:-'),   # (a failed run: grade 0, the tree stands)
+    # the top grade (note 20261014-133606-5d29): A at 541 = power >= 120 (grade 5, BONUS 10000, song $2D): the punch mark
+    # at 700 / 714, the cracked tree (sprites 225-237) from 730, its top falling (225-239) from 760, the fallen crown
+    # (225-243) squashed at 790 / 796 and swaying from 798 (make_bonus.py 'fall'); A at 537 = grade 4: the tree stands
+    'spirit_top': (0, list(range(690, 1000, 2)), '537:-,4:a,3000:-'),
     'posts': (2, list(range(150, 1500, 6)), '300:-,' + ','.join(f'4:{k}' for k in HSK) + ',40:-,' + (','.join(f'4:{k}' for k in HSK) + ',60:-,') * 14 + '3000:-'),
 }
 

@@ -59,7 +59,8 @@ def commands(z=None):
 USED = {0x2F: 'swing (jab)', 0x00: 'hit', 0x02: 'Guy finisher swing', 0x03: 'Cody / Haggar finisher swing, Cody finisher hit',
         0x09: 'Haggar finisher hit', 0x01: 'knee, Guy finisher hit', 0x06: 'headbutt', 0x04: 'Guy / Cody throw',
         0x07: 'backdrop', 0x0B: 'piledriver', 0x0D: 'body on the floor', 0x0C: 'Guy special', 0x1C: 'Cody special',
-        0x1D: 'Haggar special', 0x05: 'Guy flying knee', 0x1B: 'Cody flying knee'}
+        0x1D: 'Haggar special', 0x05: 'Guy jump attack', 0x1B: 'Cody jump attack', 0x08: 'Haggar jump attack',
+        0x0A: 'Haggar dive (jump + down + attack)'}
 
 _V = None
 GAIN = 1216 / 2048     # the phrases' level into the ADPCM-A encoder: FF's phrases peak at the OKI's full scale (2048, hard

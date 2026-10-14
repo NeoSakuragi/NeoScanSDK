@@ -27,6 +27,8 @@ class Proof:
         self.b = H.Brawler(game=game); self.b.game = game
         self.names = scenario.roster(game); self.fails = 0; self.shots = []
         self.G = json.load(open(os.path.join(game, 'game.json')))['bonus']
+        import re
+        self.mus = {n: int(v, 16) for n, v in re.findall(r'#define MUS_(\w+) +0x([0-9A-F]+)', open(os.path.join(game, 'build', 'snd', 'songs.h')).read())}
 
     def r(self, n, size=1):
         v = self.b.r(self.b.syms[n], size); return v - 65536 if size == 2 and v > 32767 else v
@@ -82,11 +84,18 @@ class Proof:
             k = self.until(lambda: abs(self.r('bn_power') - want) <= ki['step'] and lo <= self.r('bn_power') + ki['step'] < hi, 400)
             self.b.run(1, p1='a'); self.b.run(30)
             if g in (0, 5): self.shot(f'tree_g{g}_hit', f'tree grade {g}: the blow')
-            self.b.run(60)
+            win = g >= ki.get('win_grade', 5)
+            if win:                                 # (AOF2's top grade: the tree breaks, note 20261014-133606-5d29)
+                self.b.run(40); self.shot(f'tree_g{g}_fall', f'tree grade {g}: the top falling')
+                self.b.run(36); self.shot(f'tree_g{g}_crown', f'tree grade {g}: the crown landed')
+            t = self.until(lambda: self.r('bonus_on') == BN['end'], 300); self.b.run(2)
             got, c1 = self.r('bn_grade'), self.r('drive_chunks')
             self.shot(f'tree_g{g}', f'tree grade {g}: result')
             add = min(ki['chunks'][g], 4 - c0)
             self.check(k >= 0 and got == g and c1 == c0 + add, f'tree: pressed at power ~{want}: grade {got} (want {g}), drive chunks {c0} -> {c1} (want +{add})')
+            song = self.r('snd_song'); want_s = self.mus['BONUS_WIN' if win else 'BONUS_OVER']
+            self.check(t >= 0 and song == want_s and (self.r('bn_fall_t', 2) > 0) == win,
+                       f"tree grade {g}: {'passed' if win else 'failed'} as AOF2: song ${song:02X} (want ${want_s:02X} {'won' if win else 'failed'}), the tree {'falls' if self.r('bn_fall_t', 2) else 'stands'}")
         # the bar after the reward, in the next stage
         self.b.run(400)
         self.check(self.r('bonus_on') == BN['off'] and self.r('mode') == 1 and self.r('camp') == 1, 'tree: the next stage (stage 2) after the result')
@@ -123,11 +132,13 @@ class Proof:
         self.b.run(20); self.shot('posts_win', 'posts won: the result')
         self.check(lock0 == 1 and left == 0 and self.r('fury_lock') == 0 and self.r('bonus_on') == BN['end'],
                    f'posts win (terry, D): locked before ({lock0}), {posts["count"] - left} / {posts["count"]} broken in {t} ticks, unlocked after ({self.r("fury_lock") == 0})')
+        self.check(self.r('snd_song') == self.mus['BONUS_WIN'], f"posts win: AOF2's won song (${self.r('snd_song'):02X}, want ${self.mus['BONUS_WIN']:02X})")
         self.lock_check('d_unlocked', want_fury=True)
         lock0, t, left = self.play_posts('terry', False, shots=True)
         self.b.run(20); self.shot('posts_fail', 'posts failed: TIME OVER')
         self.check(lock0 == 1 and left == posts['count'] and self.r('fury_lock') == 1 and self.r('bonus_on') == BN['end'],
                    f'posts fail (terry, A only): {posts["count"] - left} broken, the clock ran out, still locked ({self.r("fury_lock")})')
+        self.check(self.r('snd_song') == self.mus['BONUS_OVER'], f"posts fail: AOF2's failed song (${self.r('snd_song'):02X}, want ${self.mus['BONUS_OVER']:02X})")
         self.lock_check('d_locked', want_fury=False)
 
     def lock_check(self, name, want_fury):

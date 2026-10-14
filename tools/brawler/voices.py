@@ -811,11 +811,20 @@ def lastbld2_list(rname, name, cid):
 # ---- Final Fight (CPS1, tools/ffight, 2026-10-14): the 68000 sends one byte per sound to the Z80 (ring at a5+388,
 # measured per action by rec_ff.py), the Z80's table turns it into an OKI phrase (oki_ff.commands); the phrases are
 # re-encoded as ADPCM-A (oki_ff.vrom: the 'ffight' V bank, page 0 empty), cmd = '00' + the 68000's byte. Voices: the
-# swing on every chain link's first step, the special's shout at its start, the throw's sound at its start ----
+# jab's swing, the finisher's, the jump attacks', each at its animation's start (hit or whiff), the special's shout at
+# its start, the throw's sound where FF sends it ----
+# Measured (rec_ff.py 'snd', /data/tmp/ffight/rec, 2026-10-14): every sound is sent on the frame its animation starts,
+# hit or whiff (whiff: $2F at the jab's first frame; chain_back: a whiffed jab mashed after the knockdown sends $2F each
+# time; jatk_*: the jump attacks' sounds in the air, no one in reach); the hits' own sounds ($00 / $01 / $09 / $06 / $0D)
+# are the hit effects (songs.json sfx C1-C6). FF sends nothing else on an attack: no engine whoosh (roster "swing": "own").
 FF_SWING = {'guy': [0x10258], 'cody': [0x120E4], 'haggar': [0x1397C]}       # the jab's swing ($2F; links 3 / 4 have none)
 FF_FINISH = {'guy': (0x02, 0xFCE2), 'cody': (0x03, 0x12240), 'haggar': (0x03, 0x13A94)}   # the finisher's heavy swing
 FF_SPECIAL = {'guy': 0x0C, 'cody': 0x1C, 'haggar': 0x1D}
-FF_THROW = {'guy': [(0x04, 0x10480)], 'cody': [(0x04, 0x118C0)], 'haggar': [(0x07, 0x13BFA), (0x0B, 0x13450)]}
+FF_JUMP = {'guy': [(0x05, 0xFEFA), (0x05, 0xFE16)], 'cody': [(0x1B, 0x11E16), (0x1B, 0x11D1A)],   # the jump attacks (jatk_n /
+           'haggar': [(0x08, 0x13558), (0x0A, 0x134B0)]}   # jatk_f; Haggar's dive jatk_d $0A; Guy's / Cody's dives: none)
+FF_THROW = {'guy': [(0x04, 0x10480, 0)], 'cody': [(0x04, 0x118C0, 0)],   # (command, the throw's animation, its step)
+            'haggar': [(0x07, 0x13BFA, 0), (0x0B, 0x13450, 1)]}   # backdrop: both directions; piledriver: as the slam
+                                                    # (13D0E) starts, 5 frames after the jump (13450) = the throw's step 1
 FF_LEVEL = 0xDC                                   # both outputs, KOF98's usual voice level ($1C: Terry's 18 of 21 voices)
 def _ff():
     sys.path.insert(0, os.path.join(TOOLS, 'ffight')); import oki_ff
@@ -828,8 +837,12 @@ def ffight_list(rname, name, cid):
     O = _ff(); v, idx = O.vrom()
     lst = [(0x2F, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': 0} for a in FF_SWING[name]]),
            (FF_FINISH[name][0], [{'kind': 'anim', 'slot': FF_FINISH[name][1], 'states': [FF_FINISH[name][1]], 'step': 0}]),
-           (FF_SPECIAL[name], [{'kind': 'special', 'input': 'AJ', 'at': 0}])] + \
-          [(c, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': 0}]) for c, a in FF_THROW[name]]
+           (FF_SPECIAL[name], [{'kind': 'special', 'input': 'AJ', 'at': 0}])]
+    for c, a in FF_JUMP[name]:                    # (one voice per command, its animations its uses)
+        u = {'kind': 'anim', 'slot': a, 'states': [a], 'step': 0}
+        if lst[-1][0] == c: lst[-1][1].append(u)
+        else: lst.append((c, [u]))
+    lst += [(c, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': s}]) for c, a, s in FF_THROW[name]]
     out = []
     for k, (c, uses) in enumerate(lst, 1):
         seg = [list(idx[c])]

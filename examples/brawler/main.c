@@ -2590,17 +2590,24 @@ _Static_assert(BONUS_TREE == 0 && BONUS_POSTS == 1, "build_tables.py BONUS_SCENE
 #define BN_POST_SPR (SPR_BASE - 4)               /* behind: the post (4 columns, 55-58; the shadows then 43-52) */
 #define BN_LEAVES   15
 #define BN_PIECES   BONUS_N_PIECE
-#define BN_LEAF_SPR (BN_FRONT + 2 * BN_PIECES)   /* 312-326 */
-#define BN_MARK_SPR (BN_LEAF_SPR + BN_LEAVES)    /* 327-331 */
+#define BN_FALL_SPR BN_FRONT                     /* the tree game's falling tree (BONUS_FALL_MAXW columns, in front of
+                                                    the fighter as AOF2's 225-243; the posts game's splinters there) */
+#define BN_LEAF_SPR (BN_FRONT + (2 * BN_PIECES > BONUS_FALL_MAXW ? 2 * BN_PIECES : BONUS_FALL_MAXW))   /* 319-333 */
+#define BN_MARK_SPR (BN_LEAF_SPR + BN_LEAVES)    /* 334-338 (bonus_off hides BN_FRONT .. + 48) */
 #define BN_FEET_Z   10                           /* the fighter's lane: feet at the scene's floor_top + 10 (AOF2's) */
 #define BN_TREE_X   124                          /* the fighter's world x in front of the tree / before the posts */
 #define BN_POSTS_X  90
 #define BN_END_T    300                          /* ticks of the result before the next stage */
+#define BN_FALL_LEAP 62                          /* the fall's tick the fighter leaps back (AOF2: Ryo at ~762, mark 700) */
+#define BN_FALL_RESULT 150                       /* a passed gauge game's result: the blow (12) + the fall to the crown's
+                                                    landing (AOF2: 98 frames) + 40 */
 static uint8_t bn_game, bn_cur, bn_lead, bn_lock0;
 static void centre(uint8_t row, const char *t);
 static uint16_t bn_t, bn_clock, bn_shown_clock;
 static const gbonus_game_t *bn_g;
 static uint8_t bn_power, bn_grade, bn_hit_t, bn_gain;   /* the gauge game: power, grade, ticks since the press (0: none) */
+static uint8_t bn_pass;                          /* the gauge game: the grade passed (>= win_grade): the tree falls */
+static uint16_t bn_fall_t;                       /* ticks since the blow while the tree falls (0: not falling) */
 static bar_t bn_bar;
 static uint8_t bn_left, bn_post, bn_img, bn_thud, bn_lesson;   /* the break game: posts left, the post's state BP_*, ... */
 static uint16_t bn_pt;                           /* ticks in the post's state */
@@ -2702,7 +2709,9 @@ static void bonus_screen_tick(void) {
         return;
     }
     if (bonus_on == BN_CARD) {
-        if (t + 1 >= gbonus.card_ticks) { bscr_clear(); bonus_play(bn_cur); }
+        if (t + 2 == gbonus.card_ticks) { bscr_clear(); bd_set(COLOR_BLACK); }   /* the card goes first (its last tick black), */
+        if (t + 1 >= gbonus.card_ticks) bonus_play(bn_cur);   /* then the game: its texts never over the card (bonus_play's
+                                                             stage load spans frames: the card stayed with them, 0.10.87) */
         return;
     }
     {                                            /* BN_PICK */
@@ -2751,7 +2760,7 @@ static void bonus_play(uint8_t k) {
     centre(13, bn_g->name);
     if (bn_g->kind == BK_GAUGE) {
         nf = 1; sh_n = 2;                        /* the fighter alone: the tree behind him on 47-57 */
-        bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_gain = 0;
+        bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_gain = 0; bn_pass = 0; bn_fall_t = 0;
         bn_put(BN_TREE_SPR, &bonus_tree[0], bonus_tree[0].x, bonus_tree[0].y, 0, 0xF, 0xFF, 1);   /* (objects: AOF2's screen = ours) */
         bn_bar = (bar_t){ .col = 12, .row = 9, .n = 16, .pal = METER_PAL, .px = -1, .trail = -1 };
         bn_text(20, "PRESS A WHEN THE GAUGE IS FULL!", 1);
@@ -2772,11 +2781,30 @@ static void bonus_end(void) {                    /* the result shown: the next s
     bonus_off();
     stage_begin(camp + 1, 0);
 }
-static void bn_result(const char *l1, const char *l2, uint16_t bonus) {
+static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won) {
     bonus_on = BN_END; bn_t = 0;
     bn_text(13, l1, 1); bn_text(16, l2, 0);
     FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
-    snd_music(gbonus.over_music);
+    snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
+}
+/* the top grade's tree (note 20261014-133606-5d29, AOF2 measured: tools/aof/bonus_rip.py spirit_top): AOF2 only passes
+ * Spirit Training at the top grade, and then the tree breaks: its cracked trunk, its top falling, the crown squashed
+ * as it lands and swaying (bonus.h bonus_fall_seq, ticks from the blow = AOF2's frames from the punch mark); a lower
+ * grade leaves it standing (a few leaves, "FAILED THE TRAINING", the fail song). One step a tick, on into the result */
+static void bn_fall_step(void) {
+    uint8_t k;
+    if (!bn_fall_t) return;
+    for (k = 0; k < BONUS_N_FALLSEQ; k++) {
+        const bonus_fall_t *e = &bonus_fall_seq[k];
+        const bonus_obj_t *o;
+        if (e->t != bn_fall_t - 1) continue;
+        o = &bonus_fall[e->img];
+        if (!k) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_MARK_SPR, 5); }   /* the standing tree and its mark go: the
+                                                    cracked one in its place */
+        bn_put(BN_FALL_SPR, o, o->x + e->dx, o->y + e->dy, 0, 0xF, e->vs, 1);
+        if (o->w < BONUS_FALL_MAXW) bn_hide(BN_FALL_SPR + o->w, BONUS_FALL_MAXW - o->w);
+    }
+    if (bn_fall_t < 0xFFFF) bn_fall_t++;
 }
 static void bn_leaves(uint8_t n) {               /* n leaves from the canopy (a fixed spread, no random draw) */
     uint8_t k;
@@ -2790,6 +2818,8 @@ static void bn_gauge_flow(fighter_t *f) {
     uint8_t k;
     if (bn_hit_t) {                              /* after the press: the punch, the shake, the leaves */
         bn_hit_t++;
+        if (bn_hit_t == 12 && bn_pass) bn_fall_t = 1;   /* (the top grade: the tree falls from here) */
+        bn_fall_step();
         if (bn_hit_t == 12) {                    /* the blow lands */
             bn_put(BN_MARK_SPR, &bonus_mark[0], bonus_mark[0].x, bonus_mark[0].y, 0, 0xF, 0xFF, 1);
             bn_leaves(bn_grade * 3);
@@ -2803,7 +2833,7 @@ static void bn_gauge_flow(fighter_t *f) {
             if ((bn_pc[k].y >> 4) > 224) { bn_hide(BN_LEAF_SPR + k, 1); continue; }
             bn_put(BN_LEAF_SPR + k, &bonus_leaf[((bn_hit_t >> 3) + k) & 1], bn_pc[k].x >> 4, bn_pc[k].y >> 4, 0, 0xF, 0xFF, !((bn_hit_t + k) & 7));
         }
-        if (bn_hit_t == 70) {                    /* the result: the grade, its reward */
+        if (bn_hit_t == (bn_pass ? BN_FALL_RESULT : 70)) {   /* the result: the grade, its reward (a pass: the crown down) */
             static const char *const GRADE[6] = { "MISS", "WEAK", "FAIR", "GOOD", "GREAT", "PERFECT!" };
             uint8_t add = bn_g->chunks[bn_grade], room = MAX_CHUNKS - drive_chunks, i;
             if (bn_won >> bn_game & 1) add = 0;  /* (won before: its bonus only) */
@@ -2813,8 +2843,8 @@ static void bn_gauge_flow(fighter_t *f) {
                 for (i = 0; i < 2; i++) fighters[i].drive = (uint16_t)(gmeter.chunk * drive_chunks);
                 hud_reset(); hud_two = 0xFF;     /* the bar's new chunks drawn */
             }
-            bn_result(GRADE[bn_grade], add == 2 ? "METER +2" : add == 1 ? "METER +1" : bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0,
-                      (uint16_t)bn_grade * 2000);
+            bn_result(GRADE[bn_grade], !bn_pass ? "TRAINING FAILED" : add == 2 ? "METER +2" : add == 1 ? "METER +1" :
+                      bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0, (uint16_t)bn_grade * 2000, bn_pass);
         }
         return;
     }
@@ -2824,6 +2854,7 @@ static void bn_gauge_flow(fighter_t *f) {
     if (bn_t > 30 && ((JOY_pressed(bn_lead) & JOY_A) || !bn_clock)) {
         bn_grade = 0;
         while (bn_grade < 5 && bn_power >= bn_g->grades[bn_grade]) bn_grade++;
+        bn_pass = bn_grade >= bn_g->win_grade;
         bn_hit_t = 1; bn_text(20, 0, 0);
         (void)f;
     }
@@ -2902,15 +2933,19 @@ static void bn_break_flow(fighter_t *f) {
         bn_won |= 1 << bn_game;
         if (bn_g->unlock == BU_FURY) bn_lock0 = 0;
         fury_lock = bn_lock0; bn_lesson_show(0);
-        bn_result("CONGRATULATIONS!", first && bn_g->unlock == BU_FURY ? "FURY + FURY MAX UNLOCKED ON D" : 0, (uint16_t)bn_g->count * 1000);
+        bn_result("CONGRATULATIONS!", first && bn_g->unlock == BU_FURY ? "FURY + FURY MAX UNLOCKED ON D" : 0, (uint16_t)bn_g->count * 1000, 1);
     } else if (!bn_clock) {                      /* time over: as it was (locked stays locked) */
         fury_lock = bn_lock0; bn_lesson_show(0); bn_hide(BN_POST_SPR, 4); bn_hide(BN_FRONT, 2 * BN_PIECES); bn_split = 0;
-        bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000);
+        bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000, 0);
     }
 }
 static void bonus_input(void) {                  /* this tick's intents: the gauge game plays his A for him; the posts
                                                     game keeps him on his lane; the result: nothing */
     intent_t *i = &in[bn_lead];
+    if (bn_fall_t >= BN_FALL_LEAP && bn_fall_t < BN_FALL_LEAP + 10) {   /* the tree's top falls on him: he leaps back out
+                                                    of its way (AOF2: Ryo from frame ~762, landing ~80 px back) */
+        *i = (intent_t){ 0 }; i->dx = -1; i->hold = IN_B; if (bn_fall_t == BN_FALL_LEAP) i->press = IN_B; return;
+    }
     if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
     if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; i->press = IN_A; return; }   /* the press: his A at the tree */
     i->dz = 0;
@@ -2919,6 +2954,7 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
     fighter_t *f = &fighters[bn_lead];
     bn_t++;
     if (bonus_on == BN_END) {
+        bn_fall_step();                          /* (the fallen crown sways on under the result) */
         if (bn_t >= BN_END_T || (bn_t > 90 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) bonus_end();
         return;
     }

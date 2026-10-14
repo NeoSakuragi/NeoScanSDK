@@ -3,6 +3,6 @@
  "note": "Final Fight's Cody (tools/ffight, 2026-10-14): his one chain as FF plays it (study /data/study/ffight/REPORT.md): jab, jab, link 3, finisher (knockdown); the damages are FF's (10 10 10 16), the weights routes.py scales to the balanced archetype's total.",
  "entries": {"dash": {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "damage": 16}, "nospecial": {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "damage": 16}, "hold": {"move": "atk_d_close", "weight": "strong", "effect": "none", "damage": 9}},
  "routes": [
-  [{"move": "atk_a_far", "weight": "light", "effect": "none", "input": "A", "damage": 10}, {"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A", "damage": 10}, {"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A", "damage": 10}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A", "damage": 16, "sound": ["C3"]}]
+  [{"move": "atk_a_far", "weight": "light", "effect": "none", "input": "A", "damage": 10}, {"move": "atk_a_close", "weight": "light", "effect": "none", "input": "A", "damage": 10}, {"move": "atk_b_far", "weight": "light", "effect": "none", "input": "A", "damage": 10, "sound": ["C1"]}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A", "damage": 16, "sound": ["C3"]}]
  ]
 }
