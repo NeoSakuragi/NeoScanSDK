@@ -767,9 +767,9 @@ def levels_clean(req):
     for g in b['games']:
         if not isinstance(g, dict) or not isinstance(g.get('name'), str) or not re.match(r'^[A-Z0-9 .!-]{1,18}$', g['name']) or \
            not isinstance(g.get('music'), str) or not SONG_NAME.match(g['music']) or not num(g.get('seconds')) or \
-           not all(num(g[k]) for k in ('count', 'top') if k in g):
-            return None, 'bonus game: {name (1-18 A-Z 0-9 space . ! -), music, seconds, count | top}'
-        games.append({k: g[k] for k in ('id', 'kind', 'scene', 'name', 'music', 'seconds', 'count', 'top') if k in g})
+           not all(num(g[k]) for k in ('count', 'top', 'hp') if k in g):
+            return None, 'bonus game: {name (1-18 A-Z 0-9 space . ! -), music, seconds, count + hp | top}'
+        games.append({k: g[k] for k in ('id', 'kind', 'scene', 'name', 'music', 'seconds', 'count', 'hp', 'top') if k in g})
     return {**out, 'bonus': {'after': b['after'], 'pick_seconds': b['pick_seconds'], 'fury_lock': b['fury_lock'], 'games': games}}, None
 
 

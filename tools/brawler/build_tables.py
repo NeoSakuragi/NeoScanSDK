@@ -956,7 +956,7 @@ BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES,
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
 BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds'),
-                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks')}
 GB_FALL_SND = 6                                          # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
@@ -1009,7 +1009,13 @@ def bonus_check(g, songs_known, sfx_names=None):
             for _, v in fs: snd(f"bonus game {x['id']}: fall_sounds", v)
         else:
             assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
-            assert x['breaks_with'] == 'fury' and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury, unlock fury | none"
+            assert x['breaks_with'] in ('fury', 'any') and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury | any, unlock fury | none"
+            assert isinstance(x.get('hp', 1), int) and 1 <= x.get('hp', 1) <= 30, f"bonus game {x['id']}: hp 1-30 (hits a post takes)"
+            assert isinstance(x.get('won_ticks', 300), int) and 120 <= x.get('won_ticks', 300) <= 1200, f"bonus game {x['id']}: won_ticks 120-1200"
+            for k in ('lesson', 'won_text'):
+                t = x.get(k, [])
+                assert isinstance(t, list) and len(t) <= 3 and all(isinstance(l, str) and len(l) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in t), \
+                    f"bonus game {x['id']}: {k}: up to 3 lines, ASCII, 38 characters each"
     assert not b.get('fury_lock') or any(x.get('unlock') == 'fury' for x in gs) and b['after'], \
         'bonus.fury_lock: no game unlocks the fury (it would stay locked)'
     return b
@@ -1031,7 +1037,11 @@ def bonus_tables(g, songs_known, sfx_names):
             f += [f".nfall = {len(fs)}", '.fall_t = { ' + ', '.join(str(t) for t, _ in fs) + ' }' if fs else '.fall_t = { 0 }',
                   '.fall_sfx = { ' + ', '.join(f'0x{code(v):02X}' for _, v in fs) + ' }' if fs else '.fall_sfx = { 0 }']
         else:
-            f += [f".count = {x['count']}", '.breaks = BB_FURY', f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}"]
+            ln = lambda k, d: '{ ' + ', '.join(c_str(l) for l in (x.get(k, d) + ['', '', ''])[:3]) + ' }'
+            f += [f".count = {x['count']}", f".breaks = {'BB_FURY' if x['breaks_with'] == 'fury' else 'BB_ANY'}", f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}",
+                  f".hp = {x.get('hp', 1)}", f".won_ticks = {x.get('won_ticks', 300)}",
+                  '.lesson = ' + ln('lesson', ['ONLY YOUR FURY BREAKS THE POSTS!', 'FURY  =  D', 'MAX  =  DOWN + D  AT LOW LIFE']),
+                  '.won_text = ' + ln('won_text', ['FURY + FURY MAX UNLOCKED ON D'])]
         rows.append('{ ' + ', '.join(f) + ' }')
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
              f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "

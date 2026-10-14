@@ -311,11 +311,12 @@ extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an in
  * after each stage with after[stage] set, a pick screen of the games; a game = a scene (make_bonus.py: AOF2's) and a
  * kind the engine plays: BK_GAUGE one press on a sweeping gauge (power + step a frame, 0-127 wrapping; grade = how many
  * of grades[] it reached; chunks[grade] drive chunks added for the credit), BK_BREAK `count` objects broken one at a
- * time before `seconds` run out, only by the class `breaks` (BB_FURY: a fury's / MAX's body or objects); won: `unlock`
+ * time before `seconds` run out, by the class `breaks` (BB_FURY: a fury's / MAX's body or objects; BB_ANY: any strike,
+ * `hp` hits each); won: `unlock`
  * (BU_FURY: Fury and Fury MAX on D). fury_lock: D's fury locked from a new game until a BU_FURY game is won ---- */
 enum { BK_GAUGE, BK_BREAK };
 #define GB_FALL_SND 6                /* (build_tables.py GB_FALL_SND) */
-enum { BB_FURY };
+enum { BB_FURY, BB_ANY };            /* what breaks a BK_BREAK object: a fury's / MAX's strike only; any strike */
 enum { BU_NONE, BU_FURY };
 typedef struct {
     const char *name;             /* the pick screen's / the title's (fix font) */
@@ -329,6 +330,10 @@ typedef struct {
     uint8_t nfall, fall_t[GB_FALL_SND], fall_sfx[GB_FALL_SND];   /* BK_GAUGE (note 20261014-171700-5d29): the passed
                                      tree's sounds as it falls, sfx code fall_sfx[k] at tick fall_t[k] from the blow (game.json
                                      games[].fall_sounds: AOF2's crack and fall at its frames from the punch mark) */
+    uint8_t hp;                   /* BK_BREAK: the hits an object takes (a strike touching it counts once; bonus-pillars-normals) */
+    uint16_t won_ticks;           /* BK_BREAK: a won result held this long (the unlock's message box) */
+    const char *lesson[3];        /* BK_BREAK: the lesson box (fix rows 20 / 22 / 24, the first highlighted; "" = none) */
+    const char *won_text[3];      /* BK_BREAK won the first time: the message box under CONGRATULATIONS (rows 20 / 22 / 24) */
 } gbonus_game_t;
 #define GB_MAX_GAMES 3
 typedef struct {

@@ -6,11 +6,13 @@ every run from scenario.py's mode "bonus" (lab req 6: a new game, then the bonus
       pick    AOF2's BONUS GAME screen, the select (cursor right, an empty slot skipped, the clock), the
               title card, then the cursor's game                                                       -> intro, pick*, card.png
       grades  the Ki training pressed at a power of each grade (0-5): grade, drive chunks after          -> tree_g*.png
-      win     the posts with Terry: D at each post until all are broken: unlocked, the result         -> posts_win*.png
-      fail    the posts with A only (shakes, the lesson) to the clock's end: TIME OVER, still locked   -> posts_fail*.png
+      win     the posts with Terry (note bonus-pillars-normals: 3 posts, `hp` hits each, any regular attack): A at each
+              post until all are broken: unlocked, the unlock's message box held won_ticks             -> posts_win*.png
+      dgame   in the posts game, D with the gauge and drive full: no fury (still locked while it plays)  -> posts_d.png
+      fail    the posts left alone to the clock's end: TIME OVER, still locked                          -> posts_fail*.png
       lock    the next stage after each (stage 2): D with the gauge and drive full: no fury while locked,
               the fury after the win                                                                    -> d_locked.png, d_unlocked.png
-      --sweep every roster fighter: the posts game played the same way, posts broken / ticks used (OUT/sweep.json)
+      --sweep every selectable fighter: the posts won with normals (A), posts broken / ticks used (OUT/sweep.json)
     a contact sheet OUT/sheet.png; prints one OK / FAIL line per check, exit 1 on any FAIL"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -103,7 +105,9 @@ class Proof:
         self.check(self.r('drive_chunks') == 4, f'tree: the bar keeps {self.r("drive_chunks")} chunks in stage 2 (want 4: 2 + the top grade\'s 2)')
 
     # ---- the posts: played with D (win) or A only (fail)
-    def play_posts(self, fighter, use_d, shots=False, limit=None):
+    def play_posts(self, fighter, key, shots=False, limit=None):
+        """the posts game: walk to the post, press `key` (a: normals, d: the fury, '': nothing) every 8 ticks at it"""
+        use_d = key == 'd'
         posts = next(x for x in self.G['games'] if x['kind'] == 'break'); pk = self.G['games'].index(posts) + 1
         self.setup(fighter=fighter, game=posts['id'])
         lock0 = self.r('bn_lock0')                  # (the lock as the game came in: lifted while it plays)
@@ -116,35 +120,49 @@ class Proof:
                 px = self.r('bn_px', 2); right = px > 160          # (the post: right, or left after a rush past it)
                 gap = px - fx if right else fx - (px + 64)
                 face = self.b.fget(0, 'facing'); face = face - 256 if face > 127 else face
-                if gap > (36 if use_d else 50): keys = 'R' if right else 'L'
+                if not key: keys = ''
+                elif gap > (36 if use_d else 12): keys = 'R' if right else 'L'
                 elif (face > 0) != right: keys = 'R' if right else 'L'   # (turned to it first)
-                elif t & 15 == 0: keys = 'd' if use_d else 'a'
+                elif t & (15 if use_d else 7) == 0: keys = key
             self.b.run(1, p1=keys); t += 1
-            if shots and t == 30: self.shot(f'posts_{"win" if use_d else "fail"}_lesson', 'posts: the lesson box')
-            if shots and use_d and not shot_hit and self.r('bn_post') == 3: self.b.run(3); self.shot('posts_win_hit', 'the fury burns the post'); shot_hit = True
-            if shots and use_d and not shot_split and self.r('bn_split') and shot_hit: self.b.run(10); self.shot('posts_win_split', 'its splinters'); shot_split = True
-            if shots and not use_d and not shot_lesson and self.r('bn_thud') and t > 200: self.shot('posts_fail_thud', 'a normal only shakes it'); shot_lesson = True
+            if shots and t == 30: self.shot(f'posts_{"win" if key else "fail"}_lesson', 'posts: the lesson box')
+            if shots and key and not shot_lesson and self.r('bn_chip_t') == 28: self.shot('posts_win_chip', f'a hit: it shakes, a chip flies ({self.r("bn_hp")} left)'); shot_lesson = True
+            if shots and key and not shot_split and self.r('bn_split') == 40: self.shot('posts_win_split', 'the last hit: its splinters'); shot_split = True
         return lock0, t, self.r('bn_left')
 
     def posts(self):
         posts = next(x for x in self.G['games'] if x['kind'] == 'break')
-        lock0, t, left = self.play_posts('terry', True, shots=True)
-        self.b.run(20); self.shot('posts_win', 'posts won: the result')
+        lock0, t, left = self.play_posts('terry', 'a', shots=True)
+        self.b.run(20); self.shot('posts_win', 'posts won: the unlock message')
         self.check(lock0 == 1 and left == 0 and self.r('fury_lock') == 0 and self.r('bonus_on') == BN['end'],
-                   f'posts win (terry, D): locked before ({lock0}), {posts["count"] - left} / {posts["count"]} broken in {t} ticks, unlocked after ({self.r("fury_lock") == 0})')
+                   f'posts win (terry, A: normals): locked before ({lock0}), {posts["count"] - left} / {posts["count"]} broken in {t} ticks, unlocked after ({self.r("fury_lock") == 0})')
         self.check(self.r('snd_song') == self.mus['BONUS_WIN'], f"posts win: AOF2's won song (${self.r('snd_song'):02X}, want ${self.mus['BONUS_WIN']:02X})")
+        hold = self.r('bn_hold', 2); n = self.until(lambda: self.r('bonus_on') != BN['end'], 2000)
+        self.check(hold == posts.get('won_ticks', 300) and n + 20 >= hold - 2, f'posts win: the unlock message held {n + 20} ticks (bn_hold {hold}, want won_ticks {posts.get("won_ticks", 300)})')
         self.lock_check('d_unlocked', want_fury=True)
-        lock0, t, left = self.play_posts('terry', False, shots=True)
+        self.d_in_game()
+        lock0, t, left = self.play_posts('terry', '', shots=True)
         self.b.run(20); self.shot('posts_fail', 'posts failed: TIME OVER')
         self.check(lock0 == 1 and left == posts['count'] and self.r('fury_lock') == 1 and self.r('bonus_on') == BN['end'],
-                   f'posts fail (terry, A only): {posts["count"] - left} broken, the clock ran out, still locked ({self.r("fury_lock")})')
+                   f'posts fail (terry, no attack): {posts["count"] - left} broken, the clock ran out, still locked ({self.r("fury_lock")})')
         self.check(self.r('snd_song') == self.mus['BONUS_OVER'], f"posts fail: AOF2's failed song (${self.r('snd_song'):02X}, want ${self.mus['BONUS_OVER']:02X})")
         self.lock_check('d_locked', want_fury=False)
 
+    def d_in_game(self):
+        """the posts game: the fury still locked while it plays (D with both bars full: no fury)"""
+        posts = next(x for x in self.G['games'] if x['kind'] == 'break')
+        self.setup(fighter='terry', game=posts['id']); self.b.run(90)
+        for i, v in (('drive', 240 * self.r('drive_chunks')), ('fgauge', 100)): self.b.fset(0, i, v)
+        self.b.run(1, p1='d'); self.b.run(12)
+        st = self.b.states[self.b.fget(0, 'state')]; fury = st == 'SPECIAL' and self.b.fget(0, 'spec_id') == 6
+        self.shot('posts_d', 'posts game, D: ' + ('the fury' if fury else 'nothing (locked)'))
+        self.check(not fury and self.r('fury_lock') == 1, f'posts game: D with gauge + drive full: {"fury" if fury else "no fury"} (want none: locked while it plays), state {st}')
+
     def lock_check(self, name, want_fury):
         """the result passed: stage 2; D with both bars full -> a fury or nothing"""
-        self.until(lambda: self.r('bonus_on') == BN['off'] and self.r('mode') == 1, 600, keys='')
-        self.b.run(90)
+        self.until(lambda: self.r('bonus_on') == BN['off'] and self.r('mode') == 1, 900, keys='')
+        self.until(lambda: self.r('in_ph') != 0, 60); self.until(lambda: self.r('in_ph') == 0, 900)   # (stage 2's intro: the walk in, the first wave)
+        self.b.run(30)
         for i, v in (('drive', 240 * self.r('drive_chunks')), ('fgauge', 100)): self.b.fset(0, i, v)
         self.b.run(1, p1='d'); self.b.run(12)
         st = self.b.states[self.b.fget(0, 'state')]; fury = st == 'SPECIAL' and self.b.fget(0, 'spec_id') == 6
@@ -155,13 +173,13 @@ class Proof:
         res = {}
         sel = {r['name'] for r in json.load(open(os.path.join(self.game, 'game.json')))['roster'] if r.get('selectable', True)}
         for f in [n for n in self.names if n in sel]:          # (a form's target, Super Billy: never picked)
-            try: lock0, t, left = self.play_posts(f, True, limit=self.G['games'][1]['seconds'] * 60 + 400)
+            try: lock0, t, left = self.play_posts(f, 'a', limit=self.G['games'][1]['seconds'] * 60 + 400)
             except Exception as e: res[f] = {'error': str(e)}; print('sweep', f, 'error', e); continue
             n = self.G['games'][1]['count']; res[f] = {'broken': n - left, 'ticks': t}
             print(f'sweep {f}: {n - left} / {n} posts in {t} ticks', flush=True)
         json.dump(res, open(os.path.join(self.out, 'sweep.json'), 'w'), indent=1)
         bad = [f for f, v in res.items() if v.get('broken') != self.G['games'][1]['count']]
-        self.check(not bad, f'sweep: every fighter breaks every post with his fury in time (short: {bad})')
+        self.check(not bad, f'sweep: every fighter breaks every post with his normals in time (short: {bad})')
 
     def sheet(self):
         ims = [(Image.open(p).convert('RGB'), l) for p, l in self.shots]

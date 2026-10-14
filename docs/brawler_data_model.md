@@ -738,14 +738,14 @@ texts baked into sprites, 43 KB of C ROM; the 4 AOF2 sounds 66 816 bytes of V RO
 | `fury_lock` | `true` | Fury and Fury MAX (D, down+D) locked for the players from a new credit until a game with `unlock: fury` is won; a fail keeps the lock, a continue too; the attract demo and the Lab never locked |
 | `over_music` | `"BONUS_OVER"` | the result's jingle |
 | games[] `kind` `gauge` | Ki training, scene `tree` | one press on a gauge sweeping 0-127 (`step` a tick, wrapping, `seconds` to press); grade = how many of `grades` it reached (AOF2 Spirit Training's table $17EF8, default row 36 68 92 108 120); `chunks[grade]` drive chunks added to both players' bars for the credit (max 4; today [0,0,0,0,0,2]: AOF2's rule, only the top grade rewards) |
-| games[] `kind` `break` | Super Death Blow, scene `posts` | `count` (9) wooden posts, one at a time, in `seconds` (60; the clock holds during a super flash); `breaks_with` `fury`: only the fury's / MAX's body or its objects break one (fighter.c `fighter_strike_box` class 2), anything else shakes it and shows the lesson box (ONLY YOUR FURY BREAKS THE POSTS, FURY = D, MAX = DOWN + D AT LOW LIFE); all broken: `unlock` |
+| games[] `kind` `break` | Super Death Blow, scene `posts` | `count` (3) wooden posts, one at a time, in `seconds` (30; the clock holds during a super flash). `breaks_with` `any` (Bruno 2026-10-14, "bonus-pillars-normals"): any regular strike (normals, chain, specials, their objects; fighter.c `fighter_strike_box`) counts a hit each time one starts touching the post, `hp` (4) hits break it: each hit before the last shakes it and a chip flies off, the last splinters it; the fury stays locked while it plays (it is the prize). `fury` (the former rule): only the fury's / MAX's body or its objects break one (class 2), the lock lifted for the game, anything else shakes it. `lesson`: the lesson box's 3 lines (fix rows 20 / 22 / 24, the first highlighted). All broken: `unlock`; the first win shows `won_text` (3 lines: FURY UNLOCKED! PRESS D, the MAX line) under CONGRATULATIONS for `won_ticks` (480; a button ends it after half); a fail: TIME OVER, THE FURY STAYS LOCKED. Factory Levels: Posts + Hits per post. Clock fairness: bonus_proof.py --sweep, 4 hits a post, every selectable fighter with A alone: 573 (Hanzo) to 833 ticks (Rugal, 13.9 s) of the 30 s |
 
 A game already won this credit plays for its bonus figure only (the game keeps no score). The leading player plays
 alone; P2 sits it out and comes back in the next stage. Editable in the Factory's Levels tab (levels.py `bonus_view` /
 `bonus_merge`: after per stage, the pick clock, the lock, each game's name / AOF2 slot / song / clock / posts / top-grade chunks).
 Proof: tools/brawler/bonus_screens_proof.py (AOF2 vs brawler side by side, both in our emulator: BONUS GAME, the select,
 the cards; the sounds' loudness per frame), tools/brawler/bonus_proof.py (the screens' order and lengths, the pick, every grade, posts win / fail, D locked / unlocked in the next stage;
-`--sweep`: every selectable fighter breaks the 9 posts with his fury inside the clock); scenarios t7-* (scenario.py
+`--sweep`: every selectable fighter breaks the 3 posts with his normals inside the clock); scenarios t7-* (scenario.py
 mode `bonus`, lab req 6).
 
 ## Retiming (revamp phase 1C, 2026-10-08; docs/brawler_feel.md 6 and 8h)

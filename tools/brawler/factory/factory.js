@@ -346,7 +346,7 @@
       h('label', { class: 'lf' }, h('span', { text: 'AOF2 slot' }), h('select', { onchange: e => { gm.slot = parseInt(e.target.value, 10); } },
         [[0, 'Spirit Training'], [2, 'Super Death Blow']].map(([s, t]) => h('option', { value: String(s), selected: s === gm.slot ? '' : null, text: t })))),
       num(gm, 'seconds', 5, 99, 'Clock (s)'),
-      gm.kind === 'break' ? num(gm, 'count', 1, 20, 'Posts') : num(gm, 'top', 0, 3, 'Meter chunks at PERFECT')));
+      gm.kind === 'break' ? [num(gm, 'count', 1, 20, 'Posts'), num(gm, 'hp', 1, 30, 'Hits per post')] : num(gm, 'top', 0, 3, 'Meter chunks at PERFECT')));
     return h('div', { class: 'ledit' },
       num(v, 'pick_seconds', 3, 9, 'Pick screen clock (s)'),
       h('label', { class: 'lf' }, h('input', { type: 'checkbox', checked: v.fury_lock ? '' : null, onchange: e => { v.fury_lock = e.target.checked; } }),

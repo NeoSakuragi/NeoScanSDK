@@ -2886,9 +2886,12 @@ uint8_t game_start_accept(uint8_t flags) {
  *     row); the fighter throws his A at the tree, the tree shakes, the bark mark shows, grade x 3 leaves fall; chunks[grade]
  *     drive chunks are added to the bar (drive_chunks, both players, for the credit, up to MAX_CHUNKS).
  *   BK_BREAK (the posts, AOF2 Initiate Super Death Blow): `count` posts, one at a time at AOF2's place, before `seconds`
- *     run out; only a fury (D) or its MAX (fighter_strike_box class 2: its body or its objects) breaks one (burnt, then
- *     its splinters fly), any other hit shakes it and the lesson shows again; his gauge and drive are held full, the lock
- *     lifted for the game. All broken: `unlock` (BU_FURY: fury_lock off for the credit); else it stays as it was.
+ *     run out. BB_ANY (Bruno 2026-10-14, "bonus-pillars-normals"): any strike (fighter_strike_box) is a hit each time one
+ *     starts touching the post, `hp` hits break it (a shake + a chip each, the splinters at the last), the fury lock kept
+ *     (the prize). BB_FURY: only a fury (D) or its MAX (class 2: its body or its objects) breaks one (burnt, then its
+ *     splinters fly), any other hit shakes it and the lesson shows again; his gauge and drive held full, the lock lifted
+ *     for the game. All broken: `unlock` (BU_FURY: fury_lock off for the credit; the first time the won_text box held
+ *     won_ticks); else it stays as it was.
  * A game already won this credit shows its bonus only (the game has no score). The objects: behind the fighter on the
  * shadows' last sprites (shadows() handles sh_n entities: 47-57 the tree, 55-58 the post), in front on the box viewer's
  * 300-347 (dbg_init and shadow_init give both back after). ---- */
@@ -2918,6 +2921,9 @@ static uint8_t bn_pass;                          /* the gauge game: the grade pa
 static uint16_t bn_fall_t;                       /* ticks since the blow while the tree falls (0: not falling) */
 static bar_t bn_bar;
 static uint8_t bn_left, bn_post, bn_img, bn_thud, bn_lesson;   /* the break game: posts left, the post's state BP_*, ... */
+static uint8_t bn_hp, bn_touch, bn_chip_t;       /* the break game: the post's hits left, a strike on it last tick, its
+                                                    chip's ticks left (a hit that does not break it) */
+static uint16_t bn_hold, bn_skip;                /* the result: its ticks, a button ends it from bn_skip */
 static uint16_t bn_pt;                           /* ticks in the post's state */
 enum { BP_NONE, BP_DROP, BP_STAND, BP_HIT };
 static uint8_t bn_split;                         /* ticks left of the last post's splinters */
@@ -3041,10 +3047,10 @@ static void bonus_screen_tick(void) {
 }
 static void bn_lesson_show(uint8_t on) {         /* the break game's lesson box: what breaks the posts, how (AOF2's
                                                     "FOR SUPER HAOHSHOKO-KEN" box) */
-    bn_lesson = on;
-    bn_text(20, on ? "ONLY YOUR FURY BREAKS THE POSTS!" : 0, 1);
-    bn_text(22, on ? "FURY  =  D" : 0, 0);
-    bn_text(24, on ? "MAX  =  DOWN + D  AT LOW LIFE" : 0, 0);
+    bn_lesson = on;                              /* (game.json games[].lesson: 3 lines) */
+    bn_text(20, on ? bn_g->lesson[0] : 0, 1);
+    bn_text(22, on ? bn_g->lesson[1] : 0, 0);
+    bn_text(24, on ? bn_g->lesson[2] : 0, 0);
 }
 static void bonus_play(uint8_t k) {
     uint8_t i;
@@ -3074,8 +3080,10 @@ static void bonus_play(uint8_t k) {
         bn_text(20, "PRESS A WHEN THE GAUGE IS FULL!", 1);
     } else {
         nf = 1 + NPJ; sh_n = 10;                 /* the fighter and his objects: the post behind on 55-58 */
-        bn_left = bn_g->count; bn_post = BP_NONE; bn_pt = 0; bn_thud = 0; bn_pc_n = 0; bn_split = 0;
-        bn_lock0 = fury_lock; fury_lock = 0;     /* the fury works here (the lesson) */
+        bn_left = bn_g->count; bn_post = BP_NONE; bn_pt = 0; bn_thud = 0; bn_pc_n = 0; bn_split = 0; bn_chip_t = 0;
+        bn_lock0 = fury_lock;
+        if (bn_g->breaks == BB_FURY) fury_lock = 0;   /* the fury works here (the lesson); BB_ANY: the regular attacks
+                                                    break the posts, the fury stays as it is (locked: the prize) */
         bn_lesson_show(1);
     }
 }
@@ -3090,7 +3098,7 @@ static void bonus_end(void) {                    /* the result shown: the next s
     stage_begin(camp + 1, 0);
 }
 static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t won) {
-    bonus_on = BN_END; bn_t = 0;
+    bonus_on = BN_END; bn_t = 0; bn_hold = BN_END_T; bn_skip = 90;
     bn_text(13, l1, 1); bn_text(16, l2, 0);
     FIX_print(13, 18, "BONUS", 0); FIX_printNum(20, 18, bonus, 1);
     snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
@@ -3179,7 +3187,7 @@ static void bn_post_show(uint8_t img, int16_t dx, int16_t dy, uint8_t tiles) {
 static void bn_break_flow(fighter_t *f) {
     uint8_t i, k;
     int16_t px0 = bn_px + cam_x + 8, px1 = px0 + 48, py0 = bonus_post[0].y + 8, py1 = 224;   /* (world x, screen y) */
-    fighter_meter_fill(f);                       /* the fury always payable (its lock lifted: bonus_play) */
+    if (bn_g->breaks == BB_FURY) fighter_meter_fill(f);   /* the fury always payable (its lock lifted: bonus_play) */
     if (bn_post == BP_STAND || bn_post == BP_DROP || bn_post == BP_HIT) {   /* a solid post: he stops at it (a rush too) */
         if (bn_px > 160) { int32_t lim = FIX(px0 - 12); if (f->x > lim) f->x = lim; }
         else { int32_t lim = FIX(px1 + 12); if (f->x < lim) f->x = lim; }
@@ -3192,10 +3200,15 @@ static void bn_break_flow(fighter_t *f) {
         }
         if (!--bn_split) bn_hide(BN_FRONT, 2 * BN_PIECES);
     }
+    if (bn_chip_t) {                             /* a hit's chip: flying, falling, gone */
+        bn_pc[BN_PIECES].x += bn_pc[BN_PIECES].vx; bn_pc[BN_PIECES].y += bn_pc[BN_PIECES].vy; bn_pc[BN_PIECES].vy += 6;
+        if (--bn_chip_t) bn_put(BN_LEAF_SPR, &bonus_piece[bn_hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 0);
+        else bn_hide(BN_LEAF_SPR, 2);
+    }
     switch (bn_post) {
     case BP_NONE:                                /* the next post drops in */
         if (bn_left && bn_pt >= (bn_t < 100 ? 60 : 24)) {
-            bn_post = BP_DROP; bn_pt = 0;
+            bn_post = BP_DROP; bn_pt = 0; bn_hp = bn_g->hp; bn_touch = 1;
             bn_px = INT(f->x) - cam_x < 160 ? bonus_post[0].x : 320 - 64 - bonus_post[0].x + 16;   /* (AOF2's 241, mirrored: 31) */
         }
         break;
@@ -3205,10 +3218,26 @@ static void bn_break_flow(fighter_t *f) {
         break;
     case BP_STAND:
         if (bn_thud) { bn_thud--; bn_post_show(0, (bn_thud & 2) ? 2 : -2, 0, 0); if (!bn_thud) bn_post_show(0, 0, 0, 0); }
-        for (i = 0; i < nf; i++) {               /* the fighter and his objects: what strikes the post now */
+        for (i = 0, k = 0; i < nf; i++) {        /* the fighter and his objects: what strikes the post now */
             int16_t x0, x1, y0, y1;
             uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1);
             if (!cls || order[i]->team || x1 <= px0 || x0 >= px1 || y1 <= py0 || y0 >= py1) continue;
+            if (bn_g->breaks == BB_ANY) {        /* any strike (note bonus-pillars-normals): a hit each time one starts
+                                                    touching it (a strike held on it counts once), bn_hp hits break it */
+                k = 1;
+                if (bn_touch) break;
+                spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 16, 0, f->facing);
+                if (bn_hp > 1) {                 /* it holds: it shakes, a chip flies off */
+                    bn_hp--; bn_thud = 16; snd_sfx(ghitsnd.bounce); bn_pt = 0;
+                    bn_chip_t = 30; bn_pc[BN_PIECES].x = (bn_px + 24) << 4; bn_pc[BN_PIECES].y = (py0 + 40 + 8 * (bn_hp & 3)) << 4;
+                    bn_pc[BN_PIECES].vx = bn_px < 160 ? -24 : 24; bn_pc[BN_PIECES].vy = -48;
+                    bn_put(BN_LEAF_SPR, &bonus_piece[bn_hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 1);
+                    break;
+                }
+                bn_hp = 0; bn_post = BP_HIT; bn_pt = 17; bn_img = 0;   /* the last: straight to its splinters */
+                snd_sfx(SFX_HIT_CD);
+                break;
+            }
             if (cls == 2) {                      /* a fury: burnt, then broken */
                 bn_post = BP_HIT; bn_pt = 0; bn_img = 1;
                 spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 16, 1, f->facing);
@@ -3217,11 +3246,13 @@ static void bn_break_flow(fighter_t *f) {
             }
             if (!bn_thud) { bn_thud = 16; fighter_guard_sound(); if (!bn_lesson) bn_lesson_show(1); bn_pt = 0; }
         }
+        bn_touch = k;
         if (bn_lesson && bn_t > 150 && bn_pt > 120 && !bn_thud) bn_lesson_show(0);
         break;
     case BP_HIT:                                 /* AOF2's burnt post, its three pictures by turns */
-        if (!(bn_pt & 3)) { bn_img = bn_img == 3 ? 1 : bn_img + 1; bn_post_show(bn_img, 0, 0, 1); }
-        if (bn_pt == 1) bn_post_show(1, 0, 0, 1);
+        if (bn_g->breaks == BB_ANY) bn_pt = 18;  /* (no fury: no burn, the splinters at once) */
+        else if (!(bn_pt & 3)) { bn_img = bn_img == 3 ? 1 : bn_img + 1; bn_post_show(bn_img, 0, 0, 1); }
+        if (bn_pt == 1 && bn_g->breaks == BB_FURY) bn_post_show(1, 0, 0, 1);
         if (bn_pt >= 18) {                       /* the splinters fly (bn_split), the next post may come meanwhile */
             bn_post = BP_NONE; bn_pt = 0; bn_hide(BN_POST_SPR, 4); bn_left--; bn_split = 48;
             FIX_print(34, 9, "  ", 0); FIX_printNum(34, 9, bn_left, 1);
@@ -3244,7 +3275,11 @@ static void bn_break_flow(fighter_t *f) {
         bn_won |= 1 << bn_game;
         if (bn_g->unlock == BU_FURY) bn_lock0 = 0;
         fury_lock = bn_lock0; bn_lesson_show(0);
-        bn_result("CONGRATULATIONS!", first && bn_g->unlock == BU_FURY ? "FURY + FURY MAX UNLOCKED ON D" : 0, (uint16_t)bn_g->count * 1000, 1);
+        bn_result("CONGRATULATIONS!", 0, (uint16_t)bn_g->count * 1000, 1);
+        if (first && bn_g->unlock == BU_FURY) {  /* the unlock's message box (games[].won_text), held won_ticks */
+            bn_text(20, bn_g->won_text[0], 1); bn_text(22, bn_g->won_text[1], 0); bn_text(24, bn_g->won_text[2], 0);
+            bn_hold = bn_g->won_ticks; bn_skip = bn_hold >> 1;
+        }
     } else if (!bn_clock) {                      /* time over: as it was (locked stays locked) */
         fury_lock = bn_lock0; bn_lesson_show(0); bn_hide(BN_POST_SPR, 4); bn_hide(BN_FRONT, 2 * BN_PIECES); bn_split = 0;
         bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000, 0);
@@ -3266,7 +3301,7 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
     bn_t++;
     if (bonus_on == BN_END) {
         bn_fall_step();                          /* (the fallen crown sways on under the result) */
-        if (bn_t >= BN_END_T || (bn_t > 90 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) bonus_end();
+        if (bn_t >= bn_hold || (bn_t > bn_skip && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) bonus_end();
         return;
     }
     if (bn_t == 1 || bn_t == 60) centre(13, bn_t == 1 ? bn_g->name : "                  ");

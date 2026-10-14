@@ -4148,5 +4148,18 @@
   "expect": "The screen goes black and the street fades in with nobody on it and no life bars, STAGE 1 START in the middle; the title goes, Terry walks in from the left edge on his own and stops, the life bars come back; you control him and a moment later the first enemies arrive.",
   "do_keys": "30:-,3:a,330:-",
   "proof": 360
+ },
+ "bonus-pillars-normals": {
+  "title": "Super Death Blow bonus: break 3 posts with regular attacks to unlock the fury",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Read the lesson box, walk up to each post and hit it with punches, kicks, chains or specials until all 3 are broken. Try D first: nothing happens yet.",
+  "expect": "The box says to break the 3 posts with any attack. Each hit shakes the post and knocks a chip off; the 4th hit splinters it and the next post drops in. D does nothing during the game. After the third post: CONGRATULATIONS, then FURY UNLOCKED! PRESS D and the MAX line (DOWN + D AT LOW LIFE), held about 8 seconds. Let the clock run out instead and it reads TIME OVER, THE FURY STAYS LOCKED.",
+  "do_keys": "60:-,40:R,4:a,8:-,4:a,8:-,4:a,8:-,4:a",
+  "proof": 240
  }
 }

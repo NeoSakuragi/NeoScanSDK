@@ -15,7 +15,7 @@ lab/levels), shipped by the ship service (labcfg.py ship-worker) like a fighter'
                                              rsync'd to H:DIR (the page's /brawler-factory/songs/)
 
 The bonus stages (TODO T7, game.json "bonus"; build_tables.bonus_check, main.c "bonus stages") are edited here too: the
-draft's optional `bonus` = {after: [stage numbers], pick_seconds, fury_lock, games: [{name, music, seconds, count | top}]}
+draft's optional `bonus` = {after: [stage numbers], pick_seconds, fury_lock, games: [{name, music, seconds, count + hp | top}]}
 (top = the drive chunks the gauge game's top grade adds); only the bonus block is rewritten (bonus_text).
 
 The stage intro (voice note 20261014-192343-5d29, game.json stage_intro; build_tables.intro_of, main.c "the stage
@@ -65,7 +65,7 @@ def bonus_view(g):
     if not b: return None
     return {'after': b['after'], 'pick_seconds': b['pick']['seconds'], 'fury_lock': bool(b.get('fury_lock')),
             'games': [{'id': x['id'], 'kind': x['kind'], 'scene': x['scene'], 'slot': x.get('slot'), 'name': x['name'], 'music': x['music'], 'seconds': x['seconds'],
-                       **({'count': x['count']} if x['kind'] == 'break' else {'top': x['chunks'][5]})} for x in b['games']]}
+                       **({'count': x['count'], 'hp': x.get('hp', 1)} if x['kind'] == 'break' else {'top': x['chunks'][5]})} for x in b['games']]}
 
 
 INTRO_EDIT = ('fade', 'title', 'title_at', 'title_hold', 'walk_at', 'side', 'from', 'gait', 'wave_delay')
@@ -108,7 +108,7 @@ def bonus_merge(game, g, want):
     b['after'] = sorted(want.get('after', b['after'])); b['pick']['seconds'] = want.get('pick_seconds', b['pick']['seconds'])
     b['fury_lock'] = bool(want.get('fury_lock', b.get('fury_lock')))
     for x, w in zip(b['games'], want['games']):
-        for k in ('name', 'music', 'seconds', 'slot') + (('count',) if x['kind'] == 'break' else ()):
+        for k in ('name', 'music', 'seconds', 'slot') + (('count', 'hp') if x['kind'] == 'break' else ()):
             if k in w: x[k] = w[k]
         if x['kind'] == 'gauge' and 'top' in w: x['chunks'] = x['chunks'][:5] + [w['top']]
     songs = {s['name'] for s in json.load(open(os.path.join(game, 'songs.json')))['songs']}
