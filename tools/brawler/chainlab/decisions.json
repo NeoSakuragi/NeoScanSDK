@@ -1,6 +1,174 @@
 {
  "sets": [
   {
+   "id": "bonus-game",
+   "title": "Bonus game (T7): how to bring AOF's over",
+   "intro": "Art of Fighting 1 and 2 put a bonus game between fights. All clips come from our emulator (AOF1 / AOF2 ROMs, Ryo, default difficulty); they loop, tap to pause. Notes: /data/neogeo_dict/aof/bonus.md. Pick one answer per question; a note (type or speak) for anything else.",
+   "sections": [
+    {
+     "title": "How AOF does it",
+     "questions": [
+      {
+       "id": "bonus-aof-seen",
+       "title": "The six AOF bonus games (for reference)",
+       "context": "When: AOF1 after every 2nd fight (3 times), AOF2 after every 3rd fight (3 times). A select screen offers 3 games, 9 s to choose. The reward only comes with the top grade. Life max = strength level x 8 and spirit max = spirit level x 8: levels start at 12 (96), each win +1 (+8), max 16 (128). AOF1 Bottle Cut: one press of A on a sweeping gauge, top 4 frames of 64 = all 5 bottles cut, spirit +1. AOF1 Ice Pillar: mash A for about 9 s, all pillars break = life +1. AOF1 Haoh Shoko-ken: do the super motion 6 times in about 30 s = the super works in fights from then on. AOF2 Spirit Training: one press on the gauge, Ryo punches the tree = spirit +1. AOF2 Strength Training: a real fight, knock down 10 thugs before the clock ends = life +1. AOF2 Super Death Blow: break 9 wooden posts with the super = super learned.",
+       "media": [
+        {
+         "image": "decisions-media/bonus-game/select-screens.png",
+         "caption": "Select screens: AOF1 (left), AOF2 (right)"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof1-bottle-cut.mp4",
+         "caption": "AOF1 Bottle Cut: A at the top of the gauge, 5 bottles cut, spirit up"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof1-ice-pillar.mp4",
+         "caption": "AOF1 Ice Pillar Smash: A mashed, all pillars break, life up"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof1-haoh-shoko-ken.mp4",
+         "caption": "AOF1 Haoh Shoko-ken: 6 supers, learned (2x speed)"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof2-spirit-training.mp4",
+         "caption": "AOF2 Spirit Training: A at the top of the gauge, spirit up"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof2-strength-training.mp4",
+         "caption": "AOF2 Strength Training: 10 thugs down in time, life up (2x speed; P1 life held)"
+        },
+        {
+         "video": "decisions-media/bonus-game/aof2-haoh-shoko-ken.mp4",
+         "caption": "AOF2 Super Death Blow: 9 posts broken with the super (2x speed)"
+        }
+       ],
+       "options": [
+        "Seen, go on to the questions below"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Which bonus game",
+     "questions": [
+      {
+       "id": "bonus-kind",
+       "title": "What our bonus stage is",
+       "context": "A bonus stage becomes a level type in game.json (stages[] entry with \"type\": \"bonus\" and its fields), edited in the Factory Levels tab like the other levels; the engine reads the fields, nothing per fighter. Costs are my estimates; C ROM = the objects only (your fighter plays with his own sprites). Thug rush = AOF2 Strength Training with our enemies: clock + counter + tally. Break the objects = AOF2 posts / AOF1 ice as props that take hits and break, with your own moves. AOF1 pair = one press on a sweeping gauge (bottles) and mash A (ice), your fighter in front of the objects. All three = thug rush, gauge, posts broken with the fury, plus a select screen.",
+       "options": [
+        {
+         "label": "Thug rush: N enemies down before the clock ends (no new sprites, small code)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof2-strength-training.mp4",
+           "caption": "AOF2 Strength Training (2x speed)"
+          }
+         ]
+        },
+        {
+         "label": "Break the objects: smash AOF props before the clock ends (medium code, 30-60 KB)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof2-haoh-shoko-ken.mp4",
+           "caption": "AOF2 posts"
+          },
+          {
+           "video": "decisions-media/bonus-game/aof1-ice-pillar.mp4",
+           "caption": "AOF1 ice pillars"
+          }
+         ]
+        },
+        {
+         "label": "AOF1 pair: Bottle Cut gauge + Ice Pillar mash (medium code, 40-60 KB)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof1-bottle-cut.mp4",
+           "caption": "AOF1 Bottle Cut"
+          },
+          {
+           "video": "decisions-media/bonus-game/aof1-ice-pillar.mp4",
+           "caption": "AOF1 Ice Pillar"
+          }
+         ]
+        },
+        {
+         "label": "All three AOF2 games behind a select screen (largest)",
+         "media": [
+          {
+           "image": "decisions-media/bonus-game/select-screens.png",
+           "caption": "AOF select screens"
+          }
+         ]
+        },
+        "No bonus game"
+       ]
+      }
+     ]
+    },
+    {
+     "title": "Reward, timing, objects",
+     "questions": [
+      {
+       "id": "bonus-reward",
+       "title": "What a won bonus gives",
+       "context": "AOF: the top grade only, nothing lost on a fail. Today our fighters have 60 life and a 300-point meter (3 stocks, refills by itself).",
+       "options": [
+        "A bigger life bar for the rest of the run (AOF: +1/12 each win, at most +1/3)",
+        "A bigger meter: one more stock (4 instead of 3) for the rest of the run",
+        "Learn the fury: no fury (D) until a bonus is won (AOF Haoh Shoko-ken)",
+        "Score and a full refill of life and meter, nothing permanent"
+       ]
+      },
+      {
+       "id": "bonus-when",
+       "title": "When it appears",
+       "context": "We have 5 stages. AOF1: every 2nd fight; AOF2: every 3rd.",
+       "options": [
+        "After stages 2 and 4 (AOF1 rhythm on our 5 stages)",
+        "After every stage",
+        "Once, before the last stage"
+       ]
+      },
+      {
+       "id": "bonus-objects",
+       "title": "Which objects (only if a breaking game is picked)",
+       "context": "Ripped from the AOF ROMs into our C ROM (estimates from the tiles on screen).",
+       "options": [
+        {
+         "label": "AOF2 wooden posts (~30 KB)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof2-haoh-shoko-ken.mp4",
+           "caption": "AOF2 posts"
+          }
+         ]
+        },
+        {
+         "label": "AOF1 ice pillars (~20 KB)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof1-ice-pillar.mp4",
+           "caption": "AOF1 ice"
+          }
+         ]
+        },
+        {
+         "label": "AOF1 bottles (~40 KB)",
+         "media": [
+          {
+           "video": "decisions-media/bonus-game/aof1-bottle-cut.mp4",
+           "caption": "AOF1 bottles"
+          }
+         ]
+        },
+        "No breaking game, so no objects"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "open-2026-10-11",
    "title": "Open choices (2026-10-11)",
    "intro": "Open choices on the brawler. Every clip and sound comes from our emulator (the game itself, and the KOF songs from the KOF ROMs). Clips loop; tap a clip to pause it.",
