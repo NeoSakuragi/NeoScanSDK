@@ -459,7 +459,7 @@ for its whole animation; a thrown body knocks others down (no chain credit).
 | C, up / down + C | the slot's special out of the hold (as before) | `meter.special` |
 | D | the fury (as before) | `meter.fury` |
 
-**game.json** `roster[].throws` (beside `speed`, `front`, `hold`): `b` {`travel`: px} (hold + B plays its throw_x, forward / back + B carried that far, 0-508 px; Haggar 94, FF measured); `extra` {`u`, `d`}: an input of its bank (a grab special
+**game.json** `roster[].throws` (beside `speed`, `front`, `hold`): `loops` {throw: n} (note 20261006-161058-b3f3, Billy Kane: "the throw takes way too much time"): a captured throw's repeated cycle (export_bm.throw_loop: the same thrower and victim rows over and over, the source's looping state; Billy's KOF98 forward+C swings the victim on his pole 8 x 19 rows) played n times (Billy 1: thrower 134 -> 46 frames); `b` {`travel`: px} (hold + B plays its throw_x, forward / back + B carried that far, 0-508 px; Haggar 94, FF measured); `extra` {`u`, `d`}: an input of its bank (a grab special
 read from the ROM) or `"throw_x"` (its extra paired throw); `super`: the same, absent = the throw pressed (forward / back)
 played at the super tier. The specials named are appended to the fighter's pool when not in it (export_bm
 `throw_specials`). `meter.super_throw` = its cost, `tiers.super_throw` = its damage (18, between the special 12 and the

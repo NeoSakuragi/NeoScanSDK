@@ -489,6 +489,10 @@ def build(specs, outdir):
             for th in ex['characters'][name].get('throws', {}).values():   # a throw's own-victim rows under the roster's
                 if name in th.get('victims', {}) and src(rn) != name:   # name (poses(): Billy Lee = doubledr:billy)
                     th['victims'][src(rn)] = th['victims'].pop(name)
+            for t_, keep_ in ((roster().get(rn) or {}).get('throws') or {}).get('loops', {}).items():
+                th = ex['characters'][name].get('throws', {}).get(t_)   # (game.json roster[].throws.loops, note
+                assert th and not th.get('rom'), f'{rn}: throws.loops {t_}: no captured throw'   # 20261006-161058-b3f3)
+                print(f'{rn}: {t_} {cap_loops(th, keep_)}', flush=True)
             cf = (roster().get(rn) or {}).get('charge_from')   # (game.json roster[].charge_from: the move his Ki training
             if cf:                                      # concentration plays instead of SOURCES' pick, note 20261014-133606-5d29:
                 cf = cf if isinstance(cf, dict) else {'move': cf}   # a move name, or {move, first, last}: its steps
@@ -1698,6 +1702,34 @@ _FALL98 = {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knoc
            315: 'knockdown_fall', 317: 'knockdown_fall', 312: 'down', 326: 'down', 328: 'down', 331: 'down', 334: 'down'}
 KOF_FALL = {'kof97': _FALL98, 'kof98': _FALL98, 'kof99': _FALL98,
             'kof96': {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knockdown_bounce', 359: 'down'}}
+
+def throw_loop(th):
+    """a captured throw's longest run of a repeated cycle (the source's looping thrower state: Billy Kane's KOF98
+    forward+C swings his victim on the pole 8 times, rows 19-170 = 8 x 19): (first row, period, repeats) or None. A cycle
+    = the same thrower row AND the same row of every victim list, so cutting whole cycles leaves the path seamless"""
+    tl = th['timeline']; L = len(tl); lists = list(th['victims'].values()) + list(th.get('victims_all', {}).values())
+    key = [(tuple(tl[i]),) + tuple(repr(v[i]) if i < len(v) else None for v in lists) for i in range(L)]
+    best = None
+    for p in range(4, L // 2 + 1):
+        for s in range(L - 2 * p + 1):
+            if len({tl[s + j][0] for j in range(p)}) < 2: continue   # a held pose, not a cycle
+            k = 1
+            while s + (k + 1) * p <= L and key[s + k * p:s + (k + 1) * p] == key[s:s + p]: k += 1
+            if k > 1 and (best is None or k * p > best[1] * best[2]): best = (s, p, k)
+    return best
+
+def cap_loops(th, keep):
+    """game.json roster[].throws.loops {throw: n} (note 20261006-161058-b3f3, Bruno: "the throw of Billy Kane takes way
+    too much time"): the captured throw's repeated cycle (throw_loop) played n times instead of the source's count; every
+    per-row list (thrower, victims, every KOF victim's) loses the same rows, the impacts move up. Returns what was cut"""
+    lp = throw_loop(th)
+    assert lp and 1 <= keep < lp[2], f'throws.loops {keep}: the throw has {lp and lp[2]} repeats of a cycle'
+    s, p, k = lp; a, b = s + keep * p, s + k * p
+    th['timeline'][a:b] = []
+    for d in (th['victims'], th.get('victims_all', {})):
+        for v in d.values(): v[a:b] = []
+    th['impacts'] = [i if i < a else i - (b - a) for i in th.get('impacts', []) if not a <= i < b]
+    return f'cycle of {p} rows from row {s}: {k} -> {keep} repeats, rows {a}-{b - 1} cut ({len(th["timeline"]) + b - a} -> {len(th["timeline"])} rows)'
 
 def idle_frames(ch):
     """the frames of a fighter's idle animation (a captured throw's thrower back in neutral: throw_rows)"""

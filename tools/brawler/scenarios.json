@@ -4323,5 +4323,21 @@
   "expect": "Yamazaki leaps in, catches a Ryo and kicks him; the last kick also knocks down the other Ryo standing next to them (anyone up to about 100 px in front of him or 40 px behind), as the blast of Iori's fury does. The Ryo left far behind him only reels.",
   "do_keys": "2:d",
   "proof": 300
+ },
+ "20261006-161058-b3f3": {
+  "title": "Billy Kane's forward throw: one pole swing, then the slam (about as long as the others' throws)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "billy",
+   "dummy": "ryo",
+   "gap": 30,
+   "drive": "full",
+   "fury": "full",
+   "pre": "30:R,4:-"
+  },
+  "do": "Billy holds Ryo: press forward + A (his forward throw: the pole lift and swing, then the slam), then press A right after it. Then grab Ryo again and press back + A.",
+  "expect": "The forward throw lifts Ryo on the pole, swings him round once and slams him: Billy is free again after about 3/4 of a second (46 frames, was 134: the pole swing played 8 times), as quick as Terry's or Kyo's throws; the A right after it comes out while Ryo still lies. The back throw is unchanged (34 frames).",
+  "do_keys": "2:Ra,50:-,2:a,120:-,24:R,4:-,2:La,40:-,2:a",
+  "proof": 120
  }
 }

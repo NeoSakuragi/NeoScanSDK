@@ -100,6 +100,7 @@
    "music": "THEME_BILLY",
    "bank": "kof98:billy",
    "watch": {"frame": 347, "step": -1},
+   "throws": {"loops": {"throw_c": 1}},
    "routes": "default",
    "archetype": "balanced",
    "chain": {"length": 4},
