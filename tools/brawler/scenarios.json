@@ -4092,5 +4092,50 @@
   "expect": "The KO blow, the slow-motion flight, the death scream, the landing sound as he hits the floor, the bounce, the landing sound again as he comes to lie still; that last landing sound plays out to its end, and only then does the stage clear music start. Nothing starts it earlier.",
   "do_keys": "3:a",
   "proof": 500
+ },
+ "20261014-192540-5d29": {
+  "title": "Low life: down + D plays the MAX only when the fury gauge is full again",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 50,
+   "hp": 5,
+   "drive": "full",
+   "fury": 60
+  },
+  "do": "Robert at low life (his life bar blinks red), both drive chunks full, the hidden fury gauge at 60 of 100 (as after a MAX and some hits). Press down + D next to Ryo.",
+  "expect": "Robert blinks white, not red, before the press: the MAX is not ready. Down + D plays his plain fury (one drive chunk spent). The MAX (the red blink, then down + D) needs the fury gauge full again: 100 points, one per point of damage dealt, two per point taken; a MAX empties it.",
+  "do_keys": "1:Dd",
+  "proof": 200
+ },
+ "20261014-192939-5d29": {
+  "title": "Haggar: run + A (the forward, forward + A Blitz) slides forward",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 140
+  },
+  "do": "Tap forward twice and keep running toward Ryo, then press A (or forward, forward + A from standing).",
+  "expect": "Haggar's finisher comes out with a short glide forward: about 20 px over its first 12 frames, at his running speed first and slowing to a stop, instead of stopping dead.",
+  "do_keys": "2:R,2:-,1:R,14:R,2:Ra",
+  "proof": 90
+ },
+ "20261014-193405-5d29": {
+  "title": "Haggar: the fury from the hold after walking with the victim: no garbage on screen",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 30,
+   "drive": "full",
+   "fury": "full",
+   "pre": "30:R,4:-,13:U,3:-"
+  },
+  "do": "Haggar holds Ryo after walking with him (up) and stopping. Press D.",
+  "expect": "The fury plays from the hold with a clean screen: the stage, the HUD and the fighters stay as they are, no coloured squares or letters scattered over the screen, nothing left behind after the fury.",
+  "do_keys": "2:d",
+  "proof": 320
  }
 }

@@ -459,6 +459,7 @@ static void rt_anim(fighter_t *f) {                              /* anim_tick, r
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
+    f->bsl_n = 0;                                                /* (a Blitz's slide: its move only, blitz_slide) */
     if (st != S_AIR_ATTACK) f->jt = 0;                           /* (the jump table: only its own take-off and its air
                                                                     attacks keep it, "jumps"; any other air: gravity) */
     if (st != S_KNOCKDOWN) {                                     /* (the chain core: a juggle and a downed body end when it */
@@ -787,7 +788,27 @@ static uint8_t is_blitz_node(const fighter_t *f) {               /* P1's node is
                                                                     entry, a normal's blitz entry: BZ_NORMAL) */
     return f->node && (f->node == TREE(f)->dash || f->node == TREE(f)->pad[0]);
 }
+static uint8_t blitz_play(fighter_t *f, uint8_t slot, uint8_t how);
+/* a Blitz's slide (Bruno 2026-10-14, note 20261014-192939-5d29: "for the forward-forward A blitz, in addition to this
+ * move, add a small sliding forward motion"; game.json roster[].blitz_slide -> {px, frames} -> gblitz_slide[fighter][slot]):
+ * from the Blitz's first frame the fighter glides px forward over frames frames, fast first, slowing linearly to a stop
+ * (frame k: 2 px / (frames + 1) x (frames - k) / frames), on top of the move's own motion (its steps' dx, a special's
+ * program). A hit-stop holds it (update returns before it), a new state ends it (enter: a cancel, a hit taken). */
+static void blitz_slide_arm(fighter_t *f, uint8_t slot) {
+    const int32_t *s = gblitz_slide[f->ch->id][slot];          /* [frames, v0, dv] (build_tables blitz_slides) */
+    if (f->team || !s[0]) return;
+    f->bsl_n = (uint8_t)s[0]; f->bsl_v = s[1]; f->bsl_dv = s[2];
+}
+static void blitz_slide(fighter_t *f) {
+    f->x += f->facing > 0 ? f->bsl_v : -f->bsl_v; clamp(f);
+    f->bsl_v -= f->bsl_dv; f->bsl_n--;
+}
 static uint8_t blitz_go(fighter_t *f, uint8_t slot, uint8_t how) {
+    if (!blitz_play(f, slot, how)) return 0;
+    if (slot < BZ_COUNT && f->ch->id < BC_COUNT) blitz_slide_arm(f, slot);
+    return 1;
+}
+static uint8_t blitz_play(fighter_t *f, uint8_t slot, uint8_t how) {
     uint8_t v = slot < BZ_COUNT ? gblitz_rom[f->ch->id][slot] : BZ_NONE;
     f->blz_buf = 0;
     if (v == BZ_DASH) return blitz_dash(f, how);
@@ -2216,7 +2237,12 @@ static void hold_walk(fighter_t *f, fighter_t *v, const intent_t *in) {
     int8_t back;
     if (!k || in->ai || !an->nsteps) return;
     if (!in->dx && !in->dz) {                                    /* standing: the hold pose */
-        if (f->anim == BA_HOLD_WALK) { f->anim = BA_IDLE; f->frame_ovr = grab_frame(f); }
+        if (f->anim == BA_HOLD_WALK) { f->anim = BA_IDLE; f->step = 0; f->acc = 0; f->frame_ovr = grab_frame(f); }   /* (step:
+                                                                    the walk's step is no step of BA_IDLE; a move started from
+                                                                    the hold that drops frame_ovr before playing its own
+                                                                    showed anim / step for a frame: a step past the idle's
+                                                                    end = a garbage frame, its SCB1 runs overran the VRAM
+                                                                    queue: note 20261014-193405-5d29) */
         return;
     }
     back = in->dx && in->dx != f->facing;                        /* backward: the cycle in reverse, no turn */
@@ -3846,6 +3872,7 @@ static void update(fighter_t *f, const intent_t *in) {
     else if (f->inv) f->inv--;
     if (f->guard && !--f->guard) f->guard_by = 0;                /* a player's untouchable window after a hit ("guard") */
     if (f->chain_t) f->chain_t--;
+    if (f->bsl_n) blitz_slide(f);                                /* a Blitz's slide (blitz_slide_arm) */
     if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* the breaker (Bruno
                                                                     2026-10-08): C or A+B while hit (not in a fury's dance)
                                                                     = ALWAYS the fighter's neutral C special, whatever the

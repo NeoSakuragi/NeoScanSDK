@@ -294,6 +294,26 @@ def blitz_cancels(g):
     return out
 
 
+def blitz_slides(g):
+    """gblitz_slide: per roster fighter (bm_chars order) per Blitz slot (BZ_FF .. BZ_UU) its slide [frames, v0, dv]
+    (roster[].blitz_slide {slot: {px, frames}}; Bruno 2026-10-14, note 20261014-192939-5d29: "for the forward-forward A
+    blitz, in addition to this move, add a small sliding forward motion"): from the Blitz's start the fighter glides px
+    forward over frames frames, fast first and slowing to a stop (fighter.c blitz_slide), on top of the move's own motion;
+    a hit-stop holds it, any other state (a cancel, a hit taken) ends it; v0 = the first frame's glide 2 px / (frames + 1)
+    and dv = v0 / frames what it loses a frame (16.16 px: the 68000 has no 32-bit divide); absent = [0, 0, 0] (none)"""
+    out = []
+    for r in g['roster']:
+        bz = r.get('blitz') or {'ff': 'dash'}; row = [[0, 0, 0] for _ in BLITZ_SLOTS]
+        for k, v in (r.get('blitz_slide') or {}).items():
+            assert k in BLITZ_SLOTS and k in bz, f"roster {r['name']}: blitz_slide.{k}: not one of its Blitz slots"
+            assert set(v) <= {'px', 'frames', 'about'}, f"roster {r['name']}: blitz_slide.{k}: px / frames"
+            assert 1 <= v['px'] <= 127 and 1 <= v['frames'] <= 60, f"roster {r['name']}: blitz_slide.{k}: px 1-127, frames 1-60"
+            v0 = round(2 * v['px'] * 65536 / (v['frames'] + 1))           # frame k glides v0 - k dv (16.16 px)
+            row[BLITZ_SLOTS.index(k)] = [v['frames'], v0, v0 // v['frames']]
+        out.append((r['name'], row))
+    return out
+
+
 RUN_KEYS = ('hold_last', 'float', 'last_step', 'mode', 'dash', 'air_buttons', 'about')
 def run_bobs(g):
     """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
@@ -1053,6 +1073,7 @@ def tables(g, build):
          'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NORMAL its blitz entry, BZ_NONE */',
          'extern const uint8_t gfury_area[BC_COUNT][3];   /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
+         'extern const int32_t gblitz_slide[BC_COUNT][4][3];   /* per fighter per Blitz slot: its slide [frames, first frame\'s glide, its loss a frame] (16.16 px; roster[].blitz_slide; fighter.c blitz_slide), frames 0 = none */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
          'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
          'extern const uint8_t *const grun_dash[BC_COUNT]; /* the dash: [start, frames, x..., height..., air_buttons] (roster[].run.mode dash), 0 = a run */',
@@ -1092,6 +1113,8 @@ def tables(g, build):
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_rows(g, build)) + '\n};')
     c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
+    c.append('const int32_t gblitz_slide[BC_COUNT][4][3] = {\n' + ',\n'.join(
+        '    { ' + ', '.join('{ %d, %d, %d }' % tuple(v) for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_slides(g)) + '\n};')
     import knobs                                         # piece knobs (fighter.c "knobs"): shipped rows + the catalogue
     c += knobs.c_tables(g, build, SLOT_SEC)
     c += run_bobs(g)

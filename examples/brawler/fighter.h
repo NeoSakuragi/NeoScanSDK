@@ -615,6 +615,10 @@ typedef struct fighter {
                                      knocks others down there (0: none, or not landed yet); tb_kind = which throw made
                                      it a body (gtbody_ovr_t kind: BT_THROW_C / D, TBK_XTHROW, TBK_SPECIAL; 0xFF: a
                                      hold hit, no body: Final Fight's 3rd knee drops its victim where it stands) */
+    /* a Blitz's slide (fighter.c blitz_slide, game.json roster[].blitz_slide; note 20261014-192939-5d29): bsl_v = this
+     * frame's glide (16.16 px), bsl_dv = what it loses a frame, bsl_n = frames left (0: none) */
+    int32_t  bsl_v, bsl_dv;
+    uint8_t  bsl_n, bsl_pad;
 } fighter_t;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
