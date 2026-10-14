@@ -458,6 +458,7 @@
    "about": "The Last Blade 2's Moriya Minakata (2026-10-12): a Lab-only fighter (build_tables.lab_only: only the Character Lab's slot takes him, the game's builds stay as they were). Sheet = his own moves: chain A > A > B, finisher forward = forward + B (Ittou Kannazuki); C specials Shingetsu / Tsukikage / Oboro / teleports; fury = Kassatsu Izayoi Gekka (64123AB), MAX = Kassatsu Midare Setsugekka (641236B). Follow-ups (2026-10-12, tools/lastbld2/handlers_lb2 FOLLOW / HIT_NEXT): Tsukikage A x3 (forward + C) and B x4 (up-forward + C) pressed on C, Kassatsu Byakuya 22A + its stage 1 / 2 / 3 route 1 on down,up + A pressed, Midare continues on hit with move $B1 (hit_next). Shingetsu > Sougetsu (2026-10-14, T6): C (623A Ittou Shingetsu) then C again once it hit = 623A>B2 Ittou Sougetsu, the second rising moon slash (LB2 Speed / EX: 623B after Shingetsu hit; seq_hit; Shingetsu juggle: its victim stays hittable in the air, as LB2 lets Sougetsu hit it). tools/lastbld2, /data/neogeo_dict/lastbld2/README.md",
    "display": "MORIYA",
    "bank": "lastbld2:moriya",
+   "run_anim": 1.42,
    "damage": 3,
    "watch": {"frame": 0, "step": 0},
    "routes": "default",

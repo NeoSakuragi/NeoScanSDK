@@ -343,9 +343,14 @@ def run_anim(wk, r):
     boost Bruno chose for the WALK (2026-10-08); the run had it too, so its steps went by at the source's own pace (SS2
     Genjuro: 3 frames a step, as SS2) while the body covers 3.25 px a frame instead of SS2's 5.09: the legs spun. The
     run plays at walk.run_anim instead of walk.anim (1: the source's stride on the floor, the feet keep their ground).
-    A roster[].walk_rate fighter keeps its fixed rate for both (Final Fight's: its source has no run)"""
+    A roster[].walk_rate fighter keeps its fixed rate for both (Final Fight's: its source has no run). roster[].run_anim
+    overrides walk.run_anim for a source whose run is not twice its walk (the brawler's walk.run): the feet keep their
+    ground at walk.run x the source's walk / the source's run (note 20261014-164517-5d29, LB2 Moriya: walk 2.125, run
+    3.0 px a frame [meas] -> 1.42)"""
     if 'walk_rate' in r: return 256
-    return round(wk.get('run_anim', wk.get('anim', 1)) / wk.get('anim', 1) * 256)
+    ra = r.get('run_anim', wk.get('run_anim', wk.get('anim', 1)))
+    assert isinstance(ra, (int, float)) and 0.25 <= ra <= 4, f"roster {r['name']}: run_anim {ra} (0.25-4)"
+    return round(ra / wk.get('anim', 1) * 256)
 
 
 def walk_phys(g, r):

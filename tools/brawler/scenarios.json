@@ -3995,5 +3995,31 @@
   "expect": "An early second press: the second kick as soon as the jump allows. A late one (up to the top of the jump): Kyo rises a moment longer, then kicks, as in KOF98 (where both kicks are D). Without a second press he lands from the jump with no second kick.",
   "do_keys": "2:Dc,14:-,2:Dc,90:-,2:Dc,24:-,2:Dc",
   "proof": 90
+ },
+ "20261014-164531-5d29": {
+  "title": "Moriya's jump A comes out: Last Blade 2's jump slash, no frozen frame",
+  "setup": {
+   "mode": "lab",
+   "fighter": "moriya",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Jump straight up (hold B) and press A on the way up; then jump forward toward Ryo and press A again.",
+  "expect": "Each time Moriya swings his sword in the air (the wind-up, the slash with its streak, then his falling pose) and the slash hits Ryo, as in The Last Blade 2. He never stays stuck on one frame for the whole jump.",
+  "do_keys": "6:b,10:-,2:a,90:-,6:Rb,8:R,2:a,60:-",
+  "proof": 150
+ },
+ "20261014-164517-5d29": {
+  "title": "Moriya's run is Last Blade 2's run",
+  "setup": {
+   "mode": "lab",
+   "fighter": "moriya",
+   "dummy": "ryo",
+   "gap": 250
+  },
+  "do": "Tap forward twice and hold it: Moriya runs. Watch his legs, then let go.",
+  "expect": "He runs with Last Blade 2's own six-frame running stride, leaning forward, his legs keeping pace with the ground (no gliding on one pose, no sliding feet).",
+  "do_keys": "2:R,2:-,70:R,30:-",
+  "proof": 110
  }
 }

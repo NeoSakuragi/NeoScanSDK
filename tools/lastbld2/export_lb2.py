@@ -34,7 +34,7 @@ COLOURS = 2                                       # colour sets exported (A, B: 
 # slash, B = strong slash, C = kick (the brawler's A / B / C / D: LB2's A / B / C / forward + C, the kick that steps in),
 # body_toss = forward + B (Ittou Kannazuki, the stepping reap: the heaviest standing slash, the chain's finisher)
 MOVES = {
-    'idle': 0x00, 'walk_fwd': 0x04, 'run': 0x11, 'walk_back': 0x05,
+    'idle': 0x00, 'walk_fwd': 0x04, 'run': 0x12, 'walk_back': 0x05,
     'jump_up_rise': 0x0C, 'jump_up_fall': 0x0C, 'jump_fwd_rise': 0x0D, 'jump_fwd_fall': 0x0D,
     'jump_back_rise': 0x0E, 'jump_back_fall': 0x0E, 'land': 0x47,
     'atk_a_close': 0x31, 'atk_a_far': 0x31, 'atk_b_close': 0x34, 'atk_b_far': 0x34,
@@ -165,8 +165,14 @@ def kof_boxes(boxes):
 # ---- an animation as the game plays it ----
 def timeline(ch, a, mode=0, limit=600, loop=False):
     """model_lb2 rows of animation a alone (no descriptor), to its end ($FFFF: its last frame held once more by the
-    game, not included) or, loop, one cycle (the $9F restart)"""
+    game, not included) or, loop, one cycle (the $9F restart).
+    An air animation (air_anim: the jump normals) is played airborne: its $85 landing segment (seg $8000) otherwise lands
+    the model at once (height 0, no launch velocity) and jumps to its end after 2-7 frames, before the attack (note
+    20261014-164531-5d29: Moriya's jump B froze on its first frame); it then runs to the step the segment holds until
+    the landing (LB2 holds it in the air) and stops there"""
     o = M.Obj(ch, mode); o.set_anim(a); o.events = []
+    air = air_anim(ch, a)
+    if air: o.h = 1e6                                 # high enough never to land in the animation
     rows = []
     for _ in range(limit):
         if o.ended: break
@@ -174,7 +180,36 @@ def timeline(ch, a, mode=0, limit=600, loop=False):
         if loop and rows and o.off == 0 and r['step'] == 0 and len(rows) > 1 and o.step == 0: rows.append(r); break
         rows.append(r)
         if loop and o.off == 0 and len(rows) > 1: break
+        if air and o.seg == 0x8000 and r['step'] >= o.segend: break   # the held fall frame: shown once, held by the brawler
+    else:
+        if loop: return loop_cycle(ch, a, mode, limit)
     return rows, o.events
+
+def loop_cycle(ch, a, mode=0, limit=600):
+    """a loop that is not a $9F restart (the run $12: a lead-in frame, then $96 00 / $97 = for ever, note
+    20261014-164517-5d29): the model's rows from the first state that comes back (offset, tick, step, loop, segment) to
+    just before it comes back = one cycle, the lead-in left out (the brawler loops its steps from the first)"""
+    o = M.Obj(ch, mode); o.set_anim(a); o.events = []
+    rows, seen = [], {}
+    for k in range(limit):
+        key = (o.off, o.tick, o.step, tuple(o.loop) if o.loop else None, o.seg)
+        if key in seen:                               # the cycle rows[j:k], rotated to start on a frame change
+            j = seen[key]; n = k - j; cyc = rows[j:k]
+            f0 = next(r['frame'] for r in rows if r['frame'] in {c['frame'] for c in cyc})   # (its first frame shown)
+            s = next((i for i in range(n) if cyc[i]['frame'] == f0 and cyc[i - 1]['frame'] != f0), 0)
+            ev = sorted(((e[0] - j - s) % n,) + tuple(e[1:]) for e in o.events if j <= e[0] < k)
+            return cyc[s:] + cyc[:s], ev
+        seen[key] = k; rows.append(o.frame())
+    raise RuntimeError('anim $%X: no cycle in %d frames' % (a, limit))
+
+def air_anim(ch, a):
+    """animation a starts in the air: its first motion command before any frame is a $85 (accelerations alone, no launch)
+    on the landing segment $8000 (the jump normals $3B-$3D; the jumps $0C-$0E launch with a $84)"""
+    for it in L.parse(ch, a):
+        if it[0] == 'frame': return False
+        if it[0] == 'cmd' and it[2] in (0x84, 0x85):
+            b = it[3]; return it[2] == 0x85 and (b[2] << 8 | b[3]) == 0x8000
+    return False
 
 def collapse(B, rows, cuts=()):
     """frames -> steps: runs of the same frame id and boxes; the boxes' writes open a new hit; cuts: row indices where a
