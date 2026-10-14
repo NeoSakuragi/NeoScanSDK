@@ -25,47 +25,31 @@ INDEX_ADJ = [-1, -1, -1, -1, 2, 5, 7, 9]
 
 
 def encode_adpcma(pcm_data):
-    """Encode 16-bit signed PCM to ADPCM-A bytes (2 samples per byte)."""
-    signal = (pcm_data.astype(np.int32) * 2048) // 32768
-    predicted = 0
+    """Encode 16-bit signed PCM to ADPCM-A bytes (2 samples per byte), against the YM2610's own decoder: delta =
+    (2 * magnitude + 1) * step / 8 and a 12-bit accumulator that WRAPS (ymfm adpcm_a_channel, tools/brawler/voices.py
+    adpcm_a). Each nibble is the one whose decoded value lands nearest the input without leaving -2048..2047, so a
+    loud input never wraps the chip's accumulator (the former encoder clamped its own prediction while the chip wraps:
+    every full-scale sample turned into a sign-flipped burst, Final Fight's hits 2026-10-14)."""
+    signal = np.clip((np.asarray(pcm_data).astype(np.int32) * 2048) // 32768, -2048, 2047)
+    acc = 0
     step_idx = 0
     nibbles = []
 
     for sample in signal:
         step = STEP_TABLE[step_idx]
-        diff = sample - predicted
-
-        nibble = 0
-        if diff < 0:
-            nibble = 8
-            diff = -diff
-
-        if diff >= step:
-            nibble |= 4
-            diff -= step
-        if diff >= (step >> 1):
-            nibble |= 2
-            diff -= (step >> 1)
-        if diff >= (step >> 2):
-            nibble |= 1
-
-        delta = (step >> 3)
-        if nibble & 4:
-            delta += step
-        if nibble & 2:
-            delta += (step >> 1)
-        if nibble & 1:
-            delta += (step >> 2)
-        if nibble & 8:
-            predicted -= delta
-        else:
-            predicted += delta
-
-        predicted = max(-2048, min(2047, predicted))
-
-        step_idx += INDEX_ADJ[nibble & 7]
-        step_idx = max(0, min(48, step_idx))
-
+        sign = 8 if sample < acc else 0
+        best, best_err, best_acc = None, None, acc
+        for m in range(8):
+            d = (2 * m + 1) * step >> 3
+            v = acc - d if sign else acc + d
+            if not -2048 <= v <= 2047: continue
+            e = abs(int(sample) - v)
+            if best_err is None or e < best_err: best, best_err, best_acc = m, e, v
+        if best is None:                                  # (only the opposite sign stays in range)
+            sign ^= 8; best = 0; best_acc = acc - (step >> 3) if sign else acc + (step >> 3)
+        nibble = sign | best
+        acc = best_acc
+        step_idx = max(0, min(48, step_idx + INDEX_ADJ[nibble & 7]))
         nibbles.append(nibble & 0xF)
 
     result = bytearray()

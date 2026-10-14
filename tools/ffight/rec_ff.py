@@ -35,6 +35,7 @@ SCEN = {
     'jatk_n':  (None, 200, [(('A',), 1), ((), 14), (('B',), 1), ((), 60)]),
     'jatk_f':  (None, 200, [(('A', 'RIGHT'), 1), (F, 14), (('B', 'RIGHT'), 1), (F, 60)]),
     'jatk_d':  (None, 200, [(('A',), 1), ((), 22), (('B', 'DOWN'), 1), (('DOWN',), 50)]),
+    'jatk_fd': (None, 200, [(('A', 'RIGHT'), 1), (F, 22), (('B', 'DOWN'), 1), (('DOWN',), 50)]),     # (note 20261014-084234)
     'special': (None, 200, [(('A', 'B'), 1), ((), 90)]),
     'whiff':   (None, 200, [(('B',), 1), ((), 40)]),
 }
@@ -71,13 +72,16 @@ def grab_script(act):
                 if act == 'jump' and k == 6: btn = ('A',)
                 if act == 'jumpB' and k == 6: btn = ('A',)
                 if act == 'jumpB' and k in range(12, 40) and k % 3 == 0: btn = ('B',)
+                if act in ('jumpBf', 'jumpBb'):          # (the piledriver with the stick held: note 20261014-084718)
+                    d = ('RIGHT',) if act == 'jumpBf' else ('LEFT',)
+                    btn = d + (('A',) if k == 6 else ('B',) if k in range(12, 40) and k % 3 == 0 else ())
             L.step(*btn)
     return run
 
 def scenarios(name):
     s = dict(SCEN)
     s['chain'] = chain_scen(name, LINKS[name]); s['chain_back'] = chain_scen(name, LINKS[name], True)
-    for a in ('knees', 'fwd', 'back', 'jump', 'jumpB'): s['grab_' + a] = (60, 200, grab_script(a))
+    for a in ('knees', 'fwd', 'back', 'jump', 'jumpB', 'jumpBf', 'jumpBb'): s['grab_' + a] = (60, 200, grab_script(a))
     s['hit'] = ('bredhit', 200, [((), 120)])
     return s
 

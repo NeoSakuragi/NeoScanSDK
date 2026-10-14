@@ -816,7 +816,7 @@ FF_SWING = {'guy': [0x10258], 'cody': [0x120E4], 'haggar': [0x1397C]}       # th
 FF_FINISH = {'guy': (0x02, 0xFCE2), 'cody': (0x03, 0x12240), 'haggar': (0x03, 0x13A94)}   # the finisher's heavy swing
 FF_SPECIAL = {'guy': 0x0C, 'cody': 0x1C, 'haggar': 0x1D}
 FF_THROW = {'guy': [(0x04, 0x10480)], 'cody': [(0x04, 0x118C0)], 'haggar': [(0x07, 0x13BFA), (0x0B, 0x13450)]}
-FF_LEVEL = 0xDF                                   # both outputs, full level (FF's OKI channels play at their own level)
+FF_LEVEL = 0xDC                                   # both outputs, KOF98's usual voice level ($1C: Terry's 18 of 21 voices)
 def _ff():
     sys.path.insert(0, os.path.join(TOOLS, 'ffight')); import oki_ff
     return oki_ff

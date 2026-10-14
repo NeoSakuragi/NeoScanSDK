@@ -304,7 +304,7 @@ def src_v(game, t):
     return roms(f'/data/roms/{game}.neo')[1]
 
 FF_PRIO = 0x11                                            # a Final Fight effect's record: KOF98's hit sound priority
-FF_LEVEL = 0xDF                                           # (both outputs, full level)
+FF_LEVEL = 0xDA                                           # (both outputs, KOF98's own hit records' level $1A: $11-$15 = $D9-$DC)
 
 def sfx_imports(t, slot, imports, rep):
     """sfx "from": each code plays another SNK 1.x driver game's effect: the source record (its prefix -> slot as KOF98's

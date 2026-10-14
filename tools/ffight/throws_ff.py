@@ -17,7 +17,8 @@ Per throw, from the frame the thrower's throw animation starts:
   first frame the thrower is back in his idle (control returns).
 Inputs (the brawler's hold, docs/brawler_data_model.md "Throws"): throw_c = hold + forward + A (FF: direction toward
 the enemy + attack), throw_d = hold + back + A (FF: away + attack; FF plays the same animation turned), throw_x =
-Haggar's piledriver (FF: jump in the hold, then attack; the brawler's hold + up / down + A: roster throws.extra)."""
+Haggar's piledriver (FF: jump in the hold, then attack; the brawler's hold + B, roster throws.b: forward / back + B
+carried 94 px, FF's grab_jumpBf / grab_jumpBb: the same throw moved 95 / 94 px at a steady speed over its airborne rows)."""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -32,7 +33,7 @@ THROWS = {   # (scenario, the thrower's throw animation(s): the row 0 = the firs
              'throw_d': ('grab_back', (0x118C0,), 'Cody throw (back)', 'hold + back + A')},
     'haggar': {'throw_c': ('grab_fwd', (0x13BFA,), 'Backdrop (forward)', 'hold + forward + A'),
                'throw_d': ('grab_back', (0x13BFA,), 'Backdrop (back)', 'hold + back + A'),
-               'throw_x': ('grab_jumpB', (0x13450,), 'Piledriver', 'hold + up / down + A (FF: jump, then attack)')},
+               'throw_x': ('grab_jumpB', (0x13450,), 'Piledriver', 'hold + B, forward / back + B carried 94 px (FF: jump, then attack)')},
 }
 # the fighter's own frame for each posture (the mirror match; FF's frames of him thrown by enemies) [ROM, by eye]
 VPOSE = {
