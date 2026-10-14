@@ -704,6 +704,21 @@ seed $1D2B + w + 8s; lock points w x (width - 320) / 5 (448 px on the 2560 px st
 the stage end with min(2 + s, 5) minions (pick 3k + s, not the boss, set k + s, tint 1 + (k + s) mod 3, z 6 + 13k),
 seed $5B05 + s; life 100 + 4s, power stage + 1.
 
+### Stage intro (voice note 20261014-192343-5d29, 0.10.98)
+
+`stage_intro` (game-wide) and an optional `stages[].intro` (same keys, over it) -> `gintro[GS_COUNT]`
+(build_tables.py `intro_of` / `intro_tables`; main.c "the stage intro"). Every campaign stage start (a new game, stage
+2+, after a bonus game, a new game from CONTINUE on the title) plays: black, the stage's palettes + backdrop fade in over
+`fade` ticks (0 = a cut) with nobody on screen and no HUD; `title` (`{name}` = the stage's name, default
+"{name} START") centred on fix row 13 from `title_at` for `title_hold` ticks; at `walk_at` the players (both in 2P) walk
+in from `from` px outside the `side` edge (left | right), input locked, their own `gait` (walk | run) animation and
+speed, to `marks` ([[x, z] P1, [x, z] P2], x px from that edge), the HUD back; control given, `wave_delay` ticks later
+the first wave spawns and the campaign (triggers, waves, the boss) runs as before. Ticks from the stage's start (60 a
+second). Defaults: fade 32, title_at 16, title_hold 120, walk_at 136, side left, from 48, marks [[60, 40], [40, 10]] (the
+former start places), gait walk, wave_delay 20. The attract demo and the Lab's starts (chain lab, practice, "play from
+here", the bonus test) keep their immediate start. The Factory's Levels tab edits the game-wide block (row "Stage
+intro"; levels.py `intro`, the marks and a stage's own `intro` stay in game.json).
+
 ### Bonus stages (TODO T7, 2026-10-14; decision sets bonus-game + bonus-followup)
 
 Top-level `bonus` (next to `stages`, build_tables.py `bonus_check` / `bonus_tables` -> `gbonus`, gamedata.h

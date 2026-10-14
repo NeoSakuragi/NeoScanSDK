@@ -18,6 +18,10 @@ The bonus stages (TODO T7, game.json "bonus"; build_tables.bonus_check, main.c "
 draft's optional `bonus` = {after: [stage numbers], pick_seconds, fury_lock, games: [{name, music, seconds, count | top}]}
 (top = the drive chunks the gauge game's top grade adds); only the bonus block is rewritten (bonus_text).
 
+The stage intro (voice note 20261014-192343-5d29, game.json stage_intro; build_tables.intro_of, main.c "the stage
+intro") is edited here too: the draft's optional `intro` = {fade, title, title_at, title_hold, walk_at, side, from, gait,
+wave_delay} (game-wide; a stage's own stages[].intro and the marks stay in game.json); only that block is rewritten.
+
 A name: 1-12 characters A-Z 0-9 space . ! - (the fix font; build_tables.STAGE_NAME, the HUD's room before WAVE).
 A background: a stage of the build wide enough for the stage's lock points (each wave's and the boss's: lock <= width
 - 320, build_tables.model). A song: a songs.json song. Stage 1 plays P1's own theme instead when he has one (game.json
@@ -50,7 +54,7 @@ def state(game):
     for s in g['stages']:
         locks = [w['lock'] for w in s['waves']] + [s['boss']['lock']]
         st.append({**{k: s[k] for k in FIELDS}, 'need_w': max(locks) + 320})
-    return {'stages': st, 'bgs': backgrounds(), 'stage1_theme': True, 'bonus': bonus_view(g),
+    return {'stages': st, 'bgs': backgrounds(), 'stage1_theme': True, 'bonus': bonus_view(g), 'intro': intro_view(g),
             'songs': [{'name': s['name'], 'source': s['source'], 'what': s.get('what', '')[:160], 'preview': 'songs/' + preview_key(s)} for s in songs],
             'version': open(os.path.join(game, 'VERSION')).read().strip()}
 
@@ -62,6 +66,37 @@ def bonus_view(g):
     return {'after': b['after'], 'pick_seconds': b['pick']['seconds'], 'fury_lock': bool(b.get('fury_lock')),
             'games': [{'id': x['id'], 'kind': x['kind'], 'scene': x['scene'], 'slot': x.get('slot'), 'name': x['name'], 'music': x['music'], 'seconds': x['seconds'],
                        **({'count': x['count']} if x['kind'] == 'break' else {'top': x['chunks'][5]})} for x in b['games']]}
+
+
+INTRO_EDIT = ('fade', 'title', 'title_at', 'title_hold', 'walk_at', 'side', 'from', 'gait', 'wave_delay')
+
+
+def intro_view(g):
+    """the stage intro as the page edits it (game.json stage_intro over build_tables.INTRO_DEFAULT)"""
+    import build_tables
+    v = {**build_tables.INTRO_DEFAULT, **(g.get('stage_intro') or {})}
+    return {k: v[k] for k in INTRO_EDIT}
+
+
+def intro_merge(g, want):
+    """the page's intro view into game.json's stage_intro -> (the new block, change lines); raises ValueError(reason)"""
+    import build_tables
+    if not isinstance(want, dict): raise ValueError('intro: {' + ', '.join(INTRO_EDIT) + '}')
+    old = intro_view(g); b = copy.deepcopy(g.get('stage_intro') or {})
+    for k in INTRO_EDIT:
+        if k in want: b[k] = want[k]
+    try:
+        for si in range(len(g['stages'])): build_tables.intro_of({**g, 'stage_intro': b}, si)
+    except (AssertionError, KeyError, TypeError) as e: raise ValueError(f'intro: {e}')
+    new = intro_view({'stage_intro': b})
+    return b, [f'levels: intro {k} {json.dumps(old[k])} -> {json.dumps(new[k])}' for k in INTRO_EDIT if new[k] != old[k]]
+
+
+def intro_text(b, ind=' '):
+    """game.json's stage_intro block in its own layout (one line a field)"""
+    one = lambda v: json.dumps(v, ensure_ascii=False)
+    items = list(b.items())
+    return [f'{ind}"stage_intro": {{'] + [f'{ind} {one(k)}: {one(v)}' + (',' if i + 1 < len(items) else '') for i, (k, v) in enumerate(items)] + [f'{ind}}},']
 
 
 def bonus_merge(game, g, want):
@@ -110,6 +145,12 @@ def check(game, draft):
     if isinstance(draft, dict) and draft.get('bonus') is not None:   # (the bonus stages: optional in a draft)
         b, bch = bonus_merge(game, json.load(open(os.path.join(game, 'game.json'))), draft['bonus'])
         if bch: ch += bch; out = (out, b)
+    if isinstance(draft, dict) and draft.get('intro') is not None:   # (the stage intro: optional in a draft)
+        b, ich = intro_merge(json.load(open(os.path.join(game, 'game.json'))), draft['intro'])
+        if ich:
+            ch += ich
+            out = (out, None) if not isinstance(out, tuple) else out
+            out = (out[0], out[1], b)
     return out, ch
 
 
@@ -124,9 +165,15 @@ def bonus_text(b, ind=' '):
 def write(game, new):
     """only the stages' name / background / music lines of game.json rewritten (the rest keeps its text); a bonus block
     changed (new = (stages, bonus)): that block rewritten (bonus_text)"""
-    bonus = None
-    if isinstance(new, tuple): new, bonus = new
+    bonus = intro = None
+    if isinstance(new, tuple): new, bonus, intro = (new + (None,))[:3]
     p = os.path.join(game, 'game.json'); text = open(p).read(); lines = text.split('\n')
+    if intro is not None:
+        a = next((k for k, l in enumerate(lines) if l == ' "stage_intro": {'), None)
+        if a is None: a = next(k for k, l in enumerate(lines) if l == ' "stages": ['); lines[a:a] = intro_text(intro)
+        else:
+            e = next(k for k in range(a, len(lines)) if lines[k] == ' },')
+            lines[a:e + 1] = intro_text(intro)
     if bonus is not None:
         a = next(k for k, l in enumerate(lines) if l == ' "bonus": {')
         e = next(k for k in range(a, len(lines)) if lines[k] == ' },')
@@ -144,6 +191,7 @@ def write(game, new):
     G = json.loads(out)
     assert [{k: s[k] for k in FIELDS} for s in G['stages']] == new, 'game.json rewrite mismatch'
     assert bonus is None or G['bonus'] == bonus, 'game.json bonus rewrite mismatch'
+    assert intro is None or G['stage_intro'] == intro, 'game.json stage_intro rewrite mismatch'
     open(p, 'w').write(out)
 
 

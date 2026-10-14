@@ -106,8 +106,12 @@
   const bnGame = () => (S.lv.game && S.lv.game.bonus) || null;
   const bnWant = () => (S.lv.draft && S.lv.draft.bonus) || bnGame();
   const bnDiff = () => !!bnGame() && JSON.stringify(bnWant()) !== JSON.stringify(bnGame());
+  // the stage intro (note 20261014-192343-5d29, levels.py intro_view): the draft's (or the game's), whether it differs
+  const inGame = () => (S.lv.game && S.lv.game.intro) || null;
+  const inWant = () => (S.lv.draft && S.lv.draft.intro) || inGame();
+  const inDiff = () => !!inGame() && JSON.stringify(inWant()) !== JSON.stringify(inGame());
   const lvOpen = () => S.rows.find(r => r.levels && (r.status === 'pending' || r.status === 'building'));
-  const lvPending = () => !lvOpen() && (lvDiff().some(d => d.length) || bnDiff());
+  const lvPending = () => !lvOpen() && (lvDiff().some(d => d.length) || bnDiff() || inDiff());
   const pendingFighters = () => [...new Set(S.configs.map(c => c.fighter))].filter(f => shipState(f).unshipped);
 
   // ---- Characters ----
@@ -238,10 +242,12 @@
     drawLevels();
   }
   const bgImg = i => h('img', { class: 'lbg', src: 'stages/bg' + i + '.jpg', alt: 'background ' + i, loading: 'lazy' });
-  async function saveLevels(stages, what, bonus) {
+  async function saveLevels(stages, what, bonus, intro) {
     L.msg.className = 'msg'; L.msg.textContent = 'Saving…';
     const b = bonus || (bnDiff() ? bnWant() : undefined);          // (a stage's save keeps an unshipped bonus draft)
-    try { S.lv = await postJ(LAB + 'levels', b ? { stages, bonus: b } : { stages }); L.msg.textContent = what + ': saved. Ship it from the Build tab (Ship pending changes).'; lvEdit = null; }
+    const it = intro || (inDiff() ? inWant() : undefined);         // (and an unshipped intro draft)
+    const body = { stages }; if (b) body.bonus = b; if (it) body.intro = it;
+    try { S.lv = await postJ(LAB + 'levels', body); L.msg.textContent = what + ': saved. Ship it from the Build tab (Ship pending changes).'; lvEdit = null; }
     catch (e) { L.msg.className = 'msg bad'; L.msg.textContent = 'Not saved: ' + e.message; }
     drawLevels(); drawDaemon();
   }
@@ -269,6 +275,16 @@
         h('span', { class: 'lt' }, h('b', { text: 'Bonus games' }), h('span', { text: 'after stage ' + (bn.after.join(', ') || 'none') + ' · ' + bn.games.map(x => x.name).join(' / ') + (bn.fury_lock ? ' · fury locked' : '') })),
         bnDiff() ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? 'queued' : 'unshipped' }) : null),
         isOpen ? bonusEditor(bn, G) : null]);
+    }
+    const it = inWant();
+    if (it) {                                                      // the stage intro: one row, tap to edit
+      const isOpen = lvOpenStage === 'intro';
+      rows.unshift([h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
+        onclick: () => { lvOpenStage = isOpen ? -1 : 'intro'; lvEdit = null; L.msg.textContent = ''; drawLevels(); } },
+        h('b', { class: 'ln', text: 'I' }), h('span', {}),
+        h('span', { class: 'lt' }, h('b', { text: 'Stage intro' }), h('span', { text: (it.title || 'no title') + ' · fade ' + it.fade + ' · walk ' + it.side + ' at ' + it.walk_at + ' · wave +' + it.wave_delay })),
+        inDiff() ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? 'queued' : 'unshipped' }) : null),
+        isOpen ? introEditor(it) : null]);
     }
     P.levels.replaceChildren(h('div', { class: 'card' },
       h('h2', {}, 'Levels', h('span', { class: 'sp' }), h('span', { class: 'gv', text: 'in game ' + (G.version || '?') })),
@@ -339,6 +355,26 @@
       h('div', { class: 'btns' },
         h('button', { type: 'button', class: 'primary', text: 'Save bonus games', onclick: () => saveLevels(lvWant().map(x => ({ name: x.name, background: x.background, music: x.music })), 'Bonus games', v) }),
         bnDiff() ? h('button', { type: 'button', text: 'Back to the game\'s', onclick: () => saveLevels(lvWant().map(x => ({ name: x.name, background: x.background, music: x.music })), 'Bonus games back to the game\'s', bnGame()) }) : null,
+        h('button', { type: 'button', text: 'Close', onclick: () => { lvOpenStage = -1; lvEdit = null; drawLevels(); } })));
+  }
+
+  // the stage intro: every stage's start (ticks, 60 a second): fade, title, the walk in, the first wave
+  function introEditor(it) {
+    const v = lvEdit || (lvEdit = { ...it });
+    const keep = () => lvWant().map(x => ({ name: x.name, background: x.background, music: x.music }));
+    const num = (k, lo, hi, label) => h('label', { class: 'lf' }, h('span', { text: label }),
+      h('input', { type: 'number', min: String(lo), max: String(hi), value: String(v[k]), style: 'width:5em', onchange: e => { v[k] = Math.max(lo, Math.min(hi, parseInt(e.target.value, 10) || 0)); } }));
+    const pick = (k, opts, label) => h('label', { class: 'lf' }, h('span', { text: label }), h('select', { onchange: e => { v[k] = e.target.value; } },
+      opts.map(o => h('option', { value: o, selected: o === v[k] ? '' : null, text: o }))));
+    return h('div', { class: 'ledit' },
+      h('label', { class: 'lf' }, h('span', { text: 'Title ({name} = stage name)' }), h('input', { type: 'text', value: v.title, maxlength: '38', spellcheck: 'false',
+        oninput: e => { v.title = e.target.value.toUpperCase().replace('{NAME}', '{name}'); } })),
+      num('fade', 0, 255, 'Fade-in (ticks)'), num('title_at', 0, 1000, 'Title at'), num('title_hold', 0, 1000, 'Title shown for'),
+      num('walk_at', 0, 1000, 'Walk in at'), pick('side', ['left', 'right'], 'From the'), pick('gait', ['walk', 'run'], 'Gait'),
+      num('from', 0, 120, 'Start px outside'), num('wave_delay', 0, 1000, 'First wave after (ticks)'),
+      h('div', { class: 'btns' },
+        h('button', { type: 'button', class: 'primary', text: 'Save stage intro', onclick: () => saveLevels(keep(), 'Stage intro', undefined, v) }),
+        inDiff() ? h('button', { type: 'button', text: 'Back to the game\'s', onclick: () => saveLevels(keep(), 'Stage intro back to the game\'s', undefined, inGame()) }) : null,
         h('button', { type: 'button', text: 'Close', onclick: () => { lvOpenStage = -1; lvEdit = null; drawLevels(); } })));
   }
 

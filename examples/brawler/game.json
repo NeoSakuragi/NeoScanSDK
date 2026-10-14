@@ -890,6 +890,19 @@
    "moves": "jabs"
   }
  ],
+ "stage_intro": {
+  "about": "Every campaign stage's start (voice note 20261014-192343-5d29; main.c 'the stage intro'): black, the background fades in (palette fade over `fade` ticks, nobody on screen, no HUD), `title` on the fix layer from `title_at` for `title_hold` ticks ({name} = the stage's name), at `walk_at` the players walk in (`gait` walk | run, their own speed, input locked) from `from` px outside the `side` edge to their `marks` ([x px from that edge, z] P1, P2), the HUD back, then control and `wave_delay` ticks later the first wave. Ticks from the stage's start (60 a second). A stage's own `intro` (same fields) overrides these. A new game, stage 2+, after a bonus game, a new game from CONTINUE on the title: all play it; the attract demo and the Lab's starts do not. Edited in the Factory's Levels tab (levels.py intro).",
+  "fade": 32,
+  "title": "{name} START",
+  "title_at": 16,
+  "title_hold": 120,
+  "walk_at": 136,
+  "side": "left",
+  "from": 48,
+  "marks": [[60, 40], [40, 10]],
+  "gait": "walk",
+  "wave_delay": 20
+ },
  "stages": [
   {
    "name": "STAGE 1",

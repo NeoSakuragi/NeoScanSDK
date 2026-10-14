@@ -4137,5 +4137,16 @@
   "expect": "The fury plays from the hold with a clean screen: the stage, the HUD and the fighters stay as they are, no coloured squares or letters scattered over the screen, nothing left behind after the fury.",
   "do_keys": "2:d",
   "proof": 320
+ },
+ "20261014-192343-5d29": {
+  "title": "Stage start: fade-in, STAGE 1 START, Terry walks in, then the wave",
+  "setup": {
+   "mode": "select",
+   "cursor": "terry"
+  },
+  "do": "The select screen, the cursor on Terry. Press A and watch the stage start without touching anything; once Terry stands still, try to move.",
+  "expect": "The screen goes black and the street fades in with nobody on it and no life bars, STAGE 1 START in the middle; the title goes, Terry walks in from the left edge on his own and stops, the life bars come back; you control him and a moment later the first enemies arrive.",
+  "do_keys": "30:-,3:a,330:-",
+  "proof": 360
  }
 }

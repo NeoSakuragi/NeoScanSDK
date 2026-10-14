@@ -2668,6 +2668,107 @@ static uint8_t stage_song(uint8_t s) {
     uint8_t m = s == 0 ? roster_music[pl_ch[pl_on[0] ? 0 : 1]] : 0;
     return m ? m : gs->music;
 }
+/* ---- the stage intro (voice note 20261014-192343-5d29: "at the start of the level nobody on the screen: a fade-in of
+ * the background with STAGE 1 START, then the hero walks in, scripted, and as soon as he is on the screen the wave can
+ * start"). game.json stage_intro / stages[].intro -> gintro[] (build_tables.py intro_of). From stage_begin, every
+ * campaign stage (a new game, stage 2+, after a bonus game, CONTINUE on the title's new game):
+ *   IN_FADE  black, the stage's palettes and backdrop fade in over `fade` ticks; nobody on screen (the players and the
+ *            enemies S_OFF), no HUD (the fix layer holds only the title and the arcade line, as Final Fight's start);
+ *            the title from title_at for title_hold ticks (it may run on into the walk)
+ *   IN_WALK  from walk_at: the players (both in 2P) put `from` px outside the `side` edge, their input replaced by the
+ *            script's (forward, their own walk or run animation and speed) until each stands on its mark; the HUD back
+ *   IN_WAIT  control given; wave_delay ticks later the first wave spawns (spawn_wave) and the campaign runs (flow)
+ * The walk outside the world's edge: fighter.c's clamp holds x >= 16 and main.c camera() keeps a player inside the
+ * camera, so the walk runs at the mark's x (no clamp there) and the script carries the real x (in_x): the fighter's own
+ * motion each tick, added to it. The attract demo and the Lab's starts (no_intro) keep their immediate start. ---- */
+enum { IN_OFF, IN_FADE, IN_WALK, IN_WAIT };
+static void centre(uint8_t row, const char *t);
+static uint8_t in_ph, no_intro, in_at[2];
+static uint16_t in_t;
+static int32_t in_x[2];
+static const gintro_t *gi;
+static uint8_t fade_lut[32];                                 /* a 5-bit level at this tick's k / 16 (stage_fade) */
+static uint16_t col_scale(uint16_t c) {                      /* a colour at fade_lut's level (the dark bit dropped) */
+    uint8_t r = fade_lut[((c >> 7) & 0x1E) | ((c >> 14) & 1)], g = fade_lut[((c >> 3) & 0x1E) | ((c >> 13) & 1)],
+            b = fade_lut[((c << 1) & 0x1E) | ((c >> 12) & 1)];
+    return ((uint16_t)(r & 1) << 14) | ((uint16_t)(r >> 1) << 8) | ((uint16_t)(g & 1) << 13) | ((uint16_t)(g >> 1) << 4) |
+           ((uint16_t)(b & 1) << 12) | (b >> 1);
+}
+static void stage_fade(uint8_t k, uint8_t part) {            /* the stage's palettes + backdrop at k / 16 (16: as they are);
+                                                                part 0-3: only every fourth palette (a quarter a tick: the
+                                                                whole stage's 28 palettes a tick cost a frame), 0xFF all */
+    uint16_t t[16];
+    uint8_t p, c;
+    for (c = 0; c < 32; c++) fade_lut[c] = (uint8_t)((c * k) >> 4);
+    for (p = 0; p < stg->npal; p++) {
+        if (part != 0xFF && (p & 3) != part) continue;
+        const uint16_t *src = p == stg->cyc_pal ? stg->cyc + cyc_k * 16 : stg->pal + p * 16;   /* (the cycle's step) */
+        if (k >= 16) { PAL_setPalette(STAGE_PAL + p, src); continue; }
+        for (c = 0; c < 16; c++) t[c] = col_scale(src[c]);
+        PAL_setPalette(STAGE_PAL + p, t);
+    }
+    bd_set(k >= 16 ? stg->backdrop : col_scale(stg->backdrop));
+}
+static int16_t in_mark(uint8_t p) { return gi->side ? 320 - gi->mark_x[p] : gi->mark_x[p]; }   /* screen x */
+static void intro_title(void) {                              /* the title's line: shown, then cleared */
+    uint8_t n = 0;
+    char sp[40];
+    if (!gi->title[0]) return;
+    if (in_t == gi->title_at) centre(13, gi->title);
+    else if (in_t == gi->title_at + gi->title_hold) { while (gi->title[n] && n < 39) sp[n++] = ' '; sp[n] = 0; centre(13, sp); }
+}
+static void intro_walk_start(void) {
+    uint8_t i;
+    for (i = 0; i < 2; i++) {
+        fighter_t *f = &fighters[i];
+        if (!pl_on[i]) continue;
+        fighter_init(f, &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, cam_x + in_mark(i), gi->mark_z[i]);   /* (its
+                                                             depth checked at the mark) */
+        f->idx = i; f->facing = gi->side ? -1 : 1;
+        in_x[i] = FIX(cam_x + (gi->side ? 320 + gi->from : -(int16_t)gi->from)); f->x = in_x[i]; in_at[i] = 0;
+    }
+    hud_reset();                                             /* the HUD back, with the players */
+    in_ph = IN_WALK;
+}
+static void intro_fade_tick(void) {                          /* IN_FADE: the game's tick stops here */
+    in_t++;
+    if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
+    else if (in_t == gi->fade) stage_fade(16, 0xFF);
+    intro_title();
+    if (in_t >= gi->walk_at) intro_walk_start();
+}
+static void intro_input(void) {                              /* IN_WALK: the script's intents for the players */
+    uint8_t p;
+    for (p = 0; p < 2; p++) {
+        if (!pl_on[p]) continue;
+        in[p] = (intent_t){ 0 };
+        if (!in_at[p]) { in[p].dx = gi->side ? -1 : 1; in[p].run = gi->run; }
+    }
+}
+static void intro_pre(void) {                                /* IN_WALK, before the update: each walker at its mark */
+    uint8_t p;
+    for (p = 0; p < 2; p++) if (pl_on[p] && !in_at[p]) fighters[p].x = FIX(cam_x + in_mark(p));
+}
+static void intro_post(void) {                               /* after it: its motion added to its real x */
+    uint8_t p, all = 1;
+    in_t++;
+    intro_title();
+    for (p = 0; p < 2; p++) {
+        fighter_t *f = &fighters[p];
+        int32_t m = FIX(cam_x + in_mark(p));
+        if (!pl_on[p] || in_at[p]) continue;
+        in_x[p] += f->x - m;
+        if (gi->side ? in_x[p] <= m : in_x[p] >= m) { in_x[p] = m; in_at[p] = 1; }
+        else all = 0;
+        f->x = in_x[p];
+    }
+    if (all || in_t > gi->walk_at + 600) { in_ph = IN_WAIT; in_t = 0; }   /* (a walk that never gets there: 10 s at most) */
+}
+static void intro_wait(void) {                               /* IN_WAIT: control given; then the first wave */
+    if (++in_t < gi->wave_delay) return;
+    in_ph = IN_OFF;
+    spawn_wave(); phase_t = 0;
+}
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
@@ -2694,10 +2795,16 @@ static void stage_begin(uint8_t s, uint8_t first) {
         fighters[i].idx = i;
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
-    spawn_wave();
+    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0;
+    if (!attract && !no_intro) {                             /* the stage intro: nobody on screen, the stage black */
+        in_ph = IN_FADE;
+        for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
+        stage_fade(gi->fade ? 0 : 16, 0xFF); intro_title();
+        if (!gi->fade && !gi->walk_at) intro_walk_start();
+    } else spawn_wave();
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
-    hud_reset();
+    if (in_ph != IN_WALK) hud_reset();
     if (first) { BIOS_PLAYER_MOD[0] = attract ? 0 : 1; BIOS_PLAYER_MOD[1] = pl_on[1]; }   /* BIOS: who plays (a START then joins) */
 }
 static void bonus_off(void);
@@ -3582,7 +3689,7 @@ static void lab_start(uint8_t kind) {
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2;
     bonus_off(); fury_lock = 0;                               /* the Lab: never a bonus's lock */
     pl_ch[0] = c; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
-    stage_begin(0, 1);
+    no_intro = 1; stage_begin(0, 1); no_intro = 0;           /* (the Lab: no stage intro) */
     for (i = 1; i < NF; i++) fighters[i].state = S_OFF;
 #if LAB_BUILD
     ai_skip = 0; pm_nd = pm_mode = 0xFF;                      /* (the enemy test: its AI; the practice: prac_dummies) */
@@ -3615,7 +3722,7 @@ static void lab_stage(void) {
     bonus_off(); fury_lock = 0; bn_won = 0;                   /* (the fury free, as before the bonus stages: a recipe
                                                                  that tests it starts here; req 6 is the bonus's own) */
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
-    stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1);
+    no_intro = 1; stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1); no_intro = 0;
 #if LAB_BUILD
     ai_skip = 0; pm_on = 0; prac.menu = 0;                    /* the campaign's enemies: every one its AI */
 #endif
@@ -3633,7 +3740,7 @@ static void lab_bonus(void) {
     uint8_t w = lab.wave;
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
-    fight_start_at(lab.dummy + 1 < GS_COUNT ? lab.dummy : 0);
+    no_intro = 1; fight_start_at(lab.dummy + 1 < GS_COUNT ? lab.dummy : 0); no_intro = 0;
     if (w & 0x80) fury_lock = 0;
     bonus_start();
     if ((w & 0x7F) && (w & 0x7F) <= gbonus.ngames) bonus_play((w & 0x7F) - 1);
@@ -4028,12 +4135,15 @@ void game_tick(void) {
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */
     if (ko_seq && !boss_ko_tick()) { depth_sort(); draw(); hud(); return; }   /* the boss's death: slow motion (#172) */
+    if (in_ph == IN_FADE) { intro_fade_tick(); depth_sort(); draw(); if (in_ph == IN_WALK) hud(); return; }   /* the stage
+                                                             intro: the fade and the title, nobody on screen, no HUD */
     if (attract) {                                           /* the demo: a coin, 30 s or a game over ends it */
         if (bios_demo_end || ++attract_t > ATTRACT_DEMO) { SYS_return(); }   /* (START or a credit: attract_leave) */
         ai_bot(fighters, NF, 0, &in[0]);
         if (!(attract_t & 31)) FIX_print(14, 13, (attract_t & 32) ? "           " : "INSERT COIN", 0);
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
+    if (in_ph == IN_WALK) intro_input();                     /* the stage intro's walk: the script's intents */
     if (bonus_on) bonus_input();                             /* a bonus game: its intents */
 #if !AI_OFF
 #if LAB_BUILD
@@ -4053,19 +4163,20 @@ void game_tick(void) {
     close_marks();
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
                                                           /* SS2's big hit's slow motion: every other tick held */
+    if (in_ph == IN_WALK) intro_pre();
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */
         if (win_posing(i)) fighter_win_pose_tick(&fighters[i]);  /* the stage clear's win pose (#184) */
         else if (fighters[i].state != S_OFF && (!sf_who || sf_who == &fighters[i])) fighter_update(&fighters[i], &in[i]);
     if (!attract && !lab.active && phase == PH_CLEAR) win_tick();
     if (bonus_on) bonus_flow();                              /* a bonus game (its clock holds through a super flash) */
-    else if (!sf_who) { if (lab.active) lab_flow(); else flow(); }
+    else if (!sf_who) { if (lab.active) lab_flow(); else if (in_ph == IN_WALK) intro_post(); else if (in_ph) intro_wait(); else flow(); }
     if (mode != 1) return;                                   /* back on the title screen */
     if (dr_on) { depth_sort(); draw(); return; }             /* a scene starts: held from this tick, no HUD */
     if (!sf_who) {
         fighter_t *fl[NF];                                   /* the fighters in order[]'s order: the edges' entities */
         uint8_t n = 0;                                       /* (projectiles have none; cpu budget G) */
         for (i = 0; i < nf; i++) if (order[i] >= fighters && order[i] < fighters + NF && n < NF) fl[n++] = order[i];
-        if (!bonus_on) camera();
+        if (!bonus_on && in_ph != IN_WALK) camera();   /* (the stage intro's walk: its own x) */
         wall_update(fl, n, cam_x); screen_keep(fl, n, cam_x, 0); projectiles_update(cam_x, 0);
         mark(P_UPDATE);
         combat(order, nf, sf_who);
@@ -4087,7 +4198,7 @@ void game_tick(void) {
     mark(P_SORT);
     draw();
     mark(P_PLACE);
-    hud();
+    if (in_ph != IN_FADE) hud();                            /* (a stage intro begun this tick: no HUD yet) */
     mark(P_HUD);
     sf_tick();
 }

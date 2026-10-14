@@ -1044,7 +1044,6 @@ def bonus_tables(g, songs_known, sfx_names):
     return c
 
 
-
 def tint_lut(tints):
     """the minion tints precomputed (CPU budget B, docs/brawler_cpu_budget.md: the boss wave's spawn tinted its minions'
     palettes with 6 multiplies a colour, a 4-frame freeze): per tint, for every luminance l and channel c (0-31), what
@@ -1061,6 +1060,48 @@ def tint_lut(tints):
                 v.append(max(-64, min(96, m >> t['shift'])))
         rows.append(f'    {{   /* {n} */\n' + '\n'.join('        ' + ', '.join(str(x) for x in v[i:i + 32]) + ',' for i in range(0, 1024, 32)) + '\n    },')
     return 'const int8_t gtint_lut[TINT_COUNT - 1][1024] = {\n' + '\n'.join(rows) + '\n};'
+
+
+INTRO_KEYS = ('fade', 'title', 'title_at', 'title_hold', 'walk_at', 'side', 'from', 'marks', 'gait', 'wave_delay')
+INTRO_DEFAULT = {'fade': 32, 'title': '{name} START', 'title_at': 16, 'title_hold': 120, 'walk_at': 136, 'side': 'left', 'from': 48,
+                 'marks': [[60, 40], [40, 10]], 'gait': 'walk', 'wave_delay': 20}
+
+
+def intro_of(g, si):
+    """stage si's intro (note 20261014-192343-5d29; main.c "the stage intro"): game.json stage_intro (game-wide) with the
+    stage's own stages[].intro over it, checked -> the dict with every key, the title formatted ({name} = the stage's)"""
+    base = {k: v for k, v in (g.get('stage_intro') or {}).items() if k != 'about'}
+    own = g['stages'][si].get('intro') or {}
+    for w, d in (('stage_intro', base), (f'stages[{si}].intro', own)):
+        for k in d: assert k in INTRO_KEYS, f'{w}: unknown field {k}'
+    v = {**INTRO_DEFAULT, **base, **own}; n = f'stage {si + 1} intro'
+    num = lambda k, lo, hi: isinstance(v[k], int) and not isinstance(v[k], bool) and lo <= v[k] <= hi
+    for k, lo, hi in (('fade', 0, 255), ('title_at', 0, 1000), ('title_hold', 0, 1000), ('walk_at', 0, 1000), ('from', 0, 120), ('wave_delay', 0, 1000)):
+        assert num(k, lo, hi), f'{n}: {k} {v[k]!r}: {lo}-{hi}'
+    assert v['side'] in ('left', 'right'), f'{n}: side left | right'
+    assert v['gait'] in ('walk', 'run'), f'{n}: gait walk | run'
+    m = v['marks']
+    assert isinstance(m, list) and len(m) == 2 and all(isinstance(x, list) and len(x) == 2 and 16 <= x[0] <= 300 and 0 <= x[1] <= 80 for x in m), \
+        f'{n}: marks [[x, z] P1, [x, z] P2], x 16-300 px from that side, z 0-80'
+    t = v['title'].replace('{name}', g['stages'][si]['name']) if isinstance(v['title'], str) else None
+    assert t is not None and len(t) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in t), f'{n}: title {v["title"]!r}: ASCII, 0-38 characters'
+    return {**v, 'title': t}
+
+
+def intro_tables(g):
+    h = ['typedef struct {                  /* a stage\'s intro (game.json stage_intro / stages[].intro; main.c "the stage intro") */',
+         '    const char *title;            /* the fix layer\'s line ("" = none) */',
+         '    uint16_t title_at, title_hold, walk_at, wave_delay;   /* ticks from the stage\'s start; shown; the walk in; after the walk: the first wave */',
+         '    uint8_t fade, side, run, from;   /* palette fade-in ticks (0 = a cut); 1 = in from the right; the run, not the walk; px outside the edge */',
+         '    uint8_t mark_x[2], mark_z[2]; /* P1, P2: where the walk stops (px from that side\'s edge, depth) */',
+         '} gintro_t;', 'extern const gintro_t gintro[GS_COUNT];']
+    rows = []
+    for si in range(len(g['stages'])):
+        v = intro_of(g, si); m = v['marks']
+        rows.append(f"    {{ {c_str(v['title'])}, {v['title_at']}, {v['title_hold']}, {v['walk_at']}, {v['wave_delay']}, {v['fade']}, "
+                    f"{1 if v['side'] == 'right' else 0}, {1 if v['gait'] == 'run' else 0}, {v['from']}, {{ {m[0][0]}, {m[1][0]} }}, {{ {m[0][1]}, {m[1][1]} }} }}")
+    return h, ['const gintro_t gintro[GS_COUNT] = {', ',\n'.join(rows), '};']
+
 
 def tables(g, build):
     M = model(g, build)
@@ -1310,6 +1351,8 @@ def tables(g, build):
     c += dtier_tables(g, build, dmul)                    # revamp 2: the damage tiers (the scale of a special not measured: dmul)
     c += retime_tables(g, build)
     eh, ec = ending_tables(g)
+    h += eh; c += ec
+    eh, ec = intro_tables(g)
     h += eh; c += ec
     c += bonus_tables(g, known, {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()})
     h.append('#endif')
