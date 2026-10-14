@@ -373,6 +373,16 @@ static void camera(void) {
 static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
 static uint16_t block_spr[NA];                   /* where it showed them (a block's place moves with the widths before it) */
 static uint16_t slot_spr[NA];                    /* each depth slot's first sprite this frame (depth_sort) */
+/* (CPU budget D, docs/brawler_cpu_budget.md) what each block's SCB3 / SCB4 words were last written from: draw rewrites a
+ * block only when one of these changed: its entity, fighter_place's inputs (the frame shown + facing, its screen x and
+ * feet y: x - cam_x, floor_top + z - y) and its sprites (first, count); the columns' trims come with the frame, so a
+ * frame rewritten in place (shown_frame 0xFFFF before the tiles: thinned, re-clipped, a new form) is never kept
+ * (blk_new). Only in a fight (mode 1, no Neo Geo Land); any other screen, or anything that writes the blocks' sprites
+ * itself (blocks_layout, the bonus screens), resets it: blk_key_reset */
+static const fighter_t *bk_f[NA];
+static uint32_t bk_pos[NA], bk_frm[NA], bk_sm[NA];
+static uint8_t blk_new[NA];                      /* per entity (idx): its tiles were rewritten from 0xFFFF this tick */
+static void blk_key_reset(void) { uint8_t i; for (i = 0; i < NA; i++) bk_f[i] = 0; }
 /* a block's width: in a fight a fighter's MAX_COLS; a projectile / effect entity's the widest projectile or effect frame
  * of its thrower's character (pj_cols: measured from the data at boot) while it is in use, 0 when free, so the pool's
  * PJ_SPRS sprites go to the entities alive by their real widths (Kim's Phoenix flames 13, Rugal's / Haohmaru's 10,
@@ -441,6 +451,7 @@ static void blocks_layout(uint8_t cols) {                    /* (the select's bl
     y = cmd_run(VRAM_SCB3 + SEL_SPR, BLK_END - SEL_SPR);
     for (i = 0; i < BLK_END - SEL_SPR; i++) y[i] = 0;
     for (i = 0; i < NA; i++) block_placed[i] = 0;
+    blk_key_reset();
 }
 static uint8_t sel_rank[NA];                     /* the select screen: each actor's draw order (SEL_SLOT z, 0 the back) */
 static int32_t depth(const fighter_t *f) { return nf > NE ? sel_rank[f->idx] : f->z; }   /* the select: its layout's order */
@@ -837,6 +848,9 @@ typedef struct { uint16_t t[MAX_COLS]; int16_t top[MAX_COLS]; } col_trim_t;   /*
 static col_trim_t col_trim[NA];
 col_trim_t *trim_cur;                     /* draw.s fighter_tiles / fighter_place: the entity's columns */
 static uint8_t band_used[BANDS];
+#if BLK_CHECK
+uint16_t blk_bad, blk_checked;                   /* (the CPU budget C / D proof: cached spans / blocks that differ, checked) */
+#endif
 static uint8_t span(int16_t top, int16_t bot, uint8_t sh, uint8_t *b1) {   /* screen y [top, bot) -> bands of 1 << sh
                                                                             px: b0 (returned) - *b1, b0 > *b1: none */
     if (top < 0) top = 0;
@@ -1137,12 +1151,25 @@ static int32_t run_bob(const fighter_t *f) {
     return FIX(t[1 + (r >> 16)]);
 }
 static void pal_pend_tick(void);
+#if BLK_CHECK
+/* (make PROFILE="0 -DBLK_CHECK=1": the CPU budget D proof) a block left as it was: placed again into scratch words and
+ * compared with the words last written there; blk_bad counts the blocks that would have changed */
+static uint16_t blk_sy[NA][MAX_COLS], blk_sx[NA][MAX_COLS];
+static void blk_check(uint8_t i, fighter_t *f, uint8_t m, int32_t b) {
+    uint16_t y[MAX_COLS], x[MAX_COLS]; uint8_t c, ob = BANK_set(CH_BANK(f->ch));
+    int32_t fy = f->y;
+    f->y += b; trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); f->y = fy; BANK_set(ob);
+    blk_checked++;
+    for (c = 0; c < m; c++) if (y[c] != blk_sy[i][c] || x[c] != blk_sx[i][c]) { blk_bad++; break; }
+}
+#endif
 static void draw(void) {
     uint8_t i;
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
             uint8_t bc = blk_cols, ob = BANK_set(CH_BANK(order[i]->ch));   /* its frames: its bank (fighter.h) */
+            blk_new[order[i]->idx] = order[i]->shown_frame == 0xFFFF;   /* (CPU budget D: rewritten in place) */
             blk_cols = block_w(order[i]); trim_cur = &col_trim[order[i]->idx]; fighter_tiles(order[i]); blk_cols = bc;   /* clipped to its block */
             BANK_set(ob);
         }
@@ -1157,20 +1184,41 @@ static void draw(void) {
             for (c = 0; c < block_placed[i]; c++) y[c] = 0;
             block_placed[i] = 0;
         }
+    if (mode != 1 || land_on) blk_key_reset();               /* (the cache: the fight's blocks only) */
     for (i = 0; i < NA; i++) {
         fighter_t *f = order[i];
         uint8_t vis = i < nf && !hidden[i], n = vis ? f->ncols : 0, m = n > block_placed[i] ? n : block_placed[i];
         uint16_t spr = slot_spr[i], *y, *x;
         if (m) {
-            y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
             if (vis) {
-                uint8_t ob = BANK_set(CH_BANK(f->ch));
                 int32_t fy = f->y, b = run_bob(f);
-                f->y += b;                                       /* (the run's float: drawn only, the shadow on the floor) */
-                trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob);
-                f->y = fy;
+                uint32_t pos = (uint32_t)(uint16_t)(INT(f->x) - cam_x) << 16 | (uint16_t)(floor_top + INT(f->z) - INT(fy + b)),
+                         frm = (uint32_t)f->shown_frame << 8 | (uint8_t)f->facing, sm = (uint32_t)spr << 8 | m;
+                if (bk_f[i] == f && bk_pos[i] == pos && bk_frm[i] == frm && bk_sm[i] == sm) {
+#if BLK_CHECK
+                    blk_check(i, f, m, b);
+#endif
+                    block_placed[i] = n; block_spr[i] = spr; continue;
+                }
+                y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
+                {   uint8_t ob = BANK_set(CH_BANK(f->ch));
+                    f->y += b;                                   /* (the run's float: drawn only, the shadow on the floor) */
+                    trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m); BANK_set(ob);
+                    f->y = fy;
+                }
+                bk_f[i] = mode == 1 && !land_on && f->shown_frame != 0xFFFF && !blk_new[f->idx] ? f : 0;   /* (thinned this
+                                                                    frame: its trims come back next frame) */
+                bk_pos[i] = pos; bk_frm[i] = frm; bk_sm[i] = sm;
+#if BLK_CHECK
+                { uint8_t c; for (c = 0; c < m; c++) { blk_sy[i][c] = y[c]; blk_sx[i][c] = x[c]; } }
+#endif
             }
-            else { uint8_t c; for (c = 0; c < m; c++) y[c] = x[c] = 0; }
+            else {
+                uint8_t c;
+                y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
+                for (c = 0; c < m; c++) y[c] = x[c] = 0;
+                bk_f[i] = 0;
+            }
         }
         block_placed[i] = n; block_spr[i] = spr;
     }
@@ -2704,7 +2752,7 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
  *     card's sound (card_sound), card_ticks, then the game. */
 static uint8_t bn_slot, bn_moved, bn_conf, bn_msg, bn_slot_game[3];
 static void bscr_put(const bscr_obj_t *b, int16_t x, int16_t y, uint8_t hs, uint8_t vs) { bn_put(b->spr, &b->o, x, y, 0, hs, vs, 1); }
-static void bscr_clear(void) { uint16_t i, *y = cmd_run(VRAM_SCB3 + 1, BSCR_SPRS - 1); for (i = 0; i < BSCR_SPRS - 1; i++) y[i] = 0; }
+static void bscr_clear(void) { uint16_t i, *y = cmd_run(VRAM_SCB3 + 1, BSCR_SPRS - 1); for (i = 0; i < BSCR_SPRS - 1; i++) y[i] = 0; blk_key_reset(); }
 static void bscr_pals(const uint16_t *p, uint8_t n) { uint8_t i; for (i = 0; i < n; i++) PAL_setPalette(BSCR_PAL + i, p + i * 16); }
 static void bn_msg_show(uint8_t k) {             /* the message box's text: 0 the general one, 1-3 slot 0-2's */
     const bscr_obj_t *m = &bscr_msg[k];
@@ -3829,6 +3877,7 @@ void game_init(void) {
     bd_set(stg->backdrop);
     for (i = SEL_SPR; i < BLK_END; i++) cmd_push(VRAM_SCB2 + i, 0x0FFF);   /* full size, set once */
     for (i = 0; i < NA; i++) { block_placed[i] = blk_cols; block_spr[i] = slot_spr[i] = SPR_BASE + i * blk_cols; }   /* clear every block once */
+    blk_key_reset();
     stage_init(STAGE);
     snd_cmd(0x07);                                           /* KOF98's driver: music unlock */
 }
