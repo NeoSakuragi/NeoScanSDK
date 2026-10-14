@@ -1,6 +1,137 @@
 {
  "sets": [
   {
+   "id": "cpu-budget",
+   "title": "CPU budget: what costs the 68000 its frame",
+   "intro": "Your note 20261014-170114-5d29 (0.10.92, Moriya, stage 4 boss wave). Analysis only: nothing is changed in the game. Your run was replayed in our emulator with a cycle counter on every 68000 instruction (tools/brawler/cpu_profile.py). Numbers are % of one video frame (202,752 cycles). Full tables: docs/brawler_cpu_budget.md.",
+   "sections": [
+    {
+     "title": "Findings",
+     "questions": [
+      {
+       "id": "findings-drops",
+       "title": "Finding 1: frames are dropped, and the meter hides it",
+       "context": "650 of 4196 frames dropped (15 %). With 6 enemies, 1 tick in 4 needs 2 frames: those fights run at about 80 % speed. The meter shows the worst tick of 16 that still fit; a tick that overruns shows only the idle left in its second frame, so it reads LOW. Per tick with 6 enemies: median 92 %, p90 109 %, p99 148 %. P1 alone: 60 %. Each enemy costs about 4 %. 57 % of the overruns happen while P1 is in a special.",
+       "media": [
+        {
+         "image": "decisions-media/cpu-budget/cpu_timeline.png",
+         "caption": "Every tick of your run. Above the dashed line = 2+ frames (a dropped frame). At 35 s the boss wave spawns: one tick of 4.3 frames."
+        }
+       ],
+       "options": []
+      },
+      {
+       "id": "findings-costs",
+       "title": "Finding 2: where the frame goes",
+       "context": "With 6 enemies: draw 25 % (sprite block writes, line guard, stage), fighters 14 %, HUD bars 10 % (every bar redrawn every tick), collision 10 %, AI 6 %, screen edges 5 %, depth sort 4 %, VRAM flush 3 %, BIOS 2 %. Spikes: the boss wave's spawn tints palettes colour by colour (a 70 ms freeze); with 6 effects on screen the line guard alone takes up to 33 %.",
+       "media": [
+        {
+         "image": "decisions-media/cpu-budget/cpu_subsystems.png",
+         "caption": "Mean cost per subsystem: P1 alone / 6 enemies (fits) / 6 enemies (overruns)"
+        }
+       ],
+       "options": []
+      }
+     ]
+    },
+    {
+     "title": "Options (one answer each)",
+     "questions": [
+      {
+       "id": "hud-bars",
+       "title": "A. HUD bars: redraw a bar only when its value changes",
+       "context": "Saves ~9 % (bar_draw: 10 % mean, 23 % peak). Today every bar (2 lives, target, up to 8 drive chunks, boss) recomputes every cell every tick. Same picture. Risk low, effort small.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "spawn-tints",
+       "title": "B. Wave / boss spawn: tinted palettes precomputed",
+       "context": "Removes the 4-frame freeze (~70 ms) when a wave arrives: 6 enemies x their palettes x 15 colours, 6 multiplies per colour, all in one tick. Computed at build time (or once per fighter + colour set + tint). Risk low, effort small.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "line-guard",
+       "title": "C. Line guard: cache each entity's band span",
+       "context": "Removes the spikes: with 6 effects on screen the per-column band count costs up to 33 % of a frame (mean ~2 %). The span is recomputed only when the entity's frame changes. Risk medium (the per-line sprite limit must stay exact), effort medium.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "block-writes",
+       "title": "D. Sprite blocks: write Y / X only for blocks that changed",
+       "context": "Saves ~5 %. Today all 25 blocks' position words are rewritten and flushed every tick, moved or not (draw 6 + fighter_place 4.6 + VRAM flush 3.3). Risk medium (VRAM state must stay right), effort medium.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "collision",
+       "title": "E. Collision: active lists once per tick, strike only for live boxes",
+       "context": "Saves ~5 % (combat 6.6 + strike 3.2 at 6 enemies, 46 % peak). Today several passes over all 16 entities, and strike() is called for every attacker, mostly to return at once. Hit order must stay identical (regress traces). Risk medium, effort medium.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "ai-split",
+       "title": "F. AI: half the enemies think on even ticks, half on odd",
+       "context": "Saves ~3 % (ai_update 6 %, 9 % in overruns). Movement still every tick; decisions come 1 frame later. Risk: AI feel. Effort small.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "cleanups",
+       "title": "G. Small cleanups batch",
+       "context": "Saves ~6 %: the profiler's mark() still runs in normal builds (0.6), close_marks for players only (2.2 -> 0.5), depth sort on 16-bit keys of live entities (3.6 -> ~1), the second screen-edge pass only for fighters the combat moved, char_index cached. Risk low, effort small each.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "meter",
+       "title": "H. Meter: show dropped frames",
+       "context": "Today the meter shows the worst tick that fit, and overruns read low. Proposed: count the vblanks per tick and show e.g. CPU 140 % or the dropped frames per second. Risk none, effort small.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      },
+      {
+       "id": "asm",
+       "title": "I. 68000 asm for the remaining hot C loops (after A-G)",
+       "context": "About 2x on those loops (fighter_update state machine, collision pairs). Risk medium, effort high. Only worth it if A-G are not enough.",
+       "options": [
+        "Do it",
+        "Later",
+        "Drop"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "bonus-game",
    "title": "Bonus game (T7): how to bring AOF's over",
    "intro": "Art of Fighting 1 and 2 put a bonus game between fights. All clips come from our emulator (AOF1 / AOF2 ROMs, Ryo, default difficulty); they loop, tap to pause. Notes: /data/neogeo_dict/aof/bonus.md. Pick one answer per question; a note (type or speak) for anything else.",
