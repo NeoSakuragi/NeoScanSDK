@@ -4456,10 +4456,35 @@ static uint8_t grabbable(const fighter_t *v) {
 /* hold crowd (TODO #166 b; Final Fight / Streets of Rage): a hold hit's blow (its move's attack box on its impact
  * frame, fighter_t.impact) also hits every other enemy it reaches, each once per hit (hit_mask, the held victim's bit
  * set at the hit's start): a hold hit's damage and a light reel, the finisher's a knockdown, a spark each */
-static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
+/* combat's lists (cpu budget E, docs/brawler_cpu_budget.md): built once a tick from its entities (main.c order[], in
+ * that order), so each pass walks only who can take part: cb_live = every entity in use (fighters and projectiles: the
+ * attackers), cb_body = the fighters standing in the fight (not OFF / DEAD, no projectile: the bodies a pass moves or
+ * tests), cb_team[t] = team t's bodies (the victims of team !t). A list keeps the entities' order, so every pass sees the
+ * same entities in the same order as a walk over all of them: the same hits on the same frame. Nothing in combat turns
+ * an entity from OFF / PROJ / DEAD into a body (a death mid-pass stays listed: the passes' own tests skip it). */
+#define CB_MAX 32
+static fighter_t *cb_live[CB_MAX], *cb_body[CB_MAX], *cb_team[2][CB_MAX];
+static uint8_t cb_nlive, cb_nbody, cb_nteam[2];
+static void cb_lists(fighter_t **fs, uint8_t n) {
+    fighter_t **pl = cb_live, **pb = cb_body, **p0 = cb_team[0], **p1 = cb_team[1], **end;
+    if (n > CB_MAX) n = CB_MAX;                                  /* (order[] holds NA <= CB_MAX) */
+    for (end = fs + n; fs < end; ) {                             /* (pointers, not indexes: a third of the cycles) */
+        fighter_t *f = *fs++;
+        uint8_t s = f->state;
+        if (s == S_OFF) continue;
+        *pl++ = f;
+        if (s == S_PROJ || s == S_DEAD) continue;
+        *pb++ = f;
+        if (f->team) *p1++ = f; else *p0++ = f;
+    }
+    cb_nlive = pl - cb_live; cb_nbody = pb - cb_body; cb_nteam[0] = p0 - cb_team[0]; cb_nteam[1] = p1 - cb_team[1];
+}
+#define FOES(a) cb_team[(a)->team ? 0 : 1]                    /* a's opponents' bodies, and their count */
+#define NFOES(a) cb_nteam[(a)->team ? 0 : 1]
+static void hold_crowd(const fighter_t *only) {
     uint8_t i, j;
-    for (i = 0; i < n; i++) {
-        fighter_t *a = fs[i];
+    for (i = 0; i < cb_nlive; i++) {
+        fighter_t *a = cb_live[i];
         const bbox_t *atk;
         uint8_t fz, fin;
         fighter_t *tg;
@@ -4467,8 +4492,8 @@ static void hold_crowd(fighter_t **fs, uint8_t n, const fighter_t *only) {
         a->impact = 0;
         if ((only && a != only) || !(atk = hold_box(a))) continue;
         fz = a->freeze; tg = a->target; fin = a->throw_id == BT_HOLD_FIN;
-        for (j = 0; j < n; j++) {
-            fighter_t *v = fs[j];
+        for (j = 0; j < NFOES(a); j++) {
+            fighter_t *v = FOES(a)[j];
             const bstep_t *sv;
             const bbox_t *hb;
             int16_t dz, sx, sy;
@@ -4643,13 +4668,14 @@ uint8_t fighter_strike_box(const fighter_t *a, int16_t *x0, int16_t *x1, int16_t
 void fighter_meter_fill(fighter_t *f) { f->drive = DRIVE_FULL; f->fgauge = gmeter.fury_max; }
 void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
     uint8_t i, j;
-    hold_crowd(fs, n, only);
-    for (i = 0; i < n; i++) {                                    /* specials push who stands in their path: a rush */
-        fighter_t *a = fs[i];                                    /* reaches its hit as in the game, not past it */
+    cb_lists(fs, n);
+    hold_crowd(only);
+    for (i = 0; i < cb_nbody; i++) {                             /* specials push who stands in their path: a rush */
+        fighter_t *a = cb_body[i];                                    /* reaches its hit as in the game, not past it */
         if (a->state != S_SPECIAL || INT(a->y) >= AIR_BLOCK_Y || (only && a != only)) continue;
         if (a->ch->specials[a->spec_ix].sflags & SF_NOPUSH) continue;   /* its source has no push box then (SS2 +$FF) */
-        for (j = 0; j < n; j++) {
-            fighter_t *v = fs[j];
+        for (j = 0; j < NFOES(a); j++) {
+            fighter_t *v = FOES(a)[j];
             int16_t d, dz, pd;
             if (v->team == a->team || v->y || v->inv == INV_FURY || (v->state != S_IDLE && v->state != S_WALK && v->state != S_HITSTUN &&
                 v->state != S_ATTACK && v->state != S_SPECIAL)) continue;
@@ -4688,12 +4714,12 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             }
         }
     }
-    for (i = 0; i < n; i++) {                                    /* (Kim queue 2026-10-09) a normal that travels (its step's */
-        fighter_t *a = fs[i];                                    /* forward move) pushes the victim it hit ahead, as a */
+    for (i = 0; i < cb_nbody; i++) {                             /* (Kim queue 2026-10-09) a normal that travels (its step's */
+        fighter_t *a = cb_body[i];                                    /* forward move) pushes the victim it hit ahead, as a */
         if (a->state != S_ATTACK || a->y || !a->landed || a->ch->anims[a->anim].steps[a->step].dx <= 0 ||   /* special's */
             (only && a != only)) continue;                       /* rush: $96's three kicks with the regular push back */
-        for (j = 0; j < n; j++) {                                /* are not walked through */
-            fighter_t *v = fs[j];
+        for (j = 0; j < NFOES(a); j++) {                         /* are not walked through */
+            fighter_t *v = FOES(a)[j];
             int16_t d, dz;
             if (v->team == a->team || v->y || v->state != S_HITSTUN || v->inv == INV_FURY) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
@@ -4702,13 +4728,13 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             v->x = a->x + dir_mul(a->facing, FIX(PUSH_DX)); clamp(v);
         }
     }
-    for (i = 0; i < n; i++) {                                    /* a ROM special's opponent (KOF +$BC, PC_FAR before any hit): */
-        fighter_t *a = fs[i];                                    /* the nearest one on its lane */
+    for (i = 0; i < cb_nbody; i++) {                             /* a ROM special's opponent (KOF +$BC, PC_FAR before any hit): */
+        fighter_t *a = cb_body[i];                                    /* the nearest one on its lane */
         int16_t best = 0x7FFF;
         if (a->state != S_SPECIAL || (only && a != only)) continue;
         a->popp = 0;
-        for (j = 0; j < n; j++) {
-            fighter_t *o = fs[j];
+        for (j = 0; j < NFOES(a); j++) {
+            fighter_t *o = FOES(a)[j];
             int16_t dx, dz;
             if (o->team == a->team || o->state == S_PROJ || o->state == S_OFF || o->state == S_DEAD || dead_body(o, a)) continue;
             dx = INT(o->x) - INT(a->x); dz = INT(o->z) - INT(a->z);
@@ -4717,8 +4743,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             best = dx; a->popp = o;
         }
     }
-    for (i = 0; i < n; i++) {                                    /* THROWN BODIES (TODO #146 rule 9, spawn.body; note */
-        fighter_t *v = fs[i];                                    /* 20261014-132326-5d29: "like in Final Fight"): a */
+    for (i = 0; i < cb_nbody; i++) {                             /* THROWN BODIES (TODO #146 rule 9, spawn.body; note */
+        fighter_t *v = cb_body[i];                                    /* 20261014-132326-5d29: "like in Final Fight"): a */
         const bthrow_t *th = v->thr;                             /* thrown victim knocks down every other enemy it */
         const gtbody_t *p;                                       /* touches (its teammates, never a player unless */
         fighter_t *by;                                           /* throw_body.players), each once, falling the throw's */
@@ -4747,8 +4773,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         if (!by || by == v) continue;
         p = tbody_of(v, by);
         if (!p->on) continue;
-        for (j = 0; j < n; j++) {
-            fighter_t *o = fs[j];
+        for (j = 0; j < cb_nteam[v->team ? 1 : 0]; j++) {       /* (its own team's bodies) */
+            fighter_t *o = cb_team[v->team ? 1 : 0][j];
             const bstep_t *so;
             const bbox_t *hb;
             int16_t dz;
@@ -4775,12 +4801,12 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (v->held && v->held->held == v) v->held->freeze = p->bstop;
         }
     }
-    for (i = 0; i < n; i++) {                                    /* grabs: walking (or running / dashing: S_RUN) into a */
-        fighter_t *a = fs[i];                                    /* standing opponent: forward, or up / down (and the */
+    for (i = 0; i < cb_nbody; i++) {                             /* grabs: walking (or running / dashing: S_RUN) into a */
+        fighter_t *a = cb_body[i];                                    /* standing opponent: forward, or up / down (and the */
         if (!a->pushing || (a->state != S_WALK && a->state != S_RUN) || !a->ch->throws[BT_THROW_C].nrows || only) continue;
                                                                  /* diagonals) along the depth */
-        for (j = 0; j < n; j++) {
-            fighter_t *v = fs[j];
+        for (j = 0; j < NFOES(a); j++) {
+            fighter_t *v = FOES(a)[j];
             int16_t dz, d;
             if (v->team == a->team || !grabbable(v)) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
@@ -4796,11 +4822,15 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         }
     }
     cb_fs = fs; cb_n = n;
-    for (i = 0; i < n; i++) {
-        fighter_t *a = fs[i];
+    for (i = 0; i < cb_nlive; i++) {                             /* the entities with a live box (strike's own first test,
+                                                                    without its call for everyone else) */
+        fighter_t *a = cb_live[i];
+        uint8_t s;
         if (a->freeze || (only && a != only && a->owner != only)) continue;   /* (a super flash: its attacker and its
                                                                     objects, which run through it: K''s Heat Drive shot, #202) */
-        strike(a, fs, n);
+        s = a->state;
+        if (s != S_ATTACK && s != S_AIR_ATTACK && !((s == S_SPECIAL || s == S_PROJ) && a->spec_atk)) continue;
+        strike(a, FOES(a), NFOES(a));
     }
     for (i = 0; i < NPJ && !only; i++) {                         /* projectiles meeting: both hits spent (KOF98 */
         fighter_t *a = &projectiles[i];                          /* measured: EX Ryo's Ko-ou-ken ended on Yuri's */
