@@ -3085,9 +3085,12 @@ static uint8_t seq_owns(const fighter_t *f, uint8_t b) {        /* 1: a pressed 
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     return (sp->sflags & SF_SEQ) && sp->nlinks && (sp->links[0].trig & LK_IN) && (sp->links[0].in & b);
 }
-static uint8_t seq_wait(const fighter_t *f) {                  /* 1: a pressed sequence's piece, not armed */
+static uint8_t seq_wait(const fighter_t *f) {                  /* 1: a pressed sequence's piece, not armed (a link
+                                                                    LK_IN | LK_HIT, roster[].seq_hit: pressed and its
+                                                                    hit landed, LB2 Moriya's Shingetsu > Sougetsu) */
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
-    return (sp->sflags & SF_SEQ) && sp->nlinks && !(f->plink & 1);
+    return (sp->sflags & SF_SEQ) && sp->nlinks &&
+           (!(f->plink & 1) || ((sp->links[0].trig & (LK_IN | LK_HIT)) == (LK_IN | LK_HIT) && !f->landed));
 }
 /* An ON-HIT continuation (game.json roster[].hit_next, 2026-10-12: LB2 Moriya's Kassatsu Midare Setsugekka, whose run's
  * hit record starts its slashing sequence): the special is flagged SF_SEQ with one LK_HIT link whose `to` names the
@@ -4013,7 +4016,7 @@ static void update(fighter_t *f, const intent_t *in) {
             break;
         }
         if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->ch->specials[f->spec_ix].nlinks &&
-            (f->ch->specials[f->spec_ix].links[0].trig & LK_HIT) && f->landed) f->plink |= 1;   /* an on-hit continuation
+            (f->ch->specials[f->spec_ix].links[0].trig & (LK_HIT | LK_IN)) == LK_HIT && f->landed) f->plink |= 1;   /* an on-hit continuation
                                                                     (roster[].hit_next): its hit landed arms it */
         if ((f->ch->specials[f->spec_ix].sflags & SF_SEQ) && f->ch->specials[f->spec_ix].nlinks && !seq_wait(f) &&
             (f->pflags & PF_EVENT) && seq_next(f)) break;        /* a pressed sequence, armed: its next piece from the
@@ -4208,6 +4211,30 @@ static void overlap_xy(const fighter_t *a, const bbox_t *atk, const fighter_t *v
  * centre; the attacker's facing (spark 0x40: the other way, DD's height class 3); in front of both. Spark 0x80: the
  * screen strobes red (DD's super hits, $25EF2: main.c screen_fx). 0: the step has none (the engine's KOF98 spark). A
  * spark never takes the last free entity (a projectile needs it); no entity: no spark (the hit stays). */
+/* a special's step's own impact sound (T5, 2026-10-14; export_bm step_snd): The Last Blade 2's hit-sound families
+ * (handlers_lb2 step_snd: the family each of its hits picks from, measured in our emulator) or a pick list a fighter's
+ * roster[].hit_sfx names for a special. Kept in bm_hsnd (the Lab pack format stands): [HS_STEP, 4, special index,
+ * animation index, step, pick list i] entries; the hit landing on that step plays one of bm_hsnd[HS_PICK + i] (drawn as
+ * LB2 draws it, own_sound). 0: none (the special's hit kind, hit_sfx). An object's hit (Haohmaru's 623S slash) takes its
+ * thrower's whole-special entry while that special plays, else its own kind. */
+#define HS_PICK 0xC0
+#define HS_STEP 0xEF
+static uint8_t step_sound(const fighter_t *a) {
+    const fighter_t *o = a->pdef ? a->owner : a;                 /* (an object's hit: its thrower's special, whole-
+                                                                    special entries only) */
+    const bspec_t *sp;
+    const uint8_t *e;
+    const banim_t *pa;
+    if (!o || o->state != S_SPECIAL || !o->ch->specials[o->spec_ix].prog || !o->pan) return 0;
+    sp = &o->ch->specials[o->spec_ix]; pa = sp->anims;           /* its animations (a variant row's: anims[j + var * */
+    if (sp->nvar) { uint8_t k; for (k = o->var; k; k--) pa += sp->vanim; }   /* vanim], the entry names j; no
+                                                                    multiply / divide: the build has no __mulsi3) */
+    for (e = bm_hsnd[o->ch->id]; *e != 0xFF; e += 2 + (e[1] & 0x7F))
+        if (e[0] == HS_STEP && e[2] == o->spec_ix && ((e[3] == 0xFF && e[4] == 0xFF) ||
+            (!a->pdef && e[4] == o->pstep && &pa[e[3]] == o->pan)))
+            return own_sound(o, HS_PICK + e[5], 0);                  /* (0xFF, 0xFF: every hit of the special) */
+    return 0;
+}
 uint8_t hitflash;
 static uint8_t hit_spark(fighter_t *a, const fighter_t *v, const bbox_t *atk, const bbox_t *hb) {
     const bhspark_t *hs = &bm_hspark[a->ch->id];
@@ -4406,7 +4433,10 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                     if (c + 1 < nh) { rc = R_HEAVY; a->vcnt += 1 << sh; }   /* its damage split over them, a reel */
                     else a->vdone |= 1 << v->idx;                /* until the last (its own reaction) */
                 }
-                if (!sounded++) { if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD); }
+                if (!sounded++) {                            /* its step's own sound (step_sound), else its kind's */
+                    uint8_t s = step_sound(a);
+                    if (s) snd_sfx(s); else if (a->state == S_SPECIAL || a->pdef) hit_sfx(a->spec_fx); else snd_sfx(SFX_HIT_CD);
+                }
                 fighter_hit(a, v, dmg, rc, lpush);
                 if ((a->state == S_SPECIAL || a->pdef) && a->spec_fx >> 6) set_burn(v, a->spec_fx >> 6);
                 if (a->state == S_SPECIAL && (a->ch->specials[a->spec_ix].sflags & SF_BIGHIT)) big_hit(a, v);

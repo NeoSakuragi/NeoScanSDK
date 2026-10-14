@@ -41,6 +41,9 @@ def main(d='/data/tmp/lastbld2/exp', name='moriya'):
     for i, fr in enumerate(ch['frames']):
         fid = fr['lb2']['frame']; cid = fr['lb2'].get('char', ch['id'])
         a = export_render(ex, ch, fr, tiles, ch['block_palettes']); b = rom_render(cid, fid, X.PAL0[ch['id']])
+        if fr['lb2'].get('lnk'):                    # (T4: a normal's frame with its OBJ LNK trail, export_lb2.frame_lnk:
+            lf, lx, ly = fr['lb2']['lnk']           # the trail's frame at (x, y), drawn over him)
+            b.update({(x + lx, y + ly): v for (x, y), v in rom_render(cid, lf, X.PAL0[ch['id']]).items()})
         if a == b: same += 1
         else: bad.append((i, fid, len(a), len(b), sum(1 for k in a if b.get(k) != a[k])))
     print(name, len(ch['frames']), 'frames', same, 'identical', bad[:10])

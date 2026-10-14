@@ -22,7 +22,12 @@ LE_SPEC = 0x1000
 # (name, the start: [(frames, keys)], the follow-up press, dummy gap px)
 SEQS = [('Tsukikage A (forward + C)', [(2, 'Rc')], 'c', 60),
         ('Tsukikage B (up-forward + C)', [(2, 'URc')], 'c', 80),
-        ('Byakuya 22A route 1 (down,up + A)', [(2, 'D'), (2, 'Ua')], 'a', 80)]
+        ('Byakuya 22A route 1 (down,up + A)', [(2, 'D'), (2, 'Ua')], 'a', 80),
+        ('Shingetsu > Sougetsu (C, then C once it hit)', [(2, 'c')], 'c', 40)]
+# (T6, 2026-10-14) roster[].seq_hit: the next piece also needs the piece's hit (LB2: Sougetsu only after Shingetsu hit,
+# tools/lastbld2/sougetsu_lb2_proof.py): whiffed (the dummy far), C pressed all along, the move ends with the first piece
+WHIFF = [('Shingetsu whiffed: no Sougetsu', [(2, 'c')], 'c', 250, 1)]
+SEQ_HIT = {'specials.D'}
 
 
 def encode(cfg):
@@ -77,7 +82,11 @@ def main():
 
     for name, start, again, gap in SEQS:
         chain = run(start, again, gap)
-        for k in range(len(chain)):
+        seq0 = chain[0]['piece'].split(' (')[1].split(' #')[0] if chain and ' (' in chain[0]['piece'] else None
+        if seq0 in SEQ_HIT:                                  # (seq_hit: each next piece needs the hit, so the pieces are
+            n = sum(1 for p in pool if p.get('seq') == seq0)  # measured on the chain run itself, one dummy; the C
+            chain = chain[:n]; [p.update(gap=gap) for p in chain]   # presses after it start a new one: cut)
+        for k in range(len(chain) if seq0 not in SEQ_HIT else 0):
             for g in (gap, 40, 20, 60, 100, 120, 140, 160):         # (the first gap its hit lands at: each piece its own reach)
                 got = run(start, again, g, at_piece=k)
                 chain[k]['hits'] = got[k]['hits'] if k < len(got) and got[k]['piece'] == chain[k]['piece'] else 0
@@ -89,6 +98,12 @@ def main():
         ok &= good; out.append({'case': name, 'pieces': chain, 'result': 'PASS' if good else 'FAIL'})
         print(f'{name}: {"PASS" if good else "FAIL"}', flush=True)
         for p in chain: print(f"   {p['piece']:34} from {p['from']:3} frames {p['frames']:3} hits {p['hits']} (gap {p.get('gap')})", flush=True)
+    for name, start, again, gap, want in WHIFF:
+        chain = run(start, again, gap)
+        good = len(chain) == want and all(p['hits'] == 0 for p in chain)
+        ok &= good; out.append({'case': name, 'pieces': chain, 'result': 'PASS' if good else 'FAIL'})
+        print(f'{name}: {"PASS" if good else "FAIL"}', flush=True)
+        for p in chain: print(f"   {p['piece']:34} from {p['from']:3} frames {p['frames']:3} hits {p['hits']}", flush=True)
     # the on-hit continuation: Midare Setsugekka on the fury key (TRY blob), the dummy in front
     mx = next(i for i, p in enumerate(pool) if p['input'] == '641236B' and not p.get('seq'))
     for gap, want in ((120, True), (-120, False)):         # (hit: the continuation; whiff, the dummy behind: the move ends as it is)

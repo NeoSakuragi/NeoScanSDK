@@ -82,6 +82,40 @@ SPECIALS = {
         '64123AB': (0x86, 0, 'Kassatsu Izayoi Gekka (super)'), '641236B': (0x8A, 0, 'Kassatsu Midare Setsugekka (desperation)'),
         '22A': (0x8C, 1, 'Kassatsu Byakuya (Speed super)'), '22B': (0x8D, 1, 'Kassatsu Byakuya (Speed super)'),
     }}
+# ---- the impact sounds (T5, 2026-10-14) ---------------------------------------------------------------------------------
+# LB2's hit code ($3AF7E) picks a hit's sound from a FAMILY: a class word $A0nn ($7A198[strength][kind]: the attack box's
+# strength and its hit word $70270[box type]) -> $2948E's table -> a function that draws list[RNG $3E30 & mask] [code];
+# the lists are songs.json sfx "picks" 'LB2 A0' .. 'LB2 A9' (read from those functions). Which family each of Moriya's hits
+# uses is MEASURED in our emulator (tools/lastbld2/hitsound_lb2.py: every move hitting P2 over 8-12 RNG states, the $17
+# codes it queues; the family = the smallest list holding them all) [meas]: the slashes A0-A5 / A8-A9 by weight, the kicks
+# A8 / A9. Normals: his animation -> family (export_lb2: anims[mv]['hitsnd']); specials: per LB2 hit in order (a new hit =
+# a new attack box type), the last one repeating -> rom['step_snd'] (export_bm: the step's own pick list, fighter.c
+# step_sound). Byakuya's stage pieces (Speed / EX chain, not measured: their gauge / style set-up) take the chain's slash
+# family A1 [inf].
+NORMAL_SND = {0x30: 'A8', 0x31: 'A4', 0x34: 'A5', 0x35: 'A8', 0x36: 'A9', 0x37: 'A4', 0x38: 'A1', 0x39: 'A8', 0x3A: 'A9',
+              0x3B: 'A4', 0x3C: 'A0', 0x3D: 'A8', 0x91: 'A2'}
+SPECIAL_SND = {'moriya': {
+    '236A': ['A5'], '236B': ['A5'], '236A>BD': ['A1'], '236A>BE': ['A1'], '236B>BA': ['A1'], '236B>CA': ['A1'], '236B>9B': ['A1'],
+    '623A': ['A8', 'A1'], '623A>B2': ['A1'], '623B': ['A9', 'A1'], '214A': ['A0', 'A1'], '214B': ['A4', 'A1'], '214C': ['A4', 'A1'],
+    '64123AB': ['A4'] * 5 + ['A0', 'A4'] * 5, '641236B': ['A5'], '641236B>B1': ['A1', 'A1', 'A5', 'A1', 'A1', 'A1', 'A1', 'A8', 'A1'],
+    '22A': ['A0'], '22B': ['A0'], **{f'22A>{m:X}': ['A1'] for m in range(0xD4, 0xDD)}}}
+
+def step_sounds(rom, fams):
+    """[(state index, step, 'LB2 <family>')] for every step with an attack box: LB2 hit k = the k-th opening that does
+    not continue the step right before it with the same attack box types (the steps' 'lb2_atk': a box re-written with
+    other coordinates is the same hit, 623A's $AB), fams[k] (the last repeating)"""
+    out, k, prev = [], -1, None
+    for j, st in enumerate(rom['states']):
+        steps = rom['anims'][st]['steps']
+        op = openings(steps)
+        for i, s in enumerate(steps):
+            t = tuple(s.get('lb2_atk') or ())
+            if not t: prev = None; continue
+            if op[i] and t != prev: k += 1
+            prev = t
+            out.append((j, i, 'LB2 ' + fams[min(max(k, 0), len(fams) - 1)]))
+    return out
+
 # the descriptor's teleports -> P_WARP (a = 0: at its target, b px short of it, turned to it; model_lb2.WARP)
 WARP_B = {9: 288, 10: 80, 11: -110}
 
@@ -105,8 +139,14 @@ WARP_B = {9: 288, 10: 80, 11: -110}
 # word is $FFFF / $FF0x) -> +$198, started by $37DA6 ($2EA3E) the next frame. Kassatsu Midare Setsugekka's run ($A3 ->
 # anim $A2, box type $A3): every standing body type ($C0 / $C4: words $3DB1 / $3EB1) -> move $B1 = anim $A5, the
 # slashing sequence (measured: P1 move $B1 the frame after the run connects, P2 life 256 -> 224). -> roster[].hit_next.
-FOLLOW = {'moriya': {'236A': [0x77, 0x77], '236B': [0x78, 0x78, 0x78],
+#   Ittou Shingetsu -> Ittou Sougetsu (2026-10-14, T6): $92 sets class 78 in Speed / EX only (Power: no class, no
+#     follow-up); from class 78 row $7A (the recogniser's 623B) -> $B2 (anim $BF, the second rising slash), the window =
+#     Shingetsu's whole play (class 78 on every frame). Shingetsu's Power and Speed frames, x and heights are identical
+#     (model rows equal but the class), so its piece keeps the Power program and the chain reads Speed's classes
+#     (FOLLOW_STYLE); Sougetsu is played from its Speed data (the style that has it). $B2 sets no class: no third piece.
+FOLLOW = {'moriya': {'236A': [0x77, 0x77], '236B': [0x78, 0x78, 0x78], '623A': [0x7A],
                      '22A': [0x09, 0x12, 0x1B, 0x09, 0x12, 0x1B, 0x09, 0x12, 0x77]}}
+FOLLOW_STYLE = {'moriya': {'623A': 1}}            # the style whose classes carry the follow-up (default: the special's)
 HIT_NEXT = {'moriya': {'641236B': 0xA3}}           # the special -> its attack box type (the hit record's row)
 FOLLOW_NAMES = {0xBD: 'Ittou Tsukikage (A, 2nd slash)', 0xBE: 'Ittou Tsukikage (A, 3rd slash)',
                 0xBA: 'Ittou Tsukikage (B, 2nd slash)', 0xCA: 'Ittou Tsukikage (B, 3rd slash)', 0x9B: 'Ittou Tsukikage (B, 4th slash)',
@@ -114,7 +154,7 @@ FOLLOW_NAMES = {0xBD: 'Ittou Tsukikage (A, 2nd slash)', 0xBE: 'Ittou Tsukikage (
                 0xD7: 'Kassatsu Byakuya stage 2 route 1 (A)', 0xD8: 'Kassatsu Byakuya stage 2 route 1 (B)',
                 0xD9: 'Kassatsu Byakuya stage 2 route 1 (C)', 0xDA: 'Kassatsu Byakuya stage 3 route 1 (A)',
                 0xDB: 'Kassatsu Byakuya stage 3 route 1 (B)', 0xDC: 'Kassatsu Byakuya stage 3 route 1 (236C)',
-                0xB1: 'Kassatsu Midare Setsugekka (on hit)'}
+                0xB1: 'Kassatsu Midare Setsugekka (on hit)', 0xB2: 'Ittou Sougetsu (Shingetsu follow-up)'}
 
 def classes(ch, move, mode):
     rows, _ = move_rows(ch, move, mode)
@@ -157,6 +197,7 @@ def follow_pieces(name):
     pieces, events = {}, {}
     for base, seq in FOLLOW.get(name, {}).items():
         row, mode, _ = SPECIALS[name][base]
+        mode = FOLLOW_STYLE.get(name, {}).get(base, mode)
         prev = base
         for mv, ev in chain(ch, move_of(row), mode, seq):
             events[prev] = ev
@@ -352,11 +393,13 @@ def special(B, ch, name, inp):
     opens = [i for i, r in enumerate(prow) if (i == 0 or prow[i - 1][:2] != r[:2]) and openings(anims_l[r[0]]['steps'])[r[1]]]
     apex = max(range(len(prow)), key=lambda i: prow[i][3]) if prow else 0
     snd = [[e[0], e[2]] for e in ev if e[1] == 'snd']
+    fams = SPECIAL_SND.get(name, {}).get(inp)
     rom = {'states': states, 'anims': anims_d, 'prims': prims, 'objects': objects, 'step_fx': step_fx, 'openings': {}, 'hit_kind': 1,
            'last_hit': opens[-1] if opens else -1, 'apex': apex if prow and prow[apex][3] > 0 else -1,
            'length': len(prow), 'voice_frames': True, 'now': True,
            'vtable': {'rows': [], 'ncol': 0, 'nvar': 0, 'default': 0, 'vanim': len(states), 'vobj': 0, 'vdmg': 0,
                       'buttons': [], 'results': [row if row is not None else -1], 'hits': [nh]}}
+    if fams: rom['step_snd'] = step_sounds(rom, fams)
     return {'input': inp, 'condition': 'normal', 'version': 'whiff', 'script': script, 'name': sname, 'base_input': inp,
             'row_boxes': rb, 'row_steps': rs, 'marks': [''] * len(script), 'projectiles': [],
             'anims': sorted({r['anim'] for r in rows}), 'shape': [max(r[1] for r in script), max(r[2] for r in script), False],
@@ -375,7 +418,7 @@ def lab_special(B, ch, entries):
     anims, states, ids, prims, bad = {}, [], [], [], []
     for x, a in entries:
         try:
-            st = X.anim_steps(B, ch, a)
+            st = X.anim_steps(B, ch, a, lnk=False)   # (T4: the dictionary without trails, export_lb2.anim_steps)
             if not st: raise ValueError('no steps')
         except Exception as e:
             bad.append((x, str(e)[:60])); continue
