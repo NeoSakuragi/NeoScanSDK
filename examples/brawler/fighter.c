@@ -1455,12 +1455,19 @@ static void thrown_release(fighter_t *v, const bthrow_t *th) {
  * script played the victim's flight (its release row only started the thrown body: combat, rows rel .. land); at its
  * landing row h it is the brawler's knocked-down body there, with the script's own motion of that row (row h + 1 minus
  * row h, at the script's speed): the standard fall, floor bounce, down and get-up from it */
+/* T1 (docs/brawler_throws_review.md): the landing row is the floor impact (every throw's: its victim at y <= 0 there),
+ * so the body starts ON the floor, in its floor bounce (BA_KNOCKDOWN_BOUNCE), with the motion it LANDED with (row h - 1
+ * to h: the step after the landing row is often the source re-placing its origin, K''s back throw 40 px in one row),
+ * at most LAND_VMAX px a frame. It used to play one frame of BA_KNOCKDOWN_FLIGHT first (a diagonal body 30-40 px
+ * above the lying one, every throw) and slide off with the next row's step */
+#define LAND_VMAX 6
 static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
     bthrow_row_t t0, t1;
-    uint16_t k = h + 1 < th->nrows ? h + 1 : h, j = k == h && h ? h - 1 : h;
+    uint16_t j = h ? h - 1 : h, k = h ? h : (h + 1 < th->nrows ? h + 1 : h);
     const bthrow_row_t *a = vrow(v, th, j, &t0), *b = vrow(v, th, k, &t1);
-    int16_t dx = (b->tx + b->vx) - (a->tx + a->vx), dy = (b->ty + b->vy) - (a->ty + a->vy);
+    int16_t dx = (b->tx + b->vx) - (a->tx + a->vx);
     uint16_t sp = th->speed ? th->speed : 0x100;
+    if (dx > LAND_VMAX) dx = LAND_VMAX; else if (dx < -LAND_VMAX) dx = -LAND_VMAX;
     if (IS_THROW(v->throw_id) && v->thr_dmg > v->throw_dealt) {  /* (the impacts' division's rest) */
         uint8_t d = v->thr_dmg - v->throw_dealt;
         v->hp -= d; v->throw_dealt += d;
@@ -1470,10 +1477,10 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
     thrown_place(v, vrow(v, th, h, &t0));
     v->held = 0; v->thr = 0; v->zfront = 0; v->tb_by = 0;
     enter(v, S_KNOCKDOWN);
-    v->vx = dir_mul(v->throw_face, muls16(dx, sp) << 8);   /* (16.16: px x 8.8 speed) */
-    v->vy = muls16(dy, sp) << 8;
-    if (v->vy > 0) v->vy = 0;                                    /* (it lands: down onto the floor from here) */
-    v->frame_ovr = 0xFFFF; play(v, BA_KNOCKDOWN_FLIGHT);
+    v->vx = dir_mul(v->throw_face, muls16(dx, sp) << 8) >> 1;   /* (16.16: px x 8.8 speed; halved: the floor's bounce,
+                                                                    as S_KNOCKDOWN's floor contact) */
+    v->y = 0; v->vy = 0; v->kmode = 0; v->kvfr = 0; v->kfloor = 1;   /* on the floor (its impact sounded on the row) */
+    v->frame_ovr = 0xFFFF; play(v, BA_KNOCKDOWN_BOUNCE); set_burn(v, 0);
 }
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
  * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script), bit 2

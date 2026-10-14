@@ -366,6 +366,32 @@ def lab_special(m, cid, entries, add):
             'marks': [''], 'projectiles': [], 'anims': [st0], 'states': [[st0, 1, None]], 'shape': [0, 0, False], 'game_hits': 0,
             'parts': [], 'links': [], 'flash': None, 'rom': rom}, bad
 
+def frame_centre_rom(m, crom, cid, fidx, _cache={}):
+    """[cx, cy, bot] the centre of the opaque pixels of KOF frame fidx of fighter cid (and its lowest pixel's y) (its own frame table), px from the feet,
+    ROM orientation (x < 0 = the way it faces, y < 0 = up), the parts placed as the brawler's draw.s places them (a
+    flipped part mirrored about the origin); None: no pixels. The victim side's row (victims_all) carries it: the frame
+    KOF really shows there, which the brawler draws with its posture frame (export_bm.victim_rows lines the two up; T1)"""
+    import numpy as np
+    k = (id(m), cid, fidx)
+    if k in _cache: return _cache[k]
+    sx = sy = n = 0; bot = -999
+    for p in rom96.frame_parts(m, cid, fidx):
+        for c_, col in enumerate(rom96.sdef(m, cid, p['sdef'])['cols']):
+            for r_, t_ in enumerate(col):
+                if t_ is None: continue
+                b = np.frombuffer(crom, np.uint8, 128, t_ * 128).reshape(2, 16, 4)
+                bits = np.unpackbits(b[..., None], axis=-1, bitorder='little')
+                pen = bits[:, :, 0] | bits[:, :, 2] << 1 | bits[:, :, 1] << 2 | bits[:, :, 3] << 3
+                ys, xs = np.nonzero(np.concatenate([pen[1], pen[0]], axis=1))
+                xs = xs + p['dx'] + 16 * c_; ys = ys + p['dy'] + 16 * r_
+                if p['hflip']: xs = -xs - 1
+                if p['vflip']: ys = -ys - 1
+                sx += int(xs.sum()); sy += int(ys.sum()); n += len(xs)
+                if len(ys): bot = max(bot, int(ys.max()))
+    _cache[k] = [round(sx / n), round(sy / n), bot] if n else None   # (bot: its lowest pixel, px under the feet)
+    return _cache[k]
+
+
 def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, anim_specials=None, slots=None, lab=None,
            rom_more=None, throw_victims=None):
     """only: a set of move names to export (a game's subset, e.g. the brawler's); then no other slots, throws or specials.
@@ -507,7 +533,8 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             timeline = [[adders[name](t[0]) if t[0] is not None else -1] + list(t[1:]) for t in b['timeline']]
             victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
                        for v, rows in b['victims'].items() if cast[v] in adders}
-            vall = {cast[v]: [[-1 if r[0] is None or r[0] < 0 else 0] + list(r[1:]) for r in rows]
+            vall = {cast[v]: [[-1 if r[0] is None or r[0] < 0 else 0] + list(r[1:]) +
+                              [None if r[0] is None or r[0] < 0 else frame_centre_rom(m, crom, v, r[0])] for r in rows]
                     for v, rows in b['victims'].items() if cast[v] in (throw_victims or {}).get(name, ())}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
                                  'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', []), 'victims_all': vall,

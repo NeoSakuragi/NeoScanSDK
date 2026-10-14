@@ -313,6 +313,13 @@ def rom_wanted(n):
         out |= {p['input'] for p in piece_ids.load(src(n))['pieces'].values() if p['kind'] == 'special' and not p.get('gone')}
     return out
 
+# A KOF96 thrower's victims from the later KOF games (T1, docs/brawler_throws_review.md): the brawler's KOF98 / KOF99
+# fighters thrown by a KOF96 boss (Krauser, Mr. Big, Geese, Goenitz) used to play the thrower's mirror rows (his own
+# frames' offsets on Terry's frames: Krauser's lift held Terry 11-35 px off his hands, 56 frames); KOF96 has the same
+# fighters (KOF98's sprites are KOF96 / 97's): the throw's own per-victim list read for them in KOF96 (export96
+# throw_victims, victims_all), their frames lined up with the brawler's (victim_rows)
+VICTIMS_FROM = {'kof96': ('kof98', 'kof99')}
+
 def build(specs, outdir):
     """one export per game (the whole roster of that game at once, so every fighter has the frames of every victim
     posture its teammates' throws use); tiles renumbered into one space"""
@@ -377,7 +384,8 @@ def build(specs, outdir):
                                slots={n: {k: int(v[1:], 16) for k, v in roster()[n].get('moves', {}).items()} for n in names if n in roster()},
                                lab={n: LAB[n] for n in names if n in LAB} or None,   # (the Lab build: export96.lab_special)
                                rom_more={n: rom_wanted(n) for n in names},
-                               throw_victims={n: [v for v in games.get(game, []) if v != n] for n in names})   # (victim_tables)
+                               throw_victims={n: [v for g_ in (game,) + VICTIMS_FROM.get(game, ()) for v in games.get(g_, []) if v != n]
+                                              for n in names})   # (victim_tables; VICTIMS_FROM: T1)
                                                 # (Krauser gold: roster[].anim_specials, export96.anim_special)
     # one block per fighter, packed into the 64K-tile pages largest first, each into the first page with room
     # (2026-10-04): a fighter's tiles share bits 16-19 (bchar_t.tile_hi -> SCB1 attribute), so a fighter must not cross
@@ -1464,6 +1472,7 @@ def vl_c(n, k, sp):
     return (v or ', 0, 0, 0, 0, 0, 0, 0, 0') + f', {fl}, ' + (f'{n}_sp{k}_vl' if vl else '0')   # (sflags, then the lists)
 
 PKEYS = []                                         # the victim postures (poses(): VP_* order), set by write_c
+PTABLE = {}                                        # each fighter's frame per posture (poses()), set by write_c
 TMPS = {}                                          # roster name -> (its export dir, its export name): posture anchors
 SHARED = {}                                        # the game-wide numbered tables a fighter's data indexes (write_c): the
 SLOT_USES = {'sfx_pal': set(), 'sreact': set()}    # victim postures (whole: bchar_t.vposes is indexed by them), the source
@@ -1579,6 +1588,17 @@ def throw_impacts(rows, game):
     return []
 
 THROW_FLIGHT = 380                                     # victim states below: off the throw list (KOF96-99's list poses are 385+)
+# KOF96-99's shared knockdown states in a captured throw's victim rows (T1, docs/brawler_throws_review.md): the flight
+# and the landing of most KOF throws are the victim's OWN knockdown (283 / 285 rising, 287 falling, 309 the floor, 313 the
+# hop, 328 down: KOF98 measured on Yuri, fighter.c S_KNOCKDOWN), states with no posture of the vocabulary: their rows
+# kept the last posture shown (a lying frame drawn 40-70 px above its origin fell with the flight's offsets, then dropped
+# onto the floor at the landing; a throw scripted to its end left its victim floating 30 px above the floor, then dropped
+# it into its down pose). They play the brawler's same animations, as a throw read from the ROM (throwrom roles). Which
+# state is which: the centre of the frame KOF shows there (export96 frame_centre_rom; lying = within 12 px of the floor)
+_FALL98 = {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knockdown_bounce', 313: 'knockdown_fall',
+           315: 'knockdown_fall', 317: 'knockdown_fall', 312: 'down', 326: 'down', 328: 'down', 331: 'down', 334: 'down'}
+KOF_FALL = {'kof97': _FALL98, 'kof98': _FALL98, 'kof99': _FALL98,
+            'kof96': {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knockdown_bounce', 359: 'down'}}
 
 def throw_rows(game, n, th, pkeys, front=None):
     """a throw's paired script rows (C initializers) and its points: ret (control return), rel (release), land. A throw
@@ -1606,6 +1626,7 @@ def throw_rows(game, n, th, pkeys, front=None):
         vf, vx, vy, same, _front, key = r[:6]
         role = r[6] if len(r) > 6 else None
         v = vocab(game, key); fl = 0
+        if not role and v not in pkeys: role = KOF_FALL.get(game, {}).get(st(r))
         if role and not (v in pkeys and vf is not None and vf >= 0): vp = MOVES.index(role); fl = 32   # its flight: a BA_* animation
         else: vp = pkeys.index(v) if vf is not None and vf >= 0 and v in pkeys else 255
         fl |= same | (2 if front and front[0] <= i < front[1] else 0) | (4 if i in imp else 0) | (8 if turned and turned[0] else 0) | (16 if i in froze else 0)
@@ -1614,15 +1635,34 @@ def throw_rows(game, n, th, pkeys, front=None):
     nn = lambda x: 0xFFFF if x is None else x
     return out, {'ret': min(ret, nrows), 'rel': nn(rel), 'land': nn(land), 'rows': num}
 
-def victim_rows(game, th, pkeys, vname, base):
+def victim_rows(game, th, pkeys, vname, base, vr=None):
     """the victim side of a throw for victim vname (vthrow.h bvrow_t): its own list's rows (export96 victims_all: KOF's
     per-victim list, or the thrower's code walked for it) against the script's (base: throw_rows' numeric rows, the
-    mirror match): per row its posture (0xFE: the script row's, a BA_* flight), its facing bit, the px to add"""
+    mirror match): per row its posture (0xFE: the script row's, a BA_* flight), its facing bit, the px to add.
+    vr (the victim's roster name): its POSTURE frame lined up with the frame KOF really shows on that row (T1: the row's
+    true frame centre, export96 frame_centre_rom): the brawler draws one frame per posture (poses(): taken from another
+    throw, often drawn far from its origin), KOF's list places the victim's own frame for that state; the posture
+    frame's pixel centre is put where the true frame's was (the same fighter, the same posture); a true frame on the
+    floor puts the posture frame's lowest pixel where its was (lying stays on the floor; never deeper than the
+    fighter's own down pose), a true frame in the air never goes under the floor (two frames of one posture can differ
+    in shape: a centre alone sank Geese's victim 23 px into the floor)"""
     rows = th['victims_all'][vname]; out = []
     for i, (vp_m, fl_m, vx_m, vy_m) in enumerate(base):
-        vf, vx, vy, same, _front, key = rows[min(i, len(rows) - 1)][:6]
+        r = rows[min(i, len(rows) - 1)]
+        vf, vx, vy, same, _front, key = r[:6]
         v = vocab(game, key)
         vp = 0xFE if fl_m & 32 else pkeys.index(v) if vf is not None and vf >= 0 and v in pkeys else 255
+        tc = r[-1] if len(r) > 6 and isinstance(r[-1], list) else None   # (export96: the row's last field)
+        if vr and tc and vp < len(pkeys) and PTABLE.get(vr) and PTABLE[vr][vp] is not None and PTABLE[vr][vp] >= 0:
+            pc = frame_centre(vr, PTABLE[vr][vp])
+            if pc[0] != -128:
+                ty = th['timeline'][min(i, len(th['timeline']) - 1)][2]
+                tl = ty + vy - tc[2]                      # KOF's frame's lowest pixel, height above the floor
+                vx += (pc[0] - tc[0]) if same & 1 else (tc[0] - pc[0]); vy += pc[1] - tc[1]
+                low = ty + vy - frame_centre(vr, PTABLE[vr][vp], bottom=True)   # (the posture frame's, placed)
+                if tl <= 2: vy += max(tl, down_low(vr)) - low   # on the floor in KOF: on it here, no deeper than the
+                                                          # fighter's own down pose lies (lying, landing: no pop into it)
+                elif low < 0: vy -= low                   # in the air in KOF: never under the floor
         out.append((vp, same & 1, vx - vx_m, vy - vy_m))
     return out
 
@@ -1641,26 +1681,33 @@ def posture_anchors(n, ptable_n):
     for f in ptable_n: out += frame_centre(n, f)
     return out
 
-def frame_centre(n, f):
+def down_low(n):
+    """the height of the lowest pixel of fighter n's down pose (its BA_DOWN's last frame, as it lies on the floor; px,
+    negative = under the floor line): how deep the brawler draws it lying"""
+    if n not in _ANCH: _ANCH[n] = HP.load(*TMPS[n])
+    a = _ANCH[n][0]['anims'].get('down')
+    return -frame_centre(n, a['steps'][-1]['frame'], bottom=True) if a else 0
+
+def frame_centre(n, f, bottom=False):
     """[x, y] the centre of the opaque pixels of fighter n's frame f (its export), px from the feet, ROM orientation;
-    [-128, -128]: none"""
+    [-128, -128]: none. bottom: its lowest pixel's y instead (px under the feet)"""
     if f is None or f < 0: return [-128, -128]
     if n not in _ANCH: _ANCH[n] = HP.load(*TMPS[n])
     hch, hreg = _ANCH[n]
     if True:
-        sx = sy = cnt = 0                                 # (every opaque pixel of its parts, as head_point.pens
-        for p in hch['frames'][f]['parts']:               #  places them, no canvas: a lying frame passes its edges)
-            rows = len(p['tiles'][0]); top = -p['dy'] - rows * 16 if p['vflip'] else p['dy']
-            for c_, col in enumerate(p['tiles']):
-                for r_, t_ in enumerate(col):
+        sx = sy = cnt = 0; bot = -999                     # (every opaque pixel of its parts, as head_point.pens
+        for p in hch['frames'][f]['parts']:               #  no canvas: a lying frame passes its edges; a flipped part
+            for c_, col in enumerate(p['tiles']):         #  mirrored about the origin as draw.s places it: x0 = ox - dx
+                for r_, t_ in enumerate(col):             #  - w; T1: it was kept in place, only its tiles flipped)
                     if not t_: continue
-                    pen = HP.tile(hreg, t_)
-                    if p['hflip']: pen = pen[:, ::-1]
-                    rr = r_
-                    if p['vflip']: pen = pen[::-1]; rr = rows - 1 - r_
-                    ys, xs = HP.np.nonzero(pen)
-                    cnt += len(xs); sx += float(xs.sum()) + len(xs) * (p['dx'] + 16 * c_); sy += float(ys.sum()) + len(ys) * (top + 16 * rr)
+                    ys, xs = HP.np.nonzero(HP.tile(hreg, t_))
+                    xs = xs + p['dx'] + 16 * c_; ys = ys + p['dy'] + 16 * r_
+                    if p['hflip']: xs = -xs - 1
+                    if p['vflip']: ys = -ys - 1
+                    cnt += len(xs); sx += float(xs.sum()); sy += float(ys.sum())
+                    if len(ys): bot = max(bot, int(ys.max()))
         if not cnt: return [-128, -128]
+        if bottom: return bot
         return [max(-127, min(127, int(round(sx / cnt)))), max(-127, min(127, int(round(sy / cnt))))]
 
 # The throw-start effect (fx.throw_start, TODO #166 a): every throw shows KOF96/98's effect (state 61 of the shared
@@ -1919,7 +1966,7 @@ def victim_tables(chars, pkeys, ptable):
             for vname in sorted(th.get('victims_all') or {}):
                 vn = bank.get(f'{game}:{vname}', vname)
                 if vn not in ids or vn in ALIAS or vn == n: continue
-                rows = victim_rows(game, th, pkeys, vname, base)
+                rows = victim_rows(game, th, pkeys, vname, base, vn)
                 cl = [(vp, fl, max(-128, min(127, dx)), max(-128, min(127, dy))) for vp, fl, dx, dy in rows]
                 rep_['clamped'] += sum(1 for a, b in zip(rows, cl) if a != b)
                 key = tuple(cl)
@@ -1993,7 +2040,7 @@ def slot_tables(chars, pkeys, ids, bank, rep_):
         for vname in sorted(th.get('victims_all') or {}):
             vn = bank.get(f'{game}:{vname}', vname)
             if vn not in ids or vn in ALIAS or vn == f: continue
-            cl = clamp(victim_rows(game, th, pkeys, vname, base))
+            cl = clamp(victim_rows(game, th, pkeys, vname, base, vn))
             lst.append(f'{{{ids[vn]}, 0, {len(cl)}, {table(cl)}}}'); rep_['slot_pairs'] = rep_.get('slot_pairs', 0) + 1
         if lst:
             out.append(f'static const bvthr_t slot_{t}_vthr[] = {{' + ', '.join(lst) + ', {0xFF, 0, 0, 0}};'); row.append(f'slot_{t}_vthr')
@@ -2018,7 +2065,7 @@ def slot_tables(chars, pkeys, ids, bank, rep_):
 
 
 def write_c(chars, outdir):
-    pkeys, ptable = poses(chars); PKEYS[:] = pkeys
+    pkeys, ptable = poses(chars); PKEYS[:] = pkeys; PTABLE.clear(); PTABLE.update(ptable)
     SREACTS.clear(); SR_BASE.clear()
     for _, n_, ch_, _ in chars:                          # the source reactions (TODO #136): one table, each fighter's
         SR_BASE[n_] = []                                 # entries mapped into it, a motion already there shared (#213)
