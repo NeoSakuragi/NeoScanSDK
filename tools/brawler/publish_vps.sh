@@ -4,8 +4,8 @@
 # examples/brawler/README.md). Uploads brawler-<VERSION>.neo, writes latest.json, points brawler.neo at it, keeps the
 # last 3 builds (a build that has feedback is archived by the feedback service when the note arrives:
 # /data/brawler/feedback/roms/<sha>.neo.gz, tools/feedback/server.py, so this pruning never loses one); with an APK argument also publishes neoscan-player-<version>.apk (+ neoscan-player.apk link).
-#   tools/brawler/publish_vps.sh examples/brawler/brawler.neo 0.0.1 [android/app/build/outputs/apk/debug/app-debug.apk 0.0.1]
-#   tools/brawler/publish_vps.sh --apk-only android/app/build/outputs/apk/debug/app-debug.apk 0.0.21     (no ROM touched)
+#   tools/brawler/publish_vps.sh examples/brawler/brawler.neo 0.0.1 [android/app/build/outputs/apk/dev/debug/app-dev-debug.apk 0.0.1]
+#   tools/brawler/publish_vps.sh --apk-only android/app/build/outputs/apk/dev/debug/app-dev-debug.apk 0.0.21     (no ROM touched)
 #   tools/brawler/publish_vps.sh --channel test --apk-only <apk> 0.0.22                                   (test channel)
 # The player's self-update (Player 0.0.21, android/.../PlayerUpdate.kt) reads player.json = {version, code, file, size,
 # sha256} (the APK's versionCode from aapt2). The test channel writes player-test.json + neoscan-player-test-<ver>.apk

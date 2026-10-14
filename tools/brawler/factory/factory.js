@@ -12,7 +12,7 @@
 //                         the ship service plays in our emulator (/brawler-factory/songs/). Waves: not here
 //   ?tab=chars (the cast) also carries Roster & select (roster.js, tools/brawler/roster.py): the Selectable switches and
 //                         the select layout editor, the "roster" draft section (lab/roster), shipped by Ship pending changes
-//   ?tab=players         the shared Player's accounts and the build each gets (players.js, the "players" section, live)
+//   ?tab=players         the brawler Oros accounts (admins, testers) and the build each gets (players.js, the "players" section, live)
 //   ?tab=game             the game-wide numbers and texts (game.js, tools/brawler/gamecfg.py): the "game" draft section
 //                         (lab/game), shipped by Ship pending changes
 // The base URL is /brawler-lab/: cast.json, faces/, the scripts and feedback-api/ are the Lab's.

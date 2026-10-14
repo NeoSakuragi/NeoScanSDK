@@ -10,24 +10,28 @@
 #   POST /brawler/feedback/test                                    a test attempt of a note (Player 0.0.22: test.json + the
 #                                                                   attempt's replay), token only, size + rate capped
 #   POST /brawler/feedback/review                                  (Player 0.0.24) his answer to a decision (token only), size + rate capped
-#   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (the token,
-#                                                                   Oros or a shared account: checked by the service);
+#   GET  /brawler/feedback/mine[/file/<id>/<name>]                  the player's list of the user's notes (the Oros token,
+#                                                                   checked by the service: a brawler admin or tester);
 #        /brawler/feedback/mine/scenario/<id>/<sha>/<key>.state     a note's test state for a build (Player 0.0.22)
-#   POST /brawler/feedback/share/login, GET /brawler/feedback/share/latest.json | build/brawler-<V>.neo   the shared
-#                               Player (TODO T2): its own accounts (data/share/accounts.json), its assigned build only
+#   GET  /brawler/feedback/me, share/latest.json | build/brawler-<V>.neo   the Brawler app (docs/feedback.md "Roles and
+#                               the two apps"): the account's role + its allowed build (the service checks the token)
+#   GET  /brawler/feedback/app/brawler-<name>-<code>.apk?t=<ticket>    the Brawler APK for the phone's browser (ticket from me)
+# ROLES: the Oros tags (oros-server user-tags). /brawler-admin-auth = Oros's /api/authcheck?tag=brawler_admin (403 for
+# any other account) gates the admin pages: /brawler-lab/ (Chain Lab, Fighter Lab), /brawler-factory/ (never /decisions/: the SoccerFury page, plain Oros login),
+# /brawler-lab/feedback-api/, /brawler/lab/ (+ dl/), and /brawler/download/ goes through the service's /dlauth (admins).
 #   /brawler-lab/feedback-api/  -> /api/                            behind the Oros login (the Brawler Lab's Feedback tab)
 #   /brawler/lab/               -> /lab/                            the Character Lab for the player (Oros token, X-Public):
 #                                                                   live configs, ship queue, catalogue (docs/feedback.md)
 #   /brawler/lab/dl/shell|packs|faces/                              the Lab's shell / packs / faces (/data/brawler/lab/...),
 #                                                                   static with Range, behind the Oros login (token or cookie)
-#   /brawler/download/          the builds (ROM, latest.json): behind the Oros login since Player 0.0.15 (auth_request
-#                               to the service's /dlauth: the token, or a player < 0.0.15 while legacy_open exists); only
-#                               /brawler/download/neoscan-player.apk stays public, so a new user can install the player
+#   /brawler/download/          the dev builds (ROM, latest.json, the Brawler Dev APK neoscan-player.apk): brawler admins
+#                               only (auth_request to the service's /dlauth: the token or cookie, or a player < 0.0.15
+#                               while legacy_open exists). Nothing under /brawler/download/ is public any more.
 # (auth_request /jlpt-auth = Oros's /api/authcheck: a Bearer token or the oros_token cookie; 401 otherwise)
 set -e
 HOST=root@195.201.91.211; APP=/data/brawler/feedback/app
 cd "$(dirname "$0")"
-ssh -o BatchMode=yes "$HOST" "mkdir -p $APP /data/brawler/feedback/share /data/brawler/feedback/bundles /data/brawler/lab/shell /data/brawler/lab/packs /data/brawler/lab/faces /data/brawler/lab/config /data/brawler/lab/incoming"
+ssh -o BatchMode=yes "$HOST" "mkdir -p $APP /data/brawler/feedback/share/app /data/brawler/feedback/bundles /data/brawler/lab/shell /data/brawler/lab/packs /data/brawler/lab/faces /data/brawler/lab/config /data/brawler/lab/incoming"
 rsync -q server.py prices.json "$HOST:$APP/"
 ssh -o BatchMode=yes "$HOST" 'set -e
 cat > /etc/systemd/system/brawler-feedback.service <<UNIT
@@ -94,10 +98,23 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_read_timeout 30s;
     }
-    # the shared Player (TODO T2): its own accounts (not Oros), its assigned build only; the service checks the token
-    location = /brawler/feedback/share/login {
-        client_max_body_size 4k;
-%s
+    # the Brawler app (docs/feedback.md "Roles and the two apps"): its role, its allowed build, its APK; the service
+    # checks the token (the APK: the ticket GET me made)
+    location = /brawler/feedback/me {
+        limit_except GET { deny all; }
+        proxy_pass http://127.0.0.1:8920/me;
+        proxy_set_header X-Public 1;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+    }
+    location ^~ /brawler/feedback/app/ {
+        limit_except GET { deny all; }
+        proxy_pass http://127.0.0.1:8920/app/;
+        proxy_set_header X-Public 1;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_read_timeout 300s;
+        access_log /var/log/nginx/brawler.log brawler;
     }
     location ^~ /brawler/feedback/share/ {
         limit_except GET { deny all; }
@@ -112,11 +129,11 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
     # builds = /data/brawler/builds/, every request logged with the device headers. Behind the Oros login since
     # Player 0.0.15 (the player sends its Bearer token); the APK alone stays public so a new user can install it.
     location = /brawler { return 301 /brawler/; }
-    location = /brawler/download/neoscan-player.apk {
-        alias /data/brawler/builds/neoscan-player.apk;
-        access_log /var/log/nginx/brawler.log brawler;
-        add_header Cache-Control "no-store";
-        types { application/vnd.android.package-archive apk; }
+    location = /brawler-admin-auth {
+        internal;
+        proxy_pass http://127.0.0.1:8900/api/authcheck?tag=brawler_admin;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
     }
     location = /brawler-dl-auth {
         internal;
@@ -129,9 +146,10 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         alias /data/brawler/builds/;
         access_log /var/log/nginx/brawler.log brawler;
         add_header Cache-Control "no-store";
+        types { application/vnd.android.package-archive apk; application/json json; }
     }
     location ^~ /brawler-lab/feedback-api/ {
-        auth_request /jlpt-auth;
+        auth_request /brawler-admin-auth;
         proxy_pass http://127.0.0.1:8920/api/;
         client_max_body_size 8m;
         proxy_read_timeout 130s;
@@ -139,7 +157,7 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
     # Character Lab (docs/feedback.md "Character Lab"): the API for the player, then the files (nginx serves Range)
     location ^~ /brawler/lab/ {
         limit_except GET PUT POST { deny all; }
-        auth_request /jlpt-auth;
+        auth_request /brawler-admin-auth;
         proxy_pass http://127.0.0.1:8920/lab/;
         proxy_set_header X-Public 1;
         proxy_set_header X-Real-IP \$remote_addr;
@@ -147,16 +165,21 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         client_max_body_size 4m;
         proxy_read_timeout 30s;
     }
-    location ^~ /brawler/lab/dl/shell/ { auth_request /jlpt-auth; alias /data/brawler/lab/shell/; add_header Cache-Control "private, no-cache"; }
-    location ^~ /brawler/lab/dl/packs/ { auth_request /jlpt-auth; alias /data/brawler/lab/packs/; add_header Cache-Control "private, no-cache"; }
-    location ^~ /brawler/lab/dl/faces/ { auth_request /jlpt-auth; alias /data/brawler/lab/faces/; add_header Cache-Control "private, no-cache"; }
+    location ^~ /brawler/lab/dl/shell/ { auth_request /brawler-admin-auth; alias /data/brawler/lab/shell/; add_header Cache-Control "private, no-cache"; }
+    location ^~ /brawler/lab/dl/packs/ { auth_request /brawler-admin-auth; alias /data/brawler/lab/packs/; add_header Cache-Control "private, no-cache"; }
+    location ^~ /brawler/lab/dl/faces/ { auth_request /brawler-admin-auth; alias /data/brawler/lab/faces/; add_header Cache-Control "private, no-cache"; }
     # <<< brawler-feedback
-""" % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"), pub("review"), pub("share/login"))
+""" % (pub("upload"), pub("transcribe"), pub("reply"), pub("test"), pub("review"))
 i = s.index("    location / {")
-open(p, "w").write(s[:i] + block + s[i:])
+s = s[:i] + block + s[i:]
+# the admin pages written by other scripts (Chain Lab / Fighter Lab, the Factory, the decisions page): brawler admins only
+for loc in ("/brawler-lab/", "/brawler-factory/"):
+    k = s.index("    location ^~ %s {" % loc); e = s.index("\n    }\n", k)
+    s = s[:k] + s[k:e].replace("auth_request /jlpt-auth;", "auth_request /brawler-admin-auth;") + s[e:]
+open(p, "w").write(s)
 PY
 if nginx -t 2>/dev/null; then systemctl reload nginx; else cp /root/kanji.nginx.bak-feedback $S; nginx -t; echo "nginx -t failed: restored"; exit 1; fi
 sleep 1; systemctl is-active brawler-feedback
-echo "signed out (expect 401 / 302 for every one but the APK):"
-for u in brawler/feedback/share/login brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test brawler/feedback/review; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
-for u in brawler/feedback/share/latest.json brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/lab/catalogue brawler/lab/dl/packs/x brawler/download/neoscan-player.apk; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'
+echo "signed out (expect 401 / 302 / 404 for every one):"
+for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test brawler/feedback/review; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
+for u in brawler/feedback/me brawler/feedback/share/latest.json brawler/feedback/app/brawler-0.1.0-1.apk brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/lab/catalogue brawler/lab/dl/packs/x brawler/download/neoscan-player.apk brawler-lab/ brawler-factory/; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'

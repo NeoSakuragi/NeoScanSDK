@@ -174,7 +174,7 @@ publish: $(ROM_NAME).zip
 	cat $(DEST)/latest.json; echo
 
 # --- publish to canneji.duckdns.org/brawler/download/ (the player's auto-fetch), with the Android APK when built ---
-APK = ../../android/app/build/outputs/apk/debug/app-debug.apk
+APK = ../../android/app/build/outputs/apk/dev/debug/app-dev-debug.apk   # Brawler Dev (flavor dev); the Brawler app: tools/brawler/publish_app.sh
 APKVER = $(shell sed -n 's/.*versionName = "\(.*\)".*/\1/p' ../../android/app/build.gradle.kts)   # the player's own version, not the game's
 publish-vps: $(ROM_NAME).zip
 	@test -z "$(SLOT)" || (echo "a Lab build is never the Player's game"; exit 1)

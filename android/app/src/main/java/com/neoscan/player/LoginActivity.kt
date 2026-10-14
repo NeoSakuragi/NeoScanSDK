@@ -23,9 +23,9 @@ class LoginActivity : Activity() {
         val dp = resources.displayMetrics.density
         val pad = (24 * dp).toInt()
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad * 2, pad, pad); gravity = Gravity.CENTER_HORIZONTAL }
-        col.addView(TextView(this).apply { text = if (BuildConfig.SHARED) "Brawler" else "NeoScan Player"; textSize = 26f; setTypeface(typeface, Typeface.BOLD) })
+        col.addView(TextView(this).apply { text = if (!BuildConfig.DEV) "Brawler" else "Brawler Dev"; textSize = 26f; setTypeface(typeface, Typeface.BOLD) })
         col.addView(TextView(this).apply {
-            text = if (BuildConfig.SHARED) "Sign in with the name and password Bruno gave you." else
+            text = if (!BuildConfig.DEV) "Sign in with the name and password Bruno gave you (an Oros account)." else
                 "Sign in with your Oros account (the one of canneji.duckdns.org/oros). The builds and the feedback need it."
             textSize = 14f; alpha = 0.75f; setPadding(0, (8 * dp).toInt(), 0, (20 * dp).toInt())
         })
@@ -56,10 +56,12 @@ class LoginActivity : Activity() {
                         Auth.Result.BAD_CREDENTIALS -> err.text = "Wrong username or password"
                         Auth.Result.TOO_MANY -> err.text = "Too many attempts: wait 5 minutes"
                         Auth.Result.OFFLINE -> err.text = "No connection to canneji.duckdns.org"
+                        Auth.Result.NO_ROLE, Auth.Result.NOT_ADMIN -> err.text = Auth.refusal(r)
                     }
                 }
             }.start()
         }
+        Auth.takeRefusal(this)?.let { err.text = it }                  // signed out at the start: why
         go.setOnClickListener { submit() }
         pass.setOnEditorActionListener { _, a, _ -> if (a == EditorInfo.IME_ACTION_DONE) { submit(); true } else false }
         col.addView(user, LinearLayout.LayoutParams(-1, -2))
@@ -68,7 +70,7 @@ class LoginActivity : Activity() {
         col.addView(go, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (16 * dp).toInt() })
         col.addView(busy)
         col.addView(TextView(this).apply {
-            text = "Player ${BuildConfig.VERSION_NAME}"; textSize = 12f; alpha = 0.5f; setPadding(0, (24 * dp).toInt(), 0, 0)
+            text = (if (BuildConfig.DEV) "Brawler Dev " else "Brawler ") + BuildConfig.VERSION_NAME; textSize = 12f; alpha = 0.5f; setPadding(0, (24 * dp).toInt(), 0, 0)
         })
         setContentView(ScrollView(this).apply { addView(col) })
     }

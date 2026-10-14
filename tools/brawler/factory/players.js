@@ -1,8 +1,8 @@
-// The Brawler Factory's PLAYERS tab (?tab=players; TODO T2): the shared Player's accounts (Wael, Asenka: not Oros
-// accounts; tools/feedback/server.py "THE SHARED PLAYER"), one row each: the build it is given (a published VERSION),
-// the build its Player last said it plays, when it was last seen; Save = the "players" draft section
-// (feedback-api/lab/players {assign: {account: VERSION}}), live at once: no ship, no agent. Its Player downloads the
-// newest build up to the assigned one at its next start / poll.
+// The Brawler Factory's PLAYERS tab (?tab=players): the Oros accounts with a brawler role (tag brawler_tester or
+// brawler_admin; tools/feedback/server.py "THE BRAWLER APP"), one row each: the build the Brawler app gives it (a
+// published VERSION; an admin's "Newest" = no cap), the build its app last said it plays, when it was last seen;
+// Save = the "players" draft section (feedback-api/lab/players {assign: {account: VERSION}}), live at once: no ship,
+// no agent. The app downloads the newest build up to the assigned one at its next start / poll.
 (function () {
   'use strict';
   const LAB = 'feedback-api/lab/';
@@ -29,7 +29,7 @@
     try {
       const r = await fetch(LAB + 'players', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assign }) });
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      D = j; draw(); msg.textContent = name + ': ' + (v ? 'gets ' + v + ' at the next start of his Player.' : 'no build.');
+      D = j; draw(); msg.textContent = name + ': ' + (v ? 'gets ' + v + ' at the next start of his app.' : 'no build assigned.');
     } catch (e) { btn.disabled = false; msg.className = 'msg bad'; msg.textContent = 'Not saved: ' + e.message; }
   }
   function draw() {
@@ -38,17 +38,17 @@
     const rows = (D.accounts || []).map(a => {
       const cur = assign[a.name] || '';
       const sel = h('select', { 'aria-label': 'Build for ' + a.name },
-        h('option', { value: '', text: 'No build' }),
+        h('option', { value: '', text: a.role === 'admin' ? 'Newest' : 'No build' }),
         (D.builds || []).map(v => h('option', { value: v, text: v, selected: v === cur ? '' : null })));
       const btn = h('button', { type: 'button', class: 'primary', text: 'Save', disabled: '' });
       sel.onchange = () => { btn.disabled = sel.value === cur; };
       btn.onclick = () => save(a.name, sel.value, btn);
       const s = a.seen;
       const st = (a.gets ? 'gets ' + a.gets : 'no build') + ' · ' + (s ? 'seen ' + ago(s.at) + ' ago' + (s.rom && s.rom !== 'none' ? ', playing ' + s.rom : '') : 'never signed in');
-      return h('div', { class: 'prow' }, h('b', { text: a.name }), sel, btn, h('span', { class: 'st', text: st }));
+      return h('div', { class: 'prow' }, h('b', { text: a.name + (a.role === 'admin' ? ' (admin)' : '') }), sel, btn, h('span', { class: 'st', text: st }));
     });
-    P.replaceChildren(h('div', { class: 'card' }, h('h2', { text: 'Shared players' }),
-      rows.length ? rows : h('p', { class: 'msg', text: 'No shared accounts on the server.' })), msg);
+    P.replaceChildren(h('div', { class: 'card' }, h('h2', { text: 'Players' }),
+      rows.length ? rows : h('p', { class: 'msg', text: 'No Oros account has a brawler role yet (oros-server user-tags).' })), msg);
   }
   window.FactoryPlayers = { draw: () => { D = null; draw(); } };
 })();

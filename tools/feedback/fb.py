@@ -3,7 +3,7 @@
 (tools/feedback/server.py, 127.0.0.1:8920 over ssh = authenticated by the ssh key); never a direct DB edit.
 
     fb.py list [--status new|read|in_progress|shipped|wont_do|duplicate|verified|reopened] [--category gameplay] [--cost]
-               [--user Wael]   (a shared Player's account shows as "Wael [shared]", TODO T2)
+               [--user Wael]   (a brawler_tester account shows as "Wael [tester]")
     fb.py show <id>
     fb.py status <id> read|in_progress|wont_do|verified|reopened [--note "..."] [--commit SHA]
     fb.py status <id> fixed --commit SHA [--note "..."]     (on the brawler branch, not yet in a published build)
@@ -33,13 +33,13 @@ reopened); wont_do and duplicate close a note. Every step is a timestamped event
 import argparse, base64, json, os, re, shlex, subprocess, sys
 
 HOST = 'root@195.201.91.211'
-BASE = 'http://127.0.0.1:8920/api/'
+BASE = os.environ.get('FB_BASE', 'http://127.0.0.1:8920/api/')   # FB_BASE + FB_LOCAL=1: a local service (proofs)
 
 
 def api(path, body=None):
     cmd = f'curl -s -S --max-time 30 {shlex.quote(BASE + path)}'
     if body is not None: cmd += " -X POST -H 'Content-Type: application/json' --data-binary @-"
-    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', HOST, cmd], input=json.dumps(body) if body is not None else None,
+    r = subprocess.run(['sh', '-c', cmd] if os.environ.get('FB_LOCAL') else ['ssh', '-o', 'BatchMode=yes', HOST, cmd], input=json.dumps(body) if body is not None else None,
                        capture_output=True, text=True)
     if r.returncode: raise RuntimeError('ssh/curl: ' + r.stderr.strip())
     out = json.loads(r.stdout)
@@ -122,7 +122,7 @@ def line(r, cost=False):
     rel = f" {r['release']}" if r['status'] == 'shipped' else f" of {r['duplicate_of']}" if r['status'] == 'duplicate' else ''
     n = len(r.get('replies') or [])
     tags = ' '.join(x for x in (r['category'], r['fighters']) if x)
-    return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}{' [shared]' if r.get('shared') else ''}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
+    return f"{r['id']}  {r['created'][:16]}  {r.get('user') or '-'}{' [tester]' if r.get('tester') else ''}  player {r['apk_version']}  game v{r['game_version']}  {r['status']}{rel}" + \
            (f"  [{tags}]" if tags else '') + (f"  {money(r.get('cost_usd'))}" + (' (est.)' if 'duration' in (r.get('cost_source') or '') else '') if cost else '') + \
            f"  \"{text[:80]}\"" + (f"  ({n} repl{'y' if n == 1 else 'ies'})" if n else '')
 

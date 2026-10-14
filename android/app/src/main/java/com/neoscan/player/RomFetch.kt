@@ -37,9 +37,9 @@ object RomFetch {
             val info = JSONObject(get(base + "latest.json", hdr).inputStream.use { it.readBytes() }
                 .toString(Charsets.UTF_8))
             val build = info.getLong("build"); val version = info.optString("version", "?")
-            // the shared Player (TODO T2): the account's assigned build, whatever it is (Bruno may move it back); the house
+            // the Brawler app: the account's allowed build, whatever it is (Bruno may move it back); the house
             // Player: only a newer one
-            if (rom.exists() && (if (BuildConfig.SHARED) loaded(ctx).sha == info.getString("sha256") else prefs.getLong("build", 0) >= build)) return true
+            if (rom.exists() && (if (!BuildConfig.DEV) loaded(ctx).sha == info.getString("sha256") else prefs.getLong("build", 0) >= build)) return true
             val size = info.getLong("size"); val sha = info.getString("sha256")
             val tmp = File(rom.parentFile, rom.name + ".part")
             val md = MessageDigest.getInstance("SHA-256")
@@ -81,9 +81,9 @@ object RomFetch {
     }
 
     @Volatile var latestSha: String? = null
-    /** the update decision after [latest] gave [b]: the house Player = a newer build number; the shared Player = another
+    /** the update decision after [latest] gave [b]: Brawler Dev = a newer build number; the Brawler app = another
      *  build than the one there (its assignment moved, either way) */
-    fun newer(ctx: Context, b: Long): Boolean = if (BuildConfig.SHARED) b > 0 && latestSha != null && latestSha != loaded(ctx).sha
+    fun newer(ctx: Context, b: Long): Boolean = if (!BuildConfig.DEV) b > 0 && latestSha != null && latestSha != loaded(ctx).sha
                                               else b > 0 && b > installedBuild(ctx)
 
     /** the build number of the last download (the update decision: is the server's newer?) */

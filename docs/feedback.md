@@ -66,7 +66,7 @@ minute. Built 2026-10-06, Player 0.0.13.
   The server ties each note to the account. Notes an install sent before the login are claimed by the first account
   that calls from the same install id.
 - **Queued bundles:** 0.0.15 sends again, once, the bundles an older player had marked `.rejected`.
-- **Public:** only `/brawler/download/neoscan-player.apk`, so a new user can install the player.
+- **Public:** nothing since 2026-10-14 (the APKs carry the BIOS): Brawler Dev from `/brawler/download/` (admins), the Brawler app by the link its update notice opens (see "Roles and the two apps").
 - **Transition:** while `/data/brawler/feedback/legacy_open` exists on the VPS, players older than 0.0.15 may still
   upload, transcribe and fetch builds without a token (user "legacy"). Deleting the file ends the transition; no
   restart is needed.
@@ -480,28 +480,63 @@ server refuses a decision that breaks one (server.py `check_review`, so every pa
 The live fighter configs, the shell / pack catalogue, the Player's Character lab, Send to Player, the Fighter Lab
 and the piece knobs (with their server API, `/api/lab/...`) are documented in **docs/character_lab.md**.
 
-## Shared players (TODO T2, 2026-10-14)
+## Roles and the two apps (2026-10-14, replaces T2's "Shared players")
 
-A Player for people outside the house (Wael, Asenka), one code path with the house Player:
+Every brawler account is an Oros account (canneji.duckdns.org/oros). Its brawler role is an Oros user tag:
 
-- **Build**: `cd android && ./gradlew assembleShared` -> `app/build/outputs/apk/shared/app-shared.apk`, package
-  `com.neoscan.player.shared` (installs beside the house Player), label "Brawler". `BuildConfig.SHARED` switches off the
-  Character lab, the test queue, the decisions, the notes list and the `--es url` override; `src/shared/` swaps in a no-op
-  `PlayerUpdate` and `Assembly` (the house ones live in `src/devtools/`: APK self-install, WebView + JS bridge) and its
-  manifest drops REQUEST_INSTALL_PACKAGES / UPDATE_PACKAGES_WITHOUT_USER_ACTION / POST_NOTIFICATIONS, the update
-  receivers and cleartext HTTP. Permissions left: INTERNET, RECORD_AUDIO (asked at the first Feedback press), VIBRATE.
-  Release build: not debuggable, no minify / obfuscation / packer, the only native code is the Geolith core built into the
-  APK; signed (APK Signature Scheme v2 + v3) with its own key `/data/brawler-share/shared-release.jks`
-  (`/data/brawler-share/signing.properties`, chmod 600, never the Oros key). New Player versions are sent by hand.
-  `-PshareBase=http://10.0.2.2:8921/share/` makes a proof build against a local service (cleartext only then).
-- **Accounts**: not Oros accounts (an Oros account opens Oros, the Lab and the Factory). `tools/feedback/share_accounts.py
-  make /data/brawler-share/accounts.txt accounts.json` -> scrypt hashes; the plain file stays on brunux (chmod 600). On the
-  VPS: `/data/brawler/feedback/share/accounts.json`. Login `POST /brawler/feedback/share/login` -> a 30-day HMAC token
-  (`nsp1.`, JWT-shaped), role `player`: upload / transcribe / reply / his own `/mine` only; no Lab, no
-  `/brawler/download/`, decisions only when put to him by name. Remove an account from accounts.json = its token dies.
-- **Builds**: the Factory's **Players** tab (`?tab=players`, `players.js`, the `players` section, saved live, no ship):
-  one row per account, a build picker (every published build + the kept ones), Save. `GET share/latest.json` = the newest
-  build up to the assigned one; `share/build/brawler-<V>.neo` serves that one only. Assigned builds are hard-linked into
-  `/data/brawler/feedback/share/builds/` so publish_vps.sh's keep-3 pruning never removes them. The shared Player fetches
-  whenever the build differs from its own (so moving an account back works too).
-- **Notes**: stored with user = the account; `fb.py list` shows `Wael [shared]`, `fb.py list --user Wael` filters.
+- **brawler_admin**: everything (the Lab, the Factory, the Chain Lab / Fighter Lab, the dev builds, the decisions, the
+  test queue, Brawler Dev).
+- **brawler_tester**: the Brawler app only: the game, the pad, the Feedback button (upload, transcribe, reply and thumbs
+  on his own notes, his own `/mine`), and his allowed build.
+- **no tag**: an ordinary Oros user. Both apps refuse him ("This account has no access to the brawler").
+
+**Setting a role** (on the VPS; Oros reads the tags from its DB at every check, so a change applies at once):
+`cd /root/oros-server && ./oros-server user-tags --name=Wael --add=brawler_tester` (`--remove=` takes one off;
+`list-users` shows the tags). A new account: `./oros-server add-user --name=X --password=- < file` (`-` = the password
+from stdin, so it never shows in ps or a shell history).
+
+**The gates.**
+- Oros: `/api/authcheck?tag=a,b` = 204 only for a user with one of those tags, else 403 (plain `/api/authcheck` is
+  unchanged for every other page); `/api/whoami` returns `tags`. Oros itself gates nothing on tags.
+- nginx (`tools/feedback/deploy_vps.sh`): `/brawler-admin-auth` = `/api/authcheck?tag=brawler_admin`. It gates
+  `/brawler-lab/` (Chain Lab, Fighter Lab), `/brawler-factory/` (not `/decisions/`, the SoccerFury page: plain Oros login), `/brawler-lab/feedback-api/`,
+  `/brawler/lab/` (+ `dl/`). `/brawler/download/` (the dev ROMs and the Brawler Dev APK) goes through the service's
+  `/dlauth`: admins only. Nothing under `/brawler/download/` is public any more.
+- The feedback service (`server.py`, `brawler_role`): the role from `/api/whoami`'s tags (cached 1 min). Admin only:
+  `/dlauth`, `/test`, `/review`, `/mine/scenario/...`, the decisions in `/mine`, the Lab (`lab/`, `api/lab/`), the
+  signed-in API (`api/`). Tester: `upload`, `transcribe`, `reply` (his notes), `/mine` (his notes, no decisions), `me`,
+  `share/`. No role: 403 everywhere.
+
+**Two apps, one code base** (`android/app/build.gradle.kts`, flavor dimension "app"; one code path, `BuildConfig.DEV`):
+
+| | Brawler Dev (flavor `dev`) | Brawler (flavor `brawler`) |
+|---|---|---|
+| Package | `com.neoscan.player` (the house Player: updates in place) | `com.neoscan.brawler` (installs beside it) |
+| Who signs in | brawler admins only (a tester: "Brawler Dev is for brawler admins") | admins and testers; an admin gets the same app as a tester |
+| What it has | everything as before: Character lab, Assembly WebView + JS bridge, live configs and pack swaps pushed into the game, test queue, decisions, notes list | the game, the pad, the Feedback button (mic) |
+| Code only in it | `src/dev/`: `CharacterLab.kt`, `Assembly.kt`, `PlayerUpdate.kt` (PackageInstaller self-install) | `src/brawler/`: inert stubs of the first two, and a `PlayerUpdate` without any install code |
+| Permissions | + REQUEST_INSTALL_PACKAGES, UPDATE_PACKAGES_WITHOUT_USER_ACTION, POST_NOTIFICATIONS | INTERNET, RECORD_AUDIO, VIBRATE only; no cleartext HTTP |
+| Builds | `/brawler/download/` (the newest) | `share/latest.json`: the newest build up to the account's allowed one |
+| App updates | downloads and installs itself (may be flagged by antivirus apps: accepted) | "A new version of the app is available": Download opens the link in the browser, Android's own installer does the rest |
+| Signing | the build machine's debug key, as before | `/data/brawler-share/shared-release.jks` (`signing.properties`), never the Oros key |
+| Build | `./gradlew assembleDevDebug` | `./gradlew assembleBrawlerRelease` |
+| Publish | `tools/brawler/publish_vps.sh --apk-only <app-dev-debug.apk> <version>` | `tools/brawler/publish_app.sh <app-brawler-release.apk>` |
+
+- **The role in the apps:** after the Oros login, `Auth` asks the service's `GET /brawler/feedback/me` ->
+  `{user, role, build, app {version, code, url}}` (403 = no role). It asks again at every renewal and every start
+  (`Auth.recheck`); a refused role signs out with the reason on the sign-in screen. Offline, the last known role stands.
+- **Allowed builds:** the Factory's **Players** tab (`?tab=players`, `players.js`, the `players` section, saved live, no
+  ship): one row per Oros account with a brawler tag, a build picker, Save. A tester with nothing assigned gets
+  nothing; an admin with nothing assigned ("Newest") gets the newest. Assigned builds are hard-linked into
+  `/data/brawler/feedback/share/builds/` so publish_vps.sh's keep-3 pruning never removes them.
+- **The Brawler APK:** `/data/brawler/feedback/share/app/brawler-<name>-<code>.apk` (last 3 kept). `GET me` offers the
+  newest as `app/<file>?t=<ticket>`: an HMAC ticket (`share/secret`, 24 h, the user in it), because the phone's browser
+  has no Oros token. Without a valid ticket: 404. The APK carries the BIOS, so it is never public.
+- **Notes:** stored with user = the Oros account; `fb.py list` shows `Wael [tester]`, `fb.py list --user Wael` filters.
+  `FB_LOCAL=1 FB_BASE=http://127.0.0.1:<port>/api/ fb.py ...` talks to a local service (proofs).
+- **Proof builds:** `-PorosBase=http://10.0.2.2:<port>/ -PfeedbackBase=http://10.0.2.2:<port>/ [-PromBase=...]`
+  (cleartext is allowed only then). Proof 2026-10-14: `/data/feedback/proof_0036/` (screens, HTTP codes, fb.py list,
+  the Factory Players tab at 390 px).
+- **Retired:** T2's separate share accounts (`share/login`, the `nsp1.` tokens, `share_accounts.py`,
+  `share/accounts.json`): Wael and Asenka are Oros accounts with brawler_tester, under the same names, so their
+  assignments in the `players` section still apply.

@@ -46,6 +46,10 @@ object PlayerUpdate {
     private fun dir(ctx: Context) = File(ctx.filesDir, "update").apply { mkdirs() }
     private fun apk(ctx: Context, code: Int) = File(dir(ctx), "player-$code.apk")
 
+    /** the launch screen's line and its button (the Brawler app's PlayerUpdate: "A new version of the app ...", Download) */
+    fun readyText(i: Info) = "Player ${i.version} is ready"
+    const val ACTION = "Update"
+
     /** a newer player than this one is on the server (downloaded or not) */
     fun available(): Info? = latest?.takeIf { it.code > BuildConfig.VERSION_CODE }
 

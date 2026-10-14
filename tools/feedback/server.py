@@ -26,6 +26,13 @@ checks the token again with Oros's /api/whoami, so it knows the user; no token =
                      game_version, system, seconds, reply_id?, note?} + the attempt's replay (bundle files) -> tests table,
                      DATA/attempts/<attempt id>/
   Notes sent before the login (no user) are claimed by the first account that calls from the same install id.
+ROLES (docs/feedback.md "Roles and the two apps"): the Oros account's tags, from /api/whoami (brawler_role): brawler_admin
+= everything; brawler_tester = upload / transcribe / reply / his own /mine (no decisions, no test states), me, his allowed
+build (share/); anything else = 403 on every player call. Admin only: /dlauth (the dev builds), /test, /review, the Lab
+(lab/ and api/lab/), the signed-in API (api/, also behind nginx's brawler-admin gate).
+  GET  /me           {user, role, build, app {version, code, url}} (the Brawler app: its role + the app update link)
+  GET  /share/latest.json, /share/build/brawler-<V>.neo   the account's allowed build (the Brawler app's RomFetch)
+  GET  /app/brawler-<name>-<code>.apk?t=<ticket>          the Brawler APK for the phone's browser (the ticket from /me)
 Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler Lab's Feedback tab; or over ssh on
 localhost: tools/feedback/fb.py, pull.py):
   GET  /api/list[?status=&category=]        the tracker rows, newest first
@@ -63,7 +70,7 @@ the history keeps every one); each linked note gets "decision" events in its tim
 Character Lab (docs/character_lab.md "Character Lab"; 2026-10-10): the live config of each fighter + the catalogue of the Lab shell
 and the character packs, in LAB (/data/brawler/lab). The same handlers answer /lab/... (the player: nginx /brawler/lab/,
 X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback-api/lab/, the Oros cookie; ssh on localhost
-= user 'ssh', labcfg.py / labpub.py). Reads: any signed-in account; writes: Oros role admin (403 otherwise).
+= user 'ssh', labcfg.py / labpub.py). Reads and writes: a brawler admin (Oros tag brawler_admin; 403 otherwise).
   GET  lab/me                        {user, role}: who the pages are (Send to Player and Revert need the role admin)
   GET  lab/config                    every fighter's live config head {fighter, version, hash, updated, by, size, note}
   GET  lab/config/<f>                the live config {fighter, version, hash, updated, by, size, note, blob (base64, opaque),
@@ -420,26 +427,32 @@ def worker():
 
 def account(headers):
     """who is asking: the Oros user behind the player's token (Authorization: Bearer) or the Lab's cookie, checked
-    with Oros's /api/whoami (cached 5 min); None = nobody signed in (ssh on localhost: the caller's own "by")"""
+    with Oros's /api/whoami (cached 1 min); None = nobody signed in (ssh on localhost: the caller's own "by")"""
     return account_role(headers)[0]
 
 
+def brawler_role(tags):
+    """THE BRAWLER ROLES (docs/feedback.md "Roles and the two apps"): the Oros account's tags (oros-server user-tags
+    --name=X --add=brawler_admin | brawler_tester): 'admin' = everything (Lab, Factory, Chain Lab, dev builds, decisions,
+    the test queue); 'tester' = his own feedback + his allowed build; 'none' = an Oros account with no brawler access"""
+    tags = set(tags or [])
+    return 'admin' if 'brawler_admin' in tags else 'tester' if 'brawler_tester' in tags else 'none'
+
+
 def account_role(headers):
-    """(user, role) behind the token / cookie (role: Oros's, 'admin' or 'viewer'); (None, None) = nobody signed in"""
+    """(user, brawler role 'admin' | 'tester' | 'none') behind the token / cookie; (None, None) = nobody signed in"""
     auth = headers.get('Authorization', '')
     key, hdr = (auth, {'Authorization': auth}) if auth.startswith('Bearer ') else (headers.get('Cookie', ''), {'Cookie': headers.get('Cookie', '')})
     if not key: return None, None
-    if auth.startswith('Bearer nsp1.'):                      # a shared Player's account (share_token), never Oros
-        n = share_verify(auth[7:]); return (n, 'player') if n else (None, None)
     hit = ACCOUNTS.get(key)
     if hit and hit[2] > time.time(): return hit[0], hit[1]
     try:
         with urllib.request.urlopen(urllib.request.Request(WHOAMI, headers=hdr), timeout=5) as r:
-            j = json.load(r); name, role = j.get('username') or None, j.get('role') or ''
+            j = json.load(r); name, role = j.get('username') or None, brawler_role(j.get('tags'))
     except Exception: name, role = None, None
     if name:
         if len(ACCOUNTS) > 1000: ACCOUNTS.clear()
-        ACCOUNTS[key] = (name, role, time.time() + 300)
+        ACCOUNTS[key] = (name, role, time.time() + 60)
     return name, (role if name else None)
 
 
@@ -787,30 +800,36 @@ def roster_clean(req):
 SECTIONS = {'levels': levels_clean, 'game': game_clean, 'roster': roster_clean}
 
 
-# THE SHARED PLAYER (TODO T2, docs/feedback.md "Shared players"): accounts for players outside the house (Wael, Asenka),
-# not Oros accounts (an Oros account opens Oros, the Lab and the Factory). SHARE/accounts.json = {name: {salt, hash}}
-# (scrypt n=2^14 r=8 p=1, hex; written by tools/feedback/share_accounts.py, plain passwords never here); a login gives a
-# token "nsp1.<payload>.<hmac>" (payload = base64url {sub, role: player, exp}, HMAC-SHA256 with SHARE/secret, 30 days),
-# JWT-shaped so the Player's Auth.kt reads its exp like an Oros token. Role "player": the Feedback button only (upload,
-# transcribe, reply, his own /mine; decisions only when put to him by name); no Lab, no /brawler/download/.
-# Each account's build: the Factory's "players" section (lab/players: {assign: {name: VERSION}}, saved live, never
-# shipped), served by GET share/latest.json = the newest published build up to it; the assigned builds are kept in
-# SHARE/builds/ (hard links of /data/brawler/builds/brawler-<V>.neo, which publish_vps.sh prunes to the last 3).
+# THE BRAWLER APP (docs/feedback.md "Roles and the two apps"): the regular app (android flavor "brawler") plays the
+# build its Oros account is allowed: the Factory's "players" section (lab/players: {assign: {name: VERSION}}, saved live,
+# never shipped), served by GET share/latest.json = the newest published build up to it (a tester with none assigned:
+# nothing; an admin with none assigned: the newest). The assigned builds are kept in SHARE/builds/ (hard links of
+# /data/brawler/builds/brawler-<V>.neo, which publish_vps.sh prunes to the last 3). The accounts = the Oros users tagged
+# brawler_admin / brawler_tester, read from the Oros DB (read only). Its own APK: SHARE/app/brawler-<name>-<code>.apk
+# (tools/brawler/publish_app.sh), offered by GET me as a link with a ticket (HMAC with SHARE/secret, 24 h, the user in
+# it) that the phone's browser opens: GET app/<file>?t=<ticket>; Android's own installer does the rest.
 SHARE = os.path.join(DATA, 'share')
-SHARE_ACCOUNTS = os.path.join(SHARE, 'accounts.json')
 SHARE_SECRET = os.path.join(SHARE, 'secret')
 SHARE_BUILDS = os.path.join(SHARE, 'builds')
+SHARE_APP = os.path.join(SHARE, 'app')
 SHARE_SEEN = os.path.join(SHARE, 'seen.json')               # {name: {at, rom, app, device}}: the Players tab's "on 0.10.80"
-SHARE_DAYS = 30
+OROS_DB = os.environ.get('FEEDBACK_OROS_DB', '/data/oros/oros.db')
+TICKET_S = 24 * 3600
 BUILD_FILE = re.compile(r'^brawler-(\d+\.\d+\.\d+)\.neo$')
+APP_FILE = re.compile(r'^brawler-(\d+\.\d+\.\d+)-(\d+)\.apk$')
 share_lock = threading.Lock()
-share_fails = {}                                            # ip -> [failure times] (10 in 5 min = 429)
 share_sha = {}                                              # path -> (size, mtime, sha256)
 
 
-def share_accounts():
-    try: return json.load(open(SHARE_ACCOUNTS))
-    except (OSError, ValueError): return {}
+def brawler_accounts():
+    """{Oros username: 'admin' | 'tester'} of every account with a brawler tag (the Oros DB, read only); {} on error"""
+    try:
+        c = sqlite3.connect('file:%s?mode=ro' % OROS_DB, uri=True, timeout=5)
+        try: rows = c.execute("SELECT username, COALESCE(tags, '') FROM users WHERE tags LIKE '%brawler_%'").fetchall()
+        finally: c.close()
+    except sqlite3.Error as e: log('oros accounts:', e); return {}
+    out = {n: brawler_role(t.split(',')) for n, t in rows}
+    return {n: r for n, r in out.items() if r != 'none'}
 
 
 def share_secret():
@@ -825,33 +844,33 @@ def share_secret():
 def b64u(b): return base64.urlsafe_b64encode(b).rstrip(b'=').decode()
 
 
-def share_token(name):
-    p = b64u(json.dumps({'sub': name, 'role': 'player', 'exp': int(time.time()) + SHARE_DAYS * 86400}).encode())
-    return 'nsp1.%s.%s' % (p, b64u(hmac.new(share_secret(), ('nsp1.' + p).encode(), 'sha256').digest()))
+def app_ticket(user, f):
+    """a download link's ticket for APK file f: base64url {sub, f, exp}.hmac (24 h)"""
+    p = b64u(json.dumps({'sub': user, 'f': f, 'exp': int(time.time()) + TICKET_S}).encode())
+    return p + '.' + b64u(hmac.new(share_secret(), ('app.' + p).encode(), 'sha256').digest())
 
 
-def share_verify(tok):
-    """the account name behind a share token (signature, expiry, the account still there), else None"""
+def app_ticket_ok(t, f):
+    """the user a valid ticket for file f was made for (signature, expiry, still a brawler account), else None"""
     try:
-        _, p, sig = tok.split('.')
-        want = b64u(hmac.new(share_secret(), ('nsp1.' + p).encode(), 'sha256').digest())
-        if not hmac.compare_digest(sig, want): return None
+        p, sig = t.split('.')
+        if not hmac.compare_digest(sig, b64u(hmac.new(share_secret(), ('app.' + p).encode(), 'sha256').digest())): return None
         j = json.loads(base64.urlsafe_b64decode(p + '=' * (-len(p) % 4)))
     except Exception: return None
-    return j['sub'] if j.get('exp', 0) > time.time() and j.get('sub') in share_accounts() else None
+    return j['sub'] if j.get('exp', 0) > time.time() and j.get('f') == f and j.get('sub') in brawler_accounts() else None
 
 
-def share_check(name, password):
-    """the account's own spelling when the password matches (names case-insensitive), else None"""
-    accs = share_accounts()
-    key = next((k for k in accs if k.lower() == str(name).strip().lower()), None)
-    a = accs.get(key) or {'salt': '00' * 16, 'hash': '00' * 32}      # a miss costs the same scrypt
-    h = hashlib.scrypt(str(password).encode(), salt=bytes.fromhex(a['salt']), n=1 << 14, r=8, p=1, dklen=32).hex()
-    return key if key and hmac.compare_digest(h, a['hash']) else None
+def app_latest():
+    """(versionName, versionCode, file) of the newest Brawler APK in SHARE/app, or None"""
+    best = None
+    for n in os.listdir(SHARE_APP) if os.path.isdir(SHARE_APP) else []:
+        m = APP_FILE.match(n)
+        if m and (best is None or int(m.group(2)) > best[1]): best = (m.group(1), int(m.group(2)), n)
+    return best
 
 
 def share_builds():
-    """{VERSION: path} of every build a shared account can get: the published ones + the kept (assigned) ones"""
+    """{VERSION: path} of every build an account can be given: the published ones + the kept (assigned) ones"""
     out = {}
     for d in (BUILDS, SHARE_BUILDS):
         for n in os.listdir(d) if os.path.isdir(d) else []:
@@ -860,11 +879,13 @@ def share_builds():
     return out
 
 
-def share_build_for(name):
-    """(VERSION, path) the account plays: the newest build up to its assignment; (None, None) = nothing assigned"""
-    want = vkey(((section_load('players').get('draft') or {}).get('assign') or {}).get(name))
-    if not want: return None, None
+def share_build_for(name, role='tester'):
+    """(VERSION, path) the account plays in the Brawler app: the newest build up to its assignment; nothing assigned =
+    (None, None) for a tester, the newest build for an admin"""
     have = share_builds()
+    want = vkey(((section_load('players').get('draft') or {}).get('assign') or {}).get(name))
+    if not want and role == 'admin' and have: want = max(vkey(v) for v in have)
+    if not want: return None, None
     ok = sorted((v for v in have if vkey(v) <= want), key=vkey)
     return (ok[-1], have[ok[-1]]) if ok else (None, None)
 
@@ -893,9 +914,9 @@ def sha_of(p):
 
 
 def players_clean(req):
-    """the Players draft {assign: {account: VERSION}}: every account known, every VERSION a build there is"""
+    """the Players draft {assign: {account: VERSION}}: every account a brawler Oros account, every VERSION a build there is"""
     a = req.get('assign')
-    accs = share_accounts(); have = share_builds()
+    accs = brawler_accounts(); have = share_builds()
     if not isinstance(a, dict) or not all(k in accs and (v == '' or v in have) for k, v in a.items()):
         return None, 'assign: {account: a published VERSION or ""}'
     return {'assign': {k: v for k, v in a.items() if v}}, None
@@ -906,7 +927,8 @@ def players_state():
     d = section_load('players')
     try: seen = json.load(open(SHARE_SEEN))
     except (OSError, ValueError): seen = {}
-    accs = [{'name': n, 'gets': share_build_for(n)[0], 'seen': seen.get(n)} for n in sorted(share_accounts(), key=str.lower)]
+    ba = brawler_accounts()
+    accs = [{'name': n, 'role': ba[n], 'gets': share_build_for(n, ba[n])[0], 'seen': seen.get(n)} for n in sorted(ba, key=str.lower)]
     return dict(d, accounts=accs, builds=sorted(share_builds(), key=vkey, reverse=True))
 
 
@@ -1053,7 +1075,10 @@ class H(http.server.BaseHTTPRequestHandler):
 
     # ---- signed-in API --------------------------------------------------------------------------------------------
     def api_ok(self):
+        """the signed-in API (/brawler-lab/feedback-api/, nginx: brawler admins only) or ssh on localhost (no token, no cookie)"""
         if self.headers.get('X-Public'): self.reply(404, {'error': 'not found'}); return False
+        if self.headers.get('Authorization') or self.headers.get('Cookie'):
+            if account_role(self.headers)[1] != 'admin': self.reply(403, {'error': 'for brawler admins only'}); return False
         return True
 
     def do_GET(self):
@@ -1061,7 +1086,9 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path in ('/', '/health'): return self.reply(200, {'ok': True})
         if u.path == '/mine' or u.path.startswith('/mine/'): return self.mine(u.path.split('/')[2:])
         if u.path == '/dlauth': return self.dlauth()
+        if u.path == '/me': return self.me()
         if u.path.startswith('/share/'): return self.share_get(u.path.split('/')[2:])
+        if u.path.startswith('/app/'): return self.app_get(u.path.split('/')[2], q)
         lab = self.lab_route()
         if lab is not None: return self.lab_get(lab)
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
@@ -1082,8 +1109,8 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['replies'] = replies(c, r['id']); r['scenario'] = scenario(c, r['id'])
                     r['scenario_builds'] = scenario_builds(c, r['id']); r['timeline'] = timeline(c, r['id'])
                     r.update(queue_info(c, r))
-                accs = share_accounts()
-                for r in rows: r['shared'] = r.get('user') in accs     # a shared Player's account (fb.py: "Wael [shared]")
+                accs = brawler_accounts()
+                for r in rows: r['tester'] = accs.get(r.get('user')) == 'tester'     # a tester's note (fb.py: "Wael [tester]")
                 if q.get('user'): rows = [r for r in rows if (r.get('user') or '').lower() == q['user'][0].lower()]
                 tot = c.execute("SELECT COUNT(*) n, ROUND(SUM(cost_usd), 6) usd, ROUND(SUM(CASE WHEN feedback_id != '' THEN cost_usd ELSE 0 END), 6) linked, "
                                 "ROUND(SUM(audio_seconds), 1) secs FROM transcriptions").fetchone()
@@ -1244,41 +1271,51 @@ class H(http.server.BaseHTTPRequestHandler):
                       ('thumbs up in the Lab: verified fixed' if res == 'up' else 'thumbs down in the Lab: still broken') + (': ' + req['note'] if req.get('note') else '')))
 
     def dlauth(self):
-        """nginx auth_request for the builds (/brawler/download/): 204 = an Oros token or cookie; or, while
+        """nginx auth_request for the dev builds (/brawler/download/): 204 = a brawler admin's token or cookie (a tester
+        or an untagged account: 403); or, while
         LEGACY_FLAG exists, a player older than 0.0.15 (X-App-Version < 0.0.15; its 5 s poll of latest.json sends only
         X-Install-Id, no version and no token)"""
         u, role = account_role(self.headers)
-        if u and role != 'player': return self.reply(204, body=b'')
+        if u and role == 'admin': return self.reply(204, body=b'')
+        if u: return self.reply(403, {'error': 'for brawler admins only'})
         h = self.headers
         if os.path.exists(LEGACY_FLAG) and not h.get('Authorization') and (
                 old_player(h.get('X-App-Version', '')) or (not h.get('X-App-Version') and INSTALL.match(h.get('X-Install-Id', '')))):
             return self.reply(204, body=b'')
         self.reply(401, {'error': 'sign in with your Oros account'})
 
-    # ---- the shared Player (TODO T2: nginx /brawler/feedback/share/, X-Public; share_* above) ------------------------
-    def share_login(self):
-        """POST share/login {username, password} -> {token, username, role: player} (the Oros login's shape); 401 wrong,
-        429 after 10 failures in 5 min from one address"""
-        req = self.json_body(1 << 12)
-        if req is None: return
-        ip = self.headers.get('X-Real-IP') or self.client_address[0]
-        with share_lock:
-            f = share_fails[ip] = [t for t in share_fails.get(ip, []) if t > time.time() - 300]
-            if len(f) >= 10: return self.reply(429, {'error': 'too many attempts: wait 5 minutes'})
-        name = share_check(req.get('username') or '', req.get('password') or '')
-        if not name:
-            with share_lock: share_fails.setdefault(ip, []).append(time.time())
-            log('share login refused for', str(req.get('username'))[:40], 'from', ip)
-            return self.reply(401, {'error': 'wrong username or password'})
-        log('share login', name, 'from', ip)
-        self.reply(200, {'token': share_token(name), 'username': name, 'role': 'player'})
+    # ---- the Brawler app (nginx /brawler/feedback/me, share/, app/; X-Public; "THE BRAWLER APP" above) -----------------
+    def me(self):
+        """GET me: {user, role admin | tester, build (the VERSION the Brawler app plays), app {version, code, url} (the
+        newest Brawler APK, its link with a 24 h ticket)}; 401 no sign-in, 403 an Oros account without a brawler role"""
+        user, role = account_role(self.headers)
+        if not user: return self.reply(401, {'error': 'sign in with your Oros account'})
+        if role == 'none': return self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno', 'user': user, 'role': 'none'})
+        a = app_latest()
+        app = {'version': a[0], 'code': a[1], 'url': 'app/%s?t=%s' % (a[2], app_ticket(user, a[2]))} if a else None
+        self.reply(200, {'user': user, 'role': role, 'build': share_build_for(user, role)[0], 'app': app})
+
+    def app_get(self, f, q):
+        """GET app/<file>?t=<ticket>: the Brawler APK, for the phone's browser (no token there: the ticket from GET me)"""
+        m = APP_FILE.match(f or '')
+        p = os.path.join(SHARE_APP, f) if m else None
+        user = app_ticket_ok((q.get('t') or [''])[0], f) if m else None
+        if not user or not os.path.isfile(p): return self.reply(404, {'error': 'this link has expired: open the app again for a new one'})
+        n = os.path.getsize(p)
+        self.send_response(200); self.send_header('Content-Type', 'application/vnd.android.package-archive')
+        self.send_header('Content-Disposition', 'attachment; filename="%s"' % f); self.send_header('Cache-Control', 'no-store')
+        self.send_header('Content-Length', str(n)); self.end_headers()
+        with open(p, 'rb') as fh:
+            for b in iter(lambda: fh.read(1 << 20), b''): self.wfile.write(b)
+        log('app', f, 'to', user)
 
     def share_get(self, parts):
-        """GET share/latest.json: the account's build {version, build, file, size, sha256} (RomFetch's latest.json);
-        GET share/build/brawler-<V>.neo: that build only (another version = 404)"""
+        """the Brawler app's builds: GET share/latest.json: the account's build {version, build, file, size, sha256}
+        (RomFetch's latest.json); GET share/build/brawler-<V>.neo: that build only (another version = 404)"""
         user, role = account_role(self.headers)
-        if role != 'player': return self.reply(401, {'error': 'sign in with your player account'})
-        v, path = share_build_for(user)
+        if not user: return self.reply(401, {'error': 'sign in with your Oros account'})
+        if role not in ('admin', 'tester'): return self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno'})
+        v, path = share_build_for(user, role)
         if parts == ['latest.json']:
             h = self.headers
             with share_lock:
@@ -1309,7 +1346,16 @@ class H(http.server.BaseHTTPRequestHandler):
         if not user and legacy and os.path.exists(LEGACY_FLAG) and old_player(self.headers.get('X-App-Version', '')):
             return 'legacy'
         if not user: self.reply(401, {'error': 'sign in with your Oros account'}); return None
+        if account_role(self.headers)[1] not in ('admin', 'tester'):
+            self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno'}); return None
         claim(user, self.headers.get('X-Install-Id', ''))
+        return user
+
+    def admin_player(self):
+        """player() for the admin-only player calls (the test queue, the decisions): a tester gets 403"""
+        user = self.player()
+        if user and account_role(self.headers)[1] != 'admin':
+            self.reply(403, {'error': 'for brawler admins only'}); return None
         return user
 
     def who(self, user):
@@ -1322,6 +1368,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def mine(self, parts):
         user = self.player()
         if not user: return
+        admin = account_role(self.headers)[1] == 'admin'
         with db() as c:
             if not parts or parts == ['']:
                 rows = [row_dict(r) for r in c.execute('SELECT id, created, apk_version, game_version, title, final_text, raw_transcript, category, '
@@ -1338,15 +1385,15 @@ class H(http.server.BaseHTTPRequestHandler):
                     r['scenario_builds'] = scenario_builds(c, r['id']) if sc else []
                     r['timeline'] = [{k: e.get(k, '') for k in ('at', 'by', 'kind', 'text')} for e in timeline(c, r['id'], True)]
                     r.update(queue_info(c, r))                       # Player 0.0.23: the test queue's rule
-                aud = ('?',) if account_role(self.headers)[1] == 'player' else ("''", '?')   # a shared account: only his own
-                revs = [review_dict(c, x, True) for x in c.execute("SELECT * FROM reviews WHERE audience IN (%s) ORDER BY id DESC" % ', '.join(aud), (user,)).fetchall()]
-                return self.reply(200, {'user': user, 'rows': rows, 'reviews': revs})   # reviews: Player 0.0.24's Decisions
-            if len(parts) == 3 and parts[0] == 'review' and parts[1].isdigit() and RFILE.match(parts[2]):
-                if c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN (%s)" % ("''," if account_role(self.headers)[1] != 'player' else '') + '?)', (int(parts[1]), user)).fetchone():
+                revs = [review_dict(c, x, True) for x in c.execute("SELECT * FROM reviews WHERE audience IN ('', ?) ORDER BY id DESC", (user,)).fetchall()] if admin else []
+                return self.reply(200, {'user': user, 'role': 'admin' if admin else 'tester', 'rows': rows, 'reviews': revs})   # reviews: the decisions (admins)
+            if len(parts) == 3 and parts[0] == 'review' and parts[1].isdigit() and RFILE.match(parts[2]) and admin:
+                if c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN ('', ?)", (int(parts[1]), user)).fetchone():
                     p = os.path.join(REVIEWS, parts[1], parts[2])
                     if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
                 return self.reply(404, {'error': 'not found'})
             if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
+                if not admin: return self.reply(403, {'error': 'for brawler admins only'})   # the test queue
                 if not c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone(): return self.reply(404, {'error': 'not found'})
                 p = os.path.join(SCENARIOS, parts[1], parts[2], parts[3])
                 if not os.path.exists(p): return self.reply(404, {'error': 'no test state for this build'})
@@ -1368,17 +1415,15 @@ class H(http.server.BaseHTTPRequestHandler):
         return None
 
     def lab_user(self, write=False):
-        """any signed-in Oros account reads; writes need the Oros role admin. No token / cookie at all and not through
-        the public proxy = ssh on localhost (labcfg.py, labpub.py): user 'ssh'"""
+        """reads and writes: a brawler admin only (a tester or an untagged account: 403). No token / cookie at all and
+        not through the public proxy = ssh on localhost (labcfg.py, labpub.py): user 'ssh'"""
         user, role = account_role(self.headers)
         if not user:
             h = self.headers
             if h.get('X-Public') or h.get('Authorization') or h.get('Cookie'):
                 self.reply(401, {'error': 'sign in with your Oros account'}); return None
             user, role = 'ssh', 'admin'
-        if role == 'player': self.reply(403, {'error': 'not for this account'}); return None
-        if write and role != 'admin':
-            self.reply(403, {'error': 'Lab writes need an Oros admin account'}); return None
+        if role != 'admin': self.reply(403, {'error': 'for brawler admins only'}); return None
         return user
 
     def etag_reply(self, tag, obj):
@@ -1406,7 +1451,7 @@ class H(http.server.BaseHTTPRequestHandler):
             except (OSError, ValueError): beat = None
             return self.reply(200, {'requests': [x for x in lab_ships() if (not st or x['status'] == st) and (not fi or x['fighter'] == fi or fi in (x.get('fighters') or []))],
                                     'daemon': beat, 'now': now()})
-        if parts == ['players']: return self.reply(200, players_state())          # the Factory's Players tab (shared accounts)
+        if parts == ['players']: return self.reply(200, players_state())          # the Factory's Players tab (brawler accounts)
         if len(parts) == 1 and parts[0] in SECTIONS: return self.reply(200, section_load(parts[0]))   # a Factory draft section + the game's
         if len(parts) == 2 and parts[0] == 'ship_log' and parts[1].isdigit():
             p = os.path.join(SHIP_LOGS, parts[1] + '.log')
@@ -1512,7 +1557,6 @@ class H(http.server.BaseHTTPRequestHandler):
     # ---- POST ---------------------------------------------------------------------------------------------------
     def do_POST(self):
         if self.path == '/transcribe': return self.transcribe()
-        if self.path == '/share/login': return self.share_login()
         if self.path == '/upload': return self.upload()
         if self.path == '/reply': return self.post_reply()
         if self.path == '/test': return self.post_test()
@@ -1677,10 +1721,10 @@ class H(http.server.BaseHTTPRequestHandler):
         self.reply(200, {'deleted': rid})
 
     def post_review_answer(self):
-        """Player 0.0.24: his answer to a decision put to him (the token only), with an optional note: text and / or voice
-        (transcribed by /transcribe first, like a reply)"""
+        """Player 0.0.24: his answer to a decision put to him (the token only, a brawler admin), with an optional note:
+        text and / or voice (transcribed by /transcribe first, like a reply)"""
         import base64
-        user = self.player()
+        user = self.admin_player()
         if not user: return
         req = self.json_body(MAX_REPLY)
         if req is None: return
@@ -1695,7 +1739,7 @@ class H(http.server.BaseHTTPRequestHandler):
         origin = {'apk_version': self.headers.get('X-App-Version'), 'install_id': w['install_id'], 'device': str(req.get('device') or '')[:80],
                   'android': str(req.get('android') or '')[:40], 'ip': w['ip'], 'user_agent': w['user_agent']}
         with lock, db() as c:
-            if not c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN (%s)" % ("''," if account_role(self.headers)[1] != 'player' else '') + '?)', (rid, user)).fetchone():
+            if not c.execute("SELECT 1 FROM reviews WHERE id=? AND audience IN ('', ?)", (rid, user)).fetchone():
                 return self.reply(404, {'error': 'no such decision for you'})
             out, err = answer_review(c, rid, user, str(req.get('answer') or ''), str(req.get('text') or '').strip()[:4000],
                                      str(req.get('raw_transcript') or '')[:4000], audio, ext, 'player', origin)
@@ -1825,7 +1869,7 @@ class H(http.server.BaseHTTPRequestHandler):
         rom_sha, game_version, system, seconds?, reply_id? (the thumbs reply it went with), note?, device?} + optionally
         the replay of the attempt (the feedback bundle's files: snap_*.state, inputs.bin, press.state, screen.png, meta.json),
         unpacked into DATA/attempts/<attempt id>/"""
-        user = self.player()
+        user = self.admin_player()
         if not user: return
         body = self.body(MAX_BODY)
         if body is None: return self.reply(413, {'error': 'size'})

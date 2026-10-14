@@ -23,7 +23,7 @@ block = """    # >>> brawler-factory (NeoScanSDK tools/brawler/factory/deploy.sh
     location = /brawler-factory { return 301 /brawler-factory/; }
     location = /brawler-factory/login.html { alias /data/brawler-factory/login.html; add_header Cache-Control "no-cache" always; }
     location ^~ /brawler-factory/ {
-        auth_request /jlpt-auth;
+        auth_request /brawler-admin-auth;   # brawler admins only (tools/feedback/deploy_vps.sh defines it)
         error_page 401 = @brawlerfactory_login;
         alias /data/brawler-factory/;
         add_header Cache-Control "no-cache" always;
