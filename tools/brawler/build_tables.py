@@ -337,6 +337,17 @@ def run_bobs(g):
                   '[start, frames, x a frame..., height a frame..., air_buttons] (roster[].run.mode dash), 0 = a run */']
 
 
+def run_anim(wk, r):
+    """the run animation's rate relative to the walk's (8.8; note 20261014-141702-5d29, Genjuro: "the run animation is
+    playing too fast"): the walk's rate (fighter.c walk_rate) = the walk speed / the source's walk x walk.anim, the 1.5
+    boost Bruno chose for the WALK (2026-10-08); the run had it too, so its steps went by at the source's own pace (SS2
+    Genjuro: 3 frames a step, as SS2) while the body covers 3.25 px a frame instead of SS2's 5.09: the legs spun. The
+    run plays at walk.run_anim instead of walk.anim (1: the source's stride on the floor, the feet keep their ground).
+    A roster[].walk_rate fighter keeps its fixed rate for both (Final Fight's: its source has no run)"""
+    if 'walk_rate' in r: return 256
+    return round(wk.get('run_anim', wk.get('anim', 1)) / wk.get('anim', 1) * 256)
+
+
 def walk_phys(g, r):
     """roster[].walk_rate (note 20261014-084140-5d29, Final Fight's Haggar: "the walk plays too fast"): the walk / run
     animations' rate, fixed (1 = its steps' own ticks, the source's measured cadence) instead of the engine's rule (its
@@ -659,7 +670,7 @@ REFILL_PAUSE = {'special': 1, 'chain': 2, 'blitz': 4}            # gamedata.h RP
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
 JUMP_KEYS = ('about', 'crouch', 'height', 'dx', 'land_dx', 'x_scale', 'land', 'land_cancel', 'active_min', 'down_cancel', 'run_dx')
-WALK_KEYS = ('about', 'fast', 'balanced', 'heavy', 'run', 'anim')
+WALK_KEYS = ('about', 'fast', 'balanced', 'heavy', 'run', 'anim', 'run_anim')
 AIR_DEFAULT = {'forward': 'atk_d_jump', 'straight': 'atk_c_jump', 'down': 'atk_a_jump'}   # roster[].air (Bruno 2026-10-08:
                                                     # forward jump D, straight jump C, down + A jump A or the closest)
 AIR_BANK = {'samsho2': {'forward': 'atk_cd_jump', 'straight': 'atk_cd_jump', 'down': 'atk_ab_jump'}}   # a bank game's own
@@ -1032,6 +1043,7 @@ def tables(g, build):
          'extern const uint8_t *const grun_dash[BC_COUNT]; /* the dash: [start, frames, x..., height..., air_buttons] (roster[].run.mode dash), 0 = a run */',
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
+         'extern const uint16_t grun_anim[BC_COUNT];     /* the run animation\'s rate = the walk\'s x this (8.8; game.json walk.run_anim / walk.anim, 256 for a roster[].walk_rate fighter) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
          f'#define DR_WIN {M["win_drama"]}              /* the stage clear\'s drama (game.json win_drama), 0xFF none */',
@@ -1101,6 +1113,8 @@ def tables(g, build):
              f' }};   /* 16.16 px a frame, by roster[].archetype */')
     c.append(f"const uint16_t gwalk_run = {round(wk['run'] * 256)};   /* run = walk x this (8.8) */")
     c.append(f"const uint16_t gwalk_anim = {round(wk.get('anim', 1) * 256)};   /* walk / run animation rate x this (8.8) */")
+    c.append('const uint16_t grun_anim[BC_COUNT] = { ' + ', '.join(str(run_anim(wk, r)) for r in g['roster']) +
+             ' };   /* the run animation\'s rate = the walk\'s x this (8.8), run_anim */')
     c += depth_tables(g, build)
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
