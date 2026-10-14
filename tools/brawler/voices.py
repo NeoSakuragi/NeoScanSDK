@@ -63,6 +63,7 @@ def adpcm_a(data):
 def neo(game): return rom96.GAMES[game]['neo'] if game in rom96.GAMES else f'/data/roms/{game}.neo'
 
 def v_rom(game):
+    if game == 'ffight': return _ff().vrom()[0]          # (Final Fight: its OKI phrases as ADPCM-A, tools/ffight)
     d = open(neo(game), 'rb').read()
     h = struct.unpack('<6I', d[4:28]); o = 0x1000 + h[0] + h[1] + h[2]
     return d[o:o + h[3]]
@@ -807,7 +808,40 @@ def lastbld2_list(rname, name, cid):
     return {'game': 'lastbld2', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
                                                                            'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
 
+# ---- Final Fight (CPS1, tools/ffight, 2026-10-14): the 68000 sends one byte per sound to the Z80 (ring at a5+388,
+# measured per action by rec_ff.py), the Z80's table turns it into an OKI phrase (oki_ff.commands); the phrases are
+# re-encoded as ADPCM-A (oki_ff.vrom: the 'ffight' V bank, page 0 empty), cmd = '00' + the 68000's byte. Voices: the
+# swing on every chain link's first step, the special's shout at its start, the throw's sound at its start ----
+FF_SWING = {'guy': [0x10258], 'cody': [0x120E4], 'haggar': [0x1397C]}       # the jab's swing ($2F; links 3 / 4 have none)
+FF_FINISH = {'guy': (0x02, 0xFCE2), 'cody': (0x03, 0x12240), 'haggar': (0x03, 0x13A94)}   # the finisher's heavy swing
+FF_SPECIAL = {'guy': 0x0C, 'cody': 0x1C, 'haggar': 0x1D}
+FF_THROW = {'guy': [(0x04, 0x10480)], 'cody': [(0x04, 0x118C0)], 'haggar': [(0x07, 0x13BFA), (0x0B, 0x13450)]}
+FF_LEVEL = 0xDF                                   # both outputs, full level (FF's OKI channels play at their own level)
+def _ff():
+    sys.path.insert(0, os.path.join(TOOLS, 'ffight')); import oki_ff
+    return oki_ff
+
+def ffight_capture(rname, name, cid):
+    print(rname, ': Final Fight sounds: tools/ffight/rec_ff.py (the 68000\'s sound bytes per action)', flush=True)
+
+def ffight_list(rname, name, cid):
+    O = _ff(); v, idx = O.vrom()
+    lst = [(0x2F, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': 0} for a in FF_SWING[name]]),
+           (FF_FINISH[name][0], [{'kind': 'anim', 'slot': FF_FINISH[name][1], 'states': [FF_FINISH[name][1]], 'step': 0}]),
+           (FF_SPECIAL[name], [{'kind': 'special', 'input': 'AJ', 'at': 0}])] + \
+          [(c, [{'kind': 'anim', 'slot': a, 'states': [a], 'step': 0}]) for c, a in FF_THROW[name]]
+    out = []
+    for k, (c, uses) in enumerate(lst, 1):
+        seg = [list(idx[c])]
+        out.append({'id': k, 'cmd': f'00{c:02X}', 'cmds': [f'00{c:02X}'], 'indices': [f'{c:03X}'], 'segments': seg,
+                    'level': FF_LEVEL, 'bytes': len(sample_bytes(v, seg)),
+                    'ms': write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, seg), 'uses': uses,
+                    **({"channel": "fx"} if c in (0x2F, 0x02, 0x03) else {})})
+    print(rname, len(out), 'voices', sum(x['bytes'] for x in out) // 1024, 'KB', flush=True)
+    return {'game': 'ffight', 'cid': cid, 'voices': out}
+
 OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_list},
+       'ffight': {'cast': {'guy': 0, 'cody': 1, 'haggar': 2}, 'capture': ffight_capture, 'list': ffight_list},
        'lastbld2': {'cast': {'moriya': 1}, 'capture': lastbld2_capture, 'list': lastbld2_list},
        'doubledr': {'cast': {'billy': 0, 'billy_super': 1, 'cheng_fu': 10}, 'capture': doubledr_capture, 'list': doubledr_list},
        'whp': {'cast': {'hanzo': 0}, 'capture': whp_capture, 'list': whp_list},
@@ -822,7 +856,7 @@ OWN = {'samsho4': {'cast': {'haohmaru': 0}, 'capture': ss4_capture, 'list': ss4_
 EVENT_KEYS = ['hit', 'ko', 'select']
 INTRO = {'kof96': range(208, 240), 'kof98': range(348, 355), 'kof99': range(348, 355),
          'samsho4': [*range(119, 127), *range(129, 140), *range(141, 150)], 'whp': [0, 1, *range(32, 64)], 'kizuna': [], 'doubledr': [],
-         'samsho2': [*range(142, 150)], 'lastbld2': []}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
+         'samsho2': [*range(142, 150)], 'lastbld2': [], 'ffight': []}   # SS4 / WHP: the pose animations (char_images); SS2: the intro / taunt poses after the win 140
 
 def keys(moves, throws, pool_inputs):
     return list(moves) + list(throws) + EVENT_KEYS + ['special:' + i for i in pool_inputs]

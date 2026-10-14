@@ -1,0 +1,7 @@
+{"_doc": "Final Fight victim postures (export_bm.VICTIM_POSES['ffight'], the vocabulary of tools/kof96/victim_poses98.json: posture + angle, ROM sprites face left once exported, 0 upright, 90 horizontal head toward the facing side, 180 head down). Keys 'B' + Bred's frame record (hex) as FF draws him in the measured throws (rec_ff.py, throws_ff.py); read by eye from the frames (2026-10-14, sheet /data/tmp/ffight/bred.png); his standing frames count as 'grabbed' (they show only while he is held, and the Lab shell's posture vocabulary has no 'standing'). 'getup': his get-up frames (the throw rows' role 'getup').",
+ "poses": {"B23940": ["grabbed", 0], "B231A2": ["grabbed", 0], "B232F6": ["grabbed", 0], "B231E6": ["grabbed", 0],
+           "B2322A": ["grabbed", 0], "B2326E": ["grabbed", 0], "B232B2": ["grabbed", 0],
+           "B23D14": ["grabbed", 0], "B23CD0": ["hit_reel", 0], "B23B7E": ["hit_reel", 0], "B23D58": ["hunched", 0],
+           "B23BC2": ["hunched", 0], "B23C06": ["horizontal", -90], "B23D8C": ["inverted", 180],
+           "B23DC0": ["inverted_diagonal", -150], "B23C42": ["lying", -90]},
+ "getup": ["B23AAC", "B23056", "B2308A", "B230BE", "B230F2"]}

@@ -212,7 +212,7 @@ def voices(t, man, mdir, out):
             st, en = vo['segments'][0]
             key = (game, st, en)
             if key not in placed:
-                if game not in srcv: srcv[game] = roms(f'/data/roms/{game}.neo')[1] if game != 'kof98' else t.v_src
+                if game not in srcv: srcv[game] = src_v(game, t)
                 while any((sl, nxt) in t.keep_a for sl in slots): nxt += 1   # (records nobody keeps are empty now)
                 if nxt >= CODES and g + 1 < len(groups):      # this pair is full: the overflow pair, from $11
                     g += 1; slots = groups[g][0]; nxt = 0x11; bits = [t.w(0x2E20 + 2 * sl) for sl in slots]
@@ -271,7 +271,7 @@ def slot_voices(t, S):
         assert 1 <= i <= SLOT_NV, f"the slot ({S['fighter']}): voice id {i}, the shell keeps {SLOT_NV}"
         vo = S['voices']['voices'][i - 1]; assert vo['id'] == i
         game = S['voices']['game']; st, en = vo['segments'][0]; n = en - st + 1
-        if game not in srcv: srcv[game] = roms(f'/data/roms/{game}.neo')[1] if game != 'kof98' else t.v_src
+        if game not in srcv: srcv[game] = src_v(game, t)
         if at // MB != (at + n - 1) // MB: at = (at // MB + 1) * MB   # (ADPCM-A: never across 1 MB)
         assert (at + n) << 8 <= (at0 << 8) + SLOT_V, f"the slot ({S['fighter']}): its voices pass the {SLOT_V} bytes kept"
         t.v[at << 8:(at + n) << 8] = srcv[game][st << 8:(en + 1) << 8]
@@ -290,6 +290,18 @@ def slot_voices(t, S):
           f"codes ${SLOT_CODE0:02X}-${SLOT_CODE0 + SLOT_NV - 1:02X} of slots {S['slots']}", flush=True)
     return out
 
+def src_v(game, t):
+    """a voice's source V ROM: KOF98's own (the target's source), Final Fight's OKI phrases re-encoded as ADPCM-A
+    (tools/ffight/oki_ff.vrom: a CPS1 game has no V ROM), else the game's .neo"""
+    if game == 'kof98': return t.v_src
+    if game == 'ffight':
+        sys.path.insert(0, os.path.join(TOOLS, 'ffight')); import oki_ff
+        return oki_ff.vrom()[0]
+    return roms(f'/data/roms/{game}.neo')[1]
+
+FF_PRIO = 0x11                                            # a Final Fight effect's record: KOF98's hit sound priority
+FF_LEVEL = 0xDF                                           # (both outputs, full level)
+
 def sfx_imports(t, slot, imports, rep):
     """sfx "from": each code plays another SNK 1.x driver game's effect: the source record (its prefix -> slot as KOF98's
     $0D7B, the slot's table from the source driver's list at $2E0E + 2 * slot) with the new sample addresses, the sample
@@ -300,9 +312,14 @@ def sfx_imports(t, slot, imports, rep):
         if (slot, code) in t.keep_a:                 # (a song's ADPCM-A note on this code now plays the import: $2E, KOF98's
             w = f'sfx from ${c}: a kept song plays slot {slot} code ${c}, it now sounds the import'   # songs' fire crackle)
             rep.setdefault('warnings', []).append(w); print('warning:', w, flush=True)
-        sm, sv = roms(f'/data/roms/{f["game"]}.neo')
-        drv = bytes(sm[0x3E:0x56])
-        if drv.startswith(b'Ver 3.0 by MAKOTO'):     # KOF94 / KOF95's MAKOTO v3 (docs/ff3_sound_driver.md): 11-byte records
+        if f['game'] == 'ffight':                     # Final Fight (CPS1): the 68000's sound byte's OKI phrase as ADPCM-A
+            sys.path.insert(0, os.path.join(TOOLS, 'ffight')); import oki_ff   # (oki_ff.vrom pages), a record of ours
+            sv = src_v('ffight', t); st, en = oki_ff.vrom()[1][scode]; tab, size = 0, 0
+            rec = bytes([f.get('priority', FF_PRIO)]) + w16(st) + w16(en) + bytes([FF_LEVEL])
+            sm = drv = b''
+        else: sm, sv = roms(f'/data/roms/{f["game"]}.neo'); drv = bytes(sm[0x3E:0x56])
+        if f['game'] == 'ffight': pass
+        elif drv.startswith(b'Ver 3.0 by MAKOTO'):     # KOF94 / KOF95's MAKOTO v3 (docs/ff3_sound_driver.md): 11-byte records
             M = MAKOTO[f['game']]                     # [priority][start][end][loop count][loop start][loop end][pan|level];
             if pre == 0 and scode >= 0xC0: ssl, scode = 0, sm[M['onebyte'] + scode - 0xC0]   # a lower priority value is
             else: ssl = M['pre'][pre]                 # the stronger sound there (KOF98: the higher), so the record takes
