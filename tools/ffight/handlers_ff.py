@@ -61,9 +61,10 @@ def collapse(X, B, name, rows, one_hit=True):
 # haggar chain]: a jab link starts 2 frames after the hit entry's first (entries 0-1 = 8 frames, then the hit: 10), the
 # finisher keeps its hit entry whole (entries 0-1 = 10 frames + 5). The spin: $13600's 8 attack steps, one hit each
 # (FF's lariat hits once: rec_ff special_hit, $00 on its hit), the last a knockdown. Damage: jab 1 x 6 + finisher 3 x 3
-# + spin 2 x 8 = 31 (game.json tiers.fury 30 +-20 %)
+# + spin 1 x 8 + the closing piledriver 7 (roster[].fury_throw) = 30 (game.json tiers.fury)
 PIECES = {'haggar': {'P.JAB': (0x1397C, 10, 1, 'reel', False), 'P.FIN': (0x13A94, 15, 3, 'reel', False),
-                     'P.AJ8': (0x13600, None, 2, 'knockdown', True)}}
+                     'P.AJ8': (0x13600, None, 1, 'reel', True)}}   # (the reopen: the spin's 8 hits all reel, 1 each;
+                                                                    # the piledriver closes: game.json roster[].fury_throw)
 
 def pieces(X, B, name):
     out = []

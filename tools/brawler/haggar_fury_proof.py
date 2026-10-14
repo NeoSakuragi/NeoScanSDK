@@ -5,9 +5,11 @@ the note's scenario (scenarios.json, the Chain Lab: Haggar, Ryo 40 px in front, 
 
 Per frame from the D press to Haggar's return to idle: his state / piece (pool index) / invincibility, Ryo's state,
 height and life, the sound bytes the game queued. Pass: the pieces in order (pool 1..10), 17 hits (3 x (1 + 1 + 1) + 8),
-Ryo in hitstun (never knocked down, never airborne) until the spin's 8th hit, knocked down by it, Haggar INV_FURY on
-every frame of the fury and 0 life lost, one super flash, the total damage in the fury tier (game.json tiers.fury +-
-spread), the voices / hit sounds sent per piece. Contact sheet: one frame per hit.
+Ryo in hitstun (never knocked down, never airborne) through all 17 (the reopen: the spin's 8th reels too), then the
+closing piledriver (roster[].fury_throw: his hold's B throw, S_THROW / S_THROWN from the fury's next frame, Ryo slammed
+and lying), Haggar INV_FURY on every fury frame and every throw frame, 0 life lost, one super flash showing his FF
+stance (roster[].flash_pose: one still frame, not the jab's), the total damage incl. the piledriver in the fury tier
+(game.json tiers.fury +- spread), the voices / hit sounds sent per piece. Contact sheet: one frame per hit.
 
     python3 haggar_fury_proof.py [OUTDIR]          (default /data/tmp/haggar_fury)"""
 import json, os, sys
@@ -18,6 +20,7 @@ from PIL import Image, ImageDraw
 OUT = sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/haggar_fury'
 NOTE = '20261014-171937-5d29'
 INV_FURY = 0xFF
+BT_XTHROW = 4                                             # (fighter.c: BT_COUNT 2 + 2, the extra paired throw)
 G = json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))
 
 
@@ -44,12 +47,12 @@ def main():
         b.run(1, p1='d' if f < 1 else '')
         s0 = st[b.fget(0, 'state')]
         snd, qt = sound_bytes(b, qt)
-        r = dict(f=f, state=s0, ix=b.fget(0, 'spec_ix'), sid=b.fget(0, 'spec_id'), inv=b.fget(0, 'inv'), hp=b.fget(0, 'hp'),
+        r = dict(f=f, state=s0, xid=b.fget(0, 'throw_id'), ix=b.fget(0, 'spec_ix'), sid=b.fget(0, 'spec_id'), inv=b.fget(0, 'inv'), hp=b.fget(0, 'hp'),
                  v=st[b.fget(2, 'state')], vy=round(b.fget(2, 'y'), 1), vhp=b.fget(2, 'hp'), snd=snd,
                  sf=b.r(b.syms['sf_who'], 4) != 0, x=b.fget(0, 'x'), fr=b.fget(0, 'shown_frame'))
         if s0 == 'SPECIAL' and started is None: started = f
         rows.append(r)
-        if started is not None and s0 != 'SPECIAL': break
+        if started is not None and s0 not in ('SPECIAL', 'THROW'): break
     fury = [r for r in rows if r['state'] == 'SPECIAL']
     hits = []
     for a, c in zip(rows, rows[1:]):
@@ -65,19 +68,32 @@ def main():
     for r in fury:
         if not order or order[-1] != r['ix']: order.append(r['ix'])
     t = G['tiers']; lo, hi = t['fury'] * (100 - t['spread']['fury']) / 100, t['fury'] * (100 + t['spread']['fury']) / 100
-    total = sum(h['dmg'] for h in hits)              # (the lab refills an idle dummy: the hits' own drops summed)
-    last_hit = hits[-1]['f'] if hits else None
+    thr = [r for r in rows if r['state'] == 'THROW']    # (S_THROW: to its control return)
+    spin = [h for h in hits if h['ix'] == 10 and (not thr or h['f'] < thr[0]['f'])]   # (the piledriver's slam: not the spin's)
+    lying, vhp, late = None, rows[-1]['vhp'], 0
+    for k in range(90):                                 # Ryo after Haggar's control return: the slam's lying (the
+        b.run(1)                                        # throw's damage lands with its script's end: victim_end)
+        h = b.fget(2, 'hp')
+        if h < vhp: late += vhp - h
+        vhp = h
+        if st[b.fget(2, 'state')] in ('DOWN', 'GETUP'): lying = k; break
+    total = sum(h['dmg'] for h in hits) + late       # (the lab refills an idle dummy: the hits' own drops summed)
+    pile = sum(h['dmg'] for h in hits if thr and h['f'] >= thr[0]['f']) + late
+    last_hit = spin[-1]['f'] if spin else None
     before = [r for r in rows if started is not None and started <= r['f'] < (last_hit or 0)]
     sent = [(r['f'] - started, ' '.join(f'{x:02X}' for x in r['snd'])) for r in rows if r['snd'] and started is not None and r['f'] >= started]
     checks = [
         (order == list(range(1, 11)), f'the pieces in order: pool {order} (1-10: J J F J J F J J F spin)'),
-        (len(hits) == 17, f'{len(hits)} hits (want 17: 3 x jab, jab, finisher + the spin\'s 8)'),
-        (sum(1 for h in hits if h['ix'] == 10) == 8, f"the spin: {sum(1 for h in hits if h['ix'] == 10)} hits (want 8)"),
+        (len([h for h in hits if h['ix'] >= 1 and h['f'] <= (last_hit or 0)]) == 17, f"{len([h for h in hits if h['f'] <= (last_hit or 0)])} hits up to the spin's last (want 17: 3 x jab, jab, finisher + the spin's 8)"),
+        (len(spin) == 8, f"the spin: {len(spin)} hits (want 8)"),
         (all(r['v'] in ('HITSTUN', 'IDLE', 'WALK') and r['vy'] == 0 for r in before[1:]),
-         'Ryo reels on the ground until the last hit (no launch, no knockdown): ' + ','.join(sorted({r['v'] for r in before}))),
-        (bool(hits) and hits[-1]['v'] == 'KNOCKDOWN', f"the last hit (the spin's 8th) knocks down: {hits[-1]['v'] if hits else '-'}"),
-        (all(r['inv'] == INV_FURY for r in fury) and min(r['hp'] for r in rows) >= my0, f'Haggar INV_FURY on all {len(fury)} fury frames, 0 life lost'),
-        (lo <= total <= hi, f'damage {total} (fury tier {t["fury"]} +-{t["spread"]["fury"]} %: {lo:.0f}-{hi:.0f})'),
+         'Ryo reels on the ground until the spin\'s last hit (no launch, no knockdown): ' + ','.join(sorted({r['v'] for r in before}))),
+        (len(spin) == 8 and all(h['v'] == 'HITSTUN' for h in spin), f"the spin's 8 hits all reel, the 8th too: {[h['v'] for h in spin]}"),
+        (bool(thr) and bool(fury) and thr[0]['f'] == fury[-1]['f'] + 1 and thr[0]['xid'] == BT_XTHROW and 'THROWN' in {r['v'] for r in thr},
+         f"the piledriver closes it: S_THROW from fury frame {thr[0]['f'] - started if thr else '-'} (the spin's end {fury[-1]['f'] - started if fury else '-'}), throw_id {thr[0]['xid'] if thr else '-'} (BT_XTHROW {BT_XTHROW}), Ryo {sorted({r['v'] for r in thr})}"),
+        (lying is not None, f"Ryo slammed and lying {lying} frames after Haggar's control return"),
+        (all(r['inv'] == INV_FURY for r in fury + thr) and min(r['hp'] for r in rows) >= my0, f'Haggar INV_FURY on all {len(fury)} fury frames and {len(thr)} throw frames, 0 life lost'),
+        (lo <= total <= hi, f'damage {total} incl. the piledriver {pile} (fury tier {t["fury"]} +-{t["spread"]["fury"]} %: {lo:.0f}-{hi:.0f})'),
         (sum(1 for r in rows if 0x3A in r['snd']) == 1 or True, 'super flash'),
     ]
     flashes = sum(1 for r in rows for k in range(len(r['snd']) - 1) if r['snd'][k] == 0x1A and r['snd'][k + 1] == 0x3A)
@@ -93,6 +109,11 @@ def main():
         (bool(hits) and bool(fl) and hits[0]['f'] > fl[-1]['f'] and not any(fl[0]['f'] <= h['f'] <= fl[-1]['f'] for h in hits),
          f"no hit under the flash; the first jab lands {hits[0]['f'] - fl[-1]['f'] if hits and fl else '-'} frames after it ends"),
     ]
+    # the reopen (Bruno: "during the freeze I can see that Haggar is already hitting"): the frozen frame is his stance
+    # (roster[].flash_pose), not the jab's first frame
+    jab0 = next((r['fr'] for r in rows if fl and r['f'] > fl[-1]['f'] + 1 and r['state'] == 'SPECIAL'), None)
+    checks.append((bool(fl) and jab0 is not None and fl[0]['fr'] != jab0,
+                   f"the freeze shows the stance pose (frame {fl[0]['fr'] if fl else '-'}), not the jab's (frame {jab0})"))
     if fl:                                              # the flash sheet: its first / middle / last frames, the first jab
         scenario.setup(b, rec); b.fset(2, 'hp', 200)
         pick = {fl[0]['f']: 'flash start', fl[len(fl) // 2]['f']: 'flash middle', fl[-1]['f']: 'flash last frame',

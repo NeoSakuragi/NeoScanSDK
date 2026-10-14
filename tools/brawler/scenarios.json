@@ -3981,7 +3981,7 @@
   "proof": 30
  },
  "20261014-142848-5d29": {
-  "title": "Kyo's scissors kick: the second kick comes on a second down + C, as late as you press it",
+  "title": "Kyo's scissors kick: C alone in the air gives the second kick, even when the first one misses",
   "setup": {
    "mode": "lab",
    "fighter": "kyo",
@@ -3991,13 +3991,13 @@
    "drive": "full",
    "fury": "full"
   },
-  "do": "Press down + C (Ryo is far: the kicks miss) and again at once, during the first kick. Then down + C, and the second down + C late, near the top of the jump.",
-  "expect": "An early second press: the second kick as soon as the jump allows. A late one (up to the top of the jump): Kyo rises a moment longer, then kicks, as in KOF98 (where both kicks are D). Without a second press he lands from the jump with no second kick.",
-  "do_keys": "2:Dc,14:-,2:Dc,90:-,2:Dc,24:-,2:Dc",
+  "do": "Ryo is far: the kicks miss. Press down + C, then C alone at once, during the first kick. Then down + C, and C alone late, near the top of the jump. Then down + C alone.",
+  "expect": "The second kick comes out on C alone (no down needed), whether the first kick hit or missed: pressed early (even during the first kick), it comes as soon as the jump allows; pressed late (up to the top of the jump), Kyo rises a moment longer, then kicks. Without the second C he lands with no second kick.",
+  "do_keys": "2:Dc,6:-,2:c,90:-,2:Dc,24:-,2:c,90:-,2:Dc",
   "proof": 90
  },
  "20261014-164531-5d29": {
-  "title": "Moriya's jump A comes out: Last Blade 2's jump slash, no frozen frame",
+  "title": "Moriya's straight jump + A = his forward jump + A: Last Blade 2's jump B slash",
   "setup": {
    "mode": "lab",
    "fighter": "moriya",
@@ -4005,7 +4005,7 @@
    "gap": 60
   },
   "do": "Jump straight up (hold B) and press A on the way up; then jump forward toward Ryo and press A again.",
-  "expect": "Each time Moriya swings his sword in the air (the wind-up, the slash with its streak, then his falling pose) and the slash hits Ryo, as in The Last Blade 2. He never stays stuck on one frame for the whole jump.",
+  "expect": "Both jumps play the same attack: Moriya's sword slash from Last Blade 2's jump B (the wind-up, the slash with its streak, then his falling pose), and it hits Ryo. The straight jump no longer plays the kick.",
   "do_keys": "6:b,10:-,2:a,90:-,6:Rb,8:R,2:a,60:-",
   "proof": 150
  },
@@ -4049,7 +4049,7 @@
   "proof": 180
  },
  "20261014-171937-5d29": {
-  "title": "Haggar's new fury: jab, jab, finisher three times, then his spin with 8 hits",
+  "title": "Haggar's fury: a still stance through the freeze, jab, jab, finisher x3, the spin, then the piledriver",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
@@ -4059,9 +4059,9 @@
    "fury": "full"
   },
   "do": "Press D next to Ryo (the fury gauge is full).",
-  "expect": "After the super flash Haggar plays jab, jab, finisher, three times, then his spinning lariat, which hits 8 times. Ryo reels in place through every hit and is only knocked down by the spin's last hit. Haggar cannot be hit during the whole fury. You hear Haggar's swing on each jab, his finisher sound, the spin's shout, and Final Fight's hit sounds.",
+  "expect": "During the super flash's freeze Haggar stands still in his Final Fight stance (upright, forearm across the chest), no blow yet. Then jab, jab, finisher three times and his spinning lariat with 8 hits; Ryo reels in place through all of them (the spin's last hit no longer knocks him down). Then Haggar grabs the reeling Ryo and slams him with his piledriver, and Ryo lies on the floor. Haggar cannot be hit from the D press to the end of the piledriver.",
   "do_keys": "1:d",
-  "proof": 420
+  "proof": 520
  },
  "20261014-171700-5d29": {
   "title": "Ki training: the tree cracks, then you hear it fall",
@@ -4123,7 +4123,7 @@
   "proof": 90
  },
  "20261014-193405-5d29": {
-  "title": "Haggar: the fury from the hold after walking with the victim: no garbage on screen",
+  "title": "Haggar's hold runs out: Ryo falls on his back, never left floating",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
@@ -4131,12 +4131,12 @@
    "gap": 30,
    "drive": "full",
    "fury": "full",
-   "pre": "30:R,4:-,13:U,3:-"
+   "pre": "30:R,4:-"
   },
-  "do": "Haggar holds Ryo after walking with him (up) and stopping. Press D.",
-  "expect": "The fury plays from the hold with a clean screen: the stage, the HUD and the fighters stay as they are, no coloured squares or letters scattered over the screen, nothing left behind after the fury.",
-  "do_keys": "2:d",
-  "proof": 320
+  "do": "Haggar holds Ryo. Do nothing until the hold runs out (about a second and a half).",
+  "expect": "When the hold runs out Ryo is let go and falls on his back on the floor (no damage), then gets up. He never stays standing a little above the floor. (Every other fighter's hold, Terry's for one, lets him go standing on the floor.)",
+  "do_keys": "120:-",
+  "proof": 90
  },
  "20261014-192343-5d29": {
   "title": "Stage start: fade-in, STAGE 1 START, Terry walks in, then the wave",
@@ -4288,5 +4288,40 @@
   "expect": "STAGE CLEAR slides in and stops right under the top life bars (not over them), above Terry's head as he plays his win pose, his whole body in view; the same height for STAGE 1 START, TIME OVER and FURY UNLOCKED! (the small lines go up with them).",
   "do_keys": "4:a,20:-,4:a,20:-,4:a,20:-,4:a,20:-,4:a,30:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,4:R,4:a,8:-,600:-",
   "proof": 120
+ },
+ "20261014-233105-5d29": {
+  "title": "Yamazaki's throws: he acts again as soon as his throw ends, no idle wait",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "ryo",
+   "gap": 30,
+   "drive": "full",
+   "fury": "full",
+   "pre": "30:R,4:-"
+  },
+  "do": "Yamazaki holds Ryo: press forward + A (his forward throw), then as soon as Ryo is up, grab him again and press back + A, and right after each throw press A.",
+  "expect": "After each throw Yamazaki is free as soon as his own throw animation ends, as in KOF98: the A right after the throw comes out at once (while Ryo is still flying or lying), he no longer stands idle for about half a second before he can move.",
+  "do_keys": "2:Ra,60:-,2:a,120:-,24:R,4:-,2:La,60:-,2:a",
+  "proof": 120
+ },
+ "20261014-234051-5d29": {
+  "title": "Yamazaki's fury: the Drill's last kick hits everyone around (a group impact, as Iori's fury)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "yamazaki",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    220,
+    250
+   ],
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Three Ryos stand in front of Yamazaki: one close, two farther on, where his Drill ends. Press D.",
+  "expect": "Yamazaki leaps in, catches a Ryo and kicks him; the last kick also knocks down the other Ryo standing next to them (anyone up to about 100 px in front of him or 40 px behind), as the blast of Iori's fury does. The Ryo left far behind him only reels.",
+  "do_keys": "2:d",
+  "proof": 300
  }
 }
