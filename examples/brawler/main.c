@@ -270,6 +270,11 @@ _Static_assert(STAGE < STAGE_COUNT, "make STAGE=n: no such stage");
 #define BG_SPR 22
 #define BG_N   21
 static uint8_t bg_shown[BG_N];
+/* (CPU budget D, the stage's share) the plane's tiles and X words depend on the camera only: stage_draw rewrites them
+ * when cam_x moved since the last fight frame; another screen (draw outside mode 1, the bonus screens' sprites 1-116), a
+ * new stage (stage_use) or the BIOS's (game_enter) clear bg_ok */
+static int16_t bg_cam;
+static uint8_t bg_ok;
 int16_t cam_x;                                    /* (fighter.h: P_WARP's screen mode reads it) */
 static int16_t lock_x;                    /* lock_x: how far right the camera may go now (campaign) */
 static const stage_t *stg = &stages[STAGE];
@@ -324,12 +329,16 @@ static void stage_use(const stage_t *st, const uint8_t *zb) {   /* a stage (stag
         cmd_push(VRAM_SCB3 + BG_SPR + s, ((496 - stg->y) << 7) | stg->rows);
         bg_shown[s] = 0xFF;
     }
+    bg_ok = 0;
 }
 static void stage_init(uint8_t n) { stage_use(&stages[n], gback_rom[n]); }
 static void stage_draw(void) {
     uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, n = stg->rows * 2;
-    uint16_t *x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N), *w;
+    uint16_t *x, *w;
     stage_cycle();
+    if (bg_ok && cam_x == bg_cam) return;
+    bg_ok = 1; bg_cam = cam_x;
+    x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N);
     while (s >= BG_N) s -= BG_N;
     for (k = 0; k < BG_N; k++) {
         uint8_t c = first + k;
@@ -1219,7 +1228,7 @@ static void draw(void) {
             for (c = 0; c < block_placed[i]; c++) y[c] = 0;
             block_placed[i] = 0;
         }
-    if (mode != 1 || land_on) blk_key_reset();               /* (the cache: the fight's blocks only) */
+    if (mode != 1 || land_on) { blk_key_reset(); bg_ok = 0; }   /* (the caches: the fight's blocks and stage only) */
     for (i = 0; i < NA; i++) {
         fighter_t *f = order[i];
         uint8_t vis = i < nf && !hidden[i], n = vis ? f->ncols : 0, m = n > block_placed[i] ? n : block_placed[i];
@@ -2798,7 +2807,7 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
  *     card's sound (card_sound), card_ticks, then the game. */
 static uint8_t bn_slot, bn_moved, bn_conf, bn_msg, bn_slot_game[3];
 static void bscr_put(const bscr_obj_t *b, int16_t x, int16_t y, uint8_t hs, uint8_t vs) { bn_put(b->spr, &b->o, x, y, 0, hs, vs, 1); }
-static void bscr_clear(void) { uint16_t i, *y = cmd_run(VRAM_SCB3 + 1, BSCR_SPRS - 1); for (i = 0; i < BSCR_SPRS - 1; i++) y[i] = 0; blk_key_reset(); }
+static void bscr_clear(void) { uint16_t i, *y = cmd_run(VRAM_SCB3 + 1, BSCR_SPRS - 1); for (i = 0; i < BSCR_SPRS - 1; i++) y[i] = 0; blk_key_reset(); bg_ok = 0; }
 static void bscr_pals(const uint16_t *p, uint8_t n) { uint8_t i; for (i = 0; i < n; i++) PAL_setPalette(BSCR_PAL + i, p + i * 16); }
 static void bn_msg_show(uint8_t k) {             /* the message box's text: 0 the general one, 1-3 slot 0-2's */
     const bscr_obj_t *m = &bscr_msg[k];
@@ -3942,6 +3951,7 @@ void game_enter(uint8_t request) {
       PAL_setPalette(METER_PAL, TEXT_PAL);
       for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k]; }   /* fix palettes 2-3: the shown portraits (portrait()) */
     shadow_init();
+    blk_key_reset(); bg_ok = 0;                              /* (CPU budget D: the BIOS's screens wrote the sprites) */
     pj_measure();                                            /* the projectile blocks' widths (block_w) */
     dbg_init();
     snd_reset();                                             /* the BIOS reset the sound CPU before handing over */
