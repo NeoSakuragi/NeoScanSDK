@@ -72,6 +72,14 @@ def grab_script(act):
                 if act == 'jump' and k == 6: btn = ('A',)
                 if act == 'jumpB' and k == 6: btn = ('A',)
                 if act == 'jumpB' and k in range(12, 40) and k % 3 == 0: btn = ('B',)
+                # walking in the hold (note 20261014-171133-5d29): the stick held from 6 frames in, no button
+                if act == 'walkf' and k >= 6: btn = ('RIGHT',)
+                if act == 'walkb' and k >= 6: btn = ('LEFT',)
+                if act == 'walkud' and k >= 6: btn = ('UP',) if k < 50 else ('DOWN',) if k < 130 else ()
+                if act == 'walkdiag' and k >= 6: btn = ('UP', 'RIGHT') if k < 50 else ('DOWN', 'LEFT')
+                if act == 'walkknee' and k >= 6: btn = ('UP',) + (('B',) if k == 30 else ())
+                if act == 'walkthrow' and k >= 6: btn = ('UP',) if k < 30 else ('LEFT', 'B') if k == 30 else ('LEFT',) if k < 34 else ()
+                if act == 'walkjump' and k >= 6: btn = ('UP',) if k < 30 else ('A',) if k == 30 else ('B',) if k in range(36, 64) and k % 3 == 0 else ()
                 if act in ('jumpBf', 'jumpBb'):          # (the piledriver with the stick held: note 20261014-084718)
                     d = ('RIGHT',) if act == 'jumpBf' else ('LEFT',)
                     btn = d + (('A',) if k == 6 else ('B',) if k in range(12, 40) and k % 3 == 0 else ())
@@ -82,6 +90,9 @@ def scenarios(name):
     s = dict(SCEN)
     s['chain'] = chain_scen(name, LINKS[name]); s['chain_back'] = chain_scen(name, LINKS[name], True)
     for a in ('knees', 'fwd', 'back', 'jump', 'jumpB', 'jumpBf', 'jumpBb'): s['grab_' + a] = (60, 200, grab_script(a))
+    for a in ('walkf', 'walkb', 'walkud', 'walkdiag', 'walkknee', 'walkthrow', 'walkjump'):   # (the hold walk)
+        s['grab_' + a] = (60, 200, grab_script(a))
+    s['grab_idle'] = (60, 200, grab_script('idle'))     # (the hold's timeout, nothing pressed)
     s['hit'] = ('bredhit', 200, [((), 120)])
     return s
 

@@ -59,9 +59,10 @@ MOVES = {
                'atk_c_jump': 0x13558, 'atk_d_jump': 0x13558, 'atk_c_jump_diag': 0x13558, 'atk_d_jump_diag': 0x13558, 'atk_a_jump': 0x134B0, 'atk_a_jump_diag': 0x134B0,
                'hit_stand_light': 0x13F6C, 'hit_stand_heavy': 0x13F78, 'hit_air': 0x13EBE, 'blowback': 0x13EBE, 'blowback_n': 0x13EBE,
                'knockdown_flight': 0x13EBE, 'knockdown_bounce': 0x13EBE, 'knockdown_fall': 0x13EBE, 'trip': 0x13EBE,
-               'down': 0x13EC6, 'getup': 0x1401A, 'win': 0x12CFC, 'grab': 0x143C8},
+               'down': 0x13EC6, 'getup': 0x1401A, 'win': 0x12CFC, 'grab': 0x143C8,
+               'hold_walk': 0x14434},   # (the walk in the hold: rec_ff.py grab_walk*, only Haggar's; Guy / Cody stand still)
 }
-LOOP = {'idle', 'walk_fwd', 'run', 'win'}
+LOOP = {'idle', 'walk_fwd', 'run', 'win', 'hold_walk'}
 # atk_a_jump = FF's down-attack (attack + down in a jump), the same animation in a neutral and a forward jump (rec_ff.py
 # jatk_d / jatk_fd 2026-10-14: Guy $FC3A, Cody $11C4A, Haggar $134B0 from either): atk_a_jump_diag names it for the
 # forward / back jump (the brawler's air down + A plays its _diag twin there; without one export_bm fell back to the
@@ -74,7 +75,13 @@ FJUMP = {'guy': 108, 'cody': 101, 'haggar': 82}                   # forward jump
 # clock, not the entry's ticks): one 12-entry cycle = 39 / 44 / 34 frames (rec_ff.py walk 2026-10-14: 3.24 / 3.67 / 2.84
 # frames an entry; note 20261014-084140: Haggar's walk played 12 frames a cycle, 2.8x too fast) [meas]
 WALK_CYCLE = {'guy': 39, 'cody': 44, 'haggar': 34}
-CYCLED = ('walk_fwd', 'run')
+CYCLED = ('walk_fwd', 'run', 'hold_walk')
+# the hold walk ($14434, Haggar, note 20261014-171133-5d29; rec_ff.py grab_walkf / walkb / walkud / walkdiag 2026-10-14): 12
+# entries of 1 tick on the walk's clock, 34 frames a cycle while it moves along x (= his walk's cadence), ~47 moving in depth
+# alone; backward along x it plays the entries in reverse, the facing kept (no turn); the thrower moves at his walk's speed
+# (1.85 px a frame x, 0.70 depth) and the victim keeps its held pose ($23CC0) 42 px ahead, carried with him; the hold's
+# timer runs on (released 124 frames after the grab, walking or not); a direction + attack throws (up + attack the
+# backdrop), attack alone the headbutt; jump + attack the piledriver [meas]
 
 def cycle_ticks(steps, frames):
     """spread `frames` over the steps (Bresenham: the measured cadence's 3s and 4s) -> each step's ticks (= frames - 1)"""

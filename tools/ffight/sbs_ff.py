@@ -10,7 +10,9 @@ from PIL import Image, ImageDraw
 REC, BRW, OUT = '/data/tmp/ffight/rec', '/data/tmp/ffight/brawler', '/data/tmp/ffight/sheets'
 PAIRS = [('walk', 'walk'), ('jumpn', 'jumpn'), ('jumpf', 'jumpf'), ('special', 'special'), ('chain', 'chain'),
          ('chain_back', 'chain_back'), ('grab_knees', 'grab_knees'), ('grab_fwd', 'grab_fwd'), ('grab_back', 'grab_back'),
-         ('grab_jumpB', 'grab_up')]
+         ('grab_jumpB', 'grab_up'),
+         ('grab_idle', 'grab_idle'), ('grab_walkf', 'grab_walkf'), ('grab_walkb', 'grab_walkb'), ('grab_walkud', 'grab_walkud'),   # the walk
+         ('grab_walkdiag', 'grab_walkdiag'), ('grab_walkthrow', 'grab_walkthrow'), ('grab_walkjump', 'grab_walkjump')]   # in the hold
 W, H, STEP, NCOL = 160, 176, 3, 12
 
 def ff_start(rows, scen):

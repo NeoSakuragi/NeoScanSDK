@@ -106,9 +106,12 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'atk_cd_jump_diag',
          'atk_a_run', 'atk_b_run', 'atk_ab_run', 'atk_c_run', 'atk_d_run', 'atk_cd_run',
          'atk_a_run_low', 'atk_b_run_low', 'atk_ab_run_low', 'atk_c_run_low', 'atk_d_run_low', 'atk_cd_run_low',
-         'walk_back']                                   # an AI fighter walking away from its target (it always faces
+         'walk_back',                                   # an AI fighter walking away from its target (it always faces
                                                         # it, Bruno 2026-10-08): KOF's walk-back (state 2), else source()'s
                                                         # walk played backwards
+         'hold_walk']                                   # the walk in the hold (note 20261014-171133-5d29, Final Fight's
+                                                        # Haggar: game.json roster[].hold_walk; fighter.c hold_walk): a
+                                                        # bank that has none shows its idle (never played: the feature off)
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,

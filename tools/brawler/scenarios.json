@@ -4021,5 +4021,31 @@
   "expect": "He runs with Last Blade 2's own six-frame running stride, leaning forward, his legs keeping pace with the ground (no gliding on one pose, no sliding feet).",
   "do_keys": "2:R,2:-,70:R,30:-",
   "proof": 110
+ },
+ "20261014-171133-5d29": {
+  "title": "Haggar walks around holding his victim, as in Final Fight",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "terry",
+   "gap": 60
+  },
+  "do": "Walk into Terry to grab him. Keep holding the stick: forward, then up, then back.",
+  "expect": "Haggar walks with Terry held in front of him at his walking speed, his legs stepping (backward when you walk back, still facing Terry). Let go of the stick: he stands in the hold. The hold still ends on its own after a moment; A headbutts, forward or back + A throws, B the piledriver, from the walk too.",
+  "do_keys": "20:R,6:-,30:R,30:U,30:L",
+  "proof": 120
+ },
+ "20261014-170634-5d29": {
+  "title": "Hurt voices only when launched and when landing, not on every hit",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60
+  },
+  "do": "Hit Ryo with the A A A chain, then B B and C to knock him up.",
+  "expect": "The jabs make their impact sounds but Ryo stays silent; he cries out once when the last blow sends him off the ground and once when he hits the floor. The same for you when you get hit, and the death scream still plays on a KO.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a,9:-,3:b,9:-,3:b,9:-,3:c,120:-",
+  "proof": 180
  }
 }

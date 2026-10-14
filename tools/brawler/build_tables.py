@@ -1049,6 +1049,7 @@ def tables(g, build):
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
          'extern const uint16_t grun_anim[BC_COUNT];     /* the run animation\'s rate = the walk\'s x this (8.8; game.json walk.run_anim / walk.anim, 256 for a roster[].walk_rate fighter) */',
+         'extern const uint16_t ghold_walk[BC_COUNT];    /* the walk in the hold (game.json roster[].hold_walk.speed: x its walk, 8.8; 0 = none: it stands; fighter.c hold_walk) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
          f'#define DR_WIN {M["win_drama"]}              /* the stage clear\'s drama (game.json win_drama), 0xFF none */',
@@ -1120,6 +1121,14 @@ def tables(g, build):
     c.append(f"const uint16_t gwalk_anim = {round(wk.get('anim', 1) * 256)};   /* walk / run animation rate x this (8.8) */")
     c.append('const uint16_t grun_anim[BC_COUNT] = { ' + ', '.join(str(run_anim(wk, r)) for r in g['roster']) +
              ' };   /* the run animation\'s rate = the walk\'s x this (8.8), run_anim */')
+    hw = []
+    for r in g['roster']:                                # the walk in the hold (note 20261014-171133-5d29)
+        hwr = r.get('hold_walk')
+        if hwr is None: hw.append('0'); continue
+        for k in hwr: assert k in ('about', 'speed'), f"roster {r['name']}: hold_walk: unknown field {k}"
+        assert isinstance(hwr['speed'], (int, float)) and 0 < hwr['speed'] <= 2, f"roster {r['name']}: hold_walk.speed {hwr['speed']} (0-2, x its walk)"
+        hw.append(str(round(hwr['speed'] * 256)))
+    c.append('const uint16_t ghold_walk[BC_COUNT] = { ' + ', '.join(hw) + ' };   /* x its walk (8.8), 0 = no walk in the hold */')
     c += depth_tables(g, build)
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
@@ -1148,16 +1157,19 @@ def tables(g, build):
     c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .sound = 0x{fl['sound']}, .sound_max = 0x{fl.get('sound_max', fl['sound'])}, .dx = {fl['anchor'][0]}, "
              f".dy = {fl['anchor'][1]}, .white_col = {fl['white_colour']}, .dark_col = {fl['dark_colour']} }};")
     hs = g['hit_sounds']                                 # the hit cycles, the guard and the boss KO sounds (gamedata.h
-    for k in hs: assert k in ('about', 'light', 'strong', 'guard', 'boss_ko', 'bounce', 'scream_delay'), f'hit_sounds: unknown field {k}'   # ghitsnd_t)
+    for k in hs: assert k in ('about', 'light', 'strong', 'guard', 'boss_ko', 'bounce', 'scream_delay', 'hurt_voice'), f'hit_sounds: unknown field {k}'   # ghitsnd_t)
     names = {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()}
     def code(v):
         assert v.upper() in names, f'hit_sounds: {v!r} is no songs.json sfx name (the V ROM has no sample for it)'
         return names[v.upper()]
     assert 1 <= len(hs['light']) <= 32 and 1 <= len(hs['strong']) <= 32 and 0 <= hs['scream_delay'] < 300, 'hit_sounds values (scream_delay inside main.c KO_SLOW)'
+    hv = hs.get('hurt_voice', ['hit'])                   # when the hurt voice plays (gamedata.h HV_*): every hit, the launch, the landing
+    assert set(hv) <= {'hit', 'launch', 'land'}, f'hit_sounds.hurt_voice {hv}: hit / launch / land'
+    hurt = sum(b for k, b in (('hit', 1), ('launch', 2), ('land', 4)) if k in hv)
     for k in ('light', 'strong'):
         c.append(f"static const uint8_t hcycle_{k}[] = {{ {', '.join(f'0x{code(v):02X}' for v in hs[k])} }};   /* {', '.join(hs[k])} */")
     c.append(f"const ghitsnd_t ghitsnd = {{ .n = {{ {len(hs['light'])}, {len(hs['strong'])} }}, .guard = 0x{code(hs['guard']):02X}, "
-             f".boss_ko = 0x{code(hs['boss_ko']):02X}, .bounce = 0x{code(hs['bounce']):02X}, .scream_delay = {hs['scream_delay']}, .cycle = {{ hcycle_light, hcycle_strong }} }};")
+             f".boss_ko = 0x{code(hs['boss_ko']):02X}, .bounce = 0x{code(hs['bounce']):02X}, .scream_delay = {hs['scream_delay']}, .hurt = {hurt}, .cycle = {{ hcycle_light, hcycle_strong }} }};")
     c.append('const gtint_t gtints[TINT_COUNT] = {\n    { 0, 0, 0, { 0, 0, 0 } },   /* none: its own colour set */\n' + '\n'.join(
         f'    {{ {t["mix"]}, {t["mul"]}, {t["shift"]}, {{ {", ".join(map(str, t["add"]))} }} }},   /* {n} */' for n, t in g['tints'].items()) + '\n};')
     erows = []
