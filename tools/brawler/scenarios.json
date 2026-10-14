@@ -4021,5 +4021,22 @@
   "expect": "He runs with Last Blade 2's own six-frame running stride, leaning forward, his legs keeping pace with the ground (no gliding on one pose, no sliding feet).",
   "do_keys": "2:R,2:-,70:R,30:-",
   "proof": 110
+ },
+ "20261014-172113-5d29": {
+  "title": "Boss death: the clear music starts only after the body has fully landed",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 600,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone with 1 life point, Terry in front of him. Hit him with A and listen through his fall without pressing anything.",
+  "expect": "The KO blow, the slow-motion flight, the death scream, the landing sound as he hits the floor, the bounce, the landing sound again as he comes to lie still; that last landing sound plays out to its end, and only then does the stage clear music start. Nothing starts it earlier.",
+  "do_keys": "3:a",
+  "proof": 500
  }
 }

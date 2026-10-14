@@ -165,9 +165,10 @@ extern const gflash_t gflash;
  * its next strong one, unless the fighter's own sound is set: fighter.c btn_sound); guard: the guard sound
  * (fighter_guard_sound, no guard yet); boss_ko: the boss's killing hit, its death voice scream_delay frames later
  * (main.c boss_ko_start); bounce: each floor contact of the boss's death fall (fighter.c floor_thud, KOF94's KO
- * landing) ---- */
+ * landing); rest_music: the stage clear's music this many frames after the KO'd boss came to rest on the floor (its
+ * final landing, after every bounce: main.c boss_ko_tick; >= the bounce sample's length, build_tables checks) ---- */
 typedef struct {
-    uint8_t n[2], guard, boss_ko, bounce, pad;
+    uint8_t n[2], guard, boss_ko, bounce, rest_music;
     uint16_t scream_delay;
     const uint8_t *cycle[2];
 } ghitsnd_t;
