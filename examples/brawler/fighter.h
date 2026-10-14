@@ -725,6 +725,8 @@ const uint16_t *fighter_src_pal(const fighter_t *f, uint8_t i);   /* its palette
 #define FIGHTER_NAME(f) ((f)->name ? (f)->name : (f)->ch->name)
 extern uint16_t pal_pend;                                   /* fighters (bit idx) whose tinted palettes main.c loads later
                                                                (CPU budget B, main.c pal_pend_tick); fighter_load_pals clears */
+void fighter_pretint(uint8_t k, const bchar_t *ch, uint8_t set, uint8_t tint, const uint16_t *cpal);   /* (CPU budget B: */
+void fighter_pretint_step(void);                            /* a colour set tinted ahead, one palette a step) */
 void fighter_load_pals(const fighter_t *f);                 /* its colour set through its tint into its hardware palettes */                          /* full life, getting up, invulnerable a moment */
 
 #endif

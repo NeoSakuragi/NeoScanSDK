@@ -1139,7 +1139,6 @@ static int32_t run_bob(const fighter_t *f) {
 static void pal_pend_tick(void);
 static void draw(void) {
     uint8_t i;
-    if (pal_pend) pal_pend_tick();
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     for (i = 0; i < nf; i++)
         if (order[i]->state != S_OFF && !(order[i]->state == S_PROJ && order[i]->frame_ovr == 0xFFFF) && block_w(order[i])) {
@@ -1148,6 +1147,7 @@ static void draw(void) {
             BANK_set(ob);
         }
     mark(P_TILES);
+    if (pal_pend) pal_pend_tick();                           /* (after the tiles: their columns) */
     if (land_on) { land_draw(); land_clip(1); }             /* the select: the Neo Geo Land, the actors' columns off screen */
     line_guard();
     mark(P_GUARD);
@@ -2068,17 +2068,31 @@ static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t 
     if (tint || e->cpal) pal_pend |= 1 << slot;             /* (its colours: pal_pend_tick, before it can show) */
 }
 /* (CPU budget B, docs/brawler_cpu_budget.md: the boss's 5 tinted minions loaded at once took 4 frames) a spawned enemy's
- * tinted / custom palettes load in draw: one enemy a tick, and at once any enemy (or its effect) the line guard could
- * place this frame (its x within -160 .. 480 of the screen): its palettes are never seen before they are its own. A burn
- * a flash or an overlay meanwhile owns them (its end loads them: fighter_load_pals) */
+ * tinted / custom palettes load in draw, after its tiles: at once when one of its columns would show on the screen this
+ * frame (its placement's X words; the line guard places nothing beyond -128 .. 448) or one of its effects is out, else
+ * one waiting enemy a tick: its palettes are never seen before they are its own (the walk-ins wait 24-96 px off the
+ * screen through the boss's scene). A burn, a flash or an overlay meanwhile owns them (its end loads them) */
+static uint8_t on_screen(fighter_t *f) {
+    uint16_t y[MAX_COLS], x[MAX_COLS];
+    uint8_t c, n = f->ncols, ob;
+    int16_t sx = INT(f->x) - cam_x, cx;
+    if (f->state == S_OFF || !n || sx < -128 || sx > 448) return 0;
+    ob = BANK_set(CH_BANK(f->ch)); trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, n); BANK_set(ob);
+    for (c = 0; c < n; c++)
+        if (y[c] & 63) {
+            cx = (int16_t)(x[c] >> 7) - sx;
+            cx = sx + (((cx + 256) & 511) - 256);                /* (9-bit X, unwrapped around the fighter, as land_clip) */
+            if (cx > -16 && cx < 320) return 1;
+        }
+    return 0;
+}
 static void pal_pend_tick(void) {
-    uint8_t i, done = 0, k;
+    uint8_t i, done = 0, k, near;
     for (i = 2; i < NF; i++) {
         fighter_t *f = &fighters[i];
-        int16_t sx = INT(f->x) - cam_x;
-        uint8_t near = sx >= -160 && sx <= 480;
         if (!(pal_pend & (1 << i))) continue;
         if (f->burn || f->flash || f->ovl) { pal_pend &= ~(1 << i); continue; }
+        near = on_screen(f);
         for (k = 0; k < NPJ && !near; k++)
             if (projectiles[k].state != S_OFF && projectiles[k].owner == f) near = 1;
         if (near || !done) { fighter_load_pals(f); done = 1; }
@@ -2099,6 +2113,27 @@ static uint8_t pool_pick(const genemy_t *en, uint8_t pick, uint8_t avoid) {   /*
     m = mod8(pick, n);
     if (av[m] == avoid) m = mod8(m + 1, n);                /* SP_NOT_BOSS: not the boss's own fighter */
     return av[m];
+}
+/* (CPU budget B) on the way to the boss: the colour sets boss_start will give the boss and its minions (enemy_init's
+ * set / tint / custom colours, spawn's pool pick), tinted one palette a tick (fighter.c fighter_pretint) */
+static uint8_t bp_keyed;                         /* the keys named for this walk (boss_start clears it) */
+static void boss_pretint(void) {
+    const genemy_t *be = &genemies[gs->boss], *en;
+    uint8_t k, c = be->base, ch, set;
+    if (!bp_keyed) {
+        bp_keyed = 1;
+        set = c == pl_ch[0] && !pl_set[0] ? 1 : 0;
+        if (be->set != GE_SPAWN) set = be->set;
+        fighter_pretint(0, &bm_chars[c], mod8(set, bm_chars[c].nsets), be->tint != GE_SPAWN ? be->tint : 0, be->pal);
+        for (k = 0; k < gs->nmin && k < NF - 3; k++) {
+            const gspawn_t *sp = &gs->spawns[gs->boss_first + k];
+            en = &genemies[sp->enemy];
+            ch = en->base != 0xFF ? en->base : pool_pick(en, sp->pick, sp->flags & SP_NOT_BOSS ? c : 0xFF);
+            set = en->set != GE_SPAWN ? en->set : sp->set;
+            fighter_pretint(1 + k, &bm_chars[ch], mod8(set, bm_chars[ch].nsets), en->tint != GE_SPAWN ? en->tint : sp->tint, en->pal);
+        }
+    }
+    fighter_pretint_step();
 }
 static void spawn(uint8_t slot, const gspawn_t *sp, uint8_t boss_c) {
     const genemy_t *en = &genemies[sp->enemy];
@@ -2466,7 +2501,7 @@ static void boss_start(void) {
     uint8_t k, c, set = 0;
     if (gd_want) { gd_apply(); gs = &gstages[camp]; }   /* a lab's pack */
     be = &genemies[gs->boss]; c = be->base;
-    phase = PH_BOSS; phase_t = 0; ko_seq = KO_OFF;
+    phase = PH_BOSS; phase_t = 0; ko_seq = KO_OFF; bp_keyed = 0;
     if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
     enemy_init(BOSS_IDX, c, set, gs->boss_x, gs->boss_z, 0, be);
     for (k = 0; k < NF - 3; k++) {
@@ -2495,7 +2530,7 @@ static uint8_t stage_song(uint8_t s) {
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
-    mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s];
+    mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s]; bp_keyed = 0;
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
     if (!attract) snd_music(stage_song(s));                  /* the attract demo: no music (voice note 20261011-114853-5d29:
@@ -3015,6 +3050,7 @@ static void campaign(uint8_t left) {
         break;
     case PH_GO:                                              /* GO: the camera may scroll to the next lock point */
         if ((phase_t & 15) == 1) go_sign(!(phase_t & 16));   /* blinking, on from its first frame */
+        if (wave >= gs->nwaves) boss_pretint();              /* (CPU budget B: the boss's tinted colours made ahead) */
         if (cam_x < lock_x || trig_held || left) break;     /* a trigger's lock or enemies: they first */
         go_sign(0);
         if (wave < gs->nwaves) { phase = PH_WAVE; spawn_wave(); } else boss_start();

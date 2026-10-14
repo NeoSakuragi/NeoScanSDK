@@ -1152,10 +1152,45 @@ static void flicker(const fighter_t *f) {
     PAL_setPalette(f->palbase + ch->flk_ix, buf);
 }
 uint16_t pal_pend;
+/* (CPU budget B) tinted colour sets made ahead: main.c names the boss's and its minions' (fighter, set, tint, custom
+ * colours) while the camera walks to the boss (fighter_pretint), fighter_pretint_step tints one palette a tick, and
+ * fighter_load_pals copies a finished one instead of tinting 15 colours x up to 8 palettes per enemy at the spawn
+ * (the boss wave's 4-frame freeze). Anything else (a lab pack, P2 joining meanwhile) is tinted as before. */
+#define TC_N 6
+typedef struct { const bchar_t *ch; const uint16_t *cpal; uint8_t set, tint, n, done; uint16_t pal[MAX_PALS][16]; } tcache_t;
+static tcache_t tcache[TC_N];
+void fighter_pretint(uint8_t k, const bchar_t *ch, uint8_t set, uint8_t tint, const uint16_t *cpal) {
+    tcache_t *t = &tcache[k];
+    if (t->ch == ch && t->set == set && t->tint == tint && t->cpal == cpal) return;
+    t->ch = ch; t->set = set; t->tint = tint; t->cpal = cpal; t->done = 0;
+    t->n = ch->npal < MAX_PALS ? ch->npal : MAX_PALS;
+}
+void fighter_pretint_step(void) {
+    uint8_t k, j;
+    for (k = 0; k < TC_N; k++) {
+        tcache_t *t = &tcache[k];
+        if (t->ch && t->tint && t->done < t->n) {
+            const uint16_t *src = t->done == 0 && t->cpal ? t->cpal : t->ch->pals + ((t->set * t->ch->npal + t->done) << 4);
+            uint16_t *d = t->pal[t->done];
+            d[0] = src[0];
+            for (j = 1; j < 16; j++) d[j] = tint_colour(t->tint, src[j]);
+            t->done++;
+            return;
+        }
+    }
+}
 void fighter_load_pals(const fighter_t *f) {
     uint16_t buf[16];
     uint8_t i, j;
     pal_pend &= ~(1 << (f->idx & 15));
+    if (f->tint)
+        for (i = 0; i < TC_N; i++) {
+            const tcache_t *t = &tcache[i];
+            if (t->ch == f->ch && t->set == f->set && t->tint == f->tint && t->cpal == f->cpal && t->done == t->n) {
+                for (j = 0; j < t->n; j++) PAL_setPalette(f->palbase + j, t->pal[j]);
+                return;
+            }
+        }
     for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
