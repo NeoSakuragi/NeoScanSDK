@@ -410,21 +410,6 @@
    "unlock": "always"
   },
   {
-   "name": "rosa",
-   "bank": "kizuna:rosa",
-   "watch": {"frame": 55, "step": 12},
-   "routes": "tools/brawler/routes/rosa.json",
-   "archetype": "fast",
-   "chain": {"length": 5},
-   "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "236C", "fD": null, "dD": "623C", "uD": "421C", "dfD": "63214C", "ufD": null},
-   "fury": "421A",
-   "air_specials": {"dA": "j.2C"},
-   "voices": "kof",
-   "unlock": "always",
-   "throws": {"extra": {"u": "214B"}, "super": "6246A"}
-  },
-  {
    "name": "billy_lee",
    "display": "BILLY LEE",
    "scale": 0.8,
@@ -489,6 +474,24 @@
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"},
    "from_lab": true
+  },
+  {
+   "name": "haggar",
+   "about": "Final Fight's Mike Haggar (CPS1, 2026-10-14): a Lab-only fighter (tools/ffight). FF's chain jab > jab > finisher (knockdown; back on the last press = the chain's back throw: his backdrop), FF's damages as the chain's weights, FF's 6-frame hit-stop; the special = attack + jump, the spinning lariat (A+B = the neutral C slot); the hold: A = headbutt (x3), forward / back + A = the backdrop, up / down + A = the piledriver (FF: jump in the hold, then attack).",
+   "display": "HAGGAR",
+   "bank": "ffight:haggar",
+   "watch": {"frame": 77052, "step": 0},
+   "routes": "tools/brawler/routes/haggar.json",
+   "archetype": "heavy",
+   "chain": {"length": 3, "links": ["atk_a_far", "atk_a_close"], "hitstop": [6, 6, 6]},
+   "finishers": {"launcher": null, "down": null, "neutral": "atk_c_close", "forward": "atk_c_close"},
+   "specials": {"D": "AJ", "fD": null, "dD": null, "uD": null, "dfD": null, "ufD": null},
+   "air": {"forward": "atk_d_jump", "straight": "atk_c_jump", "down": "atk_a_jump"},
+   "throws": {"hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}}, "extra": {"u": "throw_x", "d": "throw_x"}},
+   "hit_sfx": {"A": "FF HIT", "B": "FF HEADBUTT", "throw_c": "FF BODY FALL", "throw_d": "FF BODY FALL"},
+   "unlock": "always",
+   "voices": "kof",
+   "from_lab": true
   }
  ],
  "roster_benched": {
@@ -543,24 +546,6 @@
      "voices": "kof"
     },
     {
-     "name": "haggar",
-     "about": "Final Fight's Mike Haggar (CPS1, 2026-10-14): a Lab-only fighter (tools/ffight). FF's chain jab > jab > finisher (knockdown; back on the last press = the chain's back throw: his backdrop), FF's damages as the chain's weights, FF's 6-frame hit-stop; the special = attack + jump, the spinning lariat (A+B = the neutral C slot); the hold: A = headbutt (x3), forward / back + A = the backdrop, up / down + A = the piledriver (FF: jump in the hold, then attack).",
-     "display": "HAGGAR",
-     "bank": "ffight:haggar",
-     "lab": true,
-     "watch": {"frame": 77052, "step": 0},
-     "routes": "tools/brawler/routes/haggar.json",
-     "archetype": "heavy",
-     "chain": {"length": 3, "links": ["atk_a_far", "atk_a_close"], "hitstop": [6, 6, 6]},
-     "finishers": {"launcher": null, "down": null, "neutral": "atk_c_close", "forward": "atk_c_close"},
-     "specials": {"D": "AJ", "fD": null, "dD": null, "uD": null, "dfD": null, "ufD": null},
-     "air": {"forward": "atk_d_jump", "straight": "atk_c_jump", "down": "atk_a_jump"},
-     "throws": {"hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}}, "extra": {"u": "throw_x", "d": "throw_x"}},
-     "hit_sfx": {"A": "FF HIT", "B": "FF HEADBUTT", "throw_c": "FF BODY FALL", "throw_d": "FF BODY FALL"},
-     "unlock": "always",
-     "voices": "kof"
-    },
-    {
      "name": "rock",
      "about": "Garou: Mark of the Wolves' Rock Howard (2026-10-14): a Lab-only fighter (tools/garou: ROM decoder, export, programs; study /data/neogeo_dict/garou/README.md). Garou's frames / step timing / boxes from the ROM (check_timeline: frame for frame), every special's motion = Garou's own play cut into velocity segments (handlers_garou check: 12 / 12 frame-identical). Hit-stop = Garou's: 7 frames on the light hits, 11 on the heavy (numbers_garou.py). Sheet = his own moves: chain A > A > B, finishers close C / far D / crouch D sweep; D = Reppuken (236A), forward = Hard Edge (214A), down = Reppuken C (236C), up = Rising Tackle (28A), down-forward = Rage Run (214B), up-forward = Rising Tackle C; fury = Raging Storm (236236A), MAX = Shine Knuckle (236236B). Throw: close + forward / back + C (both slots).",
      "display": "ROCK",
@@ -607,6 +592,22 @@
      "max": "236236B",
      "unlock": "always",
      "voices": "kof"
+    },
+    {
+     "name": "rosa",
+     "lab": true,
+     "bank": "kizuna:rosa",
+     "watch": {"frame": 55, "step": 12},
+     "routes": "tools/brawler/routes/rosa.json",
+     "archetype": "fast",
+     "chain": {"length": 5},
+     "finishers": {"launcher": "up", "down": "sweep"},
+     "specials": {"D": "236C", "fD": null, "dD": "623C", "uD": "421C", "dfD": "63214C", "ufD": null},
+     "fury": "421A",
+     "air_specials": {"dA": "j.2C"},
+     "voices": "kof",
+     "unlock": "always",
+     "throws": {"extra": {"u": "214B"}, "super": "6246A"}
     }
   ]
  },
@@ -659,7 +660,7 @@
   "yamazaki": {"x": 276, "y": 184, "z": 2, "facing": "right", "pose": [349, 0], "slot": 18},
   "haohmaru": {"x": 305, "y": 210, "z": 19, "facing": "left", "pose": [140, -1], "slot": 19},
   "genjuro": {"x": 334, "y": 197, "z": 11, "facing": "right", "pose": [140, -1], "slot": 20},
-  "rosa": {"x": 363, "y": 184, "z": 3, "facing": "left", "pose": [55, 12], "slot": 21},
+  "haggar": {"x": 363, "y": 184, "z": 3, "facing": "left", "pose": [77052, 0], "slot": 21},
   "billy_lee": {"x": 393, "y": 210, "z": 20, "facing": "right", "pose": [100, -1], "slot": 22},
   "k_dash": {"x": 422, "y": 197, "z": 12, "facing": "left", "pose": [349, -1], "slot": 23},
   "robert": {"x": 451, "y": 184, "z": 4, "facing": "right", "pose": [340, -1], "slot": 24}
@@ -1675,13 +1676,6 @@
      "Justice, he says, must always win.",
      "He promises to keep watch over these streets.",
      "Evil had better stay away."
-    ],
-    "rosa": [
-     "Rosa brushes the dust from her coat.",
-     "The men who ran this city are on the ground.",
-     "She does not stay to hear the crowd.",
-     "There is another score to settle far away.",
-     "Rosa walks off without looking back."
     ],
     "billy_lee": [
      "Billy Lee wipes the blood from his lip.",
