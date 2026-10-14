@@ -3336,6 +3336,176 @@
        ]
       }
      ]
+    },
+    {
+     "title": "Haggar's voices",
+     "questions": [
+      {
+       "id": "ffs-H1",
+       "title": "Haggar special shout",
+       "context": "1 = Final Fight's chip output (reference). 3 = what 0.10.86 plays now. 4 = candidate: board-filtered first. (No \"old\" here: these are the same conversion as the hits.)",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/H1_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H1_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H1_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-H2",
+       "title": "Backdrop",
+       "context": "1 = Final Fight's chip output (reference). 3 = what 0.10.86 plays now. 4 = candidate: board-filtered first. (No \"old\" here: these are the same conversion as the hits.)",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/H2_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H2_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H2_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-H3",
+       "title": "Piledriver",
+       "context": "1 = Final Fight's chip output (reference). 3 = what 0.10.86 plays now. 4 = candidate: board-filtered first. (No \"old\" here: these are the same conversion as the hits.)",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/H3_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H3_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H3_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-H4",
+       "title": "Finisher swing",
+       "context": "1 = Final Fight's chip output (reference). 3 = what 0.10.86 plays now. 4 = candidate: board-filtered first. (No \"old\" here: these are the same conversion as the hits.)",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/H4_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H4_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H4_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ffs-H5",
+       "title": "Swing (jab)",
+       "context": "1 = Final Fight's chip output (reference). 3 = what 0.10.86 plays now. 4 = candidate: board-filtered first. (No \"old\" here: these are the same conversion as the hits.)",
+       "media": [
+        {
+         "audio": "decisions-media/ff-sounds/H5_arcade.wav",
+         "caption": "1 · Final Fight (reference)"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H5_now.wav",
+         "caption": "3 · now, 0.10.86"
+        },
+        {
+         "audio": "decisions-media/ff-sounds/H5_board.wav",
+         "caption": "4 · candidate: board-filtered"
+        }
+       ],
+       "options": [
+        {
+         "label": "3 (now) sounds like 1: keep it"
+        },
+        {
+         "label": "4 (board-filtered) is closer to 1: use 4"
+        },
+        {
+         "label": "3 and 4 both still harsher than 1"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
     }
    ]
   }
