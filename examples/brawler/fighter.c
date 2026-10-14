@@ -2406,8 +2406,17 @@ static void hold_update(fighter_t *f, const intent_t *in) {
         return;
     }
     hold_walk(f, v, in);                                         /* (the walk in the hold: the timer runs on) */
-    if (f->state_t >= GRAB_TIME) {                               /* the victim breaks free */
+    if (f->state_t >= GRAB_TIME) {                               /* the victim breaks free (note 20261014-193405-5d29:
+                                                                    the hold's pose lifts it a few px; let go it stood
+                                                                    in the air): game.json roster[].hold_timeout of the
+                                                                    holder: 0 on its feet on the floor, 1 it falls on
+                                                                    its back (Final Fight's Haggar), no damage */
         release(f); v->x += dir_mul(f->facing, FIX(10)); clamp(v); v->inv = 20;
+        if (f->ch->id < BC_COUNT && ghold_timeout[f->ch->id]) {
+            v->facing = -f->facing; enter(v, S_KNOCKDOWN); play(v, BA_TRIP);   /* (R_TRIP's fall: react) */
+            v->kmode = v->kdelay = 0; v->kvfr = 0; v->ksr = 0;
+            v->vy = FIX(3); v->vx = dir_mul(f->facing, FIX(1)); v->vz = 0;
+        } else v->y = 0;
     }
 }
 /* the chain's back throw (revamp 1A, "chain core"): the victim the link before hit (target), reeling on the ground within
@@ -3333,6 +3342,16 @@ static uint8_t seq_owns(const fighter_t *f, uint8_t b) {        /* 1: a pressed 
     const bspec_t *sp = &f->ch->specials[f->spec_ix];
     return (sp->sflags & SF_SEQ) && sp->nlinks && (sp->links[0].trig & LK_IN) && (sp->links[0].in & b);
 }
+static uint8_t c_link(const fighter_t *f) {                   /* 1: a ROM special with a follow-up on C alone (any
+                                                                    stick, handlers98 FOLLOW_READ: Kyo's 75 Shiki Kai's
+                                                                    second kick, note 20261014-142848-5d29): its C press is
+                                                                    the follow-up's, never the ladder's cancel */
+    const bspec_t *sp = &f->ch->specials[f->spec_ix];
+    uint8_t k;
+    if (!sp->prog) return 0;
+    for (k = 0; k < sp->nlinks && k < 8; k++) if ((sp->links[k].in & IN_C) && sp->links[k].dir == LK_ANY) return 1;
+    return 0;
+}
 static uint8_t seq_wait(const fighter_t *f) {                  /* 1: a pressed sequence's piece, not armed (a link
                                                                     LK_IN | LK_HIT, roster[].seq_hit: pressed and its
                                                                     hit landed, LB2 Moriya's Shingetsu > Sougetsu) */
@@ -3354,8 +3373,29 @@ static uint8_t seq_next(fighter_t *f) {
     if (f->state == S_SPECIAL) { f->pheld = 0; special_update(f); }
     return 1;
 }
+/* the fury's closing throw (game.json roster[].fury_throw -> gfury_throw, note 20261014-171937-5d29: Haggar's fury ends
+ * with his piledriver): the fury (D, not its MAX) over, its victim still reeling (S_HITSTUN) on the floor is grabbed where
+ * it stands and thrown by the hold's B throw (bm_xthr x, BT_XTHROW: in place, no travel), the throw's damage the data's
+ * (the fury's tier: its pieces + this); invincible as every throw (INV_FURY to its control return). -> 1 when it threw */
+static uint8_t fury_throw(fighter_t *f) {
+    fighter_t *v = f->target;
+    int32_t x, y;
+    uint8_t d = f->ch->id < BC_COUNT ? gfury_throw[f->ch->id] : 0;
+    if (!d || f->spec_id != BS_FURY || f->fmax || !v || v->state != S_HITSTUN || v->y > 0 || !bm_xthr[f->ch->id].x) return 0;
+    special_end(f); f->pflags = 0;
+    x = v->x; y = v->y;
+    f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;
+    v->dance = 0;                                                /* (the fury's reel is over: the throw has it) */
+    grab(f, v);
+    v->x = x; v->y = y;
+    pend_jdx = 0; throw_start(f, BT_XTHROW, TD_ASIS);
+    v->thr_dmg = d;
+    f->node = 0; f->chain_t = 0; f->buffered = 0;
+    return 1;
+}
 static void prog_end(fighter_t *f) {
     if (seq_next(f)) return;                                     /* a sequence: its next piece, back to back */
+    if (fury_throw(f)) return;                                   /* (the fury's closing throw) */
     special_end(f); lab_cend(f);
     if (lab_on && lab_next(f)) return;                           /* a lab list's next entry, back to back */
     if (f->y > 0) { f->vx = f->vy = f->vz = 0; f->jump_kind = f->jump_dir = 0; enter(f, S_AIR); play(f, BA_JUMP_UP_FALL); } else to_neutral(f, 0);
@@ -3934,7 +3974,7 @@ static void update(fighter_t *f, const intent_t *in) {
         !f->team && f->blz_slot < BZ_COUNT && (gblitz_can[f->ch->id][f->blz_slot] & (1 << (in->blitz - 1))))
         f->blz_buf = in->blitz;                                  /* a Blitz that landed: its quirk's Blitz (gblitz_can) */
     if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team &&
-        !seq_owns(f, IN_C))
+        !seq_owns(f, IN_C) && !c_link(f))
         f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
                                                                     landed: C buffers ANOTHER special (special_cancel); a
                                                                     pressed sequence's piece on C keeps its C (seq_owns) */

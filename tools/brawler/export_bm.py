@@ -243,6 +243,10 @@ FLASH_POSES = {
             'intro': (0x26, 0, None)},                              # the intro (arms crossed, scarf)
     'doubledr': {'default': 'charge', 'charge': (81, 0, 5),         # the power-up: anim 81's stance, the flames rising
                  'win': (100, 0, None)},                            # from his feet (steps 0-5, before the dragons)
+    'ffight': {'default': 'stance', 'stance': (0x132B0, 0, None),   # Final Fight has no fury, no taunt (note
+               'kneel': (0x13C0E, 0, None)},                        # 20261014-171937-5d29, Haggar "observe that freeze":
+                                                                    # Haggar's $132B0, upright, forearm across the chest,
+                                                                    # held still; kneel = $13C0E, one knee down)
 }
 def flk_of(ch):
     """the export's flicker palette (export_ss2.flicker: SS2's second layer, TODO #193): one per fighter, or None"""
@@ -377,7 +381,8 @@ def build(specs, outdir):
         if game == 'ffight':                            # Final Fight (CPS1): its own reader (tools/ffight), the same layout
             sys.path.insert(0, os.path.join(HERE, '..', 'ffight')); import export_ff
             return export_ff.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
-                                    extra={n: {'watch': tuple(roster()[rname(game, n)]['watch'])} for n in names if rname(game, n) in roster()})
+                                    extra={n: {'watch': tuple(roster()[rname(game, n)]['watch']), **flash_extra(game, rname(game, n))}
+                                           for n in names if rname(game, n) in roster()})
         if game == 'whp':                               # World Heroes Perfect: its own reader, the same export layout
             sys.path.insert(0, os.path.join(HERE, '..', 'whp')); import export_whp
             return export_whp.export(names, tmp, only=set(MOVES) | set(WIN_MORE),
@@ -1670,7 +1675,11 @@ _FALL98 = {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knoc
 KOF_FALL = {'kof97': _FALL98, 'kof98': _FALL98, 'kof99': _FALL98,
             'kof96': {283: 'blowback', 285: 'blowback', 287: 'knockdown_flight', 309: 'knockdown_bounce', 359: 'down'}}
 
-def throw_rows(game, n, th, pkeys, front=None):
+def idle_frames(ch):
+    """the frames of a fighter's idle animation (a captured throw's thrower back in neutral: throw_rows)"""
+    return {s_['frame'] for s_ in (ch['anims'].get('idle') or {}).get('steps', [])}
+
+def throw_rows(game, n, th, pkeys, front=None, idle=()):
     """a throw's paired script rows (C initializers) and its points: ret (control return), rel (release), land. A throw
     read from the ROM (tools/kof96/throwrom.py) brings them decoded, its flight states as the brawler's knockdown
     animations by their place in the flight code (rows[6]; a posture of the vocabulary when the state has one); a
@@ -1686,7 +1695,12 @@ def throw_rows(game, n, th, pkeys, front=None):
     else:
         rel = next((i for i in range(1, len(rows)) if 0 <= st(rows[i]) < THROW_FLIGHT and st(rows[i - 1]) >= THROW_FLIGHT), None)
         land = next((i for i in range(rel + 1, len(rows)) if rows[i][2] + th['timeline'][min(i, len(th['timeline']) - 1)][2] <= 0), None) if rel is not None else None
-        ret = len(th['timeline'])
+        ret = len(th['timeline'])                        # the capture's end, less its idle tail (note 20261014-233105-5d29,
+        while ret > (rel or 0) + 1 and th['timeline'][ret - 1][0] in idle: ret -= 1   # Bruno: "after the throws Yamazaki
+                                                         # stays idle too long"): a capture runs on until its victim lies
+                                                         # down, its thrower back in neutral (its idle animation's frames:
+                                                         # KOF's code end, the control return) long before; those rows
+                                                         # stay for the victim, the thrower acts from the first of them
     if th.get('rom') and th.get('body'): rel, land = th['body']   # a second release (Ralf's 426B slam): the body from it
     nrows = max(len(th['timeline']), len(rows)) if th.get('rom') else len(th['timeline'])
     out, num = [], []
@@ -2296,7 +2310,7 @@ def write_c(chars, outdir):
             th = ch.get('throws', {}).get(t)
             if t == 'throw_d' and tdata.get('back') == 'throw_c': th = None   # (the back throw = C's turned: bthrow_t turn)
             if not th: thr.append('{0, 0x100, 0, 0, 0xFFFF, 0xFFFF, 0xFFFF, 0, 0, 0xFF, 0xFF, 0xFFFF, 0, 0, %d}' % (t == 'throw_d' and tdata.get('back') == 'throw_c')); continue
-            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(t))
+            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(t), idle_frames(ch))
             VBASE[(n, t)] = (game, th, info['rows'])
             c.append(f'static const bthrow_row_t {n}_{t}[] = {{' + ', '.join(out) + '};')
             sp = tdata.get('speed', {}).get(t, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)
@@ -2305,7 +2319,7 @@ def write_c(chars, outdir):
         c.append(f'static const bthrow_t {n}_throws[BT_COUNT] = {{' + ', '.join(thr) + '};')
         th = ch.get('throws', {}).get(THROW_X)               # its extra paired throw (revamp 3: Ralf's 426B), bm_xthr
         if th:
-            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(THROW_X))
+            out, info = throw_rows(game, n, th, pkeys, tdata.get('front', {}).get(THROW_X), idle_frames(ch))
             VBASE[(n, THROW_X)] = (game, th, info['rows'])
             c.append(f'static const bthrow_row_t {n}_{THROW_X}[] = {{' + ', '.join(out) + '};')
             sp = tdata.get('speed', {}).get(THROW_X, THROW_SPEED if th.get('rom') else CAPTURED_THROW_SPEED)

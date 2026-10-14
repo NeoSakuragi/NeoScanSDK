@@ -114,7 +114,7 @@ FOLLOW_MASH = {('kof98', 0x4FD46): {'at': 0x4FE2E, 'field': 0xD6}}
 # set, replays the flurry, +$32 counting the replays down (4 DM / 8 MAX), then the finisher. The decode reads the latch
 # as set at every test: the flurry plays 1 + 4 / 1 + 8 times (KOF98 mashed: 13 hits DM, 23 MAX), no button read
 FOLLOW_MAXED = {('kof98', 0x64B9C): (0xD1, 7)}
-FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again'], 'press': ['again']}   # the brawler's press per
+FOLLOW_INPUTS = {'latch': ['again'], 'hitlatch': ['again'], 'fwdBD': ['fA', 'fAB'], 'hcbP': ['again'], 'fP': ['fA'], 'mash': ['again'], 'press': ['AB']}   # the brawler's press per
                                                                   # link (export_bm link_c)
 FOLLOW_LAG = {'kof98': 4, 'kof99': 5}
 # KOF98's $1ED30 reads the stick and the buttons of the input record (fp), 6 frames after the button (brute force, TODO
@@ -129,10 +129,17 @@ FOLLOW_BTN = {('kof98', 0x70E48): 0x10}
 # THIS frame (KOF98 Kyo 236B / D $3C7D6 at $3C90E: B or D, $A0, the same second kick for either; read on every frame of
 # the jump's rise 144 / 145 from its first to the apex, the press switching to the second kick 147 / 148 on the jump's
 # $0080 step or at once past it, measured in our emulator: tools/brawler/scissor5d29_proof.py). It becomes ('check',
-# mask) of link 'again' (the move's own input pressed again) and the beq a link test: the brawler's press starts the
-# second kick when made; none by the apex, the jump lands without it. (Was FOLLOW_PRESSED: the press
-# assumed made, both kicks back to back, note 20261011-175124-5d29)
+# mask) of link 'AB' (the brawler's C alone, any stick: the reopen, Bruno "no need for down C, just pressing C in the air
+# should do it"; KOF reads the button alone too) and the beq a link test: the brawler's press starts the second kick
+# when made; none by the apex, the jump lands without it. (Was FOLLOW_PRESSED: the press assumed made, both kicks back
+# to back, note 20261011-175124-5d29)
 FOLLOW_READ = {('kof98', 0x3C90E)}
+# the brawler's press buffer of an inline press read (P_CHECK b 3's v: a press made since the special's start, up to v
+# frames before the read, counts). KOF keeps none: its read sees the button 6 frames late, so a press before the 11th
+# frame of 236D is lost when the first kick whiffs (on a hit the hit-stop moves the reads later and it counts). The
+# reopen of note 20261014-142848-5d29 (Bruno: "in the real game it comes out even if the first one whiffs"): any C press
+# from the move's start counts, whiff or hit; the reads (the rise, up to the apex) and the kick's timing stay KOF's
+FOLLOW_BUF = {'press': 0xFE}
 # a3 in a special's frame code (KOF98): the speed record its wall-slam's jump back loads (`move.l 30(a3), +$50`, +$54
 # friction, +$58 vy, +$5C gravity; TODO #173). Not a pointer the decoder sees: measured in our emulator (Rugal 624A's
 # jump back after the slam, state 169: vx -10.3125, friction $E900, vy 4.125, gravity 0.6055 = the ROM's $AC88E..$AC89D)
@@ -556,7 +563,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             a = nx; continue
         if mn == 'moveb' and (dec.game, a) in FOLLOW_READ and o[0].startswith('%fp@'):   # an inline press read
             if nofollow: D[o[1]] = 0; cc = ('val', 0); a = nx; continue  # (a part alone: no press)
-            follow[0] = follow[0] or 'press'; mk = lmask('press'); emit(a, 'check', mk, 'buf', llag['again'])
+            follow[0] = follow[0] or 'press'; mk = lmask('press'); emit(a, 'check', mk, 'buf', FOLLOW_BUF.get('press', llag['AB']))
             D[o[1]] = ('link', mk); cc = (f'link:{mk}', 'Zinv'); a = nx; continue
         if base == 'andi' and o[1].startswith('%d') and isinstance(D.get(o[1]), tuple) and D[o[1]][0] == 'link':
             cc = (f'link:{D[o[1]][1]}', 'Zinv'); a = nx; continue      # (its buttons: the brawler's link press)

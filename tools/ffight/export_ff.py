@@ -219,6 +219,10 @@ def export(names, outdir, only=None, extra=None, lab=None):
             st = anim_steps(B, name, spec)
             if mv in CYCLED: cycle_ticks(st, WALK_CYCLE[name])
             anims[mv] = {'slot': entries(spec)[1], 'mode': 'loop' if mv in LOOP else 'hold', 'steps': st}
+        for mv, spec in ((extra or {}).get(name, {}).get('anims') or {}).items():   # (export_bm extras: the flash
+            a, f0, l0 = spec                                                       # pose, its animation [first, last])
+            st = anim_steps(B, name, (a, f0, None if l0 is None else l0 + 1))
+            anims[mv] = {'slot': a, 'mode': 'hold', 'steps': st}
         w = (extra or {}).get(name, {}).get('watch')
         if w: anims['watch'] = {'slot': w[0], 'mode': 'hold', 'steps': anim_steps(B, name, w[0])[w[1]:][:1]}
         th = throws(B, name)

@@ -43,9 +43,9 @@ FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],   
               ('kyo', 'fA'): [(-2, 2, 'R'), (0, 6, 'Ra')],                                          # 6A (236C's 2nd)
               ('k_dash', 'fA'): [(-2, 2, 'R'), (0, 6, 'Rb')], ('k_dash', 'fAB'): [(-2, 2, 'R'), (0, 6, 'Rd')],
               ('ralf', 'again'): [(0, 3, 'a')],                                                    # AAAA's mash (TODO #220)
-              ('kyo', 'again', '236D'): [(0, 2, 'd')]}             # 75 Shiki Kai's second kick: D again (B too; handlers98
+              ('kyo', 'AB', '236D'): [(0, 2, 'd')]}                # 75 Shiki Kai's second kick: D again (B too; handlers98
                                                                   # FOLLOW_READ, note 20261014-142848-5d29)
-FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
+FOLLOW_PAD = {'fA': ('Ra', 0), 'fAB': ('Rc', 0), 'AB': ('c', 0)}        # the brawler's pad keys, the frames its intent waits (0: no chord)
 CASES = ['terry:fD', 'terry:dD', 'terry:D', 'ralf:fD', 'ralf:dD', 'ralf:uD']
 EVERY = int(os.environ.get('EVERY', 4))             # the sheets: every EVERY-th frame from SHEET_FROM, at most NSHOT
 SHEET_FROM = int(os.environ.get('SHEET_FROM', 0))   # (TODO #202: frame by frame over a window, EVERY=1 SHEET_FROM=40)

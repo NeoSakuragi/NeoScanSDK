@@ -1205,6 +1205,8 @@ def tables(g, build):
          'extern const uint16_t gwalk_run;               /* run = walk x this (8.8) */',
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
          'extern const uint16_t grun_anim[BC_COUNT];     /* the run animation\'s rate = the walk\'s x this (8.8; game.json walk.run_anim / walk.anim, 256 for a roster[].walk_rate fighter) */',
+         'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
+         'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint16_t ghold_walk[BC_COUNT];    /* the walk in the hold (game.json roster[].hold_walk.speed: x its walk, 8.8; 0 = none: it stands; fighter.c hold_walk) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
@@ -1293,6 +1295,21 @@ def tables(g, build):
         assert isinstance(hwr['speed'], (int, float)) and 0 < hwr['speed'] <= 2, f"roster {r['name']}: hold_walk.speed {hwr['speed']} (0-2, x its walk)"
         hw.append(str(round(hwr['speed'] * 256)))
     c.append('const uint16_t ghold_walk[BC_COUNT] = { ' + ', '.join(hw) + ' };   /* x its walk (8.8), 0 = no walk in the hold */')
+    hb = []                                              # the hold's timeout (note 20261014-193405-5d29, Bruno: "if the
+    for r in g['roster']:                                # grab times out for Haggar, the character falls on his back"):
+        v = r.get('hold_timeout', 'stand')               # stand = both let go, the victim on its feet on the floor;
+        assert v in ('stand', 'knockdown'), f"roster {r['name']}: hold_timeout stand | knockdown"   # knockdown = it falls
+        hb.append(('1' if v == 'knockdown' else '0') + f'   /* {r["name"]} */')   # on its back (no damage)
+    c.append('const uint8_t ghold_timeout[BC_COUNT] = {\n    ' + ',\n    '.join(hb) + '\n};')
+    ft = []                                              # the fury's closing throw (note 20261014-171937-5d29, Haggar:
+    for r in g['roster']:                                # "at the very end of everything, add the piledriver"): after the
+        e = r.get('fury_throw')                          # fury's last piece its reeling victim is grabbed and thrown by
+        if not e: ft.append(f'0   /* {r["name"]} */'); continue   # the hold's B throw (roster[].throws.b, bm_xthr x)
+        for k in e: assert k in ('about', 'throw', 'damage'), f"roster {r['name']}: fury_throw: unknown field {k}"
+        assert e.get('throw') == 'b' and (r.get('throws') or {}).get('b'), f"roster {r['name']}: fury_throw.throw 'b' needs roster[].throws.b"
+        assert isinstance(e.get('damage'), int) and 1 <= e['damage'] <= 60, f"roster {r['name']}: fury_throw.damage 1-60"
+        ft.append(f'{e["damage"]}   /* {r["name"]} */')
+    c.append('const uint8_t gfury_throw[BC_COUNT] = {\n    ' + ',\n    '.join(ft) + '\n};')
     c += depth_tables(g, build)
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
