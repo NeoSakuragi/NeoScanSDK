@@ -3918,7 +3918,7 @@
   },
   "do": "Press A when the gauge is full (the clip presses at the top). Also try a press below the top (GOOD / GREAT).",
   "expect": "At the top grade (PERFECT) the tree cracks, its top falls, he leaps back, the crown lands, METER +2 and AOF2's winning jingle. Any lower grade fails as in AOF2: a few leaves, the tree stands, 'TRAINING FAILED' and the fail jingle.",
-  "do_keys": "58:-,2:a",
+  "do_keys": "56:-,2:a",
   "proof": 300
  }
 }
