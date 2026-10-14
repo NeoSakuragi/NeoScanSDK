@@ -3623,5 +3623,61 @@
   "expect": "Each hit carries Iori forward: the second hit slides him forward as far as the first (about 70 px when left to finish), the third is the jumping overhead (about 115 px), as in KOF98.",
   "do_keys": "1:D,1:-,1:D,2:Da,8:-,2:a,24:-,2:a,80:-",
   "proof": 120
+ },
+ "t1-landing-bounce": {
+  "title": "Throws: the thrown enemy lands straight into its floor bounce",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kyo",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Terry. Press forward + A (Kyo's forward throw) and watch the moment Terry hits the floor.",
+  "expect": "Terry comes down lying and bounces on the floor where he landed: no one-frame diagonal pose above the floor at the landing, no slide away after it.",
+  "do_keys": "3:Ra,120:-",
+  "proof": 120
+ },
+ "t1-kdash-back-landing": {
+  "title": "K' back throw: the victim stays where it lands",
+  "setup": {
+   "mode": "lab",
+   "fighter": "k_dash",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Terry. Press back + A (K's back throw) and watch Terry land behind K'.",
+  "expect": "Terry lands behind K' and bounces in place: he no longer shoots 60+ px further along the floor as he touches it.",
+  "do_keys": "3:La,120:-",
+  "proof": 120
+ },
+ "t1-own-frames-lying": {
+  "title": "KOF throws: a lying victim lies on the floor, not above it",
+  "setup": {
+   "mode": "lab",
+   "fighter": "ralf",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Terry. Press forward + A (Ralf's forward throw) and watch Terry at the end of it.",
+  "expect": "Terry ends lying ON the floor next to his shadow (he used to float 40-50 px above it, then drop into his down pose).",
+  "do_keys": "3:Ra,120:-",
+  "proof": 120
+ },
+ "t1-krauser-lift": {
+  "title": "Krauser's throw holds a KOF98 fighter in his hands",
+  "setup": {
+   "mode": "lab",
+   "fighter": "krauser",
+   "dummy": "terry",
+   "gap": 40,
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Terry. Press forward + A (Krauser's lift) and watch his hands while Terry is over his head.",
+  "expect": "Terry's body sits in Krauser's hands through the whole lift and the slam (he used to hang 10-35 px off them).",
+  "do_keys": "3:Ra,150:-",
+  "proof": 150
  }
 }
