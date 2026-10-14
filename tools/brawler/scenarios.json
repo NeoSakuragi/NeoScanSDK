@@ -3907,5 +3907,18 @@
   "expect": "The piledriver plays Final Fight's piledriver shout ($0B) as the slam starts, 5 frames after the jump, in all three; the backdrop's shout ($07) only on forward / back + A. Before, the piledriver played the backdrop's shout.",
   "do_keys": "3:b",
   "proof": 160
+ },
+ "20261014-133606-5d29": {
+  "title": "Ki training: only a full gauge passes, then the tree falls",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is full (the clip presses at the top). Also try a press below the top (GOOD / GREAT).",
+  "expect": "At the top grade (PERFECT) the tree cracks, its top falls, he leaps back, the crown lands, METER +2 and AOF2's winning jingle. Any lower grade fails as in AOF2: a few leaves, the tree stands, 'TRAINING FAILED' and the fail jingle.",
+  "do_keys": "58:-,2:a",
+  "proof": 300
  }
 }

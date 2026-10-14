@@ -36,6 +36,7 @@ OBJECTS = {                                # name: scene, [(dump, first sprite, 
     'tree': ('tree', [('spirit_500', 49, 59)]),
     'leaf': ('tree', [('spirit_800', 305, 305), ('spirit_850', 306, 306)]),
     'mark': ('tree', [('spirit_750', 60, 64), ('spirit_800', 60, 64)]),
+    'fall': ('tree', [('spirit_top_740', 225, 237), ('spirit_top_770', 225, 239), ('spirit_top_810', 225, 243)]),
     'post': ('posts', [('posts_510', 21, 24), ('posts_558', 21, 24), ('posts_840', 21, 24), ('posts_1116', 21, 24)]),
     'piece': ('posts', [('posts_558', 264, 264), ('posts_558', 265, 265), ('posts_558', 268, 268), ('posts_558', 269, 270),
                         ('posts_1410', 277, 278), ('posts_1410', 281, 282)]),
@@ -328,6 +329,32 @@ def screens(h, tile, newtile, outdir):
     h.append(f'#define BSCR_SPRS {max(sprs)}   /* sprites 1..BSCR_SPRS - 1: the screens\' */')
 
 
+FALL_MARK = 700                                        # spirit_top: the punch mark's first frame (main.c: the blow's tick)
+FALL_REFS = ['spirit_top_740', 'spirit_top_770', 'spirit_top_810']   # = OBJECTS 'fall': each image's dump
+def fall_seq():
+    """the top grade's tree (note 20261014-133606-5d29): AOF2's tree chain (sprites 225..) in every spirit_top dump, as
+    keyframes [tick from the mark, image (bonus_fall), dx, dy from the image's place in its dump, SCB2 vertical shrink]
+    where something changes; main.c bn_gauge_flow plays it from the blow on a winning grade"""
+    def chain(name):
+        ss = [s for s in sprites(dump(name)[0]) if 225 <= s['i'] <= 260]
+        v = dump(name)[0]; scb2 = v[(0x8000 + 225) * 2] << 8 | v[(0x8000 + 225) * 2 + 1]
+        return (len(ss), ss[0]['x'], ss[0]['y'], scb2 & 0xFF) if ss else None
+    refs = [chain(n) for n in FALL_REFS]
+    out, last = [], None
+    for f in range(FALL_MARK, 1000, 2):
+        if not os.path.exists(f'{RIP}/spirit_top_{f}.vram'): continue
+        c = chain(f'spirit_top_{f}')
+        if not c: continue
+        img = next(k for k, r in enumerate(refs) if r[0] == c[0])
+        e = (img, c[1] - refs[img][1], c[2] - refs[img][2], c[3])
+        if e != last: out.append((f - FALL_MARK,) + e); last = e
+    return ['/* the top grade\'s falling tree: {tick from the blow, image (bonus_fall), dx, dy, vertical shrink} (make_bonus fall_seq) */',
+            'typedef struct { uint16_t t; uint8_t img; int8_t dx, dy; uint8_t vs; } bonus_fall_t;',
+            f'#define BONUS_N_FALLSEQ {len(out)}',
+            f'#define BONUS_FALL_MAXW {max(r[0] for r in refs)}',
+            'static const bonus_fall_t bonus_fall_seq[BONUS_N_FALLSEQ] = { ' + ', '.join(f'{{{t}, {i}, {dx}, {dy}, 0x{vs:02X}}}' for t, i, dx, dy, vs in out) + ' };']
+
+
 def build(outdir):
     c1p, c2p = os.path.join(outdir, 'bm_c1.bin'), os.path.join(outdir, 'bm_c2.bin')
     c1, c2 = bytearray(open(c1p, 'rb').read()), bytearray(open(c2p, 'rb').read())
@@ -402,6 +429,7 @@ def build(outdir):
             for c, col in enumerate(grid):
                 for r, (t, aw) in enumerate(col): put(ox + 16 * c, oy + 16 * r, t, aw)
         img.save(os.path.join(outdir, f'bonus_{sn}.png'))
+    h += fall_seq()
     h.append(f'#define BONUS_SCENES {len(scenes)}')
     h.append('static const bonus_scene_t bonus_scenes[BONUS_SCENES] = {\n    ' + ',\n    '.join(scenes) + '\n};')
     h.append(f'#define BONUS_MAXROWS {max(len(c) for o in objs.values() for im in o for c in im[4])}')

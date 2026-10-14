@@ -871,8 +871,8 @@ def ending_tables(g):
 
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
-BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks'),
+BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock')}
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
@@ -889,7 +889,8 @@ def bonus_check(g, songs_known, sfx_names=None):
     assert len(set(b['after'])) == len(b['after']), 'bonus.after: a stage twice'
     p = b['pick']
     assert isinstance(p.get('seconds'), int) and 3 <= p['seconds'] <= 9, "bonus.pick.seconds: 3-9 (AOF2's clock: one digit)"
-    for k, v in (('bonus.pick.music', p.get('music')), ('bonus.over_music', b.get('over_music', p.get('music')))):
+    for k, v in (('bonus.pick.music', p.get('music')), ('bonus.over_music', b.get('over_music', p.get('music'))),
+                 ('bonus.win_music', b.get('win_music', b.get('over_music', p.get('music'))))):
         assert v in songs_known, f'{k}: {v!r} is no songs.json song'
     gs = b['games']
     assert 1 <= len(gs) <= 3 or not b['after'], 'bonus.games: 1-3 games'
@@ -917,6 +918,7 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert 1 <= x['step'] <= 16, f"bonus game {x['id']}: step 1-16"
             assert len(gr) == 5 and all(a < b for a, b in zip([0] + gr, gr)) and gr[-1] <= 127, f"bonus game {x['id']}: grades: 5 rising powers 1-127"
             assert len(ch) == 6 and all(isinstance(v, int) and 0 <= v <= 3 for v in ch), f"bonus game {x['id']}: chunks: 6 values 0-3 (grade 0-5)"
+            assert x.get('win_grade', 5) in range(1, 6), f"bonus game {x['id']}: win_grade 1-5 (the lowest grade that passes)"
         else:
             assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
             assert x['breaks_with'] == 'fury' and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury, unlock fury | none"
@@ -935,12 +937,14 @@ def bonus_tables(g, songs_known, sfx_names):
         f = [f".name = {c_str(x['name'])}", f".kind = {BONUS_KINDS[x['kind']]}", f".scene = {BONUS_SCENES.index(x['scene'])}",
              f".music = MUS_{x['music']}", f".seconds = {x['seconds']}", f".slot = {x['slot']}", f".voice = 0x{code(x.get('voice')):02X}"]
         if x['kind'] == 'gauge':
-            f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }']
+            f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }',
+                  f".win_grade = {x.get('win_grade', 5)}"]
         else:
             f += [f".count = {x['count']}", '.breaks = BB_FURY', f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}"]
         rows.append('{ ' + ', '.join(f) + ' }')
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
              f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "
+             f".win_music = MUS_{b.get('win_music', b.get('over_music', b['pick']['music']))}, "
              f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, "
              f".intro_music = MUS_{b.get('intro', {}).get('music', b['pick']['music'])}, .intro_voice = 0x{code(b.get('intro', {}).get('voice')):02X}, "
              f".intro_at = {b.get('intro', {}).get('at', 0)}, .intro_ticks = {b.get('intro', {}).get('ticks', 122)}, "
