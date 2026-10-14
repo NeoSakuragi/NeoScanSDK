@@ -2702,7 +2702,9 @@ static void bonus_screen_tick(void) {
         return;
     }
     if (bonus_on == BN_CARD) {
-        if (t + 1 >= gbonus.card_ticks) { bscr_clear(); bonus_play(bn_cur); }
+        if (t + 2 == gbonus.card_ticks) { bscr_clear(); bd_set(COLOR_BLACK); }   /* the card goes first (its last tick black), */
+        if (t + 1 >= gbonus.card_ticks) bonus_play(bn_cur);   /* then the game: its texts never over the card (bonus_play's
+                                                             stage load spans frames: the card stayed with them, 0.10.87) */
         return;
     }
     {                                            /* BN_PICK */
