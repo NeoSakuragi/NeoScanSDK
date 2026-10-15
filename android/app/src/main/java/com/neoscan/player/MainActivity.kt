@@ -71,7 +71,7 @@ class MainActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        val sys = File(filesDir, "system").apply { mkdirs() }; val save = File(filesDir, "save").apply { mkdirs() }
+        val sys = File(filesDir, "system").apply { mkdirs() }; val save = SaveSync.dir(this)   // 0.0.39: the account's own save dir
         val bios = File(sys, "neogeo.zip")
         if (!bios.exists()) assets.open("neogeo.zip").use { i -> bios.outputStream().use { i.copyTo(it) } }
         val rom = File(getExternalFilesDir(null), "brawler.neo")
@@ -88,6 +88,7 @@ class MainActivity : Activity() {
             if (!BuildConfig.DEV) PlayerUpdate.check(this)            // the Brawler app: is a newer APK offered (GET me)
             val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
             RomFetch.loaded(this)                                      // the ROM's version (hashes a new file): off the UI thread
+            if (ok) SaveSync.pull(this, save, rom)                     // 0.0.39: the account's cloud save, before the core loads
             runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
             Thread.sleep(1200)                                         // the version, readable, before the game starts
             runOnUiThread {
@@ -219,7 +220,7 @@ class MainActivity : Activity() {
         items.add("Reset game save" to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
         items.add("Log out" to {
             android.app.AlertDialog.Builder(this).setTitle("Log out ${Auth.user(this) ?: ""}?")
-                .setMessage("Back to the sign-in screen. The next account gets its own build.")
+                .setMessage("Back to the sign-in screen. The next account gets its own build and its own save.")
                 .setPositiveButton("Log out") { _, _ -> Auth.signOut(this) }.setNegativeButton("Back", null)
                 .setOnDismissListener { emu?.paused = held() }.show(); emu?.paused = true; Unit })
         val dp = resources.displayMetrics.density
@@ -242,7 +243,7 @@ class MainActivity : Activity() {
     private fun confirmResetSave() {
         resetOpen = true; emu?.paused = true
         android.app.AlertDialog.Builder(this).setTitle("Reset game save?")
-            .setMessage("Erase this game's saved data? Unlocks and settings stored by the game will be lost.")
+            .setMessage("Erase this game's saved data, on this device and on your account? Unlocks and settings stored by the game will be lost.")
             .setPositiveButton("Erase") { _, _ -> resetOpen = false; resetSave() }.setNegativeButton("Back", null)
             .setOnDismissListener { resetOpen = false; emu?.paused = held() }.show()
     }
@@ -251,7 +252,8 @@ class MainActivity : Activity() {
         val dir = g[1]; val base = g[2].name.substringBeforeLast('.')
         if (testMode?.active == true) testMode?.end()
         claimEmu { for (x in arrayOf("nv", "srm", "mcr", "brm")) File(dir, "$base.$x").let { f ->
-            if (f.exists()) android.util.Log.i("NeoScanPlayer", "reset save: ${f.name} ${if (f.delete()) "deleted" else "NOT deleted"}") } }
+            if (f.exists()) android.util.Log.i("NeoScanPlayer", "reset save: ${f.name} ${if (f.delete()) "deleted" else "NOT deleted"}") }
+            SaveSync.reset(dir, g[2]) }                                // 0.0.39: the server's copy goes too
         emu?.paused = false
     }
     var testMode: TestMode? = null

@@ -99,6 +99,17 @@ X-Public, the Oros token) and /api/lab/... (the web pages: /brawler-lab/feedback
   POST lab/unpublish {kind, fighter?, version?}
   Files: LAB/config/<f>.json (live) + <f>.history.jsonl (append-only, every revision in full); LAB/shell/<version><ext>,
   LAB/packs/<f>/<version>.pack (+ <version>.json sidecars), LAB/faces/<f>.png; served by nginx /brawler/lab/dl/ (Range).
+Cloud saves (Player 0.0.39, docs/feedback.md "Cloud saves"): the emulator's backup data per Oros account and per game
+(any .neo game, keyed by the ROM's name: "brawler"), so a save follows the account to another Player. The signed-in user
+only (role admin or tester), never another account's; DATA/saves/<user>/<game>/state.json {rev, last, updated, deleted,
+size, saved_at} + r<rev>.json (each revision in full; the last SAVE_KEEP kept as backups). nginx /brawler/feedback/saves/.
+  GET    saves/<game>   {rev, updated, files {nv|srm|mcr|brm: base64}, size, saved_at}; ETag "<rev>"; 404 {rev 0,
+                        deleted (ms) | null} = none (deleted = a Reset game save from some Player)
+  PUT    saves/<game>   {base_rev, updated (ms, when the save changed on the device), files}; If-Match "<rev>" (else
+                        base_rev) = the revision the device last synced (0 = none); another current revision -> 409 {rev,
+                        updated, deleted} (the Player: newest wins; the older one is sent with ?backup=1: stored as a
+                        backup revision, the current one unchanged) -> {rev, updated, current}; files <= MAX_SAVE bytes
+  DELETE saves/<game>   the current save goes (its revision file stays as a backup), state deleted = now -> {rev 0, deleted}
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
@@ -1081,6 +1092,61 @@ def lab_unpublish(req):
     return None
 
 
+# ---- cloud saves (Player 0.0.39) ------------------------------------------------------------------------------------
+SAVES = os.path.join(DATA, 'saves')
+SAVE_GAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')    # the ROM's name without .neo
+SAVE_EXT = ('nv', 'srm', 'mcr', 'brm')                         # player.c flushSaves: MVS backup RAM, cart RAM, AES card, CD RAM
+MAX_SAVE = 1 << 20                                             # the decoded files together (the MVS .nv is 64 KB)
+SAVE_KEEP = 8                                                  # revision files kept (the current one + backups)
+save_lock = threading.Lock()
+
+
+def save_dir(user, game):
+    u = user if re.match(r'^[A-Za-z0-9][A-Za-z0-9._@-]{0,63}$', user) else 'u-' + hashlib.sha256(user.encode()).hexdigest()[:24]
+    return os.path.join(SAVES, u, game)
+
+
+def save_state(d):
+    try: return json.load(open(os.path.join(d, 'state.json')))
+    except (OSError, ValueError): return {'rev': 0, 'last': 0, 'updated': 0, 'deleted': None}
+
+
+def save_put(d, files, updated, base, backup=False):
+    """(state, None) stored; (state, 'conflict') when the current revision is not base. backup: stored as a backup
+    revision whatever the current one is (the current one unchanged)"""
+    with save_lock:
+        st = save_state(d)
+        if not backup and int(base) != int(st.get('rev') or 0): return st, 'conflict'
+        os.makedirs(d, exist_ok=True)
+        rev = int(st.get('last') or st.get('rev') or 0) + 1
+        size = sum(len(base64.b64decode(v)) for v in files.values())
+        rec = {'rev': rev, 'updated': int(updated), 'files': files, 'size': size, 'saved_at': now(), 'backup': backup}
+        write_json(os.path.join(d, 'r%d.json' % rev), rec)
+        st['last'] = rev
+        if not backup: st.update(rev=rev, updated=int(updated), size=size, saved_at=rec['saved_at'], deleted=None)
+        write_json(os.path.join(d, 'state.json'), st)
+        revs = sorted(int(n[1:-5]) for n in os.listdir(d) if re.match(r'^r\d+\.json$', n))
+        for r in revs[:-SAVE_KEEP]:
+            if r != st.get('rev'): os.remove(os.path.join(d, 'r%d.json' % r))
+        return st, None
+
+
+def save_get(d):
+    st = save_state(d)
+    if not st.get('rev'): return st, None
+    try: return st, json.load(open(os.path.join(d, 'r%d.json' % st['rev'])))
+    except (OSError, ValueError): return st, None
+
+
+def save_delete(d):
+    with save_lock:
+        st = save_state(d)
+        if not os.path.isdir(d): return st
+        st.update(rev=0, deleted=int(time.time() * 1000))
+        write_json(os.path.join(d, 'state.json'), st)
+        return st
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -1106,6 +1172,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/mine' or u.path.startswith('/mine/'): return self.mine(u.path.split('/')[2:])
         if u.path == '/dlauth': return self.dlauth()
         if u.path == '/me': return self.me()
+        if u.path.startswith('/saves/'): return self.saves('GET')
         if u.path.startswith('/share/'): return self.share_get(u.path.split('/')[2:])
         if u.path.startswith('/app/'): return self.app_get(u.path.split('/')[2], q)
         lab = self.lab_route()
@@ -1568,7 +1635,45 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self.reply(200, dict(lab_head(rec), changed=changed))
         self.reply(404, {'error': 'not found'})
 
+    # ---- cloud saves (Player 0.0.39) ----------------------------------------------------------------------------
+    def saves(self, method):
+        u = urllib.parse.urlparse(self.path); parts = u.path.split('/')[2:]
+        if len(parts) != 1 or not SAVE_GAME.match(parts[0]): return self.reply(404, {'error': 'not found'})
+        user = self.player()
+        if not user: return
+        game = parts[0]; d = save_dir(user, game)
+        if method == 'GET':
+            st, rec = save_get(d)
+            if not rec: return self.reply(404, {'error': 'no save', 'rev': 0, 'deleted': st.get('deleted')})
+            b = (json.dumps({k: rec[k] for k in ('rev', 'updated', 'files', 'size', 'saved_at')}) + '\n').encode()
+            self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('Cache-Control', 'no-store')
+            self.send_header('ETag', '"%d"' % rec['rev']); self.send_header('Content-Length', str(len(b))); self.end_headers(); self.wfile.write(b)
+            return
+        if method == 'DELETE':
+            st = save_delete(d); log('save delete', user, game)
+            return self.reply(200, {'rev': 0, 'deleted': st.get('deleted')})
+        raw = self.body(MAX_SAVE * 2)
+        if raw is None: return self.reply(413, {'error': 'empty or too big'})
+        try:
+            req = json.loads(raw); files = req['files']; updated = int(req.get('updated') or time.time() * 1000)
+            if not isinstance(files, dict) or not files or any(k not in SAVE_EXT for k in files): raise ValueError('files')
+            if sum(len(base64.b64decode(v, validate=True)) for v in files.values()) > MAX_SAVE: return self.reply(413, {'error': 'too big'})
+            im = self.headers.get('If-Match', '').strip().strip('"')
+            base = int(im) if im.isdigit() else int(req.get('base_rev') or 0)
+        except (ValueError, KeyError, TypeError) as e: return self.reply(400, {'error': 'bad save: %s' % e})
+        backup = urllib.parse.parse_qs(u.query).get('backup') == ['1']
+        st, err = save_put(d, files, updated, base, backup)
+        if err: return self.reply(409, {'error': 'another save is current', 'rev': st.get('rev') or 0, 'updated': st.get('updated') or 0,
+                                        'deleted': st.get('deleted')})
+        log('save', user, game, 'rev', st['last'], 'backup' if backup else 'current', st.get('size'))
+        self.reply(200, {'rev': st['last'], 'updated': updated, 'current': not backup})
+
+    def do_DELETE(self):
+        if self.path.startswith('/saves/'): return self.saves('DELETE')
+        self.reply(404, {'error': 'not found'})
+
     def do_PUT(self):
+        if self.path.startswith('/saves/'): return self.saves('PUT')
         parts = self.lab_route()
         if parts is None: return self.reply(404, {'error': 'not found'})
         self.lab_write(parts)

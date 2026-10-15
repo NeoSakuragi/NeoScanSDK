@@ -549,3 +549,28 @@ from stdin, so it never shows in ps or a shell history).
 - **Retired:** T2's separate share accounts (`share/login`, the `nsp1.` tokens, `share_accounts.py`,
   `share/accounts.json`): Wael and Asenka are Oros accounts with brawler_tester, under the same names, so their
   assignments in the `players` section still apply.
+
+## Cloud saves (Player 0.0.39)
+
+A game's save follows the Oros account: sign in on another phone (or after a reinstall) and the save is there. Any
+`.neo` game, keyed by the ROM's name (`brawler`). Both apps, one code path (`android/.../SaveSync.kt`).
+
+- **What is saved:** the emulator's backup files as player.c's `flushSaves` writes them: `<rom>.nv` (MVS backup RAM:
+  the brawler's unlocks), `.srm`, `.mcr` (AES memory card), `.brm`. Small (the brawler: 66 KB), capped at 1 MB.
+- **On the device:** one save dir per account, `files/save/<user>/` (the pre-0.0.39 shared files move into the first
+  account that signs in). The next account after a log out never sees another's save.
+- **At the game's start** (after the sign-in, before the core loads): GET the account's save. Used when it is a
+  revision this device has not synced yet and the local save has not changed since its last sync. Both changed =
+  newest wins (the time each save last changed); the other one goes to the server as a backup revision.
+- **Sending:** after every flush (each pause / the app to the background, the emulation thread's end, and every 2 min
+  while playing, so an unlock reaches the server without a pause), when the files changed. PUT with the last synced
+  revision; 409 = another Player saved meanwhile: newest wins as above. Offline = the local save plays; it is sent at
+  the next flush.
+- **Reset game save** deletes the server's copy too (retried until it goes through). Another Player whose save was
+  in sync erases its own at its next start.
+- **Server** (`server.py`, nginx `/brawler/feedback/saves/`): `GET | PUT | DELETE saves/<game>`, the signed-in
+  account's own save only (role admin or tester). `DATA/saves/<user>/<game>/state.json` + `r<rev>.json` (each
+  revision in full; the last 8 kept as backups, a deleted or losing save among them).
+- **Proven 2026-10-15** in AVD NeoPhoneP40 against local services (test accounts cs-a / cs-b): cs-a played, the app
+  data was wiped, cs-a signed in again and got his save back byte for byte; cs-b on the same device got a fresh save;
+  Reset game save deleted the server's copy. `/data/brawler-share/proof_0039/`.

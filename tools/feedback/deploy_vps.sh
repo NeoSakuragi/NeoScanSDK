@@ -15,6 +15,7 @@
 #        /brawler/feedback/mine/scenario/<id>/<sha>/<key>.state     a note's test state for a build (Player 0.0.22)
 #   GET  /brawler/feedback/me, share/latest.json | build/brawler-<V>.neo   the Brawler app (docs/feedback.md "Roles and
 #                               the two apps"): the account's role + its allowed build (the service checks the token)
+#   GET|PUT|DELETE /brawler/feedback/saves/<game>                  (Player 0.0.39) the account's cloud save of a game
 #   GET  /brawler/feedback/app/brawler-<name>-<code>.apk?t=<ticket>    the Brawler APK for the phone's browser (ticket from me)
 # ROLES: the Oros tags (oros-server user-tags). /brawler-admin-auth = Oros's /api/authcheck?tag=brawler_admin (403 for
 # any other account) gates the admin pages: /brawler-lab/ (Chain Lab, Fighter Lab), /brawler-factory/ (never /decisions/: the SoccerFury page, plain Oros login),
@@ -103,6 +104,17 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
     location = /brawler/feedback/me {
         limit_except GET { deny all; }
         proxy_pass http://127.0.0.1:8920/me;
+        proxy_set_header X-Public 1;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+    }
+    # cloud saves (Player 0.0.39): GET / PUT / DELETE saves/<game>, the signed-in account's own save only (the service
+    # checks the token and the role)
+    location ^~ /brawler/feedback/saves/ {
+        limit_except GET PUT DELETE { deny all; }
+        client_max_body_size 2m;
+        proxy_pass http://127.0.0.1:8920/saves/;
         proxy_set_header X-Public 1;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -200,4 +212,4 @@ if nginx -t 2>/dev/null; then systemctl reload nginx; else cp /root/kanji.nginx.
 sleep 1; systemctl is-active brawler-feedback
 echo "signed out (expect 401 / 302 / 404 for every one):"
 for u in brawler/feedback/upload brawler/feedback/transcribe brawler/feedback/reply brawler/feedback/test brawler/feedback/review; do curl -s -X POST -o /dev/null -w "POST $u: %{http_code}\n" https://canneji.duckdns.org/$u; done
-for u in brawler/feedback/me brawler/feedback/share/latest.json brawler/feedback/app/brawler-0.1.0-1.apk brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/lab/catalogue brawler/lab/dl/packs/x brawler/download/neoscan-player.apk brawler-lab/ brawler-factory/; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'
+for u in brawler/feedback/me brawler/feedback/saves/brawler brawler/feedback/share/latest.json brawler/feedback/app/brawler-0.1.0-1.apk brawler/feedback/mine brawler/download/latest.json brawler/download/brawler.neo brawler-lab/feedback-api/list brawler/lab/catalogue brawler/lab/dl/packs/x brawler/download/neoscan-player.apk brawler-lab/ brawler-factory/; do curl -s -o /dev/null -w "GET $u: %{http_code}\n" https://canneji.duckdns.org/$u; done'

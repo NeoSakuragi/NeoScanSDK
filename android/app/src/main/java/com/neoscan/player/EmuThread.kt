@@ -69,6 +69,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
         // the effective size is the cap (2 x target) and playback starts at the target
         track.bufferSizeInFrames = 2 * target
         if (android.os.Build.VERSION.SDK_INT >= 31) track.setStartThresholdInFrames(target)
+        var lastSync = System.nanoTime()
         var started = false; var runMax = 0L; var runSum = 0L; var late = 0
         // ADPF: report each frame's work against the 16.7 ms budget so the governor clocks the core up before a frame
         // runs late (without it the Redmi Pad 2 Pro ran this thread at ~1.4 of 2.4 GHz with 17 ms spikes)
@@ -84,11 +85,13 @@ class EmuThread private constructor(private val sysDir: String, private val save
             stateReq?.let { (f, done) -> stateReq = null; done(Native.loadState(f.absolutePath)) }   // a test scenario (0.0.22)
             hook?.invoke(this)                                          // the Character lab (0.0.28): RAM loads, pack swaps
             if (paused && !stepOne) {
-                if (!flushed) { Native.flushSaves(); flushed = true }   // Android may kill the app any time now
+                if (!flushed) { Native.flushSaves(); SaveSync.flushed(saveDir, rom); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
                 sleep(20); continue
             }
             flushed = false
+            // cloud saves (0.0.39): a game event that commits (an unlock) reaches the server within SYNC_MS, not at the next pause
+            if (System.nanoTime() - lastSync > SYNC_MS * 1_000_000L) { lastSync = System.nanoTime(); Native.flushSaves(); SaveSync.flushed(saveDir, rom) }
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
             if (resetReq) { resetReq = false; Native.reset() }
@@ -125,11 +128,12 @@ class EmuThread private constructor(private val sysDir: String, private val save
                     rate, if (samples > 0) rate.toDouble() * made / samples else 0.0, VsyncPacer.hz, VsyncPacer.fps, FrameStats.line)) }
         }
         if (android.os.Build.VERSION.SDK_INT >= 31) hint?.close()
-        Native.flushSaves()
+        Native.flushSaves(); SaveSync.flushed(saveDir, rom)
         track.stop(); track.release()
     }
     companion object {
         const val TARGET_MS = 60
+        const val SYNC_MS = 120_000L                                 // the cloud save's flush while playing (SaveSync)
         private const val TAG = "NeoScanPlayer"
         private var live: EmuThread? = null
         /** run on the emulation thread between frames (also while paused): the Character lab's RAM writes / reads and

@@ -168,6 +168,7 @@ object Auth {
      *  downloaded build go (the next account gets ITS allowed build), the sign-in screen, the game process ends (a
      *  fresh start after the login) */
     fun signOut(a: android.app.Activity) {
+        SaveSync.drain()                                                // 0.0.39: a cloud save still being sent
         logout(a); RomFetch.forget(a)
         a.startActivity(android.content.Intent(a, LoginActivity::class.java)
             .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
