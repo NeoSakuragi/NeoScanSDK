@@ -4618,5 +4618,21 @@
   "expect": "The super flash, then jab, jab, finisher three times, half again as fast as his fury; his spinning lariat; then Haggar grabs the reeling Ryo and backdrops him three times in a row (grabbed again each time, never sent flying), piledrives him with a jump half the usual height, then a full piledriver to finish. Haggar is invincible throughout; Ryo is launched only by the last piledriver.",
   "do_keys": "4:Dd",
   "proof": 600
+ },
+ "20261015-150000-a8c1": {
+  "title": "Haggar's MAX: fast jabs and finishers, the spin, three backdrops, a low piledriver, the piledriver",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Your life is low (red): press down + D next to Ryo.",
+  "expect": "The super flash, then jab, jab, finisher three times, half again as fast as his fury; his spinning lariat; then Haggar grabs the reeling Ryo and backdrops him three times in a row (grabbed again each time, never sent flying), piledrives him with a jump half the usual height, then a full piledriver to finish. Haggar is invincible throughout; Ryo is launched only by the last piledriver.",
+  "do_keys": "4:Dd",
+  "proof": 600
  }
 }
