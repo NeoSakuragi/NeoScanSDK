@@ -21,6 +21,7 @@
 #include "staff_roll.h"
 #include "bm_wins.h"
 #include "bonus.h"
+#include "referee.h"
 #include "bigfont.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
@@ -3140,6 +3141,155 @@ static void bn_decal(const bonus_obj_t *t, const bonus_obj_t *o) {
 }
 static void bn_hide(uint16_t spr, uint8_t n) { while (n--) cmd_push(VRAM_SCB3 + spr++, 0); }
 static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row, "                                      ", 0); if (t) { uint8_t n = 0; while (t[n]) n++; FIX_print(20 - (n >> 1), row, t, pal); } }
+/* ---- the referee (note 20261015-221208-e03d; game.json "referee", gamedata.h gref_t): Samurai Shodown II's Kuroko
+ * coming to the front to speak, as SS2 plays it after certain one-player matches (KURO-SYS state 12 $E5D0, MES-WIND
+ * $E7CE; tools/samsho2/referee_ss2.py decodes it and exports referee.h: his frames, the window, SS2's numbers; study
+ * /data/neogeo_dict/samsho2/README.md "The referee's speech"). Screen coordinates, his feet: on the back lane
+ * (REF_BACK_DY above the player's floor rf.g) he sidesteps in from gref.from px outside the screen edge farther from the
+ * player (REF_WALK_VX: 1 px a tick, SS2's sidestep for the way he goes), reaches gref.mark px from it, stands one tick,
+ * jumps (Kuroko's own jump: REF_JUMP_VY, REF_GRAV; behind the player rising, in front falling), lands REF_LAND_DY
+ * under the floor (his landing, his shadow), stands (his idle); the next tick SS2's window opens (SCB2 vertical shrink
+ * 0xFF - zoom, centred, REF_WIN_OPEN a tick), his lines are typed on the fix layer a letter every REF_LETTER ticks,
+ * held gref.hold ticks after the last (a button ends it sooner), the text goes and the window closes (REF_WIN_CLOSE a
+ * tick). He is drawn as SS2 draws him (face 0); the window as SS2 shows it on his left (flipped) when he comes from the
+ * right, mirrored when he comes from the left. Its rows: SS2's top, a middle row per line (SS2's two at least: its 16 px
+ * font, our 8 px lines centred in theirs), its bottom. Sprites: behind 53-58 (a bonus game's shadows take 43-52, the
+ * post's 55-58 are free at its end), in front the box viewer's 300..323: his shadow, him, the window. Palettes REF_PAL..
+ * (fighter slots 6-7: a bonus game loads only its player's). ---- */
+#define REF_PAL     64
+#define RF_BACK_SPR (SH_SPR + 10)
+#define RF_SH_SPR   BN_FRONT
+#define RF_SPR      (RF_SH_SPR + 4)
+#define RF_WIN_SPR  (RF_SPR + 8)
+_Static_assert(REF_PAL >= 16 + 2 * MAX_PALS && REF_PAL + REF_NPAL <= 16 + NF * MAX_PALS, "the referee's palettes: fighter slots past the players'");
+_Static_assert(RF_BACK_SPR + REF_MAXW_BACK <= SPR_BASE && RF_BACK_SPR + REF_MAXW_FRONT <= SPR_BASE && REF_MAXW_FRONT <= 8 &&
+               RF_WIN_SPR + 12 <= BT_SPR, "the referee's sprites: 53-58 behind, 300-323 in front");
+enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE };
+static struct {
+    uint8_t ph, anim, step, tick, front, wface, nl, line, col, zoom, w;   /* w: the columns he took last tick */
+    int16_t x, tx, g, wx, wy;                    /* his x, its target, the player's floor; the window's left / top */
+    int32_t xs, y, vy, vx;                       /* 8.8: his x, his feet's y, the jump's speed, the walk's */
+    uint16_t t, key;                             /* ticks in the phase; the step drawn last (its tiles written) */
+    const char *const *text;
+} rf;
+static void rf_set(uint8_t a) { if (a != rf.anim) { rf.anim = a; rf.step = 0; rf.tick = 0; } }
+static uint8_t rf_anim_tick(void) {              /* a tick of his animation: a step shows ticks + 1 ticks (SS2's object
+                                                    clock, measured); 1 when a non-looping one has shown its last */
+    const ref_anim_t *a = &ref_anims[rf.anim];
+    if (++rf.tick <= a->s[rf.step].ticks) return 0;
+    if (rf.step + 1 < a->n) { rf.step++; rf.tick = 0; return 0; }
+    if (a->loop) { rf.step = 0; rf.tick = 0; return 0; }
+    rf.tick = a->s[rf.step].ticks; return 1;
+}
+static void rf_draw(void) {                      /* him (behind or in front) as his step shows */
+    const ref_step_t *s = &ref_anims[rf.anim].s[rf.step];
+    uint16_t base = rf.front ? RF_SPR : RF_BACK_SPR, key = (uint16_t)(rf.anim << 8 | rf.step | rf.front << 7), c = 0;
+    uint8_t i, tiles = key != rf.key;
+    if (tiles && rf.key != 0xFFFF && (rf.key >> 7 & 1) != rf.front) { bn_hide(rf.front ? RF_BACK_SPR : RF_SPR, rf.w); rf.w = 0; }
+    for (i = 0; i < s->n; i++) {
+        const ref_part_t *p = &s->p[0][i];
+        bn_put(base + c, p, rf.x + p->x, (int16_t)(rf.y >> 8) + p->y, 0, 0xF, 0xFF, tiles);
+        c += p->w;
+    }
+    if (c < rf.w) bn_hide(base + c, rf.w - c);
+    rf.w = (uint8_t)c; rf.key = key;
+}
+static void rf_window(uint8_t tiles) {           /* SS2's window at rf.zoom (+$7B): vertical shrink 0xFF - zoom, centred */
+    const ref_part_t *o = &ref_window_s[0].p[rf.wface][0];
+    uint8_t c, r, n = (uint8_t)(rf.nl > 2 ? rf.nl + 2 : 4), vs = (uint8_t)(0xFF - rf.zoom);
+    int16_t lines = (int16_t)(((uint16_t)n * 16 * (vs + 1)) >> 8), y = rf.wy + ((n * 16 - lines) >> 1);
+    for (c = 0; c < o->w; c++) {
+        if (tiles) {                             /* its column: SS2's top row, middle rows (its first, then its second:
+                                                    the frame's two halves), its bottom row */
+            uint16_t *w = cmd_run(VRAM_SCB1 + (RF_WIN_SPR + c) * 64, n * 2);
+            const uint16_t *m = o->map + c * o->h * 2;
+            for (r = 0; r < n; r++) {
+                uint8_t k = r == 0 ? 0 : r == n - 1 ? 3 : r <= (n - 2 + 1) / 2 ? 1 : 2;
+                *w++ = m[k * 2]; *w++ = m[k * 2 + 1];
+            }
+        }
+        cmd_push(VRAM_SCB2 + RF_WIN_SPR + c, 0x0F00 | vs);
+        cmd_push(VRAM_SCB3 + RF_WIN_SPR + c, c ? 0x40 : (uint16_t)((((496 - y) & 0x1FF) << 7) | n));
+        if (!c) cmd_push(VRAM_SCB4 + RF_WIN_SPR, (uint16_t)(rf.wx & 0x1FF) << 7);
+    }
+}
+static void rf_text(uint8_t clear) {             /* the lines typed so far (rf.line, rf.col), or the window's rows cleared */
+    uint8_t k, n, col0 = (uint8_t)((rf.wx + 16) >> 3);
+    for (k = 0; k < rf.nl; k++) {
+        uint8_t row = (uint8_t)((rf.wy + 16 * (k + 1) + 4) >> 3);   /* (fix row r = sprite y 8 r: measured) */
+        if (clear) { FIX_print(col0, row, "                    ", 0); continue; }
+        if (k != rf.line) continue;
+        n = 0; while (rf.text[k][n]) n++;
+        { char ch[2] = { rf.text[k][rf.col], 0 }; FIX_print((uint8_t)(col0 + ((20 - n) >> 1) + rf.col), row, ch, 0); }
+    }
+}
+static void rf_start(const char *const *text, int16_t px) {   /* px: the player's screen x */
+    uint8_t i;
+    for (i = 0; i < REF_NPAL; i++) PAL_setPalette(REF_PAL + i, ref_pals + i * 16);
+    rf.text = text; rf.nl = 0; while (rf.nl < 3 && text[rf.nl][0]) rf.nl++;
+    rf.wface = px < 160;                         /* (the player on the left: he comes from the right, SS2's own case) */
+    rf.g = floor_top + BN_FEET_Z;
+    rf.x = rf.wface ? 320 + gref.from : -(int16_t)gref.from;
+    rf.tx = rf.wface ? 320 - gref.mark : gref.mark;
+    rf.xs = (int32_t)rf.x << 8; rf.vx = rf.tx > rf.x ? REF_WALK_VX : -REF_WALK_VX;
+    rf.y = (int32_t)(rf.g + REF_BACK_DY) << 8; rf.front = 0; rf.w = 0; rf.key = 0xFFFF; rf.anim = 0xFF;
+    rf_set(rf.vx > 0 ? REF_WALK_R : REF_WALK_L);
+    {   int16_t wox = rf.wface ? rf.tx + REF_WIN_X : rf.tx - REF_WIN_X, wy;   /* the window object (SS2's x / y from him) */
+        const ref_part_t *o = &ref_window_s[0].p[rf.wface][0];
+        rf.wx = wox + o->x;
+        wy = rf.g + REF_LAND_DY + REF_WIN_Y + o->y - 16 * (rf.nl > 2 ? rf.nl - 2 : 0);   /* (taller: it grows upwards) */
+        rf.wy = (int16_t)(((wy + 4) & ~7) - 4);  /* (a line's 8 px centred in a 16 px row on a fix row: top = 4 mod 8) */
+    }
+    rf.ph = RF_WALK; rf.t = 0;
+    FIX_print(17, 9, "                    ", 0);   /* (the game's TIME / POSTS line: under the window) */
+}
+static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_flow); 0 when it is over */
+    rf.t++;
+    switch (rf.ph) {
+    case RF_WALK:                                /* $E5D0: moved, then compared */
+        rf_anim_tick(); rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
+        if (rf.x == rf.tx) rf.ph = RF_STAND;
+        rf_draw(); return 1;
+    case RF_STAND:                               /* $E64E: one tick */
+        rf_set(REF_STAND); rf_draw(); rf.ph = RF_RISE; return 1;
+    case RF_RISE:                                /* $E668: Kuroko's jump, the speed set and the move */
+        rf_set(REF_RISE); rf.vy = REF_JUMP_VY; rf.y += rf.vy; rf_draw(); rf.ph = RF_JUMP; return 1;
+    case RF_JUMP:                                /* $E69E: the speed, the landing test, then the move */
+        rf_anim_tick(); rf.vy += REF_GRAV;
+        if (rf.vy >= 0) { rf.front = 1; rf_set(REF_FALL); }
+        if (rf.front && (rf.y >> 8) >= rf.g + REF_LAND_DY) {
+            rf.y = (int32_t)(rf.g + REF_LAND_DY) << 8; rf_set(REF_LAND); rf.ph = RF_LAND;
+            bn_put(RF_SH_SPR, &ref_shadow_s[0].p[0][0], rf.x + ref_shadow_s[0].p[0][0].x, rf.g + REF_LAND_DY + ref_shadow_s[0].p[0][0].y, 0, 0xF, 0xFF, 1);
+        } else rf.y += rf.vy;
+        rf_draw(); return 1;
+    case RF_LAND:                                /* $E724: the landing played, his idle; the window from the next tick */
+        if (rf_anim_tick()) { rf_set(REF_IDLE); rf.ph = RF_OPEN; rf.zoom = REF_WIN_ZOOM; rf.t = 0; }
+        rf_draw(); return 1;
+    case RF_OPEN:                                /* MES-WIND $E822 */
+        rf_anim_tick(); rf_draw();
+        rf.zoom -= REF_WIN_OPEN; rf_window(rf.t == 1);
+        if (!rf.zoom) { rf.ph = RF_TYPE; rf.t = 0; rf.line = 0; rf.col = 0; }
+        return 1;
+    case RF_TYPE:                                /* MESSDISP: a letter every REF_LETTER ticks (measured) */
+        rf_anim_tick(); rf_draw();
+        if (rf.t % REF_LETTER) return 1;
+        rf_text(0);
+        if (!rf.text[rf.line][++rf.col]) { rf.col = 0; if (++rf.line >= rf.nl) { rf.ph = RF_HOLD; rf.t = 0; } }
+        return 1;
+    case RF_HOLD:
+        rf_anim_tick(); rf_draw();
+        if (rf.t >= gref.hold || (rf.t > 20 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) {
+            rf_text(1); rf.ph = RF_CLOSE;
+        }
+        return 1;
+    case RF_CLOSE:                               /* MES-WIND $E8A6 */
+        rf_anim_tick(); rf_draw();
+        rf.zoom += REF_WIN_CLOSE;
+        if (rf.zoom >= REF_WIN_ZOOM) { bn_hide(RF_WIN_SPR, 12); rf.ph = RF_OFF; return 0; }
+        rf_window(0); return 1;
+    }
+    return 0;
+}
 /* AOF2's own screens before a game (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14 "AOF2's ORIGINAL bonus
  * select screen"; bonus.h bscr_*: make_bonus.py "screens", AOF2's order and timing: tools/aof/bonus_rip.py), mode 6,
  * on sprites 1..BSCR_SPRS - 1 (cleared when one ends; bonus_play gives the stage, shadows and fighters theirs back):
@@ -3266,7 +3416,7 @@ static void bonus_play(uint8_t k) {
     order[0] = f; for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[1 + i] = &projectiles[i]; }
     hud_reset();
     snd_music(bn_g->music);
-    centre(13, bn_g->name);
+    if (bn_g->show_name) centre(13, bn_g->name);   /* (games[].show_name: note 20261015-221208-e03d, none: just go) */
     if (bn_g->kind == BK_GAUGE) {
         nf = 1; sh_n = 2;                        /* the fighter alone: the tree behind him on 47-57 */
         bn_power = 0; bn_grade = 0; bn_hit_t = 0; bn_chg_t = 0; bn_gain = 0; bn_pass = 0; bn_fall_t = 0;
@@ -3279,13 +3429,14 @@ static void bonus_play(uint8_t k) {
         bn_lock0 = fury_lock;
         if (bn_g->breaks == BB_FURY) fury_lock = 0;   /* the fury works here (the lesson); BB_ANY: the regular attacks
                                                     break the posts, the fury stays as it is (locked: the prize) */
-        bn_lesson_show(1);
+        if (bn_g->lesson[0][0]) bn_lesson_show(1);   /* (games[].lesson [] : no box at the start) */
     }
 }
 static void bonus_off(void) {                    /* out of a bonus: its sprites hidden, the shadows' back */
     if (sh_n != NE) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_POST_SPR, 4); sh_n = NE; shadow_init(); }
     if (bonus_on) bn_hide(BN_FRONT, 48);
     bt_hide();                                   /* (TIME OVER, the won headline: on 324-347) */
+    if (rf.ph) { rf_text(1); rf.ph = RF_OFF; }   /* (the referee cut short: his sprites went with 47-58 / 300-347) */
     if (bonus_on == BN_PICK || bonus_on >= BN_INTRO) { bscr_clear(); shadow_init(); }   /* (cut short on one of AOF2's screens) */
     bonus_on = BN_OFF;
 }
@@ -3500,6 +3651,13 @@ static void bn_break_flow(fighter_t *f) {
         bn_won |= 1 << bn_game;
         if (bn_g->unlock == BU_FURY) bn_lock0 = 0;
         fury_lock = bn_lock0; bn_lesson_show(0);
+        if (first && bn_g->referee) {            /* SS2's referee tells it (games[].won_by "referee", note
+                                                    20261015-221208-e03d): no result box, his speech, then the next stage */
+            bonus_on = BN_END; bn_t = 0; bn_hold = 0xFFFF; bn_skip = 0xFFFF;
+            snd_music(gbonus.win_music);
+            rf_start(bn_g->won_text, INT(f->x) - cam_x);
+            return;
+        }
         bn_result("CONGRATULATIONS!", 0, (uint16_t)bn_g->count * 1000, 1, 0xFF);
         if (first && bn_g->unlock == BU_FURY) {  /* the unlock's message box (games[].won_text), held won_ticks */
             if (gbig[BIG_BONUS_WON].on) {        /* its headline in the big font (big_text.bonus_won: y, its two
@@ -3536,11 +3694,12 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
     fighter_t *f = &fighters[bn_lead];
     bn_t++;
     if (bonus_on == BN_END) {
+        if (rf.ph) { if (!rf_tick()) bonus_end(); return; }   /* the referee's speech (the result's place) */
         bn_fall_step();                          /* (the fallen crown sways on under the result) */
         if (bn_t >= bn_hold || (bn_t > bn_skip && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) bonus_end();
         return;
     }
-    if (bn_t == 1 || bn_t == 60) centre(13, bn_t == 1 ? bn_g->name : "                  ");
+    if (bn_g->show_name && (bn_t == 1 || bn_t == 60)) centre(13, bn_t == 1 ? bn_g->name : "                  ");
     if (bn_clock && !sf_who && !(bn_g->kind == BK_GAUGE && (bn_hit_t || bn_chg_t))) bn_clock--;
     if (bn_g->kind == BK_GAUGE) bn_gauge_flow(f); else bn_break_flow(f);
 }

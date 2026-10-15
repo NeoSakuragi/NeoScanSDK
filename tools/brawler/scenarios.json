@@ -4777,5 +4777,18 @@
   "expect": "Haohmaru plays SS2's D version (the medium kick one), no longer the C+D one: a steep leap that lands about half as far forward as before (SS2: 139 px instead of 266). Its height stays about the same (SS2's D peaks at 113 px, C+D at 103). The rest of his moves are unchanged.",
   "do_keys": "2:Rc,60:-",
   "proof": 60
+ },
+ "20261015-221208-e03d": {
+  "title": "Fury bonus (posts): no start messages, 5 tougher posts, SS2's referee announces the fury",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Break the posts with any attacks (punches, kicks, specials) before the clock runs out.",
+  "expect": "At the start nothing is written but the TIME and POSTS line: it just goes. There are 5 posts, each taking 12 hits (three times as many as before). When the last one breaks, Samurai Shodown II's referee (Kuroko, in black) sidesteps in from the far side of the screen behind you, jumps up and lands in front, and his message window opens: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D! typed letter by letter, then it closes and stage 2 starts. A button ends his message once it is fully written.",
+  "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
+  "proof": 150
  }
 }

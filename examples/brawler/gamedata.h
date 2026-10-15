@@ -374,7 +374,12 @@ typedef struct {
     uint8_t hp;                   /* BK_BREAK: the hits an object takes (a strike touching it counts once; bonus-pillars-normals) */
     uint16_t won_ticks;           /* BK_BREAK: a won result held this long (the unlock's message box) */
     const char *lesson[3];        /* BK_BREAK: the lesson box (fix rows 20 / 22 / 24, the first highlighted; "" = none) */
-    const char *won_text[3];      /* BK_BREAK won the first time: the message box under CONGRATULATIONS (rows 20 / 22 / 24) */
+    const char *won_text[3];      /* BK_BREAK won the first time: the message box under CONGRATULATIONS (rows 20 / 22 / 24);
+                                     referee: his speech's lines instead (up to 20 characters) */
+    uint8_t show_name;            /* the game's name shown at its start (games[].show_name; note 20261015-221208-e03d: off =
+                                     no message at the start, just go) */
+    uint8_t referee;              /* BK_BREAK won the first time: SS2's referee delivers won_text (games[].won_by "referee",
+                                     main.c "the referee") instead of CONGRATULATIONS + the message box */
 } gbonus_game_t;
 #define GB_MAX_GAMES 3
 typedef struct {
@@ -386,4 +391,10 @@ typedef struct {
     gbonus_game_t games[GB_MAX_GAMES];
 } gbonus_t;
 extern const gbonus_t gbonus;
+/* the referee (note 20261015-221208-e03d; game.json "referee", main.c "the referee"): Samurai Shodown II's Kuroko comes
+ * to the front to speak (tools/samsho2/referee_ss2.py: his frames and motion decoded from SS2). He sidesteps in on the
+ * back lane from `from` px outside the screen edge farther from the player, jumps at `mark` px from that edge, lands in
+ * front and speaks; the window held `hold` ticks after its last letter (a button ends it from then) */
+typedef struct { uint8_t mark, from; uint16_t hold; } gref_t;
+extern const gref_t gref;
 #endif

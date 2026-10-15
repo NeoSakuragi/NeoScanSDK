@@ -6,8 +6,10 @@ every run from scenario.py's mode "bonus" (lab req 6: a new game, then the bonus
       pick    AOF2's BONUS GAME screen, the select (cursor right, an empty slot skipped, the clock), the
               title card, then the cursor's game                                                       -> intro, pick*, card.png
       grades  the Ki training pressed at a power of each grade (0-5): grade, drive chunks after          -> tree_g*.png
-      win     the posts with Terry (note bonus-pillars-normals: 3 posts, `hp` hits each, any regular attack): A at each
-              post until all are broken: unlocked, the unlock's message box held won_ticks             -> posts_win*.png
+      win     the posts with Terry (note bonus-pillars-normals: `count` posts, `hp` hits each, any regular attack): A at
+              each post until all are broken (the clock kept off its end: the bot's A, A, A needs ~1900 ticks for
+              note 20261015-221208-e03d's 5 x 12, printed): unlocked, then the unlock's message box held won_ticks, or
+              with won_by referee SS2's referee speaking (tools/brawler/referee_proof.py checks him)  -> posts_win*.png
       dgame   in the posts game, D with the gauge and drive full: no fury (still locked while it plays)  -> posts_d.png
       fail    the posts left alone to the clock's end: TIME OVER, still locked                          -> posts_fail*.png
       lock    the next stage after each (stage 2): D with the gauge and drive full: no fury while locked,
@@ -158,15 +160,25 @@ class Proof:
 
     def posts(self):
         posts = next(x for x in self.G['games'] if x['kind'] == 'break')
-        lock0, t, left = self.play_posts('terry', 'a', shots=True)
+        run0 = self.b.run
+        def run(*a, **k):                                 # (the clock kept off its end for the win)
+            if self.r('bonus_on') == BN['play'] and self.r('bn_clock', 2) < 600: self.b.w(self.b.syms['bn_clock'], 2, 99 * 60)
+            return run0(*a, **k)
+        self.b.run = run
+        lock0, t, left = self.play_posts('terry', 'a', shots=True, limit=99 * 60)
+        self.b.run = run0
+        print(f'     posts won in {t} ticks (the game\'s clock: {posts["seconds"] * 60})')
         self.check(self.links >= 3 and self.stops > 0, f'posts win (terry, A, A, A): the post hits link his chain ({self.links} links in one string, '
                    f'{self.stops} hit-stop ticks; note 20261014-231537-5d29: was 1, no hit-stop)')
         self.b.run(20); self.shot('posts_win', 'posts won: the unlock message')
         self.check(lock0 == 1 and left == 0 and self.r('fury_lock') == 0 and self.r('bonus_on') == BN['end'],
                    f'posts win (terry, A: normals): locked before ({lock0}), {posts["count"] - left} / {posts["count"]} broken in {t} ticks, unlocked after ({self.r("fury_lock") == 0})')
         self.check(self.r('snd_song') == self.mus['BONUS_WIN'], f"posts win: AOF2's won song (${self.r('snd_song'):02X}, want ${self.mus['BONUS_WIN']:02X})")
-        hold = self.r('bn_hold', 2); n = self.until(lambda: self.r('bonus_on') != BN['end'], 2000)
-        self.check(hold == posts.get('won_ticks', 300) and n + 20 >= hold - 2, f'posts win: the unlock message held {n + 20} ticks (bn_hold {hold}, want won_ticks {posts.get("won_ticks", 300)})')
+        hold = self.r('bn_hold', 2); ref = self.r('rf'); n = self.until(lambda: self.r('bonus_on') != BN['end'], 2000)
+        if posts.get('won_by') == 'referee':
+            self.check(ref != 0 and n > 300, f'posts win: SS2\'s referee speaks (phase {ref} 20 ticks after the win), {n + 20} ticks to the next stage')
+        else:
+            self.check(hold == posts.get('won_ticks', 300) and n + 20 >= hold - 2, f'posts win: the unlock message held {n + 20} ticks (bn_hold {hold}, want won_ticks {posts.get("won_ticks", 300)})')
         self.lock_check('d_unlocked', want_fury=True)
         self.d_in_game()
         lock0, t, left = self.play_posts('terry', '', shots=True)

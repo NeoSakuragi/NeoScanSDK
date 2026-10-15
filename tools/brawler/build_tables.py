@@ -1254,11 +1254,13 @@ BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES,
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
 MAXC_N = 6                                               # roster[].max_chain: at most this many throws
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result'),
-                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks')}
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
+REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee")
+REF_KEYS = ('about', 'mark', 'from', 'hold')
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
@@ -1330,6 +1332,11 @@ def bonus_check(g, songs_known, sfx_names=None):
                 t = x.get(k, [])
                 assert isinstance(t, list) and len(t) <= 3 and all(isinstance(l, str) and len(l) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in t), \
                     f"bonus game {x['id']}: {k}: up to 3 lines, ASCII, 38 characters each"
+            assert x.get('won_by', 'box') in ('box', 'referee'), f"bonus game {x['id']}: won_by box | referee"
+            if x.get('won_by') == 'referee':                 # (his window: 12 tiles, 16 px of frame each side = 20 letters)
+                assert x.get('won_text') and all(len(l) <= REF_LINE for l in x['won_text']), \
+                    f"bonus game {x['id']}: won_by referee: won_text = his 1-3 lines, {REF_LINE} characters each"
+        assert isinstance(x.get('show_name', True), bool), f"bonus game {x['id']}: show_name true | false"
     assert not b.get('fury_lock') or any(x.get('unlock') == 'fury' for x in gs) and b['after'], \
         'bonus.fury_lock: no game unlocks the fury (it would stay locked)'
     return b
@@ -1362,7 +1369,8 @@ def bonus_tables(g, songs_known, sfx_names):
             f += [f".count = {x['count']}", f".breaks = {'BB_FURY' if x['breaks_with'] == 'fury' else 'BB_ANY'}", f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}",
                   f".hp = {x.get('hp', 1)}", f".won_ticks = {x.get('won_ticks', 300)}",
                   '.lesson = ' + ln('lesson', ['ONLY YOUR FURY BREAKS THE POSTS!', 'FURY  =  D', 'MAX  =  DOWN + D  AT LOW LIFE']),
-                  '.won_text = ' + ln('won_text', ['FURY + FURY MAX UNLOCKED ON D'])]
+                  '.won_text = ' + ln('won_text', ['FURY + FURY MAX UNLOCKED ON D']), f".referee = {1 if x.get('won_by') == 'referee' else 0}"]
+        f.append(f".show_name = {1 if x.get('show_name', True) else 0}")
         rows.append('{ ' + ', '.join(f) + ' }')
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
              f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "
@@ -1372,6 +1380,13 @@ def bonus_tables(g, songs_known, sfx_names):
              f".intro_at = {b.get('intro', {}).get('at', 0)}, .intro_ticks = {b.get('intro', {}).get('ticks', 122)}, "
              f".card_ticks = {b.get('card', {}).get('ticks', 186)}, .card_sound = 0x{code(b.get('card', {}).get('sound')):02X}, "
              f".games = {{ {', '.join(rows)} }} }};")
+    r = g.get('referee') or {}
+    for k in r: assert k in REF_KEYS, f'referee: unknown field {k}'
+    rv = {'mark': 96, 'from': 48, 'hold': 124, **{k: v for k, v in r.items() if k != 'about'}}
+    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold: integers'
+    assert 40 <= rv['mark'] <= 160 and 32 <= rv['from'] <= 120 and 30 <= rv['hold'] <= 1200, \
+        'referee: mark 40-160 px from his edge, from 32-120 px outside it, hold 30-1200 ticks'
+    c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']} }};   /* game.json referee */")
     return c
 
 
