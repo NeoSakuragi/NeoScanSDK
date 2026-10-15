@@ -89,7 +89,7 @@ static uint16_t run_rate(const fighter_t *f) {                  /* the run anima
 #define X_MAX (world_w - 16)
 
 static const char *NAMES[S_COUNT] = { "IDLE    ", "WALK    ", "RUN     ", "PREJUMP ", "AIR     ", "LAND    ", "ATTACK  ",
-    "AIR ATK ", "HITSTUN ", "KNOCKDN ", "DOWN    ", "GETUP   ", "GRAB    ", "GRABBED ", "THROW   ", "THROWN  ", "SPECIAL ", "DEAD    ", "PROJ    ", "OFF     " };
+    "AIR ATK ", "HITSTUN ", "KNOCKDN ", "DOWN    ", "GETUP   ", "GRAB    ", "GRABBED ", "THROW   ", "THROWN  ", "SPECIAL ", "DEAD    ", "PROJ    ", "OFF     ", "GUARD   " };
 const char *fighter_state_name(uint8_t st) { return NAMES[st]; }
 
 /* ---- chain routes (fighter.h "chain routes"): each fighter's tree, through route_tab[] (RAM) ------------------------
@@ -948,12 +948,13 @@ static void cspecial(fighter_t *f, uint8_t k) {                 /* a C special, 
     start_special(f, k);
     if (!f->team) { f->sinv = 1; f->inv = INV_FURY; }
 }
-/* the overlays' palettes, kept per player (computed when the fighter / colour set changes, not every blink frame) */
-static struct { const bchar_t *ch; uint8_t set, tint; uint16_t pal[3][MAX_PALS][16]; } ovl_cache[2];
+/* the overlays' palettes, kept per player (computed when the fighter / colour set changes, not every blink frame); the
+ * third: an enemy's (a boss's red period, T9: one at a time) */
+static struct { const bchar_t *ch; uint8_t set, tint; uint16_t pal[3][MAX_PALS][16]; } ovl_cache[3];
 static uint8_t tint_ch(int16_t l, uint8_t t) { int16_t c = ((l * t) >> 4) + (t >> 2); return c > 31 ? 31 : c; }
 static const uint16_t *ovl_pal(const fighter_t *f, uint8_t kind, uint8_t i) {   /* kind 0 red, 1 shiny white, 2 the
                                                                     special's flash (gmeter.stint: its light tinted) */
-    uint8_t p = f->idx & 1, n, j, k;
+    uint8_t p = f->team ? 2 : f->idx & 1, n, j, k;
     if (ovl_cache[p].ch != f->ch || ovl_cache[p].set != f->set || ovl_cache[p].tint != f->tint) {
         ovl_cache[p].ch = f->ch; ovl_cache[p].set = f->set; ovl_cache[p].tint = f->tint;
         for (n = 0; n < f->ch->npal && n < MAX_PALS; n++) {
@@ -982,7 +983,7 @@ static uint16_t burn_clock;
  * same fighter and colours, it spared the game that first fill and its cost (a tick later or not for every later
  * frame: the attract bled into play, regress.py bleed, 2026-10-11); burn_clock phases the fury-ready blink and burns */
 void fighter_game_reset(void) {
-    ovl_cache[0].ch = ovl_cache[1].ch = 0;
+    ovl_cache[0].ch = ovl_cache[1].ch = ovl_cache[2].ch = 0;
     burn_clock = 0;
     drive_chunks = gmeter.chunks;                                /* (the bonus stages' reward: from the game's own bar) */
 }
@@ -1002,7 +1003,10 @@ static void pal_overlay(fighter_t *f) {
                                                                     off, KOF95's rhythm (Bruno 2026-10-09: 1 / 1 read as a
                                                                     shimmer on the phone) */
             want = max_ready(f) ? OVL_RED : OVL_SHINY;           /* normal, 1 frame red (the MAX ready) / shiny white (the fury) */
-    }
+    } else if (f->team && f->bred && !f->burn && !f->flash && !(f->state == S_SPECIAL && f->fpose) && f->state != S_DEAD &&
+               (burn_clock & 2))                                 /* a boss's red period (T9, ai.c): his fury and MAX are on,
+                                                                    the player's MAX-ready blink (2 frames red, 2 his own) */
+        want = OVL_RED;
     if (want == f->ovl) return;
     f->ovl = want;
     if (want == OVL_WHITE) { uint8_t i; for (i = 0; i < f->ch->npal && i < MAX_PALS; i++) PAL_setPalette(f->palbase + i, WHITE_PAL); }
@@ -2446,6 +2450,7 @@ static uint8_t throw_ok(const fighter_t *f) {
     const fighter_t *v = f->target;
     int16_t dx, dz;
     if (!v || v->team == f->team || v->state != S_HITSTUN || v->hp <= 0 || v->y || v->held || v->inv || dancing(v)) return 0;
+    if ((v->grsp & 0x7F) == GR_IMMUNE) return 0;                 /* (T9: throw-proof this approach, "grab response") */
     if (!f->ch->throws[BT_THROW_C].nrows || cthrow_pick(f->ch) == 0xFF) return 0;   /* (no throw; the hold needs C's) */
     dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
     return dx >= -CTHROW_DX && dx <= CTHROW_DX && dz >= -Z_HIT && dz <= Z_HIT;
@@ -2593,6 +2598,7 @@ static void special_input(fighter_t *f, const intent_t *in) {    /* a press duri
 #define SPECIAL_DAMAGE 8
 fighter_t projectiles[NPJ];
 uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;
+uint16_t stat_blocks, stat_gbreaks, stat_counters, stat_immune;
 
 enum { PK_BOOM = 4, PK_SEG = 5 };    /* bproj_t kind: spawn.boomerang (TODO #176) and its pole segments (boom_update) */
 enum { BM_OUT, BM_HOVER, BM_BACK, BM_HELD };   /* a boomerang's phase (its fighter_t pstep; pcnt its count, vx its velocity) */
@@ -3955,7 +3961,8 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     not age it (a latched press), nor a multi-hit link's
                                                                     hits still to come (the press waits for them) */
         if (in->press & IN_C) f->spec_buf = 0x80 | d_input(f, in);
-        if ((in->press & IN_D) && !f->team) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX) */
+        if (in->press & IN_D) f->fury_buf = 0x80 | (in->dz > 0);   /* the cancel rule: D (down+D its MAX; an enemy too: T9,
+                                                                    a boss's combo in its red period, ai.c) */
     }
     if (lab_cnode && in && !f->idx && !f->team) {               /* a Lab chain press (RF_LAB): its A presses as a link's */
         uint8_t ci = f->state == S_SPECIAL ? combo_input(f, in) : 0;
@@ -3973,13 +3980,13 @@ static void update(fighter_t *f, const intent_t *in) {
         if (!(in->press & (IN_C | IN_D)) && !f->freeze && f->cnc_buf && !--f->cnc_buf) f->spec_buf = f->fury_buf = 0;   /* too
                                                                     early: gone (a hit-stop does not age it) */
     }
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D) && !f->team)
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D))
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing) */
     if (f->state == S_SPECIAL && f->spec_id == BS_BLITZ && may_cancel(f) && f->scancel && (in->press & IN_A) && in->blitz &&
         !f->team && f->blz_slot < BZ_COUNT && (gblitz_can[f->ch->id][f->blz_slot] & (1 << (in->blitz - 1))))
         f->blz_buf = in->blitz;                                  /* a Blitz that landed: its quirk's Blitz (gblitz_can) */
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && !f->team &&
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) &&
         !seq_owns(f, IN_C) && !c_link(f))
         f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
                                                                     landed: C buffers ANOTHER special (special_cancel); a
@@ -4053,6 +4060,10 @@ static void update(fighter_t *f, const intent_t *in) {
         else if (in->dx) f->facing = in->dx;                     /* walks backwards (Bruno 2026-10-08); a player: beat 'em */
         else if (in->face) f->facing = in->face;                 /* up, face where you walk */
         if (lab_on && !f->idx && !f->team && !dsh && lab_neutral(f, in)) break;   /* the Lab's queue / sheet ("Lab: try in game") */
+        if (in->guard && !b && !dsh) {                           /* the guard (T9, "guard"): held, from neutral */
+            enter(f, S_GUARD); play(f, BA_GUARD); f->gd_n = 0; f->gd_stun = 0; f->vx = 0;
+            break;
+        }
         if (b & IN_D) {                                          /* D: the fury (fury_press) */
             uint8_t k = fury_press(f, in->dz > 0);
             if (k != 0xFF) { lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); }
@@ -4193,9 +4204,9 @@ static void update(fighter_t *f, const intent_t *in) {
             if (!nx && d >= RI_DFS) nx = c->next[d == RI_DFS ? RI_DS : RI_US];   /* down / up's, else plain C's */
             if (!nx) nx = c->next[RI_S];
             f->spec_buf = 0;
-            k = nx ? special_pick(f, NODE(f, nx)->anim) : f->team ? 0xFF : special_pick(f, d - RI_S);   /* no link: the
-                                                                    cancel rule, the special C + this stick picks
-                                                                    (players; enemies keep their routes' links) */
+            k = nx ? special_pick(f, NODE(f, nx)->anim) : special_pick(f, d - RI_S);   /* no link: the cancel rule,
+                                                                    the special C + this stick picks (every fighter: an
+                                                                    enemy presses C in a move only in a boss's combo, T9) */
             if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { lab_note(f, LE_SPECIAL, nx, LH_CANCEL, k); cspecial(f, k); if (nx) f->speed = NODE(f, nx)->speed; break; }
         }
         if (is_blitz_node(f)) f->blz_buf = f->buffered = 0;   /* a Blitz played as the dash / blitz entry cancels only into a
@@ -4290,6 +4301,15 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     case S_GETUP:
         if (f->anim_done) to_neutral(f, 0);
+        break;
+    case S_GUARD:                                                /* the guard (T9, "guard"): held; a blocked hit's guard */
+        if (in->face) f->facing = in->face;                      /* stun slides it back (vx) and keeps it in the pose */
+        if (f->gd_stun) {
+            f->gd_stun--; f->x += f->vx; f->vx -= f->vx >> 2; clamp(f);
+            break;
+        }
+        f->vx = 0;
+        if (!in->guard) to_neutral(f, in);
         break;
     case S_GRAB: hold_update(f, in); break;
     case S_THROW: throw_update(f, in); break;
@@ -4629,7 +4649,8 @@ static void hold_spark(fighter_t *a, fighter_t *v) {
     spark_hit(sx, sy, a->throw_id == BT_HOLD_FIN || hit_btn(hold_anim(a)) >= SX_C, a->facing);
 }
 static uint8_t grabbable(const fighter_t *v) {
-    return !v->inv && !v->guard && !v->y && v->hp > 0 && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN);
+    return !v->inv && !v->guard && !v->y && v->hp > 0 && (v->state == S_IDLE || v->state == S_WALK || v->state == S_HITSTUN ||
+                                                          v->state == S_GUARD);   /* (a throw beats the guard, T9) */
 }
 #define AIR_BLOCK_Y 64            /* a special in the air below this height (px) is held by a standing body ahead */
 #define PUSH_DX 32                /* a special pushes an opponent standing in its path to keep it this far ahead (KOF's push
@@ -4733,6 +4754,70 @@ uint8_t fighter_prop_hit(fighter_t *a, uint8_t sound) {
     hit_credit(a, hit_stop(a));
     return 1;
 }
+/* ---- the guard (T9, Bruno 2026-10-15: "bosses can block"; game.json ai.guard -> gguard, a boss's boss_ai.guard) ----------
+ * A generic state: any fighter whose controller holds intent_t.guard from neutral stands in its source game's guard pose
+ * (BA_GUARD: KOF's standing guard, state 27) as S_GUARD; the AI decides when (ai.c "the boss layer"), the players' controls
+ * never set it. A hit from the front on a guarding fighter is BLOCKED: no damage for a normal, chip damage for a special,
+ * a Blitz or a projectile (gguard.chip / 256 of its damage, never the last point), a guard stun (gguard.stun frames in
+ * the pose, sliding back gguard.push px a frame, decaying), the hit-stop as a hit's, the guard sound (game.json
+ * hit_sounds.guard) and the guard spark; the attacker gets the contact (its chain, cancels and follow-ups go on). What
+ * beats it (decided 2026-10-15, T9): a hit from behind; a fury or a MAX (their bodies and objects: unblockable); a grab
+ * (walking in: grabbable takes S_GUARD), a command grab's catch / hold box, a running grab's reach; and the guard's own
+ * limit: fighter_t.gd_max hits blocked in one guard (the AI's data, 0 = none), the next one lands (the guard break: it
+ * reels as hit). */
+static uint8_t fury_hit(const fighter_t *a) {                    /* a fury's body or one of its objects */
+    const fighter_t *o = a->owner ? a->owner : a;
+    return (a->state == S_SPECIAL && a->spec_id == BS_FURY) || (a->state == S_PROJ && a->pfury) ||
+           (a->owner && o->state == S_SPECIAL && o->spec_id == BS_FURY);
+}
+static uint8_t blocks(const fighter_t *a, const fighter_t *v) {
+    int16_t dx;
+    if (v->state != S_GUARD || fury_hit(a)) return 0;
+    if (a->state == S_SPECIAL && (a->spec_prev_hit & (a->ch->specials[a->spec_ix].prog ? 16 | 128 : 8))) return 0;   /* (a
+                                                                    catch / hold box, a script's grab reach) */
+    if (v->gd_max && v->gd_n >= v->gd_max) { stat_gbreaks++; return 0; }   /* its limit: the guard breaks */
+    dx = INT(a->x) - INT(v->x);
+    return !dx || (dx > 0) == (v->facing > 0);                   /* from the front (an object: where it is) */
+}
+static void block(fighter_t *a, fighter_t *v, uint8_t dmg, int16_t sx, int16_t sy, uint8_t *sounded) {
+    fighter_t *o = a->owner ? a->owner : a;
+    uint8_t chip = 0;
+    if ((a->state == S_SPECIAL || a->state == S_PROJ) && gguard.chip && dmg) {
+        chip = (uint8_t)(((uint16_t)dmg * gguard.chip) >> 8);
+        if (!chip) chip = 1;
+        if (chip >= v->hp) chip = v->hp > 1 ? v->hp - 1 : 0;    /* (never the last point) */
+    }
+    v->hp -= chip;
+    v->gd_n++; v->gd_stun = gguard.stun; stat_blocks++;
+    v->freeze = hit_stop(a);
+    v->vx = dir_mul(INT(v->x) >= INT(o->x) ? 1 : -1, FIX(gguard.push));
+    if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) a->ldmg |= 1 << v->idx;
+    a->hit_mask |= 1 << v->idx;
+    hit_credit(a, v->freeze);
+    o->target = v;
+    play(v, BA_GUARD);
+    if (!(*sounded)++) fighter_guard_sound();
+    spark_hit(sx, sy, 2, a->facing);                            /* (main.c: 2 = the guard spark) */
+}
+/* ---- the grab response (T9, Bruno 2026-10-15: "more often immune to throws, or Streets of Rage 2-style reversals"):
+ * fighter_t.grsp, rolled by the AI for each approach of its opponent (ai.c), says what a walk-in grab on it does: GR_NONE
+ * the hold as ever; GR_IMMUNE nothing (it stands firm: the grabber walks on into it, its back throw out of a chain does
+ * not take it either: throw_ok); GR_COUNTER the reversal: standing (idle, walking, guarding) it grabs the grabber
+ * instead, turned to it (gctr: its AI throws at once). A reeling fighter is grabbed whatever its roll. */
+static void try_grab(fighter_t *a, fighter_t *v) {
+    if ((v->grsp & 0x7F) == GR_IMMUNE && v->state != S_HITSTUN) {   /* (counted once a roll: bit 7) */
+        if (!(v->grsp & 0x80)) { stat_immune++; v->grsp |= 0x80; }
+        return;
+    }
+    if (v->grsp == GR_COUNTER && v->state != S_HITSTUN && v->ch->throws[BT_THROW_C].nrows && grabbable(a) && !a->held) {
+        v->grsp = GR_NONE; v->gctr = 1; stat_counters++;
+        v->facing = INT(a->x) >= INT(v->x) ? 1 : -1;
+        if (a->state != S_IDLE && a->state != S_WALK) to_neutral(a, 0);   /* (out of its run / dash) */
+        grab(v, a);
+        return;
+    }
+    grab(a, v);
+}
 static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
     const bbox_t *atk;
     bbox_t abox;                                                 /* a script row's box: in the attacker's bank, copied */
@@ -4788,9 +4873,12 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
         if (dx >= atk->w + hb->w || dy >= atk->h + hb->h) continue;   /* KOF98 $4366: strictly inside */
         {
             int16_t sx, sy;
-            uint8_t big = 1;
+            uint8_t big = 1, blk = blocks(a, v);                 /* (the guard, T9) */
             overlap_xy(a, atk, v, hb, &sx, &sy);
-            if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
+            if (blk && !(a->state == S_SPECIAL && !a->ch->specials[a->spec_ix].prog && (a->spec_prev_hit & 8))) {
+                uint8_t dmg = a->state == S_ATTACK || a->state == S_AIR_ATTACK ? NODE(a, a->node)->damage : a->spec_dmg;
+                block(a, v, dmg, sx, sy, &sounded);
+            } else if (a->state == S_ATTACK || a->state == S_AIR_ATTACK) {
                 const rnode_t *c = NODE(a, a->node);
                 uint8_t total, later, dmg = c->damage, rc = normal_rc(a, &total, &later);
                 dmg = (a->ldmg & (1 << v->idx)) ? 0 : dmg;      /* fixed damage (revamp 1A): the node's whole damage on */
@@ -4832,8 +4920,8 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                 else if (a->pdef && a->owner && a->owner->state == S_SPECIAL && (a->owner->ch->specials[a->owner->spec_ix].sflags & SF_BIGHIT))
                     big_hit(a->owner, v);                    /* its object's hit (SS2 Hanzo's rage flame, object 7 $30752) */
             }
-            if (!hit_spark(a, v, atk, hb)) spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big;
-                                                                its source's own (DD, TODO #215) */
+            if (!blk && !hit_spark(a, v, atk, hb)) spark_hit(sx, sy, big, a->facing);  /* KOF98: A / B small, C / D / C+D big;
+                                                                its source's own (DD, TODO #215); a block: its guard spark */
             if (a->pdef) {                                   /* a travelling projectile ends on its first hit (a */
                 if (a->vper) {                               /* (a piercing one flies on: frozen its stop frames
                                                                     (KN_STOP: a knob's, its data has none), then
@@ -4983,7 +5071,8 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             int8_t dir;
             if (o == v || o->team != v->team || (!o->team && !p->players) || (v->hit_mask & (1 << o->idx)) || o->inv || o->hp <= 0) continue;
             if (o->state != S_IDLE && o->state != S_WALK && o->state != S_RUN && o->state != S_ATTACK && o->state != S_HITSTUN &&
-                o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK) continue;
+                o->state != S_PREJUMP && o->state != S_LAND && o->state != S_SPECIAL && o->state != S_AIR && o->state != S_AIR_ATTACK &&
+                o->state != S_GUARD) continue;                   /* (a thrown body breaks a guard, T9) */
             dz = INT(o->z) - INT(v->z); if (dz < -(int16_t)p->depth || dz > (int16_t)p->depth) continue;
             so = fighter_hurt_step(o);
             hb = (so->flags & 2) ? &so->hurt : &JUGGLE_BOX;
@@ -5013,13 +5102,13 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (v->team == a->team || !grabbable(v)) continue;
             dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
             d = a->facing > 0 ? INT(v->x) - INT(a->x) : INT(a->x) - INT(v->x);
-            if (d > 0 && d <= GRAB_DX) { grab(a, v); break; }
+            if (d > 0 && d <= GRAB_DX) { try_grab(a, v); break; }
             if (a->wdz && (a->wdz > 0 ? dz <= 0 : dz >= 0) && d >= -GRAB_DX && d <= GRAB_DX) {   /* the depth grab (Bruno
                                                                     2026-10-09, note 20261009-114751-5d29, Final Fight):
                                                                     walking up / down toward it inside the same reach,
                                                                     either side: turned toward it, the same hold */
                 if (d < 0) a->facing = -a->facing;
-                grab(a, v); break;
+                try_grab(a, v); break;
             }
         }
     }

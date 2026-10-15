@@ -630,7 +630,7 @@ def model(g, build):
         n = e['name']
         name = e.get('hud', n)
         assert name == 'fighter' or re.fullmatch(r'[A-Z0-9_ .!-]{1,10}', name), f'enemy {n}: HUD name 1-10 characters (A-Z 0-9 _ . ! -)'
-        for k in e: assert k in ('name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud'), f'enemy {n}: unknown field {k}'
+        for k in e: assert k in ('name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud', 'boss_ai'), f'enemy {n}: unknown field {k}'
         if e['base'] == 'pool':
             pl = [idx[x] for x in e['pool']]
             assert pl == sorted(pl), f'enemy {n}: list the pool in roster order'
@@ -969,6 +969,73 @@ def retime_tables(g, build):
 
 
 RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank')
+
+# ---- T9 (Bruno 2026-10-15, tougher bosses): ai.guard (the guard's engine rules, fighter.c "guard") and enemies[].boss_ai
+# (a boss's own layer, ai.c "the boss layer"; gamedata.h gbossai_t) ----
+GUARD_KEYS = ('about', 'stun', 'push', 'chip')
+BOSS_KEYS = {'about': None, 'guard': ('chance', 'dx', 'dz', 'hold', 'max', 'rest'), 'run': ('chance', 'from', 'stop'),
+             'grab': ('immune', 'counter', 'delay'), 'red': ('low', 'rest', 'dx', 'max'), 'combos': None, 'ready_shift': None}
+CO_KINDS = {'A': 1, 'C': 2, 'D': 3, 'run': 4, 'jump': 5, 'grab': 6}    # gamedata.h CO_*
+CO_STICKS = {'': 0, 'f': 1, 'b': 2, 'u': 3, 'd': 4, 'df': 5, 'uf': 6}  # gamedata.h CS_*
+BC_MAX, BC_OPS = 10, 8
+
+
+def combo_ops(text, where):
+    """a combo string ("A A fA C", "run A", "jump A A", "A dC D", "grab") -> its op bytes (CO_* | CS_* << 3)"""
+    ops = []
+    for t in text.split():
+        if t in ('run', 'jump', 'grab'): ops.append(CO_KINDS[t]); continue
+        m = re.fullmatch(r'(df|uf|f|b|u|d)?([ACD])', t)
+        assert m, f'{where}: {t!r} (A / C / D after an optional stick f b u d df uf, or run / jump / grab)'
+        ops.append(CO_KINDS[m.group(2)] | CO_STICKS[m.group(1) or ''] << 3)
+    assert 1 <= len(ops) <= BC_OPS, f'{where}: 1-{BC_OPS} presses'
+    assert all((o & 7) not in (4, 5) for o in ops[1:]), f'{where}: run / jump only first'
+    assert all((o & 7) != 6 for o in ops[:-1]), f'{where}: grab only last'
+    return ops
+
+
+def boss_ai(e, n):
+    """enemies[].boss_ai -> the gbossai_t fields (None: no boss layer)"""
+    b = e.get('boss_ai')
+    if not b: return None
+    for k in b: assert k in BOSS_KEYS, f'enemy {n}: boss_ai.{k}'
+    for k, ks in BOSS_KEYS.items():
+        if ks: assert all(x in ks or x == 'about' for x in b.get(k, {})), f'enemy {n}: boss_ai.{k}: {list(b.get(k, {}))} ({ks})'
+    g, r, gr, rd = b.get('guard', {}), b.get('run', {}), b.get('grab', {}), b.get('red', {})
+    v = {'guard_chance': g.get('chance', 0), 'guard_dx': g.get('dx', 80), 'guard_dz': g.get('dz', 12), 'guard_hold': g.get('hold', 16),
+         'guard_max': g.get('max', 3), 'guard_rest': g.get('rest', 30), 'run_chance': r.get('chance', 0), 'run_from': r.get('from', 100),
+         'run_stop': r.get('stop', 44), 'grab_immune': gr.get('immune', 0), 'grab_counter': gr.get('counter', 0),
+         'counter_delay': gr.get('delay', 8), 'red_low': rd.get('low', 0), 'red_rest': (rd.get('rest', 480) + 3) >> 2, 'red_dx': rd.get('dx', 100),
+         'red_max': rd.get('max', 1), 'ready_shift': b.get('ready_shift', 0)}
+    assert 0 <= rd.get('rest', 480) <= 1020, f'enemy {n}: boss_ai.red.rest: 0-1020 frames (kept in 4-frame units)'
+    for k, x in v.items(): assert isinstance(x, int) and 0 <= x <= 255, f'enemy {n}: boss_ai {k} = {x} (0-255)'
+    assert v['grab_immune'] + v['grab_counter'] <= 256, f'enemy {n}: boss_ai.grab immune + counter <= 256'
+    assert v['red_low'] <= 100, f'enemy {n}: boss_ai.red.low: a % of its life'
+    assert v['ready_shift'] <= 5, f'enemy {n}: boss_ai.ready_shift 0-5'
+    cs = b.get('combos', [])
+    assert len(cs) <= BC_MAX, f'enemy {n}: at most {BC_MAX} combos'
+    v['combos'] = [combo_ops(c, f'enemy {n}: combo {c!r}') for c in cs]
+    return v
+
+
+def boss_tables(g):
+    """the C of gguard (ai.guard) and gbossai_rom[EN_COUNT] (enemies[].boss_ai)"""
+    gd = g['ai'].get('guard', {})
+    for k in gd: assert k in GUARD_KEYS, f'ai.guard: unknown field {k}'
+    st, pu, ch = gd.get('stun', 12), gd.get('push', 2), gd.get('chip', 64)
+    assert 1 <= st <= 60 and 0 <= pu <= 8 and 0 <= ch <= 255, 'ai.guard: stun 1-60, push 0-8, chip 0-255'
+    out = [f'const gguard_t gguard = {{ .stun = {st}, .push = {pu}, .chip = {ch} }};   /* game.json ai.guard (fighter.c "guard") */']
+    refs = []
+    for i, e in enumerate(g['enemies']):
+        v = boss_ai(e, e['name'])
+        if not v: refs.append('0'); continue
+        cs = v.pop('combos')
+        rows = ', '.join('{ ' + ', '.join(f'0x{o:02X}' for o in c) + ' }' for c in cs) or '{ 0 }'
+        out.append(f'static const gbossai_t gboss_{i} = {{ ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) +
+                   f', .ncombo = {len(cs)}, .combo = {{ {rows} }} }};   /* {e["name"]}: ' + ' | '.join(e['boss_ai'].get('combos', [])) + ' */')
+        refs.append(f'&gboss_{i}')
+    out.append(f'const gbossai_t *const gbossai_rom[{len(refs)}] = {{ ' + ', '.join(refs) + ' };   /* per enemy (genemy_rom order) */')
+    return out
 
 
 def ai_rules(g):
@@ -1318,7 +1385,7 @@ def tables(g, build):
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const char *const gstage_names[GS_COUNT];   /* game.json stages[].name: the HUD, GAME OVER */',
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
-         'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
+         'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gbossai_t *const gbossai_rom[EN_COUNT];   /* (T9) a boss\'s own AI layer per enemy, 0 = none (gamedata.h) */', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const int8_t gtint_lut[TINT_COUNT - 1][1024];   /* fighter.c tint_colour: tint t\'s (l * mix + c) * mul >> shift at [t - 1][l * 32 + c] */',
          'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_lay_n[SEL_NLAY], sel_lay_base[SEL_NLAY];', 'extern const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
@@ -1350,6 +1417,7 @@ def tables(g, build):
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
     c += ai_rules(g)                                     # the enemies' shared rules (revamp 1B, gamedata.h gairules_t)
+    c += boss_tables(g)                                  # the guard's rules + the bosses' own layer (T9)
     m = g['meter']                                       # the drive meter + the hidden fury gauge (Bruno's redesign
     for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'   # 2026-10-08, gamedata.h gmeter_t)
     assert 1 <= m['chunks'] <= 4 and 1 <= m['chunk'] and m['chunk'] * m['chunks'] < 65536, 'meter: chunks x chunk'

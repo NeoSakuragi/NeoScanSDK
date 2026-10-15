@@ -121,11 +121,15 @@ MOVES = ['idle', 'walk_fwd', 'run', 'prejump', 'jump_up_rise', 'jump_up_fall', '
          'hold_walk',                                   # the walk in the hold (note 20261014-171133-5d29, Final Fight's
                                                         # Haggar: game.json roster[].hold_walk; fighter.c hold_walk): a
                                                         # bank that has none shows its idle (never played: the feature off)
-         'charge']                                      # the concentration before the Ki training's blow (note 20261014-
+         'charge',                                      # the concentration before the Ki training's blow (note 20261014-
                                                         # 133606-5d29, Bruno: "AOF2's charging, gathering energy animation
                                                         # before the attack; find the equivalent": main.c bn_charge):
                                                         # KOF96 the power charge (60 + 61), KOF98 / 99 the power-up (77): export96; SS2 the
                                                         # rage (anim 140, export_ss2), else SOURCES' fallback (flash pose, win)
+         'guard']                                       # the standing guard (T9, Bruno 2026-10-15: bosses block; fighter.c
+                                                        # S_GUARD, any fighter the AI makes guard): KOF96 / 98 / 99 state 27
+                                                        # (export96 guard_stand, its held pose), else the idle (a bank without
+                                                        # one: the feature shows its stance)
 # The group photo's 'watch' pose (TODO #51, 2026-10-05): a front-facing, standing frame, one per fighter (game, name) ->
 # (KOF game state, step; -1 = the animation's last, held frame). KOF94 / KOF95 had real "watching" sprites: the waiting
 # teammates on the stage's edge are fighter objects (+$70 = the fighter id) in KOF95 states 155 watch, 156 / 157 react,
@@ -164,7 +168,7 @@ SOURCES = {'atk_c_hop': ['atk_c_hop', 'atk_c_jump'], 'atk_d_hop': ['atk_d_hop', 
            'atk_b_jump': ['atk_b_jump', 'atk_d_jump'], 'atk_b_jump_diag': ['atk_b_jump_diag', 'atk_d_jump_diag'],
            'atk_ab_jump': ['atk_ab_jump', 'atk_d_jump'], 'atk_ab_jump_diag': ['atk_ab_jump_diag', 'atk_d_jump_diag'],
            'atk_cd_jump_diag': ['atk_cd_jump_diag', 'atk_cd_jump'],
-           'charge': ['charge', 'flash', 'win']}      # (no charge / power-up of its own: its super flash pose (FLASH_POSES:
+           'charge': ['charge', 'flash', 'win'], 'guard': ['guard_stand', 'idle']}      # (no charge / power-up of its own: its super flash pose (FLASH_POSES:
                                                       # DD's power-up, Kizuna's taunt, ...), else its win pose, held)
 def source(ch, m):
     """the KOF animation a brawler move plays (idle when the fighter has none; walk_back without its own: the walk's

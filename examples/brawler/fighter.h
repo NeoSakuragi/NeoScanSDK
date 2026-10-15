@@ -57,6 +57,7 @@ enum {                            /* states: the state machine alone decides wha
     S_SPECIAL,                    /* a special's script playing */
     S_DEAD,                       /* life out, lying down (enemies blink and go, players use a life) */
     S_PROJ, S_OFF,                /* projectile entities (pool): in use / free */
+    S_GUARD,                      /* standing guard (T9: intent_t.guard) */
     S_COUNT
 };
 enum { R_LIGHT, R_HEAVY, R_KNOCKDOWN, R_LAUNCH, R_TRIP, R_BLOWBACK, R_SLAM, R_LIFT };   /* hit reactions (R_BLOWBACK: KOF's
@@ -89,6 +90,9 @@ typedef struct {                  /* what the controller wants this frame (playe
                                      direction, its slot BZ_* + 1 (forward,forward / down,down / down,up / up,up); 0 none */
     uint8_t chord;                /* A+B = C this frame with its second button up to gblitz.chord frames after the first
                                      (the first one already acted: fighter.c turns a prejump / a normal's start into the C) */
+    uint8_t guard;                /* the standing guard (T9, fighter.c "guard"): held = guard (from neutral; S_GUARD while
+                                     held and while its guard stun lasts). Any fighter: the AI decides (ai.c, a boss's
+                                     game.json boss_ai.guard); the players' controls never set it */
 } intent_t;
 
 /* ---- chain routes (Chain Lab, 2026-10-05): one route tree per fighter, data only ---------------------------------------
@@ -205,7 +209,7 @@ void specs_init(void);
 extern const uint8_t *voice_tab[BC_COUNT];
 void voices_init(void);
 void voice_play(const bchar_t *ch, uint8_t team, uint8_t key);   /* a key's voice now (events: the select screen's pick) */
-void fighter_guard_sound(void);              /* the guard sound (game.json hit_sounds.guard): unused, the brawler has no guard yet */
+void fighter_guard_sound(void);              /* the guard sound (game.json hit_sounds.guard): a blocked hit (fighter.c "guard") */
 void routes_init(void);
 
 /* Chain Lab mailbox (examples/brawler/README.md "Chain Lab"): the page writes it from JavaScript, the game reads it at the
@@ -619,7 +623,19 @@ typedef struct fighter {
      * frame's glide (16.16 px), bsl_dv = what it loses a frame, bsl_n = frames left (0: none) */
     int32_t  bsl_v, bsl_dv;
     uint8_t  bsl_n, bsl_pad;
+    /* T9 (Bruno 2026-10-15, tougher bosses; fighter.c "guard", "grab response"): gd_stun = the guard stun frames left (a
+     * blocked hit: it slides back in its guard pose, vx), gd_n = hits blocked in this guard, gd_max = the hits its guard
+     * holds (0: never breaks; the next one lands: the guard break), set by the AI; grsp = what a grab on it does now
+     * (GR_*, rolled by the AI), gctr = it has just counter-grabbed (its hold: the AI throws), bred = its red period (an
+     * enemy: the low-life blink, pal_overlay) */
+    uint8_t  gd_stun, gd_n, gd_max, grsp, gctr, bred;
 } fighter_t;
+enum { GR_NONE, GR_IMMUNE, GR_COUNTER };   /* fighter_t.grsp: a grab on it holds as usual / does not take (it stands firm) /
+                                   is reversed (it grabs the grabber: SoR2's counter, into its own throw) */
+extern uint16_t stat_blocks, stat_gbreaks, stat_counters, stat_immune;   /* (T9) hits guarded, guards broken, grabs
+                                   reversed, grabs refused: the proofs */
+typedef struct { uint8_t stun, push, chip, hold; } gguard_t;   /* the guard's engine rules (game.json ai.guard; fighter.c "guard") */
+extern const gguard_t gguard;
 enum { OVL_WHITE = 1, OVL_RED = 2, OVL_SHINY = 3, OVL_BLUE = 4 };   /* (OVL_SHINY: the fury ready's shiny white, fighter.c pal_overlay) */
 uint8_t fighter_fury_ready(const fighter_t *f);   /* the hidden fury gauge is full (a player; the sprite's blink) */
 extern uint8_t drive_chunks, fury_lock;   /* (fighter.c "the meter"; main.c "bonus stages") */

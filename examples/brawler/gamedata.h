@@ -58,6 +58,31 @@ typedef struct {
 } gairules_t;
 extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 
+/* ---- layer 2: a boss's own AI (T9, Bruno 2026-10-15: "tougher bosses"; game.json enemies[].boss_ai -> game_tables
+ * gbossai_rom[enemy], 0 = none; ai.c "the boss layer"). Chances are of 256; distances px; times frames. ---- */
+#define BC_MAX  10                /* combos a boss */
+#define BC_OPS  8                 /* presses a combo */
+enum { CO_END, CO_A, CO_C, CO_D, CO_RUN, CO_JUMP, CO_GRAB };   /* a combo op's kind (bits 0-2); the stick in bits 3-5: */
+enum { CS_N, CS_F, CS_B, CS_U, CS_D, CS_DF, CS_UF };           /* neutral, forward, back, up, down, down-fwd, up-fwd */
+typedef struct {
+    uint8_t guard_chance;         /* an attack of its target starting within guard_dx / guard_dz: guarded */
+    uint8_t guard_dx, guard_dz;
+    uint8_t guard_hold;           /* the guard held at least this long (and while the attack goes on) */
+    uint8_t guard_max;            /* hits a guard blocks, then the next one breaks it (fighter_t.gd_max; 0 = never) */
+    uint8_t guard_rest;           /* after a guard, frames before the next */
+    uint8_t run_chance;           /* an approach from farther than run_from: it runs in (S_RUN), to run_stop px */
+    uint8_t run_from, run_stop;
+    uint8_t grab_immune, grab_counter;   /* each approach of its target: a grab on it does not take / is reversed (GR_*) */
+    uint8_t counter_delay;        /* its counter-hold: frames before it throws */
+    uint8_t red_low;              /* the red period: life <= red_low % of its full life (it blinks red; fury and MAX on) */
+    uint8_t red_rest;             /* frames / 4 between two of its furies there (game.json red.rest: frames, up to 1020) */
+    uint8_t red_dx;               /* the fury's range (on its target's line) */
+    uint8_t red_max;              /* its first red_max furies are the MAX (down+D) */
+    uint8_t ready_shift;          /* its ready wait (gai.wait, the Final Fight tell) >> this: shorter, more aggressive */
+    uint8_t ncombo;
+    uint8_t combo[BC_MAX][BC_OPS];   /* its strings, CO_* | CS_* << 3 each, CO_END ends; one with a D only in the red period */
+} gbossai_t;
+
 /* ---- layer 2: the two bars (Bruno's live redesign 2026-10-08, docs/brawler_gold.md; fighter.c "the meter"): game.json
  * "meter"; players only. DRIVE (shown: the HUD's chunks): chunks x chunk points, one back a frame; a C special costs
  * `special` chunks (short: it does not come out), the breaker (C / A+B while hit: the neutral C special) `breaker` chunks,

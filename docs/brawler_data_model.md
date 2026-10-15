@@ -686,6 +686,35 @@ Proofs (our emulator's core, harness; scripts and outputs in /data/tmp/rv1b, too
   baseline /data/tmp/rv1b/out/regress_new.json), scenarios rv1b-attack-tokens / -ready-pose / -windup / -rank (lint
   OK, states generated; scenario.py lint 0 warnings).
 
+### The boss layer (TODO T9, Bruno 2026-10-15: tougher bosses, even at LEVEL-4)
+
+A boss enemy may carry `enemies[].boss_ai` (build_tables.py `boss_ai` -> game_tables `gbossai_rom[enemy]`, gamedata.h
+`gbossai_t`; ai.c "the boss layer"), played on top of its preset (made more aggressive per boss with `ai_over`: shorter
+rests, fewer blind specials / jump-ins). The beta's four (MR_BIG, KRAUSER, GEESE, RUGAL) have one, harder stage by stage.
+
+| field | what |
+|---|---|
+| `guard {chance, dx, dz, hold, max, rest}` | an attack of his target starting within dx / dz (facing it): guarded `chance` / 256 times (one roll per attack), held `hold` frames at least and while the attack goes on; `max` hits blocked, the next breaks it; `rest` frames before the next guard |
+| `run {chance, from, stop}` | an approach from farther than `from` px runs in (S_RUN) `chance` / 256 times, to `stop` px |
+| `grab {immune, counter, delay}` | rolled each time his target comes near (again every 64 frames it stays): a walk-in grab on him does not take (`immune` / 256: he stands firm, the chain's back throw neither) or is reversed (`counter` / 256: he grabs the grabber, SoR2 style, and throws after `delay` frames) |
+| `red {low, rest, dx, max}` | the red period: life <= `low` % of his full life: he blinks red (the player's MAX-ready blink) and plays his fury like a player at low life, within `dx` on his target's line, every `rest` frames (stored / 4: up to 1020), the first `max` of them as the MAX (down+D) |
+| `ready_shift` | his ready wait (the Final Fight tell, `ai.rules.ready.wait`) >> this |
+| `combos` | his strings, e.g. `"A A fA"`, `"A dC"`, `"run A"`, `"jump A A"`, `"grab"`, `"A A C D"`: A / C / D after an optional stick (f b u d df uf), `run` / `jump` first, `grab` last; each attack plays one not used yet this fight (a full cycle before any repeats, the last one not first again); a press goes in once the move before connected (links, the cancel rule into C / D: enemies may cancel like players now); a whiff or a hit taken ends it; a string with a D only in the red period |
+
+The guard is an engine feature (`ai.guard {stun, push, chip}`, fighter.c "guard"): any fighter whose intent holds
+`intent_t.guard` from neutral stands in BA_GUARD (KOF's standing guard, state 27; a bank without one: its idle) as
+S_GUARD. Blocked (a hit from the front): no damage from a normal, `chip` / 256 of a special's / projectile's (never the
+last point), a guard stun (`stun` frames sliding back `push` px), the hit-stop, the guard sound (hit_sounds.guard), the
+guard spark (KOF98's small spark in blue-white, palette 247: a stand-in until KOF's own guard spark is captured); the
+attacker gets the contact (chain, cancels). Beaten by: a hit from behind, a fury / MAX (unblockable), a grab or a command
+grab, a thrown body, and `max` hits in one guard. The players have no guard input (the AI decides).
+
+Proof (`tools/brawler/t9_boss_proof.py`, /data/tmp/t9): `fight BOSS --endless --sheet` per boss = the event log (strings
+in order with the no-repeat check, guards, counter-grabs, red period, MAX / furies) + contact sheets; `grabs` (P1 walking
+into him: held / refused / reversed); `winrate` (the scripted "decent player", one life, 8 fights a boss). Boss-only
+scenarios: scenarios.json `boss-mrbig`, `boss-krauser`, `boss-geese`, `boss-rugal` (stage mode from the boss, alone,
+P1 Terry 110 px away, LEVEL-4).
+
 ## Layer 3: stages
 
 The campaign = `stages[]` in order without the ones switched off (`"off": true`; build_tables.py `campaign`, every build
