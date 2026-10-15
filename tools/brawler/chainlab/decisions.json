@@ -4074,6 +4074,81 @@
      ]
     }
    ]
+  },
+  {
+   "id": "unlocks",
+   "title": "Unlocking fighters (beta build)",
+   "intro": "Terry and Robert playable at the start; the others in the build are earned. Pick the main way in, then the extras. Several can combine.",
+   "sections": [
+    {
+     "title": "How fighters unlock",
+     "questions": [
+      {
+       "id": "ul-main",
+       "title": "The main way to unlock a fighter",
+       "context": "Each option says what the player does and what he gets.",
+       "options": [
+        {
+         "label": "Beat him to recruit him: every boss / named enemy you defeat becomes playable (Geese, Krauser, Mr. Big...)"
+        },
+        {
+         "label": "Rival challenger: mid-stage \"HERE COMES A NEW CHALLENGER\" — your fighter's rival appears (Terry → Geese, Robert → Ryo, Kyo → Iori); beat him, he joins"
+        },
+        {
+         "label": "Finish the game: each clear unlocks the next 2 fighters"
+        },
+        {
+         "label": "Bonus games: a PERFECT in Ki training or all posts broken unlocks one fighter"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ul-extra",
+       "title": "An extra way on top",
+       "context": "Optional second route, for variety.",
+       "options": [
+        {
+         "label": "Challenges per fighter (e.g. finish a stage with no hit taken, KO the boss with a fury) unlock a themed fighter"
+        },
+        {
+         "label": "Arcade time release: one more fighter every N credits played (KOF '98 operator style)"
+        },
+        {
+         "label": "Secret codes at the select screen (stick + button sequence)"
+        },
+        {
+         "label": "No extra way"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      },
+      {
+       "id": "ul-keep",
+       "title": "Do unlocks stay?",
+       "context": "On MVS the cabinet's backup RAM can keep them; in the Player the save stays on the phone.",
+       "options": [
+        {
+         "label": "Kept forever (saved)"
+        },
+        {
+         "label": "Only for this credit / session (arcade style, unlock again each time)"
+        },
+        {
+         "label": "Kept, plus a reset option in the settings"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ]
 }
