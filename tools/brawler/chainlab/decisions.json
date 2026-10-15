@@ -4149,6 +4149,85 @@
      ]
     }
    ]
+  },
+  {
+   "id": "drop-stage",
+   "title": "Beta: the stage to discard",
+   "intro": "One answer; the other four stay in their order.",
+   "sections": [
+    {
+     "title": "Stages",
+     "questions": [
+      {
+       "id": "drop-stage",
+       "title": "Which stage to discard for the beta?",
+       "context": "The beta keeps 4 stages with the bosses Mr. Big, Krauser, Geese, Rugal in that order (whatever stages stay). Screens from our emulator, Terry at each stage start and 4 seconds in.",
+       "media": [
+        {
+         "image": "decisions-media/drop-stage/stage1_0.png",
+         "caption": "Stage 1 (ruined city street): the very start"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage1_1.png",
+         "caption": "Stage 1 (ruined city street): 4 s in"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage2_0.png",
+         "caption": "Stage 2 (truck, garage, rubble): the very start"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage2_1.png",
+         "caption": "Stage 2 (truck, garage, rubble): 4 s in"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage3_0.png",
+         "caption": "Stage 3 (fenced yard, wreckage): the very start"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage3_1.png",
+         "caption": "Stage 3 (fenced yard, wreckage): 4 s in"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage4_0.png",
+         "caption": "Stage 4 (blue industrial): the very start"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage4_1.png",
+         "caption": "Stage 4 (blue industrial): 4 s in"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage5_0.png",
+         "caption": "Stage 5 (high-tech lab): the very start"
+        },
+        {
+         "image": "decisions-media/drop-stage/stage5_1.png",
+         "caption": "Stage 5 (high-tech lab): 4 s in"
+        }
+       ],
+       "options": [
+        {
+         "label": "Discard Stage 1 (ruined city street)"
+        },
+        {
+         "label": "Discard Stage 2 (truck, garage, rubble)"
+        },
+        {
+         "label": "Discard Stage 3 (fenced yard, wreckage)"
+        },
+        {
+         "label": "Discard Stage 4 (blue industrial)"
+        },
+        {
+         "label": "Discard Stage 5 (high-tech lab)"
+        },
+        {
+         "label": "None of these: my own answer in the note"
+        }
+       ]
+      }
+     ]
+    }
+   ]
   }
  ]
 }
