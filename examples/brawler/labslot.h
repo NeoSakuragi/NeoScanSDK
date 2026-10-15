@@ -16,7 +16,7 @@
 #include "fighter.h"
 #include "game_tables.h"
 
-#define LAB_FORMAT  1          /* the pack format (lab_pack.py FORMAT): the header's layout, the tables' element sizes */
+#define LAB_FORMAT  2          /* the pack format (lab_pack.py FORMAT): the header's layout, the tables' element sizes */
 #define LABHDR_AT   0xE0000    /* the slot header (Makefile LABHDR_AT; lab_pack.py), then .labslot */
 #define LABSLOT_AT  0xE0400    /* .labslot (Makefile LABSLOT_AT; lab_pack.py) */
 #define LAB_VMAP_MAX 64        /* the pack build's fighter ids lab_vmap resolves (export_bm.py LAB_VMAP_MAX) */

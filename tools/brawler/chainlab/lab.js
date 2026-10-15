@@ -621,7 +621,7 @@
   /* THE PACK FORMAT (docs/character_lab.md "The pack format", tools/brawler/lab_pack.py; the Player's CharacterLab.kt and
      pack_swap.c read the same): a shell's ANCHOR in its P ROM (the .neo's P keeps each word low byte first) and a pack's
      manifest; a pack loads iff its format = the shell's and its needs are all among the shell's features */
-  const PACK_FORMAT = 1, LABANCHOR_AT = 0xDC000;
+  const PACK_FORMAT = 2, LABANCHOR_AT = 0xDC000;
   // a shell .neo (Uint8Array) -> {format, slot, features, regions, doc}; at: where the anchor starts in it (default the
   // .neo's: header 0x1000 + LABANCHOR_AT; 0 for its 16 KB fetched alone)
   function readAnchor(neo, at) {

@@ -74,10 +74,16 @@ for l in subprocess.run(['m68k-linux-gnu-objdump', '-t', elf], capture_output=Tr
     where[name] = (addr, size, b, sec)
 names = {f: v for f, v in rep['fighters'].items()}
 wrong = 0
+sm = rep.get('stage_maps', {})                                         # the stages' maps: bank_pack.py's reserve
+stage = {n for n in where if re.fullmatch(r'stage\d+_map', n)}
+for name in sorted(stage):
+    if where[name][2] != sm.get('bank'): wrong += 1; bad(f'{name} in bank {where[name][2]}, bank_pack reserved bank {sm.get("bank")}')
+if stage and sum(where[n][1] + 1 for n in stage) > sm.get('bytes', 0): bad(f'the stage maps are more than bank_pack reserved ({sm.get("bytes")})')
 for name, (addr, size, b, sec) in where.items():
-    if b is None or name.startswith('.'): continue
+    if b is None or name.startswith('.') or name in stage: continue
     f = max((p for p in names if name.startswith(p + '_')), key=len, default=None)
     if f is None or names[f]['bank'] != b: wrong += 1; bad(f'{name} in bank {b}, its fighter {f} has bank {names.get(f, {}).get("bank")}')
-print(f'{sum(1 for k, v in where.items() if v[2] is not None and not k.startswith(".")):,} banked tables, each in its fighter\'s bank: {"yes" if not wrong else wrong}')
+print(f'{sum(1 for k, v in where.items() if v[2] is not None and not k.startswith(".") and k not in stage):,} banked tables, each in its fighter\'s bank, '
+      f'{len(stage)} stage maps in bank {sm.get("bank")} ({sm.get("bytes", 0):,} bytes reserved): {"yes" if not wrong else wrong}')
 print('ALL OK' if ok else 'FAILED')
 sys.exit(0 if ok else 1)

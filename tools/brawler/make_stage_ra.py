@@ -27,6 +27,8 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from make_banner import BANNER_BASE
+STAGE_BANK = 0    # the stages' tile maps live in P2 bank 0, out of the first MB (2026-10-15: the Lab shell's room before
+                  # its anchor; bank_pack.py reserves their bytes there, main.c stage_draw maps the bank to read them)
 
 ROM = '/data/roms/roboarmy.neo'
 MAP, PTAB, PALS = 0x531F2, 0x5C1F2, 0x313F4
@@ -230,7 +232,8 @@ def build(outdir):
         h.append(f'/* stage {n}: Robo Army area {area}, ids ${i0:02X}-${i0 + (cols - 1) // 16:02X}, {cols} columns ({cols * 16} px), rows {r0}-{r0 + rows - 1}, '
                  f'palettes {", ".join(map(str, pals))} */')
         h.append(f'static const uint16_t stage{n}_pal[{len(pal_words)}] = {{' + ', '.join(f'0x{v:04X}' for v in pal_words) + '};')
-        h.append(f'static const uint16_t stage{n}_map[{len(out)}] = {{' + ', '.join(map(str, out)) + '};')
+        h.append(f'static const uint16_t stage{n}_map[{len(out)}] __attribute__((section(".p2bank{STAGE_BANK}.stage"))) = {{'
+                 + ', '.join(map(str, out)) + '};')                      # in P2 bank STAGE_BANK (main.c stage_draw maps it)
         table.append(f'{{stage{n}_map, stage{n}_pal, {cols}, {rows}, {len(pals)}, {r0 * 16}, {floor}, 0x{BACKDROP:04X}, 0x{LSPCMODE:04X}, {cyc_info}}}')
         maxpal, maxrows = max(maxpal, len(pals)), max(maxrows, rows)
         info.append((n, area, cols * 16, rows, r0, len(pals), floor, out))
@@ -240,7 +243,7 @@ def build(outdir):
         data += bytes(max(0, free['hi'] * 64 - len(data)))
         for t, rt in slots.items(): data[t * 64:(t + 1) * 64] = tile_raw(rt)[k]
         open(p, 'wb').write(bytes(data))
-    h += [f'#define STAGE_COUNT {len(STAGES)}', f'#define STAGE_MAXPAL {maxpal}', f'#define STAGE_MAXROWS {maxrows}',
+    h += [f'#define STAGE_BANK {STAGE_BANK}   /* the maps\' P2 bank (bank_pack.py keeps their bytes free there) */', f'#define STAGE_COUNT {len(STAGES)}', f'#define STAGE_MAXPAL {maxpal}', f'#define STAGE_MAXROWS {maxrows}',
           'static const stage_t stages[STAGE_COUNT] = {' + ', '.join(table) + '};', '#endif']
     open(os.path.join(outdir, 'stage.h'), 'w').write('\n'.join(h) + '\n')
     # previews: our words, our tiles (as stored in the image), our palettes

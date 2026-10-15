@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define NGPK_FORMAT 1          /* the pack format this code reads (lab_pack.py FORMAT, examples/brawler/labslot.h) */
+#define NGPK_FORMAT 2          /* the pack format this code reads (lab_pack.py FORMAT, examples/brawler/labslot.h) */
 
 /* the loaded ROM region by number (0 P, 1 S, 2 M, 3 V1, 4 V2, 5 C) and its size, as the core keeps it: Geolith's
    retro_neoscan_rom (libretro.c) */

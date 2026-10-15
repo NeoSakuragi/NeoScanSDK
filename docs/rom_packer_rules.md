@@ -121,6 +121,12 @@ songs and sound-effect codes play, every sample record rewritten to the new addr
   #190 (balanced, 128 KB margin -> 3 banks, P ROM 4 MB): bank 0 632,728 (415,832 free: 7 fighters), bank 1 633,774
   (414,786 free: 7), bank 2 665,394 (383,166 free: 9 incl. Billy Lee's two forms); MB1 unchanged (463,358 used). **Tables the code reads in one go must not straddle a bank edge** (a table is never split:
   sections are whole). **[ours]**
+- **The stages' tile maps in bank 0 (2026-10-15, 0.10.109)**: make_stage_ra.py puts stage<n>_map in section
+  `.p2bank0.stage` (stage.h STAGE_BANK), bank_pack.py counts their bytes (43,238) in bank 0 before it places the
+  fighters, main.c stage_draw maps STAGE_BANK for the column copy and restores the bank after (main loop only, never in an
+  interrupt). Why: the Lab shell's first MB had 4.6 KB left below its anchor at $DC000 (its .labslot needs the 128 KB
+  above: Moriya 123 KB). MB1 of the game: 847,388 bytes used; bank_proof.py checks the maps sit in the reserved bank.
+  **[ours]**
 
 ## Descriptor
 

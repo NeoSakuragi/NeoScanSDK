@@ -257,6 +257,17 @@ fixed region's place, an op or knob kind renumbered): `lab_pack.py abi_signature
 `FORMATS`, so such a change stops the build until FORMAT is bumped (labslot.h `LAB_FORMAT`, `pack_swap.h NGPK_FORMAT`,
 `lab.js PACK_FORMAT`; then every pack is rebuilt once). New ops and knob kinds are appended (features), never renumbered.
 
+**Format history.** 1 (2026-10-10): the first. **2 (0.10.109, 2026-10-15)**: T9 gave every fighter a guard animation (a
+bchar_t field), so the slot's ABI signature moved (`9f44f4c410206d69`); ops, knob kinds, sflags bits and the victim
+side are format 1's. A format-1 pack does not load into a format-2 shell ("pack format 1, the shell reads format 2"):
+every pack is rebuilt once (labpub.py all), the Player's native pack_swap.c (Brawler Dev 0.0.37) and the web Lab's
+core.wasm (deploy_vps.sh rebuilds it when pack_swap.c / .h is newer) read format 2. Same release: the first MB had only
+4.6 KB left below the anchor ($DC000) in the shell; the stages' tile maps (43 KB) moved to P2 bank 0
+(docs/rom_packer_rules.md "P ROM"), the shell's code + data now end at about $D0500 (~47 KB free below the anchor).
+The fixed regions did not move. (The linker's "dot moved backwards before `.labanchor'" warning is not an overflow: the
+three Lab sections are orphans the linker lists after .bss in work RAM, and every Lab link has always printed it; a
+real overflow stops the link (overlapping sections) and `lab_pack.py seal` (the first MB past the anchor).)
+
 **The file**: the container the Players 0.0.28+ read ('NGPK' 1; its region records now carry the kind and a relocated
 flag in bytes the old reader ignored); the manifest starts `{"ngpk":{"format":N,"needs":"..."}` (the C reads it there)
 and holds the pack's page data (`page`: his LAB special's animations, moves, his chain entry and retime rows: the site no

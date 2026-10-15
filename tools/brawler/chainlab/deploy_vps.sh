@@ -12,9 +12,11 @@ GAME=${1:-$HERE/../../../examples/brawler}
 SITE=${SITE:-/data/tmp/chainlab/site}           # (SITE=...: another site dir, e.g. a worktree building its own)
 HOST=root@195.201.91.211
 mkdir -p "$SITE"
-# the wasm core is the desktop's Geolith source tree (P2 bank latch, save states): rebuilt when web_core.c or any of it is newer
+# the wasm core is the desktop's Geolith source tree (P2 bank latch, save states): rebuilt when web_core.c, pack_swap.c /
+# pack_swap.h (NGPK_FORMAT: the pack format the core loads) or any of it is newer
 GEO=${GEOLITH:-$HOME/CLProjects/geolith}
-[ -f "$SITE/core.wasm" ] && [ "$SITE/core.wasm" -nt "$HERE/web_core.c" ] && [ -z "$(find "$GEO/src" "$GEO/libretro" -name '*.[ch]' -newer "$SITE/core.wasm" | head -1)" ] \
+[ -f "$SITE/core.wasm" ] && [ "$SITE/core.wasm" -nt "$HERE/web_core.c" ] && [ "$SITE/core.wasm" -nt "$HERE/pack_swap.c" ] \
+  && [ "$SITE/core.wasm" -nt "$HERE/pack_swap.h" ] && [ -z "$(find "$GEO/src" "$GEO/libretro" -name '*.[ch]' -newer "$SITE/core.wasm" | head -1)" ] \
   || "$HERE/build_wasm.sh" "$SITE"
 # PAGES_ONLY=1: the pages (make_site.py PAGES, lab.html as index.html) and the wasm core only, copied into SITE and sent
 # alone: no game build needed, nothing else on the box changes (a page-only change, e.g. the Assembly's live clips)

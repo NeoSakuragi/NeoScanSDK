@@ -45,7 +45,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
 GAME = os.path.join(REPO, 'examples', 'brawler')
 MAGIC, VERSION = b'NGPK', 1                  # the container (unchanged: the Players 0.0.28+ read it)
-FORMAT = 1                                   # THE PACK FORMAT (labslot.h LAB_FORMAT, pack_swap.c, CharacterLab.kt, tryit.js)
+FORMAT = 2                                   # THE PACK FORMAT (labslot.h LAB_FORMAT, pack_swap.c, CharacterLab.kt, tryit.js)
 ROMS = ['P', 'S', 'M', 'V1', 'V2', 'C']
 LABANCHOR_AT, LABANCHOR_SIZE = 0xDC000, 0x4000   # examples/brawler/Makefile LABANCHOR_AT (main.c .labanchor)
 LABHDR_AT, LABHDR_SIZE = 0xE0000, 0x400          # Makefile LABHDR_AT (main.c .labhdr, labslot.h)
@@ -64,13 +64,15 @@ FIX_TILE = 32                                # S ROM bytes a fix tile
 SLOT_TILE_FIRST, SLOT_TILES = 2048, 24576    # export_bm.py: the slot's C block
 SLOT_V_AT, SLOT_V = 0xC00000, 0x80000        # tools/port/build_snd.py: the slot's V area
 # FORMAT -> its ABI signature (abi_signature); the ops / knob kinds of the format (later ones are features, appended)
-FORMATS = {1: 'abb4122b46488a37'}
+FORMATS = {1: 'abb4122b46488a37',
+           2: '9f44f4c410206d69'}   # 2 (0.10.109, T9): every fighter's guard animation (a bchar_t field)
 BASE_OPS = {1: ['anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'br', 'resume', 'resumeat', 'jmp',
                 'spawn', 'fxoff', 'end', 'adv', 'check', 'part', 'evclr', 'onhit', 'put', 'hitclr', 'hold', 'unhold',
                 'sigclr', 'hitoff', 'add', 'form', 'voice', 'vsig', 'turn', 'vphase', 'screen', 'home', 'catch', 'lanim',
                 'warp']}
 BASE_KNOBS = {1: ['set', 'pspeed', 'phits', 'dmg']}
-BASE_SF = {1: ['SF_NOPUSH', 'SF_BIGHIT', 'SF_NOW', 'SF_SHARE', 'SF_INV', 'SF_SREACT']}   # bspec_t.sflags bits of the format
+BASE_SF = {1: ['SF_NOPUSH', 'SF_BIGHIT', 'SF_NOW', 'SF_SHARE', 'SF_INV', 'SF_SREACT']}
+for _t in (BASE_OPS, BASE_KNOBS, BASE_SF): _t[2] = _t[1]   # format 2 numbers its ops / knobs / bits as format 1 (features: the same)   # bspec_t.sflags bits of the format
                                                     # (later ones are features, appended: an older shell ignores the bit,
                                                     # the move plays as before there; SF_AIRATK 2026-10-11)
 WANT = ['lab', 'fighters', 'route_tab', 'rt_tab', 'bm_chars', 'mode', 'cam_x', 'projectiles', 'attract', 'phase', 'wave',
@@ -209,6 +211,7 @@ def abi(B):
 # its pointer (0 in a pack from before: the script's rows, as those packs always played), so format 1 stands; its
 # structs are guarded here (a changed layout = a new format, as abi's)
 VTHR_ABI = {1: '577eab430baa18b6'}
+VTHR_ABI[2] = VTHR_ABI[1]
 
 
 def vthr_signature():

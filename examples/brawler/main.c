@@ -342,11 +342,12 @@ static void stage_use(const stage_t *st, const uint8_t *zb) {   /* a stage (stag
 }
 static void stage_init(uint8_t n) { stage_use(&stages[n], gback_rom[n]); }
 static void stage_draw(void) {
-    uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, n = stg->rows * 2;
+    uint8_t first = (uint8_t)(cam_x >> 4), s = first, k, r, n = stg->rows * 2, ob;
     uint16_t *x, *w;
     stage_cycle();
     if (bg_ok && cam_x == bg_cam) return;
     bg_ok = 1; bg_cam = cam_x;
+    ob = BANK_set(STAGE_BANK);                               /* the maps: P2 bank STAGE_BANK (make_stage_ra.py, bank_pack.py) */
     x = cmd_run(VRAM_SCB4 + BG_SPR, BG_N);
     while (s >= BG_N) s -= BG_N;
     for (k = 0; k < BG_N; k++) {
@@ -363,6 +364,7 @@ static void stage_draw(void) {
         }
         if (++s == BG_N) s = 0;
     }
+    BANK_set(ob);
 }
 /* the camera never moves vertically (TODO #185, Bruno 2026-10-07: "Why is the camera going up? That is weird."): the
  * 0.0.91 rise during furies is gone; a move that goes high fits the fixed framing itself (Genjuro's spin: its carry

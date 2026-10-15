@@ -17,6 +17,10 @@ The Character Lab's shell (make LAB_SHELL=1 / LAB_PACK=<f>; the export's fighter
 a bank of their own after the others' (bm_bank: the last), its first-MB tables the section .labslot (linked at a fixed
 address, the Makefile's LABSLOT_AT): neither moves whoever fills the slot (lab_pack.py).
 
+Bank 0 also holds the stages' tile maps (make_stage_ra.py: stage.h stage<n>_map in section .p2bank0.stage, STAGE_BANK;
+main.c stage_draw maps it; 2026-10-15, out of the first MB for the Lab shell's room): their bytes are reserved in bank 0
+before the fighters are placed (RESERVE).
+
 Writes BUILD_DIR/bank_rename.txt (objcopy options: .rodata.<symbol> -> .p2bankN), BUILD_DIR/bm_bank.c (bm_bank[]:
 each fighter's bank) and BUILD_DIR/banks.json / banks.txt (per bank: used, free, fighters; the first MB's share).
 Refuses a reference from one bank into another or from a first-MB table that is not a holder (bchar_t, bspec_t,
@@ -34,6 +38,12 @@ MARGIN = int(os.environ.get('BANK_MARGIN', '0x20000'), 0)   # TODO #190: free by
 BANKED = {'bframe_t', 'bpart_t', 'bspec_row_t', 'bprow_t', 'bpend_t', 'bprim_t', 'bspart_t', 'bslink_t', 'int32_t'}
 TILES = re.compile(r'_f\d+_p\d+$')      # uint16_t: a frame part's tile numbers (palettes and postures are uint16_t too)
 HOLDERS = {'bchar_t', 'bspec_t', 'bproj_t'}
+
+# the stages' maps in bank 0 (stage.h, written by make_stage_ra.py with the export): bytes kept free there (+1 alignment)
+_st = open(os.path.join(build, 'stage.h')).read()
+_m = re.search(r'#define STAGE_BANK (\d+)', _st)
+RESERVE_BANK = int(_m.group(1)) if _m else 0
+RESERVE = sum(2 * int(n) + 1 for n in re.findall(r'static const uint16_t stage\d+_map\[(\d+)\] __attribute__', _st))
 
 # --- the export's tables: type, owner -------------------------------------------------------------------------------
 types = {}
@@ -126,13 +136,14 @@ split = os.environ.get("BANK_SPLIT")                                        # pr
 if split is not None:                                                       # of the fighter index's bits in a mask, so a read
     for g in sorted(gsize):                                                 # in the wrong bank shows in some layout
         k = bin(g & int(split, 0)).count("1") & 1                          # (bank_proof.py)
-        while len(bins) <= k: bins.append([0, []])
+        while len(bins) <= max(k, RESERVE_BANK): bins.append([RESERVE if len(bins) == RESERVE_BANK else 0, []])
         bins[k][0] += gsize[g]; bins[k][1].append(g); gbank[g] = k
     for k, b in enumerate(bins):
         if b[0] > CAP: sys.exit(f'bank_pack: BANK_SPLIT={split}: bank {k} needs {b[0]:,} bytes')
 else:                                                                       # TODO #190: balanced, with headroom
     def balance(n, cap):                                                    # largest fighter first into the emptiest
-        b = [[0, []] for _ in range(n)]                                     # bank (ties: the lowest bank)
+        b = [[RESERVE if k == RESERVE_BANK else 0, []] for k in range(n)]  # bank (ties: the lowest bank); the stages'
+        if n <= RESERVE_BANK: return None                                   # maps' bank exists
         for g in order:
             k = min(range(n), key=lambda k: (b[k][0], k))
             if b[k][0] + gsize[g] > cap: return None
@@ -170,12 +181,13 @@ used = [b[0] for b in bins]                                                 # up
 rep = {'banks': [{'bank': k, 'used': used[k], 'free': CAP - used[k],
                   'fighters': [prefixes[i] for i in range(nbc) if bank[i] == k and any(owner(s) == i for s in banked)]}
                  for k in range(len(bins))],
-       'first_mb_fighter_tables': mb1, **({'slot': {'bank': gbank[SLOT], 'banked': sum(size[s] for s in banked if owner(s) == SLOT),
+       'stage_maps': {'bank': RESERVE_BANK, 'bytes': RESERVE}, 'first_mb_fighter_tables': mb1, **({'slot': {'bank': gbank[SLOT], 'banked': sum(size[s] for s in banked if owner(s) == SLOT),
                                              'labslot': sum(size[s] for s in size if s not in banked and owner(s) == SLOT)}} if SLOT is not None else {}), 'shared_to_first_mb': sorted(shared),
        'fighters': {prefixes[i]: {'bank': bank[i], 'banked': sum(size[s] for s in banked if owner(s) == i),
                                   'first_mb': sum(size[s] for s in size if s not in banked and owner(s) == i)} for i in range(nbc)}}
 json.dump(rep, open(os.path.join(build, 'banks.json'), 'w'), indent=1)
 lines = [f"bank {b['bank']}: {b['used']:,} used at most, {b['free']:,} free at least ({', '.join(b['fighters'])})" for b in rep['banks']]
+lines.append(f'bank {RESERVE_BANK}: {RESERVE:,} bytes of stage maps (stage.h) counted in its used')
 lines.append(f'first MB: {mb1:,} bytes of fighter tables (steps, throws, postures, palettes, routes, voices, headers); '
              f'{len(shared)} shared tables ({sum(size[s] for s in shared):,} bytes) kept there')
 open(os.path.join(build, 'banks.txt'), 'w').write('\n'.join(lines) + '\n')
