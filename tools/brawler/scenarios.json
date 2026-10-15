@@ -4420,5 +4420,69 @@
   "expect": "Rugal sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
   "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
   "proof": 300
+ },
+ "20261015-120000-b901": {
+  "title": "T9 boss test: Mr. Big alone (stage 1, LEVEL-4)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 99,
+   "wait": 205,
+   "alone": true,
+   "gap": 110
+  },
+  "do": "Fight Mr. Big alone as Terry: attack him with A strings from the front, walk into him to grab him several times, jump in, and bring him to low life (under a third of his bar).",
+  "expect": "Mr. Big sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
+  "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
+  "proof": 300
+ },
+ "20261015-120001-b902": {
+  "title": "T9 boss test: Krauser alone (stage 2, LEVEL-4)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 99,
+   "wait": 205,
+   "alone": true,
+   "gap": 110
+  },
+  "do": "Fight Krauser alone as Terry: attack him with A strings from the front, walk into him to grab him several times, jump in, and bring him to low life (under a third of his bar).",
+  "expect": "Krauser sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
+  "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
+  "proof": 300
+ },
+ "20261015-120002-b903": {
+  "title": "T9 boss test: Geese Howard alone (stage 3, LEVEL-4)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 2,
+   "wave": 99,
+   "wait": 205,
+   "alone": true,
+   "gap": 110
+  },
+  "do": "Fight Geese alone as Terry: attack him with A strings from the front, walk into him to grab him several times, jump in, and bring him to low life (under a third of his bar).",
+  "expect": "Geese sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
+  "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
+  "proof": 300
+ },
+ "20261015-120003-b904": {
+  "title": "T9 boss test: Rugal alone (stage 4, LEVEL-4)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 3,
+   "wave": 99,
+   "wait": 205,
+   "alone": true,
+   "gap": 110
+  },
+  "do": "Fight Rugal alone as Terry: attack him with A strings from the front, walk into him to grab him several times, jump in, and bring him to low life (under a third of his bar).",
+  "expect": "Rugal sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
+  "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
+  "proof": 300
  }
 }
