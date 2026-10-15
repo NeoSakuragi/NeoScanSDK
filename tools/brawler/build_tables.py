@@ -1684,10 +1684,12 @@ def tables(g, build):
         c.append('const sel_slot_t lad_pos[LAD_N] = { ' + ', '.join(f'{{ {e[2]}, {e[3]}, {e[4]}, {e[5]} }}' for e in P) + ' };   /* screen x, feet y, draw order, face */')
     else:
         c += ['const uint8_t lad_fighter[1], lad_rung[1], lad_slot[1];', 'const sel_slot_t lad_pos[1];']
-    known = {x['name'] for x in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['songs']}
-    for r in g['roster']:                                # voice note 20261011-160158-5d29: stage 1 plays P1's theme
-        assert r.get('music') is None or r['music'] in known, f"{r['name']}: music {r['music']!r} is no songs.json song"
-    c.append('const uint8_t roster_music[BC_COUNT] = { ' + ', '.join(f"MUS_{r['music']}" if r.get('music') and not r.get('slot_of') else '0' for r in g['roster'])   # (a Lab build's slot: none, the shell and every pack the same)
+    SJ = json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))
+    known = {x['name'] for x in SJ['songs']}
+    benched = {x['name'] for x in (SJ.get('songs_benched') or {}).get('songs', [])}   # kept, not in the sound ROM: a
+    for r in g['roster']:                                # theme there = none in this build (stage 1 plays its own song)
+        assert r.get('music') is None or r['music'] in known | benched, f"{r['name']}: music {r['music']!r} is no songs.json song"
+    c.append('const uint8_t roster_music[BC_COUNT] = { ' + ', '.join(f"MUS_{r['music']}" if r.get('music') in known and not r.get('slot_of') else '0' for r in g['roster'])   # (a Lab build's slot: none, the shell and every pack the same)
              + ' };   /* roster[].music: the fighter\'s theme (its MUS_* command), 0 = none: stage 1 then plays its own song */')
     dmul =[r.get('damage', 1) for r in g['roster']]          # TODO #203: the fighter's damage scale (fighter.c fighter_hit)
     for r, k in zip(g['roster'], dmul): assert isinstance(k, int) and 1 <= k <= 4, f'{r["name"]}: damage {k} (1-4)'

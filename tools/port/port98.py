@@ -69,6 +69,11 @@ A_SLOTS = (0, 2, 6, 3, 4, 1, 5)
 A_TABLES = (0x3C4C, 0x424C, 0x484C, 0x4E4C, 0x544C, 0x5A4C, 0x604C)
 CHAN_K = {'FM1': 0, 'FM2': 1, 'FM3': 2, 'FM4': 3, 'A1': 4, 'A2': 5, 'A3': 6, 'A4': 7, 'A5': 8, 'A6': 9, 'B': 10}
 PAN_OP = {0xC0: 0x31, 0x80: 0x32, 0x40: 0x33}
+def patch_key(regs):
+    """an FM note's patch as the inline $34 writes it: the 28 operator registers, $B0 and $B4's AMS / PMS bits; the pan
+    ($B4's top bits) is the pan ops' ($31-$33), so a pan change alone needs no patch load (Kizuna's $21: FM4's legato
+    notes pan L / R as they slide; a load there keyed the note off and on again)"""
+    return tuple(regs[:29]) + (regs[29] & 0x3F,)
 
 def roms(path):
     d = open(path, 'rb').read()
@@ -275,7 +280,7 @@ class Port:
             if st.get('off', 0): out += ev(None, 0x0E) + ev(None, 0x25, 0x80 if name.startswith('A') else 0x88); st['off'] = 0
             gate = self.gate_for(lst, t, nt, end, tie_ahead=self.slur_ahead(moments, k))
             if name in FM:
-                assert st.get('patch') == tuple(n.regs), (name, t)
+                assert st.get('patch') == patch_key(n.regs), (name, t)
                 if st.get('pan') != n.pan:
                     out += ev(None, PAN_OP[n.pan]); st['pan'] = n.pan
                 note, det = self.fm_note(n.fnum)
@@ -312,17 +317,17 @@ class Port:
         L, length = self.loops[name]; end = L + length
         need = []; first_body = next(i for i, n in enumerate(lst) if n.tick >= L)
         for i, n in enumerate(lst):
-            regs = tuple(n.regs)
+            regs = patch_key(n.regs)
             prev = lst[i - 1] if i else None
             if i == first_body:
                 last_body = lst[-1]
-                if tuple(last_body.regs) != regs and name not in self.noloop:   # back from the goto: load it at the body's end
+                if patch_key(last_body.regs) != regs and name not in self.noloop:   # back from the goto: load it at the body's end
                     need.append((end, regs, last_body.off if last_body.off is not None else end, 'end'))
-                if prev is None or tuple(prev.regs) != regs:  # from the intro: before the label
+                if prev is None or patch_key(prev.regs) != regs:  # from the intro: before the label
                     lo = (prev.off if prev and prev.off is not None else (prev.tick + 1 if prev else 1))
                     need.append((n.tick, regs, lo, 'intro'))
                 continue
-            if prev is not None and tuple(prev.regs) == regs: continue
+            if prev is not None and patch_key(prev.regs) == regs: continue
             if prev is None: lo = 1
             elif getattr(n, 'legato', False) or prev.off is None: lo = n.tick
             else: lo = prev.off

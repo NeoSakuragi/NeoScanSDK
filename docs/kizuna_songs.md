@@ -72,6 +72,17 @@ Kensetsu-chū Kōsō Biru, and no fighter of the cast — Hayate, Eagle, Gozu, M
 Shishioh, Jyazu — is near it), the `$24` song: the brawler's stage 3 plays `THEME_KIM` since then (no new M ROM bytes:
 the song was already in it).
 
+The brawler's beta (Bruno 2026-10-15: "Stage 1 is the hero's music (if present). Then let's have all the music from
+Kizuna."; the bosses keep their own songs): the four stages in play play, in Kizuna's own place order where Bruno had
+not already placed a song, stage 1 P1's theme or, without one in the sound ROM, `$21` Slum Quarters (`STAGE_SLUM`);
+stage 2 `$24` Ura Suiro (`THEME_KIM`, Bruno's pick of 2026-10-11, game.json stages[2]); stage 3 `$22` the highway
+(`STAGE_HIGHWAY`); stage 4, the final, `$23` the 150th-floor rooftop (`STAGE_SKYSCRAPER`). Kizuna's two boss songs
+(`$2B` Shishioh, `$2C` Jyazu) are not used. Each port: Kizuna's capture = song98's model (the table above), Kizuna's
+model = the port's model at the chip (compare_port: `$21` 7009 / 7009 events, `$22` 7104 / 7104, `$23` 8851 / 8851),
+the port's model = the brawler ROM's real driver in our emulator (capture_snd: every interrupt with writes identical in
+order). `$21` needed port98's `patch_key`: its FM4 slides legato notes from pan to pan, and a pan-only change used to
+count as a new patch, whose load keyed the slide off and on again (405 events off before the fix).
+
 ## Song features (song98.py census, first pass of every song)
 
 Notes `$2A` 25 355 and `$00` 2 316; loops `$07`/`$08`, calls `$09`/`$0A`, goto `$0B`, restart `$16`; pan `$2B` 5 188
