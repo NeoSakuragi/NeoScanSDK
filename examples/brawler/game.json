@@ -500,7 +500,7 @@
    "flash_pose": "stance",
    "throw_keeps_chain": true,
    "throw_keeps_chain_about": "note 20261015-224938-e03d (Final Fight's quirk, Haggar only): when the chain's back throw (back on the jab chain's last press) throws its victim into another enemy, his chain counter stays one link in: the next jab is the chain's second link, the press after it the back throw again: jab, jab, throw, jab, throw (FF measured: /data/study/ffight/haggar_rethrow_trace.txt; fighter.c chain_keep)",
-   "clear_walk": {"to": 280, "about": "note 20261015-224745-e03d (Final Fight tribute): at the stage clear, instead of a win pose, he walks slowly (his own walk) toward the right part of the screen, to screen x `to`, and stands there (main.c win_tick WIN_WALK)"},
+   "clear_walk": {"to": "off", "about": "note 20261015-224745-e03d (Final Fight tribute): at the stage clear, instead of a win pose, he walks slowly (his own walk) to the right and out of the screen, like going to the next stage (reopen: \"I expect him to walk all the way out of the screen\"); the next screen waits until he is gone (main.c win_tick WIN_WALK)"},
    "hold_timeout": "knockdown",
    "hold_timeout_about": "note 20261014-193405-5d29 (Bruno: 'if the grab times out for Haggar, the character falls on the ground, on his back'): his hold's 90 frames without a hit run out -> the victim falls on its back (S_KNOCKDOWN, the trip's fall, no damage) and gets up; the other fighters' holds (default stand) let it go on its feet on the floor",
    "fury": ["P.JAB", "P.JAB", "P.FIN", "P.JAB", "P.JAB", "P.FIN", "P.JAB", "P.JAB", "P.FIN", "P.AJ8"],

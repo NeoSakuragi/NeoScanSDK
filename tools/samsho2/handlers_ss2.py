@@ -309,8 +309,11 @@ def vcentre(a, k):
     20261015-212217-e03d: "the opponent is not stuck properly to Hanzo, all over the place") [code: ss2.render_step]"""
     import numpy as np
     dx, dy = voff(a, k)
-    img = np.zeros((512, 512), np.uint16)
-    ss2.render_step(img, ss2.parse_anim(0, a, 400)[k], 256 + dx, 384 - dy, 0, (0, 0, 0, 0))
+    st = ss2.parse_anim(0, a, 400)[k]             # the step's flags bit 15 mirrors its picture (export_ss2's frames
+    img = np.zeros((512, 512), np.uint16)         # too): 490 / 492 carry it, 494 not (note 20261015-212217-e03d
+    ss2.render_step(img, st, 256 + dx, 384 - dy, st['flags'] >> 15, (0, 0, 0, 0))   # reopen: the rise's 492 drawn
+                                                  # unmirrored put its centre 56 px behind him, SS2's 27 px ahead
+                                                  # [meas: mozu_ss2.py C, snap 40 / 56 overlaid])
     ys, xs = np.nonzero(img)
     if not len(xs): return dx, dy
     return int(round(xs.mean() - 256)), int(round(384 - ys.mean()))

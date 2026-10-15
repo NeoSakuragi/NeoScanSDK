@@ -588,7 +588,8 @@ typedef struct fighter {
     /* Bruno's 0.10.1 notes (2026-10-09): inb = it has fully entered the camera's view (fighter.c screen_keep: kept inside
      * from then on, note 20261009-114826-5d29); blz_slot = the Blitz playing (its slot BZ_*: gblitz_can, Terry's dd -> uu
      * cancel, note 20261009-114542-5d29); wdz = the walk's depth direction this frame (-1 / 0 / +1: the depth grab, note
-     * 20261009-114751-5d29) */
+     * 20261009-114751-5d29); inb INB_LEAVE: walking off the screen (main.c, the stage clear's clear_walk "off", note
+     * 20261015-224745-e03d): neither the screen's edges nor the stage's hold it (fighter_init clears it) */
     uint8_t  inb, blz_slot;
     int8_t   wdz;
     uint8_t  vtot;                /* a piercing object with a hit budget (PJ_VMAX): its hits landed so far, every victim */
@@ -725,6 +726,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only);   /* attack boxes
                                                                flash: its fury hits the frozen world, nothing else does) */
 void fighter_tiles(fighter_t *f);                           /* pass 1: tile runs when the frame changed */
 void fighter_place(const fighter_t *f, uint16_t *y, uint16_t *x, int16_t cam_x, uint8_t n);   /* pass 2: SCB3/SCB4 of n sprites (>= ncols; the rest height 0) */
+#define INB_LEAVE 2                /* fighter_t.inb: walking off the screen, unclamped (main.c clear_walk "off") */
 void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x, uint8_t again);   /* after the camera: a fighter that has fully entered the view
                                      stays inside it (note 20261009-114826-5d29; fighter.c "the screen's edges") */
 void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: the wall rule (a special's victims and

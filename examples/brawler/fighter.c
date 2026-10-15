@@ -482,8 +482,10 @@ int16_t z_back(int16_t x) {
 }
 static void clamp(fighter_t *f) {
     int16_t zb;
-    if (f->x < FIX(X_MIN)) f->x = FIX(X_MIN);
-    if (f->x > FIX(X_MAX)) f->x = FIX(X_MAX);
+    if (f->inb != INB_LEAVE) {                                   /* (leaving: the stage's edge does not hold it) */
+        if (f->x < FIX(X_MIN)) f->x = FIX(X_MIN);
+        if (f->x > FIX(X_MAX)) f->x = FIX(X_MAX);
+    }
     zb = z_back(INT(f->x));                                      /* (walking, spawning, knockback, throws: never behind */
     if (f->z < FIX(zb)) f->z = FIX(zb);                          /* the floor's back edge, game.json depth) */
     if (f->z > FIX(Z_DEPTH)) f->z = FIX(Z_DEPTH);
@@ -5379,8 +5381,9 @@ void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x, uint8_t again) {
         int32_t lo, hi, d;
         uint8_t s = f->state, bit = f->idx < SK_N ? 1 << f->idx : 0;
         if (again && (sk_ok & bit) && f->x == sk_x[f->idx] && f->ch == sk_ch[f->idx]) continue;
-        if (s == S_OFF || s == S_PROJ || (SCRIPT_MAYBE(s) && script_owned(f))) continue;   /* (a script's pair: placed */
-        w = half_w(f);                                           /* once, pair_fit) */
+        if (s == S_OFF || s == S_PROJ || f->inb == INB_LEAVE || (SCRIPT_MAYBE(s) && script_owned(f))) continue;   /* (a
+                                                                    script's pair: placed once, pair_fit; leaving: free) */
+        w = half_w(f);
         lo = FIX(cam_x + SCREEN_IN + w); hi = FIX(cam_x + 320 - SCREEN_IN - w);
         if (!f->inb) { if (f->x >= lo && f->x <= hi) f->inb = 1; }   /* (walking in: free until it is in) */
         else if ((d = f->x < lo ? lo - f->x : f->x > hi ? hi - f->x : 0)) {

@@ -383,6 +383,7 @@ static void camera(void) {
     cam_x = goal;
     for (p = 0; p < 2; p++) {
         fighter_t *f = &fighters[p];
+        if (f->inb == INB_LEAVE) continue;                   /* (walking off the screen: main.c clear_walk "off") */
         if (f->x < FIX(cam_x + 16)) f->x = FIX(cam_x + 16);
         if (f->x > FIX(cam_x + 304)) f->x = FIX(cam_x + 304);
     }
@@ -2658,7 +2659,8 @@ enum { WIN_NONE, WIN_WAIT, WIN_POSE, WIN_WALK, WIN_WALKED };   /* WIN_WALK / WIN
                                                     instead of the pose (game.json roster[].clear_walk -> gclear_walk, note
                                                     20261015-224745-e03d, Final Fight's tribute: Haggar walks slowly off to
                                                     the right part of the screen at his own walk, input off; then he stands
-                                                    there WIN_HOLD frames as a pose's end is held) */
+                                                    there WIN_HOLD frames as a pose's end is held; CLEAR_WALK_OFF, the
+                                                    reopen: out of the screen, fighter_t.inb INB_LEAVE, walk_there) */
 static uint8_t win_st[2];                        /* WIN_* per player */
 static uint16_t win_t[2];                        /* WIN_WAIT: frames waited; WIN_POSE: frames since the pose ended */
 static uint8_t win_step[2];                      /* the pose's step last applied (0xFF: none yet) */
@@ -2669,6 +2671,34 @@ static void win_start(void) {
         win_st[i] = f->state != S_OFF && f->state != S_DEAD && f->hp > 0 ? WIN_WAIT : WIN_NONE; win_t[i] = 0;
     }
 }
+static int16_t frame_left(const fighter_t *f, uint16_t fr) {   /* screen x of the left edge of frame fr drawn at f (draw.s's
+                                                    part placement: x0 = hflip ? ox - dx - w : ox + dx, facing right
+                                                    mirrored about ox) */
+    const bframe_t *b = &f->ch->frames[fr];
+    int16_t ox = INT(f->x) - cam_x, m = 0x7FFF, x0, w;
+    uint8_t k;
+    for (k = 0; k < b->nparts; k++) {
+        const bpart_t *p = &b->parts[k];
+        w = p->cols << 4;
+        x0 = p->hflip ? ox - p->dx - w : ox + p->dx;
+        if (f->facing > 0) x0 = 2 * ox - x0 - w;
+        if (x0 < m) m = x0;
+    }
+    return m;
+}
+static uint8_t walk_there(const fighter_t *f) {  /* a clear_walk's end: at its screen x, or for "off" (CLEAR_WALK_OFF, note
+                                                    20261015-224745-e03d reopen: "walk all the way out of the screen, like
+                                                    he's going to the next stage") his whole picture past the screen's
+                                                    right edge, the walk's frame shown and every idle frame he stands in
+                                                    after it (none peeks back in) */
+    uint16_t to = gclear_walk[f->ch->id];
+    const banim_t *a = &f->ch->anims[BA_IDLE];
+    uint8_t k;
+    if (to != CLEAR_WALK_OFF) return INT(f->x) - cam_x >= (int16_t)to;
+    if (f->shown_frame != 0xFFFF && frame_left(f, f->shown_frame) < 320) return 0;
+    for (k = 0; k < a->nsteps; k++) if (a->steps[k].frame != 0xFFFF && frame_left(f, a->steps[k].frame) < 320) return 0;
+    return 1;
+}
 static uint8_t win_posing(uint8_t i) { return i < 2 && win_st[i] == WIN_POSE; }
 static void win_tick(void) {                     /* every fight frame after the fighters' update */
     uint8_t i;
@@ -2678,15 +2708,16 @@ static void win_tick(void) {                     /* every fight frame after the 
         if (f->inv < 2) f->inv = 2;
         if (win_st[i] == WIN_WAIT) {
             if (f->state == S_IDLE && f->y == 0 && f->ch->id < BC_COUNT && gclear_walk[f->ch->id]) {
-                win_st[i] = INT(f->x) - cam_x < (int16_t)gclear_walk[f->ch->id] ? WIN_WALK : WIN_WALKED; win_t[i] = 0;
+                win_st[i] = !walk_there(f) ? WIN_WALK : WIN_WALKED; win_t[i] = 0;
                 f->facing = 1;                               /* (already there: he stands, facing it) */
+                if (gclear_walk[f->ch->id] == CLEAR_WALK_OFF) f->inb = INB_LEAVE;   /* (off: no edge holds him) */
             } else if (f->state == S_IDLE && f->y == 0) {
                 f->facing = INT(f->x) - cam_x < 160 ? 1 : -1;
                 f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
                 fighter_win_pose(f); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
             } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
         } else if (win_st[i] == WIN_WALK) {              /* the walk (win_input: forward held) to the screen x */
-            if (INT(f->x) - cam_x >= (int16_t)gclear_walk[f->ch->id] || ++win_t[i] >= WIN_MAX) { win_st[i] = WIN_WALKED; win_t[i] = 0; }
+            if (walk_there(f) || ++win_t[i] >= WIN_MAX) { win_st[i] = WIN_WALKED; win_t[i] = 0; }
         } else if (win_st[i] == WIN_WALKED) { if (win_t[i] < 0xFFFF) win_t[i]++; }
         else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
         if (win_st[i] == WIN_POSE) {                 /* the source's own motion: each step's travel as it starts (KOF's

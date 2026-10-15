@@ -1561,7 +1561,8 @@ def tables(g, build):
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
          'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
-         'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; main.c win_tick) */',
+         'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; CLEAR_WALK_OFF = "off": right until his whole picture has left the screen, the screen edges not holding him; main.c win_tick) */',
+         '#define CLEAR_WALK_OFF 0xFFFF',
          'extern const uint16_t ghold_walk[BC_COUNT];    /* the walk in the hold (game.json roster[].hold_walk.speed: x its walk, 8.8; 0 = none: it stands; fighter.c hold_walk) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
@@ -1671,7 +1672,9 @@ def tables(g, build):
         w = r.get('clear_walk')                          # Final Fight's stage end (note 20261015-224745-e03d)
         if w is None: cw.append('0'); continue
         for k in w: assert k in ('about', 'to'), f"roster {r['name']}: clear_walk: unknown field {k}"
-        assert isinstance(w['to'], int) and 160 <= w['to'] <= 360, f"roster {r['name']}: clear_walk.to {w['to']} (screen x 160-360)"
+        if w['to'] == 'off': cw.append('CLEAR_WALK_OFF'); continue   # (note 20261015-224745-e03d reopen: "walk all
+                                                         # the way out of the screen, like he's going to the next stage")
+        assert isinstance(w['to'], int) and 160 <= w['to'] <= 360, f"roster {r['name']}: clear_walk.to {w['to']} (screen x 160-360, or 'off')"
         cw.append(str(w['to']))
     c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
     c.append('const uint8_t gthrow_keep[BC_COUNT] = { ' + ', '.join(tk) + ' };')

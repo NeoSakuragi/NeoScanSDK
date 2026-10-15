@@ -4687,7 +4687,7 @@
    "x": 150
   },
   "do": "Walk into Ryo to grab him, then press up + A (Mozu Otoshi).",
-  "expect": "Ryo stays on Hanzo the whole time, where SS2 draws its victim: over him as he grabs, hunched behind his back in the crouch, carried up with him in the leap, then head down right on top of him through the fall (no longer 40 px off to the side), slammed head first with the fire columns and his shout; then the leap back. Same heights and shouts as before.",
+  "expect": "Ryo stays on Hanzo the whole time, where SS2 draws its victim: over him as he grabs, hunched over his shoulders in the crouch, and in the RISING leap carried right above him, a little ahead of him (no longer shifted back, to the left when he faces right); then head down right on top of him through the fall as before, slammed head first with the fire columns and his shout; then the leap back. The same facing the other way (mirrored). Same heights and shouts as before.",
   "do_keys": "20:R,3:Ua,2:U",
   "proof": 180
  },
@@ -4812,7 +4812,7 @@
   "proof": 60
  },
  "20261015-224745-e03d": {
-  "title": "Haggar's stage clear: he walks slowly to the right of the screen (Final Fight)",
+  "title": "Haggar's stage clear: he walks right and out of the screen (Final Fight)",
   "setup": {
    "mode": "stage",
    "fighter": "haggar",
@@ -4824,7 +4824,7 @@
    "gap": 36
   },
   "do": "Stage 1, the boss alone with 1 life point. Walk into him to grab him and throw him (forward + A), then watch Haggar after STAGE CLEAR.",
-  "expect": "At the stage clear Haggar does not pose: he turns to the right and walks at his own slow walk toward the right part of the screen, as at the end of Final Fight's stages, stops there and stands until the next screen. The other fighters still play their win poses.",
+  "expect": "At the stage clear Haggar does not pose: he turns to the right and walks at his own slow walk all the way out of the screen, as if going on to the next stage (Final Fight). Nothing of him stays visible at the right edge; the next screen comes only after he is gone. The other fighters still play their win poses.",
   "do_keys": "25:R,3:Ra",
   "proof": 700
  },
