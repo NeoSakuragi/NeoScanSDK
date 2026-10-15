@@ -118,7 +118,7 @@ def clear(k):
     r0 = rungs()
     scenario.setup(b, {'setup': {'mode': 'stage', 'fighter': 'terry', 'stage': NST - 1, 'wave': len(G['stages'][-1]['waves']),
                                  'wait': 150, 'alone': True, 'foe_hp': 1, 'gap': 36}})
-    for _ in range(12):                                   # jabs until the boss (1 life) is down
+    for _ in range(80):                                   # jabs until the boss (1 life) is down (0.10.109: he guards; the guard breaks on its hit limit)
         if b.r(Y['phase'], 1) != 2 or mode() != 1: break
         b.seq('3:a,25:-')
     wait(lambda: mode() == 4, 'the ending', 4000)
