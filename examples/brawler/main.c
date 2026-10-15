@@ -3584,6 +3584,9 @@ static void campaign(uint8_t left) {
                 FIX_print(14, 13, "           ", 0); bt_hide(); drama_start(DR_WIN, 0xFF); break;
             }
         }
+        if (snd_song == GAME_MUS_CLEAR && snd_song_t < GAME_MUS_CLEAR_FRAMES) break;   /* the clear song played to its end
+                                                                (note 20261015-145350-e03d: a fighter without a big
+                                                                portrait skipped the drama and cut it) */
         for (i = 0; i < 2; i++)
             if ((pl_on[i] = in_play(&fighters[i]))) { pl_ch[i] = fighter_next_stage_ch(&fighters[i]); pl_set[i] = fighters[i].set; }   /* (its base form) */
         if (camp + 1 >= GS_COUNT) ending_start();          /* the last stage: the ending (BOSS UNLOCKED after it) */

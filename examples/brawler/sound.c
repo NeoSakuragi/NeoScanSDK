@@ -14,6 +14,7 @@ void snd_cmd(uint8_t b) {
 void snd_tick(void) {
     if (snd_test) { snd_cmd(snd_test); snd_test = 0; }
     if (qh != qt) { REG_SOUND_B = q[qh]; qh = (qh + 1) & (QN - 1); }
+    if (snd_song_t < 0xFFFF) snd_song_t++;
 }
 
 void snd_sfx(uint8_t code) {
@@ -31,7 +32,8 @@ void snd_voice(uint8_t prefix, uint8_t code) {
 /* the BIOS resets the sound CPU ($01 $03) each time it hands control back (attract demo -> title -> demo...), and
    KOF98's driver then ignores music until $07 again: every music start carries its own unlock */
 uint8_t snd_song;                       /* the last song started (the continue gives the fight its song back) */
-void snd_music(uint8_t track) { snd_cmd(0x07); snd_cmd(track); snd_song = track; }
+uint16_t snd_song_t;                    /* frames since the last snd_music (note 20261015-145350-e03d) */
+void snd_music(uint8_t track) { snd_cmd(0x07); snd_cmd(track); snd_song = track; snd_song_t = 0; }
 /* the music stopped under the sounds of this tick (the boss's KO, note 20261009-120007-5d29): KOF98's $04 ($1019) keys
    off FM 1-4, dumps all six ADPCM-A channels (the effects' 4-6 too: $0CF4 / $0C95), resets ADPCM-B, stops the SSG and
    sets $FD11 / $FD12 = $FF, and with $FD12 set the effect / voice path ($0204) drops every prefix sound. So: $04, then

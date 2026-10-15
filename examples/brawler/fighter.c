@@ -1760,6 +1760,7 @@ static void voice_throw(const fighter_t *f, uint16_t from, uint16_t to) {   /* a
  * the script's speed (bthrow_t.speed, 8.8; per throw in data); an impact row passed over still lands on the frame that
  * passes it. The attached victim follows (victim_rows, placed from the thrower). Returns 0 once the thrower's part is
  * over (its control return row reached). */
+static uint8_t max_chain(fighter_t *f, fighter_t *v);
 static uint8_t paired_update(fighter_t *f) {
     const bthrow_t *th = thr_of(f, f->throw_id);
     fighter_t *v = f->held;
@@ -1774,7 +1775,11 @@ static uint8_t paired_update(fighter_t *f) {
     }
     if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
-        if (hit & 2) { f->held = 0; v = 0; }                    /* released: the engine's knockdown from here */
+        if (hit & 2) {                                           /* released: the engine's knockdown from here */
+            f->held = 0;
+            if (f->mchn && max_chain(f, v)) return 1;            /* (the MAX chain: no launch, its next throw now) */
+            v = 0;
+        }
         else if ((hit & 1) && ((hit & 4) || v->hp <= 0)) { /* the finisher's last impact lands, or a hold hit took the last life
                                                                     (TODO #204: held on, it broke free standing with none,
                                                                     and nothing could hit or grab it): the victim goes */
@@ -1806,7 +1811,8 @@ static uint8_t paired_update(fighter_t *f) {
         int32_t e = f->x < FIX(X_MIN) ? FIX(X_MIN) - f->x : f->x > FIX(X_MAX) ? FIX(X_MAX) - f->x : 0;   /* origin with it) */
         f->x += e; f->throw_x0 += e; if (v) v->throw_x0 = f->throw_x0;
     }
-    f->y = FIX(r->ty);
+    f->y = f->thsc && r->ty > 0 ? FIX((int16_t)(mulu16((uint16_t)r->ty, f->thsc) >> 8)) : FIX(r->ty);   /* (the MAX chain's
+                                                                    half-height piledriver: its heights x thsc) */
     f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
     if (v) place_victim(f, v, vrow(v, th, i, &tmp), f->throw_face);
     return 1;
@@ -1847,6 +1853,7 @@ static uint8_t lands_behind(const bthrow_t *th) {
 }
 static void victim_side(fighter_t *f, fighter_t *v, uint8_t t);
 static int16_t pend_jdx;           /* the next throw_start's travel (hold + B: hold_update), px signed by the stick */
+static uint16_t pend_thsc;         /* the next throw_start's height scale (8.8, 0 = 1x: the MAX chain's) */
 static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / back+A in the hold (any BT_*: the extra */
     fighter_t *v = f->held;                                      /* paired throw too, revamp 3); dir TD_*: the side wanted */
     const bthrow_t *th;
@@ -1856,6 +1863,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
                                                                     rule above: played turned */
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
     f->jdx = pend_jdx; f->jprev = 0; pend_jdx = 0;               /* (hold + B's travel: its airborne rows, paired_update) */
+    f->thsc = pend_thsc; pend_thsc = 0;                          /* (its height scale: the MAX chain's, paired_update) */
     for (f->jr0 = 0; f->jdx && f->jr0 < th->land && th->rows[f->jr0].ty <= 0; f->jr0++) {}
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->hv = IS_THROW(t);                                         /* a throw's victim: its landing voice to come (hurt_land) */
@@ -1887,6 +1895,48 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
         }
     }
     paired_update(f);                                            /* its first row now */
+}
+/* ---- the MAX chain (game.json roster[].max_chain -> gmax_chain; Bruno 2026-10-15, Haggar's MAX: "jab, jab, finisher x 3
+ * 50 % faster, then the spin, then back throw x 3, a half-height piledriver, then a regular piledriver"): a fighter whose
+ * fury is a SEQUENCE plays it as his MAX (down+D) with its first `fast` pieces at `rate` (an extra program frame as the
+ * rate's fraction adds up: fighter_update's S_SPECIAL), then, its last piece over (prog_end), its victim still reeling is
+ * grabbed where it stands and thrown by each of the chain's throws in turn: at each throw's release (or its control
+ * return, whichever comes first) the victim is grabbed again where it is, no launch, and the next throw starts; the
+ * last one plays out as every throw. Invincible throughout (every throw: INV_FURY), each throw's damage the data's (the
+ * MAX's tier: the pieces through dtier_rom, the throws by hand); a throw's height scale (thsc) lowers its airborne rows
+ * (the half-height piledriver). The victim KO'd or gone: the chain stops. ---- */
+static uint8_t max_chain(fighter_t *f, fighter_t *v) {         /* the chain's next throw on v -> 1 when it threw */
+    const gmaxc_t *m;
+    uint8_t i = f->mchn - 1, t;
+    int32_t x, y;
+    if (f->ch->id >= BC_COUNT || !f->mchn) { f->mchn = 0; return 0; }
+    m = &gmax_chain[f->ch->id];
+    if (!v || v == f || i >= m->n || v->hp <= 0 || v->state == S_DEAD || v->state == S_OFF) { f->mchn = 0; return 0; }
+    f->mchn++;
+    x = v->x; y = v->y;
+    f->freeze = v->freeze = 0; f->facing = v->x >= f->x ? 1 : -1;
+    v->dance = 0; v->tb_by = 0; v->tb_fl = 0; v->thr = 0; v->held = 0; v->frame_ovr = 0xFFFF;
+    grab(f, v);
+    v->x = x; v->y = y;                                          /* (where it is: the throw's start glides the pair) */
+    t = m->kind[i];
+    pend_jdx = 0; pend_thsc = m->hsc[i];
+    throw_start(f, t == 2 ? BT_XTHROW : t == 1 ? BT_THROW_D : BT_THROW_C, t == 2 ? TD_ASIS : t == 1 ? TD_BACK : TD_FWD);
+    v->thr_dmg = m->dmg[i];
+    f->node = 0; f->chain_t = 0; f->buffered = 0;
+    return 1;
+}
+static uint8_t max_chain_start(fighter_t *f) {                 /* the MAX's last piece over: the chain's first throw */
+    fighter_t *v = f->target;
+    if (!f->fmax || f->spec_id != BS_FURY || f->ch->id >= BC_COUNT || !gmax_chain[f->ch->id].n || !v ||
+        v->state != S_HITSTUN || v->hp <= 0) return 0;
+    special_end(f); f->pflags = 0; f->mchn = 1;
+    return max_chain(f, v);
+}
+static uint8_t max_fast(const fighter_t *f) {                  /* a MAX chain's fast piece playing -> its rate (8.8), 0 */
+    const gmaxc_t *m;
+    if (!f->fmax || f->spec_id != BS_FURY || f->ch->id >= BC_COUNT) return 0;
+    m = &gmax_chain[f->ch->id];
+    return m->fast && f->spec_ix >= f->ch->fury && f->spec_ix - f->ch->fury < m->fast ? 1 : 0;
 }
 /* a throw's victim side (vthrow.h): its own KOF list for this thrower's throw (bm_vthr), else (a fighter of another game,
  * or a list the export has not) its posture anchors against the thrower's (bm_vanch); the mirror match (the thrower's
@@ -2508,6 +2558,7 @@ static void throw_update(fighter_t *f, const intent_t *in) {
     }
     if (paired_update(f)) return;
     jv = f->held ? f->held : f->target;
+    if (f->mchn && max_chain(f, jv)) return;                     /* (the MAX chain: its next throw, no launch) */
     throw_free(f, 1);
     if (!f->team && (f->fury_buf || f->spec_buf) && (IS_HOLD(f->throw_id) || last_impact(thr_of(f, f->throw_id)) != 0xFFFF) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (a throw
@@ -2665,7 +2716,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     else if (k != BS_AIR && k != BS_BLITZ) f->spec_ix = f->sthr ? f->xix : spec_ix(f->ch, k);   /* (an air special: air_pick's, a
                                                                     Blitz: blitz_go's, set by the caller; a throw's:
                                                                     hold_special's, revamp 3) */
-    f->fmax = k == BS_FURY_MAX; f->brk = f->brkr = 0; f->sinv = 0;   /* (a breaker: its caller sets brk after; a C special:
+    f->fmax = k == BS_FURY_MAX; f->brk = f->brkr = 0; f->sinv = 0; f->mchn = 0; f->mracc = 0;   /* (a breaker: its caller sets brk after; a C special:
                                                                     sinv, cspecial) */
     knob_find(f, k);                                             /* its knobs ("knobs") */
     f->spec_buf = 0; f->blz_buf = 0;                             /* (the presses of what it cancelled: not its own) */
@@ -3381,7 +3432,8 @@ static uint8_t seq_next(fighter_t *f) {
     if (!(f->ch->specials[f->spec_ix].sflags & SF_SEQ) || f->state != S_SPECIAL || nx >= f->ch->nspec) return 0;
     if (seq_wait(f)) return 0;                                   /* (pressed: no press, the move ends here) */
     carry_drop(f); special_end(f); f->pflags = 0;
-    lab_ix = nx; start_special(f, k);                            /* (lab_ix: the pool index, whatever its role) */
+    lab_ix = nx; start_special(f, f->fmax && k == BS_FURY ? BS_FURY_MAX : k);   /* (lab_ix: the pool index, whatever its
+                                                                    role; a MAX stays the MAX: its tier, its chain) */
     if (f->state == S_SPECIAL) { f->pheld = 0; special_update(f); }
     return 1;
 }
@@ -3407,6 +3459,7 @@ static uint8_t fury_throw(fighter_t *f) {
 }
 static void prog_end(fighter_t *f) {
     if (seq_next(f)) return;                                     /* a sequence: its next piece, back to back */
+    if (max_chain_start(f)) return;                              /* (the MAX chain's throws) */
     if (fury_throw(f)) return;                                   /* (the fury's closing throw) */
     special_end(f); lab_cend(f);
     if (lab_on && lab_next(f)) return;                           /* a lab list's next entry, back to back */
@@ -4388,6 +4441,11 @@ static void update(fighter_t *f, const intent_t *in) {
                                       f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
         if (flash_pose(f)) break;                                /* a fury's flash pose: the freeze shows it ("flash pose") */
         special_update(f);
+        if (f->state == S_SPECIAL && max_fast(f)) {              /* the MAX chain's fast pieces: an extra frame as the */
+            uint16_t a = f->mracc + gmax_chain[f->ch->id].rate - 0x100;   /* rate's fraction adds up */
+            f->mracc = (uint8_t)a;
+            if (a >= 0x100) special_update(f);
+        }
         if (f->state == S_SPECIAL && f->spec_id == BS_FURY && f->state_t == gflash.start && !f->ch->nfpose && !seq_piece(f) && !f->fpose)
             super_flash(f);                                      /* every fury, MAX or not (fx.super_flash, game.json
                                                                     super_flash: state_t 1 = its first frame) */
@@ -4828,6 +4886,12 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
         atk = &sa->atk;
     } else if ((a->state == S_SPECIAL || a->state == S_PROJ) && a->spec_atk) {
         uint8_t ob = BANK_set(CH_BANK(a->ch)); abox = *a->spec_atk; BANK_set(ob); atk = &abox;
+        if (!a->team && a->ch->id < BC_COUNT && gfury_box[a->ch->id] > 1 && fury_hit(a)) {   /* a player's fury / MAX box
+                                                                    x roster[].fury_box_scale (note 20261015-144945-e03d,
+                                                                    Mr. Big x 3: "no way to escape it"); the boss keeps his */
+            uint16_t w = (uint16_t)abox.w * gfury_box[a->ch->id], h = (uint16_t)abox.h * gfury_box[a->ch->id];
+            abox.w = w > 255 ? 255 : (uint8_t)w; abox.h = h > 255 ? 255 : (uint8_t)h;
+        }
     }
     else return;
     for (j = 0; j < n; j++) {

@@ -12,6 +12,7 @@ void snd_ssg(uint8_t cue);               /* a menu sound: SSG_CURSOR / _CONFIRM 
                                             on KOF98's own type-5 path (tools/port/ssg_cues.py): over the music and the
                                             ADPCM effects; a new cue replaces the one playing */
 extern uint8_t snd_song;                 /* the last snd_music track */
+extern uint16_t snd_song_t;              /* frames since that snd_music (one a snd_tick) */
 void snd_music(uint8_t track);           /* a MUS_* command (snd/songs.h); only the songs in songs.json exist */
 void snd_mark(void);                     /* once a tick, after snd_tick: where this tick's commands start */
 void snd_stop_music(void);               /* the music off ($04 + $09: effects / voices on), before this tick's sounds */
