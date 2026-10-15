@@ -4,13 +4,13 @@ our emulator (harness.py, the arcade system mvs-mvs = SNK's MVS BIOS, a fresh sa
 
   0. the ladder screen's places (build_tables.ladder_places): every ladder fighter on ONE line (one feet y), in ladder
      order left to right, evenly spaced, on the screen
-  1. power on, coin, the title: CHALLENGERS -> the ladder screen (fresh: the 2 starters in colour, 10 silhouettes),
+  1. power on, coin, the title: UNLOCKS -> the ladder screen (fresh: the 2 starters in colour, 10 silhouettes),
      back to the title; NEW GAME -> the select screen (ONLY the 2 starters drawn, on the layout's 2 middle places:
      build_tables.select_layers; the cursor walk reaches only them; the same after each power cycle: 4, 12)
   2. a game clear x5 (scenario.py's stage mode: the last stage, its boss at 1 life, killed; then the ending passed with
      START, as a player does): each clear's ladder screen (the new rung revealed: silhouette -> white flash -> colour,
      NEW CHALLENGERS!), then the hand-back to the BIOS (which commits the MVS backup RAM)
-  3. after clear 1: a POWER CYCLE (the core writes the .nv and loads it again): the title's CHALLENGERS screen and the
+  3. after clear 1: a POWER CYCLE (the core writes the .nv and loads it again): the title's UNLOCKS screen and the
      select screen show 4 fighters (save.rungs = 1 read back from the battery RAM)
   4. after clear 5: the ladder complete (12 / 12, ALL FIGHTERS UNLOCKED), a 6th clear unlocks nothing more
   5. the reset: A+B+C+D held 2 s on the title -> SAVE DATA CLEARED, the MVS hand-back 90 ticks later, power cycle:

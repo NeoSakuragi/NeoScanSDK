@@ -1979,7 +1979,7 @@ static void save_load(void);
 static void save_reset(void);
 static void save_write(void);
 static void title_menu(void) {
-    static const char *const TXT[4] = { "NEW GAME", "CONTINUE STAGE", "CHALLENGERS", "OPTIONS" };
+    static const char *const TXT[4] = { "NEW GAME", "CONTINUE STAGE", "UNLOCKS", "OPTIONS" };
     uint8_t i;
     for (i = 0; i < 4; i++) FIX_print(12, 20 + i, "                  ", 0);
     title_n = 0; title_item[title_n++] = TI_NEW;
@@ -4277,10 +4277,10 @@ static void lad_info(void) {                     /* the line under the front row
     for (i = 0; i < LAD_N; i++) if (lad_rung[i] <= save.rungs) n++;
     FIX_print(0, row, "                                        ", 0);
     if (save.rungs >= LAD_RUNGS) { FIX_print(10, row, "ALL", 0); FIX_printNum(14, row, LAD_N, 0); FIX_print(LAD_N >= 10 ? 17 : 16, row, "FIGHTERS UNLOCKED", 0); return; }
-    c = 3;                                       /* "UNLOCKED n/N - CLEAR THE GAME: +m" (columns 3-36: the TV shows 1-38) */
-    FIX_print(c, row, "UNLOCKED", 0); c += 9; FIX_printNum(c, row, n, 0); c += n >= 10 ? 2 : 1;
+    c = 3;                                       /* "n/N - BEAT THE GAME FOR m MORE" (columns 3-35: the TV shows 1-38) */
+    FIX_printNum(c, row, n, 0); c += n >= 10 ? 2 : 1;
     FIX_print(c++, row, "/", 0); FIX_printNum(c, row, LAD_N, 0); c += LAD_N >= 10 ? 3 : 2;
-    FIX_print(c, row, "- CLEAR THE GAME: +", 0); FIX_printNum(c + 19, row, LAD_RUNG, 0);
+    FIX_print(c, row, "- BEAT THE GAME FOR", 0); FIX_printNum(c + 20, row, LAD_RUNG, 0); FIX_print(c + 22, row, "MORE", 0);
 }
 static void lad_names(uint8_t rung) {            /* the new rung's names, side by side under the headline */
     char t[41];
@@ -4315,7 +4315,7 @@ static void ladder_start(uint8_t from_title) {
     }
     nf = NA;
     if (lad_new && !from_title) FIX_print(14, 2, "GAME CLEAR!", 1);
-    else centre(2, "CHALLENGERS");
+    else centre(2, "UNLOCKS");                  /* (Bruno 2026-10-15: "CHALLENGERS" read as confusing) */
     lad_info();
 }
 static void lad_hide(void) {                     /* back to the title: the actors' sprites off (the title draws none) */
