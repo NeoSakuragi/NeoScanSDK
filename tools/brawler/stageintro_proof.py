@@ -5,7 +5,9 @@ poked to PH_END, its enemies taken off) -> the bonus pick + game (left to time o
 intro phase (in_ph), every fighter's state, the players' x, the camera. Checks: during the fade nobody on screen (every
 fighter OFF) and the stage palettes rise from black; the players appear outside the screen edge, walk in with the input
 locked (P1 holds left + A all through the walk: the walk goes on), stop on their marks; no enemy before the first
-wave's spawn, which comes wave_delay ticks after the arrival. Contact sheet per start.
+wave's spawn, which comes wave_delay ticks after the arrival. Contact sheet per start. 1P then goes on (each stage
+cleared the same way) to the last stage in play: its intro title is "FINAL STAGE" (Bruno 2026-10-15; its stages[].intro
+over stage_intro), read from the built gintro table and on screen (OUT/1p_final_*.png).
 
     python3 stageintro_proof.py [ROM] [OUT]      (default examples/brawler/brawler.neo, /data/tmp/stageintro) -> OUT/proof.json, OUT/*.png"""
 import json, os, sys
@@ -76,15 +78,19 @@ def visible(b, tag):
     return int((abs(a - c).sum(axis=2) > 0).sum()), pa
 
 
-def clear_stage(b):
-    """stage 1 cleared at once: its enemies off, phase PH_END; then on through the clear, the bonus, to stage 2"""
+def clear_stage(b, to=1):
+    """the stage cleared at once: its enemies off, phase PH_END; then on through the clear, the bonus, to stage `to`"""
     OFF = b.states.index('OFF')
+    for _ in range(3000):                                 # (its intro played first: the poke during it is undone)
+        if u8(b, 'in_ph') == 0: break
+        b.run(1)
+    b.run(200)
     for i in range(2, 8): b.fset(i, 'state', OFF)
     b.w(b.syms['tq_n'], 1, 0); b.w(b.syms['phase'], 1, 3)
-    for _ in range(9000):
+    for _ in range(30000):
         b.run(1, 'a' if b.frame % 40 < 2 else '')         # (A: through the screens; the gauge game's one press)
-        if u8(b, 'in_ph') == 1 and u8(b, 'camp') == 1: return
-    raise SystemExit('stage 2 never started')
+        if u8(b, 'in_ph') == 1 and u8(b, 'camp') == to: return
+    raise SystemExit(f'stage {to + 1} never started (mode {u8(b, "mode")} camp {u8(b, "camp")} in_ph {u8(b, "in_ph")})')
 
 
 def sheet(res, path):
@@ -110,6 +116,15 @@ def main():
         res.append(watch(b, tag + '_stage1', 1))
         clear_stage(b)
         res.append(watch(b, tag + '_stage2', 2))
+        if not two:                                       # on to the last stage: FINAL STAGE
+            last = int(open(os.path.join(H.GAME, 'build', 'game_tables.h')).read().split('#define GS_COUNT')[1].split()[0]) - 1
+            for k in range(2, last + 1): clear_stage(b, k)
+            r = watch(b, '1p_final', last + 1)
+            tab = open(os.path.join(H.GAME, 'build', 'game_tables.c')).read().split('gintro[GS_COUNT] = {')[1].split('};')[0]
+            titles = [l.split('"')[1] for l in tab.strip().splitlines()]
+            r['checks']['final_title'] = titles[-1] == 'FINAL STAGE' and all(t.endswith(' START') for t in titles[:-1])
+            r['titles'] = titles; r['ok'] = r['ok'] and r['checks']['final_title']
+            res.append(r)
     sheet(res, os.path.join(OUT, 'sheet.png'))
     for r in res: print(r['tag'], 'OK' if r['ok'] else 'FAIL', 'walk', r['walk_start'], 'arrive', r['arrive'], 'wave', r['wave'], r['checks'])
     json.dump(res, open(os.path.join(OUT, 'proof.json'), 'w'), indent=1)

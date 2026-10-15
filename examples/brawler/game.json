@@ -637,11 +637,10 @@
   ]
  },
  "unlocks": {
-  "about": "The unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build). starters: playable from the start. ladder: the fighters earned in this order, rung_size at a time: each game clear (the last stage's boss beaten, boss_order) unlocks the next rung, kept forever in the save (MVS backup RAM / AES memory card: main.c save_t rungs). No other unlock (the roster's boss_of_stage locks are ignored while this block is here). Only these fighters stand on the select screen (select_layout: a place each, taken in ladder order); every other roster fighter is an enemy only. The select screen draws ONLY the unlocked ones (Bruno 2026-10-15: no silhouettes there): n unlocked = the first n of the ladder order on n consecutive places of select_layout, centred along the street (build_tables.select_layers: places (all - n) / 2 on, one cursor graph per count). The ladder screen (main.c 'the unlock ladder') shows them all on ONE line (screen: feet = their feet's y, from / to = the first's and the last's feet x, evenly spaced between, the middle ones drawn in front; build_tables.ladder_places), locked ones as dark silhouettes: after a game clear (NEW CHALLENGERS!, the new rung revealed) and from the title (CHALLENGERS). The save is cleared on the title with A+B+C+D held 2 s. Edited in the Factory (Characters: Roster & select, the ladder). Removing the block: every selectable fighter from the start again (and the bosses' own locks), the select layout to be re-placed.",
+  "about": "The unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build). starters: playable from the start. rungs: the fighters earned, a rung each game clear, each rung its own size (Bruno 2026-10-15, the beta: Haggar, then Hanzo (SS2) + Haohmaru, then Kim as the final unlock; the older form ladder + rung_size cuts one list into equal rungs): each game clear (the last stage's boss beaten, boss_order) unlocks the next rung, kept forever in the save (MVS backup RAM / AES memory card: main.c save_t rungs). No other unlock (the roster's boss_of_stage locks are ignored while this block is here). Only these fighters stand on the select screen (select_layout: a place each, taken in ladder order); every other roster fighter is an enemy only. The select screen draws ONLY the unlocked ones (Bruno 2026-10-15: no silhouettes there): n unlocked = the first n of the ladder order on n consecutive places of select_layout, centred along the street (build_tables.select_layers: places (all - n) / 2 on, one cursor graph per count). The ladder screen (main.c 'the unlock ladder') shows them all on ONE line (screen: feet = their feet's y, from / to = the first's and the last's feet x, evenly spaced between, the middle ones drawn in front; build_tables.ladder_places), locked ones as dark silhouettes, every fighter shrunk by the hardware to screen.scale / 16 of its size (screen.scale, else from the spacing: build_tables.ladder_scale; 6 fighters 54 px apart: half size; at 7 fighters 45 px apart half size let Haohmaru's sword touch Hanzo: scale 7 then), centred on its place (Bruno 2026-10-15: no overlap): ONLY after a game clear that unlocked a rung (NEW CHALLENGERS!, the new rung revealed; no title entry, Bruno 2026-10-15). The save is cleared on the title with A+B+C+D held 2 s. Edited in the Factory (Characters: Roster & select, the ladder). Removing the block: every selectable fighter from the start again (and the bosses' own locks), the select layout to be re-placed.",
   "starters": ["terry", "robert"],
-  "rung_size": 2,
-  "screen": {"feet": 200, "from": 46, "to": 289},
-  "ladder": ["ryo", "kyo", "iori", "mai", "kim", "haggar", "moriya", "haohmaru", "geese", "krauser"]
+  "rungs": [["haggar"], ["hanzo_ss2", "haohmaru"], ["kim"]],
+  "screen": {"feet": 200, "from": 24, "to": 296}
  },
  "select": {
   "stick": "order",
@@ -671,18 +670,12 @@
   ]
  },
  "select_layout": {
-  "terry": {"x": 224, "y": 210, "z": 8, "facing": "right", "pose": [351, -1], "slot": 0},
-  "robert": {"x": 253, "y": 197, "z": 4, "facing": "right", "pose": [340, -1], "slot": 1},
-  "ryo": {"x": 282, "y": 184, "z": 0, "facing": "right", "pose": [343, -1], "slot": 2},
-  "kyo": {"x": 311, "y": 210, "z": 9, "facing": "right", "pose": [336, -1], "slot": 3},
-  "iori": {"x": 340, "y": 197, "z": 5, "facing": "right", "pose": [342, -1], "slot": 4},
-  "mai": {"x": 369, "y": 184, "z": 1, "facing": "right", "pose": [338, -1], "slot": 5},
-  "kim": {"x": 398, "y": 210, "z": 10, "facing": "left", "pose": [55, 11], "slot": 6},
-  "haggar": {"x": 427, "y": 197, "z": 6, "facing": "left", "pose": [77052, 0], "slot": 7},
-  "moriya": {"x": 456, "y": 184, "z": 2, "facing": "left", "pose": [0, 0], "slot": 8},
-  "haohmaru": {"x": 485, "y": 210, "z": 11, "facing": "left", "pose": [140, -1], "slot": 9},
-  "geese": {"x": 514, "y": 197, "z": 7, "facing": "left", "pose": [210, -1], "slot": 10},
-  "krauser": {"x": 543, "y": 184, "z": 3, "facing": "left", "pose": [215, -1], "slot": 11}
+  "terry": {"x": 297, "y": 184, "z": 0, "facing": "right", "pose": [351, -1], "slot": 0},
+  "robert": {"x": 326, "y": 210, "z": 4, "facing": "right", "pose": [340, -1], "slot": 1},
+  "haggar": {"x": 355, "y": 197, "z": 2, "facing": "right", "pose": [77052, 0], "slot": 2},
+  "hanzo_ss2": {"x": 384, "y": 184, "z": 1, "facing": "left", "pose": [140, -1], "slot": 3},
+  "haohmaru": {"x": 413, "y": 210, "z": 5, "facing": "left", "pose": [140, -1], "slot": 4},
+  "kim": {"x": 442, "y": 197, "z": 3, "facing": "left", "pose": [55, 11], "slot": 5}
  },
 
 
@@ -1385,6 +1378,7 @@
   },
   {
    "name": "STAGE 4",
+   "intro": {"title": "FINAL STAGE"},
    "background": 5,
    "music": "FIGHT",
    "power": 2,

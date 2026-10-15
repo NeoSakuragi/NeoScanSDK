@@ -37,8 +37,8 @@ grabs, down+D reversal when threatened) against weak enemies (AI preset `minion_
 INSERT COIN blinking, 1800 frames (30 s, KOF98's demo fight from ROUND 1); then it hands back to the BIOS, which starts
 the cycle again. KOF98 also plays its intro before the logo and its ranking (240 frames) after the fight, and its header
 asks for the game's own eye-catcher (request 1, the NEOGEO logo, 466 frames between cycles); ours skips it (header 2). Coin (keyboard 3), or any credit in the count during the logo / demo (KOF98 does the same;
-SNK's MVS BIOS does not end the demo by itself, TODO #209): title screen (banner, PRESS START in INSERT COIN's place; NEW GAME / CONTINUE STAGE n when a save is
-past stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
+SNK's MVS BIOS does not end the demo by itself, TODO #209): title screen (banner, PRESS START in INSERT COIN's place; NEW GAME, + OPTIONS on the AES; no CONTINUE STAGE since
+2026-10-15: every new game starts from stage 1); START (keyboard 1) takes a credit -> character select -> the campaign. Game over / the ending: back to
 the BIOS (attract, or the title while credits remain). AES (Unibios AES mode, no coin): START in the demo -> the title.
 
 ## Versions, publishing, Android player
@@ -74,33 +74,32 @@ slot, so the watch pose is the closest front-facing frame (KOF98 / 99 intros 347
 HUD portraits (32x32 fix layer) stay for the fight.
 
 ## The unlock ladder and the beta's cast (Bruno 2026-10-15, decisions set unlocks)
-Start: Terry and Robert. Each game clear (the last stage's boss, Rugal, beaten) unlocks the next 2 fighters, kept
-forever in the save; no other unlock. The ladder (game.json `unlocks`: starters, ladder, rung_size; Factory: Characters,
-Roster & select: a Ladder picker on each row, the rung size, the ladder in one line):
+Start: Terry and Robert. Each game clear (the last stage's boss, Rugal, beaten) unlocks the next rung, kept forever in
+the save; no other unlock. The ladder (game.json `unlocks`: starters, rungs, each rung its own size; Factory:
+Characters, Roster & select: a Ladder picker on each row (Start / Rung n / New rung / off), the rungs with up / down /
+remove):
 
 | rung | fighters |
 |---|---|
 | start | Terry, Robert |
-| 1 | Ryo, Kyo |
-| 2 | Iori, Mai |
-| 3 | Kim, Haggar |
-| 4 | Moriya, Haohmaru |
-| 5 | Geese, Krauser |
+| 1 | Haggar |
+| 2 | Hanzo (SS2), Haohmaru |
+| 3 (final) | Kim |
 
-Only these 12 stand on the select screen (12 places along the street in ladder order, x 224-543, the three depth rows in
+Only these 6 stand on the select screen (6 places along the street in ladder order, x 297-442, the three depth rows in
 turn), and only the UNLOCKED ones are drawn there (Bruno 2026-10-15: no silhouettes on the select screen): n unlocked =
-the first n of the ladder order on the n middle places (places (12 - n) / 2 on: 2 = places 6-7, 4 = 5-8 ... 12 = all;
+the first n of the ladder order on the n middle places (places (6 - n) / 2 on;
 build_tables.select_layers, a cursor graph per count: sel_stick / sel_vert [layer]); every other roster fighter is an
 enemy only. Goenitz is out of the
 build (game.json roster_benched, Lab-only; his enemy, portrait, drama, story in `benched`, his song in songs.json
-songs_benched). The ladder screen (mode 7, main.c "the unlock ladder"): the 12 at once on ONE line (feet y 200, ladder
-order left to right, feet x 46-289 evenly spaced, the middle ones in front: game.json unlocks.screen,
-build_tables.ladder_places), locked ones as dark silhouettes of their select pose, unlocked ones in colour, UNLOCKED n/12 and what the
+songs_benched). The ladder screen (mode 7, main.c "the unlock ladder"): the 6 at once on ONE line (feet y 200, ladder
+order left to right, feet x 24-296 evenly spaced, half size by the hardware shrink and centred on their places so none
+overlaps (Bruno 2026-10-15): game.json unlocks.screen, build_tables.ladder_places / ladder_scale), locked ones as dark silhouettes of their select pose, unlocked ones in colour, UNLOCKED n/12 and what the
 next clear brings on the bottom line. After a game clear (the ending's THANK YOU): GAME CLEAR!, the new rung still dark,
 then flashing white / dark, then in colour playing their win pose with their select voice, NEW CHALLENGERS! in the big
 font (game.json big_text.ladder) and their names; A-D / START after 4 s (or 12 s) -> back to the BIOS (which commits the
-MVS save). From the title: CHALLENGERS (MVS and AES; no credit taken), any button back. The attract demo plays any of the
-12 whatever the save; the Lab builds keep the whole roster. Reset: the title's A+B+C+D held 2 s (SAVE DATA CLEARED; on
+MVS save). Shown ONLY after a clear that unlocked a rung (Bruno 2026-10-15: no title entry; all unlocked: the clear
+hands straight back to the BIOS). The attract demo plays any of the 6 whatever the save; the Lab builds keep the whole roster. Reset: the title's A+B+C+D held 2 s (SAVE DATA CLEARED; on
 MVS the game hands back to the BIOS 1.5 s later so the cleared block reaches the battery RAM). Proof:
 tools/brawler/unlock_proof.py (fresh / after 1 clear / after all, select 2 / 4 / 12, power cycles, the reset; /data/tmp/unlock_beta).
 
@@ -196,8 +195,9 @@ read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 
 - AES: the memory card through the BIOS CARD call ($C00468): CARD_LOAD on the title (and at power-on), CARD_SAVE at
   once after each stage (FCB $0999, sub 0, 16 bytes). Measured in AES mode: answer 0, the record in `brawler.mcr`
   ($142), read back after a power-off mid-game: CONTINUE STAGE 2.
-- Title: stick up / down = NEW GAME or CONTINUE STAGE n (n = furthest + 1), then START; A+B+C+D held 2 s clears the
-  save ("SAVE DATA CLEARED").
+- Title: NEW GAME (AES: + OPTIONS), then START; no CONTINUE STAGE (Bruno 2026-10-15: "There is no resume: every new
+  game starts from stage 1"; the save's `furthest` is no longer written); A+B+C+D held 2 s clears the save ("SAVE DATA
+  CLEARED"). The last stage's intro reads FINAL STAGE (game.json stages[].intro.title).
 - Our emulator persists both: Geolith writes `<rom>.nv` (MVS battery RAM) and `<rom>.mcr` (card) to its save dir
   (neogeo_sdl: ~/.config/retroarch/saves) when the game is unloaded (quit, reset, end of a capture), and loads them
   at start. tools/brawler/harness.py: the core now gets persistent path buffers (its save dir pointer dangled, so

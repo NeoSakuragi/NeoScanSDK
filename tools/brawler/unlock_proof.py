@@ -4,17 +4,21 @@ our emulator (harness.py, the arcade system mvs-mvs = SNK's MVS BIOS, a fresh sa
 
   0. the ladder screen's places (build_tables.ladder_places): every ladder fighter on ONE line (one feet y), in ladder
      order left to right, evenly spaced, on the screen
-  1. power on, coin, the title: UNLOCKS -> the ladder screen (fresh: the 2 starters in colour, 10 silhouettes),
-     back to the title; NEW GAME -> the select screen (ONLY the 2 starters drawn, on the layout's 2 middle places:
-     build_tables.select_layers; the cursor walk reaches only them; the same after each power cycle: 4, 12)
+  1. power on, coin, the title: NEW GAME only (MVS), NO ladder line in its menu (Bruno 2026-10-15: "only show this at
+     the end of the game when there is an unlocking") and no CONTINUE STAGE, even after clears (Bruno 2026-10-15: "There
+     is no resume: every new game starts from stage 1"); NEW GAME -> the select screen (ONLY the 2 starters drawn, on the layout's 2 middle
+     places: build_tables.select_layers; the cursor walk reaches only them; the same after each power cycle: 4, 12)
   2. a game clear x5 (scenario.py's stage mode: the last stage, its boss at 1 life, killed; then the ending passed with
      START, as a player does): each clear's ladder screen (the new rung revealed: silhouette -> white flash -> colour,
-     NEW CHALLENGERS!), then the hand-back to the BIOS (which commits the MVS backup RAM)
-  3. after clear 1: a POWER CYCLE (the core writes the .nv and loads it again): the title's UNLOCKS screen and the
-     select screen show 4 fighters (save.rungs = 1 read back from the battery RAM)
-  4. after clear 5: the ladder complete (12 / 12, ALL FIGHTERS UNLOCKED), a 6th clear unlocks nothing more
+     NEW CHALLENGERS!), every fighter drawn at half size (the hardware shrink) with NO overlap: on the screenshot, the
+     fighters' band (feet - 100 .. feet) has no lit pixel column holding two fighters' feet x (each fighter's drawn box
+     disjoint from its neighbours'), then the hand-back to the BIOS (which commits the MVS backup RAM)
+  3. after clear 1: a POWER CYCLE (the core writes the .nv and loads it again): the select screen shows 4 fighters
+     (save.rungs = 1 read back from the battery RAM)
+  4. after the last rung's clear (3 in the beta: Haohmaru + Hanzo, Kyo + Kim, Haggar alone) the ladder complete, one more clear unlocks nothing: NO ladder screen, the ending hands
+     straight back to the BIOS (the title / demo again)
   5. the reset: A+B+C+D held 2 s on the title -> SAVE DATA CLEARED, the MVS hand-back 90 ticks later, power cycle:
-     the ladder fresh again
+     save.rungs 0 again
   6. the attract demo plays a ladder fighter whatever the save (unaffected)
 
     python3 unlock_proof.py [GAME_DIR] [OUT]      (default examples/brawler, /data/tmp/unlock) -> OUT/*.png, OUT/proof.txt"""
@@ -71,8 +75,16 @@ def to_title():
     b.run(40)
 
 
+def title_check(tag):
+    """the title's menu: NEW GAME (+ OPTIONS on the AES): no CONTINUE STAGE (Bruno 2026-10-15: every new game starts
+    from stage 1), no ladder line (main.c TI_NEW 0, TI_OPT 1); a screenshot of it"""
+    n = b.r(Y['title_n'], 1); it = [b.r(Y['title_item'] + i, 1) for i in range(n)]
+    shot('title_' + tag.replace(' ', '_'))
+    say(f'{tag}: the title menu {[("NEW GAME", "OPTIONS")[i] for i in it]} (MVS: NEW GAME only: no CONTINUE, no OPTIONS, no ladder line)', it == [0])
+
+
 def title_pick(item):
-    """the title's cursor onto item (main.c TI_NEW 0, TI_CONT 1, TI_LAD 2), then A"""
+    """the title's cursor onto item (main.c TI_NEW 0, TI_OPT 1), then A"""
     for k in range(8):
         if b.r(Y['title_item'] + b.r(Y['title_sel'], 1), 1) == item: break
         b.seq('4:D,12:-' if k < 4 else '4:U,12:-')
@@ -80,13 +92,27 @@ def title_pick(item):
     b.seq('4:a,2:-')
 
 
-def ladder_view(tag):
-    title_pick(2)
-    wait(lambda: mode() == 7, 'the ladder screen', 60)
-    b.run(40); p = shot(tag)
-    b.seq('4:a,30:-')
-    say(f'{tag}: the ladder from the title (save.rungs {rungs()}), back to the title: mode {mode()}', mode() == 2)
-    return p
+def apart(path):
+    """the fighters' band on a ladder screenshot: its lit pixel columns' runs (not the backdrop); each run may hold at
+    most one fighter's feet x (two = their bodies touch or overlap) -> (ok, runs, feet x)"""
+    from PIL import Image
+    from collections import Counter
+    im = Image.open(path).convert('RGB'); W, Hh = im.size; x0 = (320 - W) // 2   # (the screenshot: x 8-311, 304 px)
+    feet = P[0][3]
+    band = range(feet - 90, feet - 1)                   # (above the info line under the feet)
+    bg = Counter(im.getpixel((x, y)) for x in range(W) for y in band).most_common(1)[0][0]   # the backdrop
+    lit = [x0 <= x < x0 + W and any(im.getpixel((x - x0, y)) != bg for y in band) for x in range(320)]
+    runs, x = [], 0
+    while x < 320:
+        if lit[x]:
+            x0 = x
+            while x < 320 and lit[x]: x += 1
+            runs.append((x0, x - 1))
+        else: x += 1
+    fx = [e[2] for e in P]
+    worst = max(sum(r0 - 1 <= f <= r1 + 1 for f in fx) for r0, r1 in runs) if runs else 0
+    owned = sum(any(r0 - 1 <= f <= r1 + 1 for r0, r1 in runs) for f in fx)
+    return worst <= 1 and owned >= len(fx) - 1, runs, fx
 
 
 def select_view(tag):
@@ -101,7 +127,7 @@ def select_view(tag):
         if c in seen: break
         seen.append(c); b.run(4, 'R'); b.run(12)
     got = [names[sc[s]] for s in seen]
-    want = U['starters'] + U['ladder'][:U['rung_size'] * rungs()]
+    want = U['starters'] + [f for c in U['rungs'][:rungs()] for f in c]
     say(f'{tag}: {nslot} select slots, the cursor reaches {len(got)}: {" ".join(got)}', sorted(got) == sorted(want) and nslot == len(U['all']))
     act = [b.r(Y['slot_act'] + i, 1) for i in range(nslot)]   # only the unlocked ones drawn (Bruno 2026-10-15: no silhouettes)
     drawn = [names[sc[s]] for s in range(nslot) if act[s] != 0xFF]
@@ -114,7 +140,8 @@ def select_view(tag):
 
 
 def clear(k):
-    """a game clear: the last stage, its boss at 1 life killed (scenario stage mode), the ending passed with START"""
+    """a game clear: the last stage, its boss at 1 life killed (scenario stage mode), the ending passed with START; the
+    ladder screen only when it unlocked a rung"""
     r0 = rungs()
     scenario.setup(b, {'setup': {'mode': 'stage', 'fighter': 'terry', 'stage': NST - 1, 'wave': len(G['stages'][-1]['waves']),
                                  'wait': 150, 'alone': True, 'foe_hp': 1, 'gap': 36}})
@@ -124,14 +151,21 @@ def clear(k):
     wait(lambda: mode() == 4, 'the ending', 4000)
     r1 = rungs()
     for _ in range(4000):                                 # the ending's screens, START every 70 frames
-        if mode() == 7: break
+        if mode() in (7, 1, 2): break                     # (the ladder; or the title / attract demo after the hand-back)
         b.run(1, 's' if b.frame % 70 == 0 else '')
+    if r1 == r0:                                          # nothing unlocked: no ladder screen
+        say(f'clear {k}: save.rungs {r0} -> {r1} (all unlocked), NO ladder screen: the hand-back to the BIOS (mode {mode()})', mode() in (1, 2))
+        shot(f'clear{k}_after')
+        return
     assert mode() == 7, 'no ladder screen after the ending'
     new = b.r(Y['lad_new'], 1)
     say(f'clear {k}: save.rungs {r0} -> {r1} at the game clear, the ladder screen shows rung {new} new', r1 == min(r0 + 1, len(U['rungs'])) and new == (r1 if r1 > r0 else 0))
     for t, at in (('a', 30), ('b', 64), ('c', 70), ('d', 76), ('e', 90), ('f', 200)):
         while b.r(Y['lad_t'], 2) < at: b.run(1)
-        shot(f'clear{k}_{t}_t{at}')
+        p = shot(f'clear{k}_{t}_t{at}')
+        if t in ('a', 'f'):
+            ok, runs, fx = apart(p)
+            say(f'clear {k} t{at}: no overlap: {len(runs)} lit runs in the fighters\' band {runs}, feet x {fx}', ok)
     b.run(260 - b.r(Y['lad_t'], 2)); b.seq('4:a,2:-')
     wait(lambda: mode() != 7, 'the hand-back', 600)
     say(f'clear {k}: A after the reveal -> back to the BIOS (mode {mode()})')
@@ -141,21 +175,22 @@ say(lines_pre[0], ok_pre)
 b.core.retro_reset(); b.frame = 0
 to_title()
 say(f'fresh save: save.rungs {rungs()}', rungs() == 0)
-ladder_view('ladder_fresh')
+title_check('fresh')
 got = select_view('select_fresh')
 clear(1)
 b.power_cycle(); b.frame = 0
 to_title()
 say(f'power cycle after clear 1: save.rungs {rungs()} read back from the battery RAM (.nv)', rungs() == 1)
-ladder_view('ladder_after1')
+title_check('after clear 1')
 select_view('select_after1')
-for k in range(2, 6): clear(k)
+NR = len(U['rungs'])
+for k in range(2, NR + 1): clear(k)
 b.power_cycle(); b.frame = 0
 to_title()
-say(f'power cycle after clear 5: save.rungs {rungs()}', rungs() == len(U['rungs']))
-ladder_view('ladder_all')
+say(f'power cycle after clear {NR} (the last rung): save.rungs {rungs()}', rungs() == NR)
+title_check(f'after clear {NR}')
 select_view('select_all')
-clear(6)
+clear(NR + 1)
 b.power_cycle(); b.frame = 0
 to_title()
 for _ in range(130): b.run(1, 'abcd')
@@ -165,7 +200,6 @@ say('A+B+C+D 2 s on the title: SAVE DATA CLEARED, then the hand-back to the BIOS
 b.run(300); b.power_cycle(); b.frame = 0
 to_title()
 say(f'power cycle after the reset: save.rungs {rungs()}', rungs() == 0)
-ladder_view('ladder_reset')
 # the attract demo: a ladder fighter even with nothing unlocked
 b.core.retro_reset(); b.frame = 0
 wait(lambda: mode() == 1 and b.r(Y['attract'], 1), 'the attract demo', 3000)

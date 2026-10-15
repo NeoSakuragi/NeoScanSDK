@@ -7,9 +7,12 @@
 // free place. Edits = the "roster" draft section (feedback-api/lab/roster: {selectable: {f: bool}, layout?}), shipped by
 // Ship pending changes (the Build tab). factory.js: FactoryRoster.poll(lab/roster, rows) each poll, .card() in the cast
 // view, .pending() for the Build tab.
-// The unlock ladder (game.json unlocks, Bruno 2026-10-15; roster.py state.unlocks): who is playable from the start and in
-// which rung each other fighter is earned (one rung a game clear); a Ladder picker on each row (Start, 1..n, "-" = off the
-// select screen, an enemy only), the rung size, and the ladder in one line. Edits = the draft's `unlocks`, shipped the same way.
+// The unlock ladder (game.json unlocks {starters, rungs}, Bruno 2026-10-15 "make the ladder data driven so that I can
+// modify it from the Factory"; roster.py state.unlocks): who is playable from the start and in which rung each other
+// fighter is earned (one rung a game clear, any number of fighters a rung). A Ladder picker on each row (Start, Rung 1..n,
+// New rung, "-" = off the select screen, an enemy only) moves a fighter; the ladder card lists the rungs, each with up /
+// down (its place in the order) and x (the rung off the ladder: its fighters enemies only); a rung left empty is dropped.
+// Edits = the draft's `unlocks`, shipped the same way (roster.py merge rewrites game.json unlocks.starters / .rungs).
 (function () {
   'use strict';
   const LAB = 'feedback-api/lab/';
@@ -29,21 +32,29 @@
   const layoutChanged = () => !!(D.draft && D.draft.layout && !eq(norm(D.draft.layout), norm(G().layout)));
   const norm = L => Object.keys(L).sort().map(n => [n, L[n].x, L[n].y, L[n].z, L[n].facing, L[n].pose, L[n].slot]);
   const nSel = () => G().fighters.filter(f => wantSel(f.name)).length;
-  // the unlock ladder: the draft's (else the game's) {starters, ladder, rung_size}; a fighter's rung: 0 start, k, null off
+  // the unlock ladder: the draft's (else the game's) {starters, rungs: [[fighter]]}; a fighter's rung: 0 start, k, null off
   const UL = () => (D.draft && D.draft.unlocks) || (G() && G().unlocks) || null;
   const ulChanged = () => !!(D.draft && D.draft.unlocks && G().unlocks && !eq(D.draft.unlocks, G().unlocks));
-  function rungOf(U, n) { if (U.starters.includes(n)) return 0; const i = U.ladder.indexOf(n); return i < 0 ? null : 1 + Math.floor(i / U.rung_size); }
-  function setRung(n, r, size) {                       // the fighter into rung r (0 start, null off): the ladder rebuilt in rung order
-    const U = clone(UL()), sz = size || U.rung_size, rk = {};
-    for (const f of U.starters) rk[f] = 0;
-    U.ladder.forEach((f, i) => { rk[f] = 1 + Math.floor(i / U.rung_size); });
-    if (n) { if (r === null) delete rk[n]; else rk[n] = r; }
-    const prev = [...U.starters, ...U.ladder];
-    const by = (a, b) => (rk[a] - rk[b]) || ((prev.indexOf(a) < 0 ? 99 : prev.indexOf(a)) - (prev.indexOf(b) < 0 ? 99 : prev.indexOf(b)));
-    const all = Object.keys(rk).sort(by);
-    const out = { starters: all.filter(f => rk[f] === 0), ladder: all.filter(f => rk[f] > 0), rung_size: sz };
-    save(selBody({}, undefined, out), n ? (G().fighters.find(f => f.name === n) || {}).display + ': ' + (r === null ? 'off the ladder' : r ? 'rung ' + r : 'a starter') : 'Rung size ' + sz)
-      .catch(() => {});
+  function rungOf(U, n) { if (U.starters.includes(n)) return 0; const i = U.rungs.findIndex(r => r.includes(n)); return i < 0 ? null : i + 1; }
+  const dn = n => (G().fighters.find(f => f.name === n) || {}).display || n;
+  function saveUL(U, what) {                           // empty rungs dropped; at least one starter (the ship refuses none)
+    U.rungs = U.rungs.filter(r => r.length);
+    if (!U.starters.length) { msg.className = 'msg bad'; msg.textContent = 'At least one fighter must be playable from the start.'; return draw(); }
+    save(selBody({}, undefined, U), what).catch(() => {});
+  }
+  function setRung(n, r) {                             // the fighter into rung r (0 start, rungs.length + 1 a new rung, null off)
+    const U = clone(UL());
+    U.starters = U.starters.filter(f => f !== n); U.rungs = U.rungs.map(c => c.filter(f => f !== n));
+    if (r === 0) U.starters.push(n);
+    else if (r !== null) { if (r > U.rungs.length) U.rungs.push([n]); else U.rungs[r - 1].push(n); }
+    saveUL(U, dn(n) + ': ' + (r === null ? 'off the ladder' : r ? 'rung ' + Math.min(r, U.rungs.length) : 'a starter'));
+  }
+  function moveRung(k, d) {                            // rung k (0-based) up (-1) / down (+1) the order; d 0: the rung off the ladder
+    const U = clone(UL());
+    if (!d) { const gone = U.rungs.splice(k, 1)[0]; return saveUL(U, 'Rung ' + (k + 1) + ' off the ladder (' + gone.map(dn).join(', ') + ': enemies only)'); }
+    const j = k + d; if (j < 0 || j >= U.rungs.length) return;
+    [U.rungs[k], U.rungs[j]] = [U.rungs[j], U.rungs[k]];
+    saveUL(U, 'Rung ' + (k + 1) + ' now rung ' + (j + 1));
   }
 
   // roster.py free_place / place, the same rules (the server places a fighter the draft leaves without a place)
@@ -104,8 +115,8 @@
     const place = on ? (U && rg === null ? 'enemy only' : f.place ? 'place ' + f.place : 'a free place') : 'Lab only';
     const lad = U && on ? h('select', { class: 'rung', 'aria-label': 'Ladder: ' + f.display, title: 'Unlock ladder: Start = playable at once, 1..n = earned by the n-th game clear, - = off the select screen',
       disabled: o ? '' : null, onchange: e => setRung(f.name, e.target.value === '-' ? null : +e.target.value) },
-      ['-', 0, ...Array.from({ length: Math.ceil(U.ladder.length / U.rung_size) + 1 }, (_, i) => i + 1)].map(v =>
-        h('option', { value: String(v), selected: (v === '-' ? rg === null : rg === v) ? '' : null }, v === '-' ? '–' : v === 0 ? 'Start' : 'Rung ' + v))) : null;
+      ['-', 0, ...Array.from({ length: U.rungs.length + (rg && U.rungs[rg - 1].length === 1 ? 0 : 1) }, (_, i) => i + 1)].map(v =>
+        h('option', { value: String(v), selected: (v === '-' ? rg === null : rg === v) ? '' : null }, v === '-' ? '–' : v === 0 ? 'Start' : v > U.rungs.length ? 'New rung' : 'Rung ' + v))) : null;
     return h('div', { class: 'rrow' + (ch ? ' ch' : ''), title: can ? '' : 'in the game\'s data (only a fighter brought from the Lab goes back there)' },
       faces[f.name] ? h('img', { src: faces[f.name], alt: '', width: '28', height: '28', loading: 'lazy' }) : h('span', { class: 'noface' }),
       h('span', { class: 'rn' }, h('b', { text: f.display }), h('small', { text: place + ' · ' + theme(f) + (!UL() && f.locked ? ' · locked: boss of stage ' + (f.unlock.boss_of_stage || '?') : '') + (f.face ? '' : ' · NO FACE') })),
@@ -124,13 +135,13 @@
     const added = G().fighters.filter(f => wantSel(f.name) && !f.selectable);
     const n = changed().length + (layoutChanged() ? 1 : 0) + (ulChanged() ? 1 : 0);
     const U = UL(), nm = f => (G().fighters.find(x => x.name === f) || {}).display || f;
-    const ladder = U ? h('div', { class: 'ladder' }, h('p', { class: 'rnote' }, h('b', { text: 'Unlock ladder' }), ' (one rung a game clear) · rung size ',
-        h('select', { 'aria-label': 'Fighters a rung', disabled: openShip() ? '' : null, onchange: e => setRung(null, null, +e.target.value) },
-          [1, 2, 3, 4, 5, 6].map(v => h('option', { value: String(v), selected: v === U.rung_size ? '' : null }, String(v)))),
+    const lk = !!openShip(), bt = (t, lab, f, off) => h('button', { type: 'button', class: 'rb', text: t, 'aria-label': lab, title: lab, disabled: lk || off ? '' : null, onclick: f });
+    const ladder = U ? h('div', { class: 'ladder' }, h('p', { class: 'rnote' }, h('b', { text: 'Unlock ladder' }), ' (one rung a game clear; move a fighter with his row\'s picker)',
         ulChanged() ? h('span', { class: 'tag edit', text: 'unshipped' }) : null),
-      h('p', { class: 'rnote', text: 'Start: ' + U.starters.map(nm).join(', ') + Array.from({ length: Math.ceil(U.ladder.length / U.rung_size) }, (_, k) =>
-        ' · ' + (k + 1) + ': ' + U.ladder.slice(k * U.rung_size, (k + 1) * U.rung_size).map(nm).join(', ')).join('') +
-        (U.ladder.length % U.rung_size ? ' (the last rung is short: the ship refuses it)' : '') })) : null;
+      h('div', { class: 'lrung' }, h('span', { class: 'lk', text: 'Start' }), h('span', { class: 'lf', text: U.starters.map(nm).join(', ') || '(none)' })),
+      U.rungs.map((r, k) => h('div', { class: 'lrung' }, h('span', { class: 'lk', text: 'Rung ' + (k + 1) }), h('span', { class: 'lf', text: r.map(nm).join(', ') }),
+        bt('↑', 'Rung ' + (k + 1) + ' earlier', () => moveRung(k, -1), k === 0), bt('↓', 'Rung ' + (k + 1) + ' later', () => moveRung(k, 1), k === U.rungs.length - 1),
+        bt('✕', 'Rung ' + (k + 1) + ' off the ladder (enemies only)', () => moveRung(k, 0))))) : null;
     root.replaceChildren(
       h('h2', {}, 'Roster & select', h('span', { class: 'sp' }), h('span', { class: 'gcount', text: n ? n + ' unshipped' : 'all in game' }), ' · ', h('span', { class: 'gv', text: nSel() + ' of ' + G().max + ' places' })),
       ladder,

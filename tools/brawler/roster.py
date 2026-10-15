@@ -9,7 +9,7 @@ lab/roster), shipped by the ship service (labcfg.py SECTIONS "roster") like the 
                                            room left (C ROM, P banks: bank_proof.py on the build), JSON on stdout
     roster.py merge GAME_DIR DRAFT.json    the draft {selectable: {fighter: true | false}, layout: {fighter: {x, y, z,
                                            facing, pose, slot}} (optional: the Select screen editor's), unlocks:
-                                           {starters, ladder, rung_size} (optional: the unlock ladder)} into game.json:
+                                           {starters, rungs: [[fighter]]} (optional: the unlock ladder)} into game.json:
                                            a Lab-only fighter moved onto the roster (or back), select_layout rewritten,
                                            validated: "roster: moriya selectable" / "select: moriya at place 10 of 25
                                            (x 728, y 210)" lines, or "REFUSED: <reason>" and exit 1, game.json untouched
@@ -23,9 +23,11 @@ songs.json has it, else the stage's song; no song is dropped from the sound ROM 
 C ROM / bank room is checked by the ship's own build + bank_proof.py (ALL OK).
 
 The unlock ladder (game.json unlocks, Bruno 2026-10-15; build_tables.unlocks): while it is there, only its fighters (the
-starters + the ladder) stand on the select screen; the draft's `unlocks` rewrites its starters / ladder / rung_size lines
-(build_tables.unlocks' checks: roster fighters, each once, whole rungs), a fighter new on the ladder takes the free place,
-one taken off it leaves the select screen (an enemy only). "unlocks: ..." lines say what changed."""
+starters + the rungs) stand on the select screen; the draft's `unlocks` {starters, rungs} (Bruno 2026-10-15: "make the
+ladder data driven so that I can modify it from the Factory": any number of fighters a rung) rewrites its starters and
+rungs lines (an older ladder / rung_size pair becomes rungs; build_tables.unlocks' checks: selectable roster fighters,
+each once, at least one starter, 1-6 a rung), a fighter new on the ladder takes the free place, one taken off it leaves
+the select screen (an enemy only). "unlocks: ..." lines say what changed."""
 import json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -106,7 +108,7 @@ def state(game, with_room=True):
                    'unlock': r.get('unlock', 'always'), 'rung': rung.get(n) if U else None, 'music': mu, 'music_ok': bool(mu and mu in S),
                    'place': order.index(n) + 1 if n in L else None, 'pose': [r['watch']['frame'], r['watch']['step']]})
     return {'fighters': fs, 'layout': L, 'max': MAX,
-            'unlocks': {k: U[k] for k in ('starters', 'ladder', 'rung_size')} if U else None, 'stick': g['select'].get('stick', 'positions'),
+            'unlocks': {'starters': U['starters'], 'rungs': U['rungs']} if U else None, 'stick': g['select'].get('stick', 'positions'),
             'free': dict(zip(('x', 'y'), free_place(L))), 'room': room(game) if with_room else None,
             'version': open(os.path.join(game, 'VERSION')).read().strip()}
 
@@ -206,14 +208,15 @@ def check(game, draft):
     U0 = build_tables.unlocks(g); Ud = draft.get('unlocks'); U = U0
     if Ud is not None:
         if not U0: raise ValueError('unlocks: game.json has no unlocks block (the ladder is switched off)')
-        if not isinstance(Ud, dict) or set(Ud) != {'starters', 'ladder', 'rung_size'}: raise ValueError('unlocks: {starters, ladder, rung_size}')
+        if not isinstance(Ud, dict) or set(Ud) != {'starters', 'rungs'}: raise ValueError('unlocks: {starters, rungs}')
         on = {r['name'] for r in g['roster'] if r.get('selectable', True)} | {n for n, t in moves if t}
         on -= {n for n, t in moves if not t}
-        g2 = dict(g, roster=[{'name': n} for n in sorted(on)], unlocks=dict(g['unlocks'], **Ud))
+        ub = {k: v for k, v in g['unlocks'].items() if k not in ('ladder', 'rung_size')}
+        g2 = dict(g, roster=[{'name': n} for n in sorted(on)], unlocks=dict(ub, **Ud))
         try: U = build_tables.unlocks(g2)
-        except AssertionError as e: raise ValueError(str(e))
-        for k, w in (('starters', 'the starters'), ('ladder', 'the ladder'), ('rung_size', 'a rung')):
-            if Ud[k] != U0[k]: lines.append(f'unlocks: {w} ' + (' '.join(Ud[k]) if k != 'rung_size' else f'{Ud[k]} fighters'))
+        except (AssertionError, TypeError) as e: raise ValueError(str(e))
+        if Ud['starters'] != U0['starters']: lines.append('unlocks: the starters ' + ' '.join(Ud['starters']))
+        if Ud['rungs'] != U0['rungs']: lines.append('unlocks: the rungs ' + ' | '.join(' '.join(r) for r in Ud['rungs']))
     if U:                                                # (the ladder: only its fighters on the screen, every one)
         on = ({r['name'] for r in g['roster'] if r.get('selectable', True)} | {n for n, t in moves if t}) - {n for n, t in moves if not t}
         sel = {n for n in on if n in U['all']}
@@ -252,14 +255,26 @@ def check(game, draft):
     return moves, L, lines, (Ud if Ud is not None and U0 and any(Ud[k] != U0[k] for k in Ud) else None)
 
 
+def _rungs_json(rg):
+    return '[' + ', '.join('[' + ', '.join(json.dumps(f) for f in r) + ']' for r in rg) + ']'
+
+
 def unlocks_text(text, U):
-    """game.json text with its unlocks block's starters / rung_size / ladder lines rewritten (one line each)"""
+    """game.json text with its unlocks block's starters / rungs lines rewritten (one line each; an older ladder +
+    rung_size pair replaced by the rungs line)"""
     k = text.index('\n "unlocks": {'); e = text.index('\n }', k)
     blk = text[k:e]
-    for f in ('starters', 'rung_size', 'ladder'):
-        blk, n = re.subn(r'(\n  "' + f + r'": )[^\n]*?(,?)$', lambda m: m.group(1) + json.dumps(U[f]) + m.group(2), blk, count=1, flags=re.M)
-        assert n == 1, f'unlocks.{f}: not one line'
-    return text[:k] + blk + text[e:]
+    blk, n = re.subn(r'(\n  "starters": )[^\n]*?(,?)$', lambda m: m.group(1) + json.dumps(U['starters']) + m.group(2), blk, count=1, flags=re.M)
+    assert n == 1, 'unlocks.starters: not one line'
+    blk = re.sub(r'\n  "(ladder|rung_size)": [^\n]*', '', blk)
+    if re.search(r'\n  "rungs": ', blk):
+        blk, n = re.subn(r'(\n  "rungs": )[^\n]*?(,?)$', lambda m: m.group(1) + _rungs_json(U['rungs']) + m.group(2), blk, count=1, flags=re.M)
+        assert n == 1, 'unlocks.rungs: not one line'
+    else: blk = re.sub(r'(\n  "starters": [^\n]*?,)$', lambda m: m.group(1) + '\n  "rungs": ' + _rungs_json(U['rungs']) + ',', blk, count=1, flags=re.M)
+    blk = re.sub(r',(\n?)$', r'\1', blk)                # (the block's last line: no comma)
+    out = text[:k] + blk + text[e:]
+    json.loads(out)
+    return out
 
 
 def write(game, moves, L, U=None):

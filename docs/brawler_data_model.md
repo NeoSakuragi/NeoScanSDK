@@ -168,25 +168,26 @@ Rugal, Goenitz x 685-714), the playable fighters fill the places around the midd
 (places, facings, rows and slots unchanged; each fighter keeps its pose).
 
 **The unlock ladder** (game.json `unlocks`, Bruno 2026-10-15, decisions set unlocks: the beta build; build_tables.py
-`unlocks` / `ladder_places`, main.c "the unlock ladder"; edited in the Factory's Roster & select: a Ladder picker per
-fighter + the rung size, roster.py merge):
+`unlocks` / `ladder_places`, main.c "the unlock ladder"; edited in the Factory's Roster & select, roster.py merge):
 
 | field | example | meaning |
 |---|---|---|
 | `starters` | `["terry", "robert"]` | playable from the start |
-| `ladder` | `["ryo", "kyo", "iori", "mai", ...]` | the fighters earned, in order, `rung_size` at a time: each game clear (the last stage in play's boss beaten) unlocks the next rung |
-| `rung_size` | `2` | fighters a rung (the ladder: whole rungs) |
-| `screen` | `{"feet": 200, "from": 46, "to": 289}` | the ladder screen's line: feet y, first / last feet x (optional: these are the defaults) |
+| `rungs` | `[["haggar"], ["hanzo_ss2", "haohmaru"], ["kim"]]` | the fighters earned, a rung each game clear (the last stage in play's boss beaten), in order; each rung its own size, 1-6 (Bruno 2026-10-15; the older form `ladder` + `rung_size` cuts one list into equal rungs and is still read) |
+| `screen` | `{"feet": 200, "from": 24, "to": 296, "scale": 8}` | the ladder screen's line: feet y, first / last feet x; `scale` = the fighters' size in 16ths (the hardware shrink; default from the spacing: `ladder_scale`, 4-8) |
 
-While the block is there: only starters + ladder stand on the select screen (select_layout keeps only their places,
+Edited in the Factory (Characters, Roster & select: each row's Ladder picker = Start / Rung n / New rung / off, the
+ladder card's rungs with up / down / remove; the draft `unlocks` {starters, rungs}, roster.py merge; proof
+`tools/brawler/factory/ladder_proof.js`). While the block is there: only starters + rungs stand on the select screen (select_layout keeps only their places,
 renumbered, taken in ladder order; every other roster fighter is an enemy only), a ladder fighter not unlocked yet is NOT
 drawn there: n unlocked = the first n on the n middle places of the layout (`select_layers`: places (all - n) / 2 on, a
 cursor graph per count, `SEL_NLAY` layers, `sel_lay_n` / `sel_lay_base`, `sel_stick` / `sel_vert` [layer]) (`roster_unlock` = $80 + its rung, 0 a starter, 0xFF off the screen; main.c `char_locked` against `save.rungs`), the
 bosses' own `unlock` is ignored (no BOSS UNLOCKED). The save keeps the rungs unlocked (save_t `rungs`, the former first
 spare byte: an older save reads 0). The ladder screen (mode 7): every ladder fighter at once on ONE line (`screen`: `feet` their
-feet's y, `from` / `to` the first's and the last's feet x, evenly spaced between, the middle ones in front;
-`ladder_places`), locked ones as dark silhouettes (two tones, every other one lighter); after a game clear (the ending's last screen) with the new rung revealed, and
-from the title's CHALLENGERS. Tables: `lad_fighter`, `lad_rung`, `lad_slot` (its select slot: its palettes), `lad_pos`
+feet's y, `from` / `to` the first's and the last's feet x, evenly spaced between, each shrunk by the hardware to
+`LAD_K` / 16 and centred on its place so none overlaps; `ladder_places`), locked ones as dark silhouettes (two tones,
+every other one lighter); ONLY after a game clear that unlocked a rung (the ending's last screen), the new rung revealed
+(no title entry; all unlocked: no ladder screen). Tables: `lad_fighter`, `lad_rung`, `lad_slot` (its select slot: its palettes), `lad_pos`
 (screen x, feet y, draw order, face). The attract demo plays every starter / ladder fighter whatever the save. Taking
 the block out: every selectable fighter from the start (the bosses' own locks back) and the select layout to be placed
 again (the full one before the beta: `benched.select_layout_full`). Proof: `tools/brawler/unlock_proof.py`.

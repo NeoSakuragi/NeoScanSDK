@@ -4484,5 +4484,42 @@
   "expect": "Rugal sometimes guards: his guard pose, a blue-white spark and the guard sound, no damage from your normals (a special chips a little); a few hits in a row, a throw, a fury or a hit from behind beat the guard. He runs in from afar. Your grab sometimes does not take (he stands firm) or he reverses it and throws you. His strings change every attack (no string again before he has shown them all). At low life he blinks red and plays his MAX fury, then his fury.",
   "do_keys": "20:R,4:a,10:-,4:a,10:-,4:a,40:-,30:R,60:-",
   "proof": 300
+ },
+ "20261015-ladder-after-clear": {
+  "title": "Unlock ladder: only after a clear that unlocks, fighters spread out (no overlap)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 3,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 36
+  },
+  "do": "Beat Rugal (one life left: a jab or two), then press START through the ending's screens. Do it again until every rung is unlocked, then once more.",
+  "expect": "After the ending: GAME CLEAR!, the 6 ladder fighters on one line at half size, none touching another; the new rung dark, flashing white, then in colour with its win pose, NEW CHALLENGERS! and the name(s); the bottom line says how many the next clear brings (1 or 2). Once everyone is unlocked, a clear goes straight back to the title / demo: no ladder screen.",
+  "do_keys": "3:a,25:-,3:a,25:-,3:a,25:-",
+  "proof": 300
+ },
+ "20261015-title-no-continue": {
+  "title": "Title: no CONTINUE STAGE, no UNLOCKS line",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Insert a coin and look at the title (also after clearing stages in an earlier game). On a home (AES) console: stick up / down on the title.",
+  "expect": "Arcade: PRESS START only (no menu: NEW GAME is the only choice). Console: NEW GAME and OPTIONS. Never CONTINUE STAGE, never UNLOCKS: every new game starts at stage 1.",
+  "do_keys": "4:o",
+  "proof": 120
+ },
+ "20261015-final-stage-intro": {
+  "title": "The last stage's intro reads FINAL STAGE",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Play a game through stages 1-3 (or continue until the last stage) and watch the last stage's start.",
+  "expect": "The last stage starts with FINAL STAGE in the big letters (stages 1-3 still read STAGE n START); its STAGE CLEAR and the boss flow unchanged.",
+  "do_keys": "",
+  "proof": 120
  }
 }

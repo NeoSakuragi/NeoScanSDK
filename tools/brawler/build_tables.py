@@ -160,31 +160,42 @@ LADDER_MAX = 25                                          # main.c NA: the ladder
 def unlocks(g):
     """game.json "unlocks" (Bruno 2026-10-15, the beta build's unlock ladder; main.c "the unlock ladder") checked: None
     (no block: every selectable fighter from the start, a boss by its roster unlock boss_of_stage) or {starters, ladder,
-    rung_size, rungs: [[fighter]], all: starters + ladder}. starters: playable from the start; ladder: the fighters
-    unlocked in this order, rung_size at a time, one rung per game clear (the last stage's boss beaten); every other
-    roster fighter is off the select screen (an enemy only). Each must be a selectable roster fighter."""
+    rung_size, rungs: [[fighter]], all: starters + ladder}. starters: playable from the start; the rungs: one per game
+    clear (the last stage's boss beaten), in order, either `rungs` = [[fighter, ...], ...] (each its own size, 1-6:
+    Bruno 2026-10-15, the beta's last rung is Haggar alone) or `ladder` cut `rung_size` at a time; every other roster
+    fighter is off the select screen (an enemy only). Each must be a selectable roster fighter. rung_size returned:
+    the rungs' size when they are all one size, else None."""
     u = g.get('unlocks')
     if not u: return None
-    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'screen'), f'unlocks: unknown field {k}'
+    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'rungs', 'screen'), f'unlocks: unknown field {k}'
     names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
-    st, la, n = list(u.get('starters') or []), list(u.get('ladder') or []), u.get('rung_size')
-    assert isinstance(n, int) and 1 <= n <= 6, f'unlocks.rung_size {n!r}: 1-6'
+    st = list(u.get('starters') or [])
     assert st, 'unlocks.starters: at least one fighter'
-    assert len(la) % n == 0, f'unlocks.ladder: {len(la)} fighters, not whole rungs of {n}'
+    if 'rungs' in u:
+        assert 'ladder' not in u and 'rung_size' not in u, 'unlocks: rungs, or ladder + rung_size, not both'
+        rg = [list(r) for r in u['rungs']]
+        assert rg and all(isinstance(r, list) and 1 <= len(r) <= 6 for r in rg), 'unlocks.rungs: [[fighter, ...], ...], 1-6 a rung'
+        la = [f for r in rg for f in r]; n = len(rg[0]) if all(len(r) == len(rg[0]) for r in rg) else None
+    else:
+        la, n = list(u.get('ladder') or []), u.get('rung_size')
+        assert isinstance(n, int) and 1 <= n <= 6, f'unlocks.rung_size {n!r}: 1-6'
+        assert len(la) % n == 0, f'unlocks.ladder: {len(la)} fighters, not whole rungs of {n}'
+        rg = [la[i:i + n] for i in range(0, len(la), n)]
     al = st + la
     dup = sorted({f for f in al if al.count(f) > 1})
     assert not dup, f'unlocks: {", ".join(dup)} twice'
     for f in al: assert f in names, f'unlocks: {f} is not a selectable roster fighter'
     assert len(al) <= LADDER_MAX, f'unlocks: {len(al)} fighters, {LADDER_MAX} at most (main.c NA)'
     scr = u.get('screen') or {}
-    for k, v in scr.items(): assert k in LADDER_SCREEN and isinstance(v, int), f'unlocks.screen.{k} {v!r} (feet, from, to: px)'
-    return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': [la[i:i + n] for i in range(0, len(la), n)], 'all': al, 'screen': scr}
+    for k, v in scr.items(): assert (k in LADDER_SCREEN or k == 'scale') and isinstance(v, int), f'unlocks.screen.{k} {v!r} (feet, from, to: px; scale: 16ths)'
+    assert 4 <= scr.get('scale', 8) <= 16, 'unlocks.screen.scale: 4-16 (16ths of full size)'
+    return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': rg, 'all': al, 'screen': scr}
 
 
 def select_layers(g, L=None):
     """the select screen's layouts by unlocked count (Bruno 2026-10-15: "only the available characters show up"):
     [(n, base, Ln)] per layer. No unlocks block: one layer, every slot (n = all, base 0, L). With the unlock ladder:
-    layer r = r rungs unlocked (0 .. len(rungs)); its n = starters + r x rung_size fighters = the first n of the ladder
+    layer r = r rungs unlocked (0 .. len(rungs)); its n = starters + the first r rungs' fighters = the first n of the ladder
     order (slots 0 .. n - 1), standing on n CONSECUTIVE places of the full layout, centred: places base .. base + n - 1
     (the places in slot order = along the street), base = (all - n) // 2. The layout's left half faces right, its right
     half left, so a centred run still faces the middle. Ln = {fighter: its place} (slot 0 .. n - 1, z renumbered 0 ..):
@@ -194,7 +205,7 @@ def select_layers(g, L=None):
     assert order == U['all'], f'select_layout: the slots must follow the ladder order {U["all"]} (got {order})'
     out = []
     for r in range(len(U['rungs']) + 1):
-        n = len(U['starters']) + r * U['rung_size']; base = (len(order) - n) // 2
+        n = len(U['starters']) + sum(len(c) for c in U['rungs'][:r]); base = (len(order) - n) // 2
         Ln = {f: dict(L[order[base + k]], slot=k, pose=L[f]['pose']) for k, f in enumerate(order[:n])}
         for i, f in enumerate(sorted(Ln, key=lambda m: Ln[m]['z'])): Ln[f]['z'] = i
         out.append((n, base, Ln))
@@ -202,6 +213,16 @@ def select_layers(g, L=None):
 
 
 LADDER_SCREEN = {'feet': 200, 'from': 46, 'to': 289}     # unlocks.screen defaults (ladder_places)
+
+
+def ladder_scale(U):
+    """the ladder screen's fighters' size in 16ths (main.c LAD_K: the hardware shrink, Bruno 2026-10-15 "spread out the
+    players to avoid overlap"): unlocks.screen.scale, else from the spacing: a KOF pose up to ~80 px wide at full size
+    within its place's width, 4-8 (25-50 %; 12 fighters 26 px apart: 5, 7 fighters 48 px apart: 8)"""
+    s = dict(LADDER_SCREEN, **(U['screen'] or {})); n = len(U['all'])
+    if 'scale' in s: return s['scale']
+    step = (s['to'] - s['from']) / (n - 1) if n > 1 else 300
+    return max(4, min(8, int(step * 16 / 80)))
 
 
 def ladder_places(U, scr=None):
@@ -1637,12 +1658,13 @@ def tables(g, build):
     c.append('const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2] = {   /* per layer, the cursor from each slot: right, left (build_tables.py select_stick, select.stick ' + stick + '; locked: on past it) */\n' + ',\n'.join(sticks) + '\n};')
     c.append('const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1] = {   /* per layer, up / down from each slot: the slots that way in preference (the first selectable wins), 0xFF none */\n' + ',\n'.join(verts) + '\n};')
     unl = []; U = unlocks(g)
+    rung_of = {f: k + 1 for k, r in enumerate(U['rungs']) for f in r} if U else {}
     for r in g['roster']:
         u = r.get('unlock', 'always')
         if U:                                            # the ladder: 0 a starter, $80 + k rung k (1-based), 0xFF off the
             n = r['name']                                # select screen (an enemy only)
             unl.append(0xFF if not r.get('selectable', True) or n not in U['all'] else 0 if n in U['starters'] else
-                       0x80 + 1 + U['ladder'].index(n) // U['rung_size'])
+                       0x80 + rung_of[n])
             continue
         unl.append(0xFF if not r.get('selectable', True) else 0 if u == 'always' else u['boss_of_stage'])   # 0xFF: never
                                                                  # picked (a form link's target, main.c char_locked)
@@ -1651,7 +1673,8 @@ def tables(g, build):
              '0 = always, $80 + k = the unlock ladder\'s rung k, 0xFF = never (a form; with the ladder: off the select screen) */')
     P = ladder_places(U, U['screen']) if U else []
     h += [f'#define LAD_N {len(P)}            /* the unlock ladder (game.json unlocks): its fighters, starters first; 0 = none */',
-          f'#define LAD_RUNGS {len(U["rungs"]) if U else 0}', f'#define LAD_RUNG {U["rung_size"] if U else 0}             /* fighters a rung */',
+          f'#define LAD_RUNGS {len(U["rungs"]) if U else 0}             /* rungs (each its own size: lad_rung) */',
+          f'#define LAD_K {ladder_scale(U) if U else 8}             /* the ladder screen\'s fighters: LAD_K / 16 of full size (ladder_scale) */',
           'extern const uint8_t lad_fighter[LAD_N ? LAD_N : 1], lad_rung[LAD_N ? LAD_N : 1], lad_slot[LAD_N ? LAD_N : 1];',
           'extern const sel_slot_t lad_pos[LAD_N ? LAD_N : 1];']
     if P:
