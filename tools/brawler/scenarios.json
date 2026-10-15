@@ -4533,5 +4533,90 @@
   "expect": "The six fighters stand in one line along the street, each one clear of the next (no fighter drawn over another), the left ones facing right and the right ones facing left. The group is a bit wider than the screen: on Terry the left end shows; moving towards Kim the camera glides along the group and stops at Kim's end (no empty street past either end). With fewer unlocked (a fresh save: Terry and Robert) they stand evenly spread on one screen.",
   "do_keys": "30:-,4:R,20:-,4:R,20:-,4:R,20:-,4:R,20:-,4:R,40:-,4:L,20:-,4:L,20:-,4:L,20:-,4:L,20:-,4:L,40:-",
   "proof": 60
+ },
+ "20261015-145350-e03d": {
+  "title": "Stage clear: the win music plays to its end",
+  "setup": {
+   "mode": "stage",
+   "stage": 1,
+   "wave": 99,
+   "wait": 120,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 40
+  },
+  "do": "Knock out the boss with one hit (A) and listen to the STAGE CLEAR music. Try it with a fighter without a big portrait (Haggar, Kim) and with one that has one (Terry).",
+  "expect": "The stage clear song plays to its last note before the next screen comes (the bonus or the next stage), whoever you play; the portrait screen, when there is one, shows during the song.",
+  "do_keys": "4:a,600:-",
+  "proof": 120
+ },
+ "20261015-144945-e03d": {
+  "title": "Mr. Big's fury and MAX: a hitbox three times bigger",
+  "setup": {
+   "mode": "lab",
+   "fighter": "mr_big",
+   "dummy": "ryo",
+   "gap": 120,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Stand a little away from Ryo and press D (the fury); then try down + D (the MAX) with low life.",
+  "expect": "The fury's and the MAX's attacks reach three times as far and as high as before: they catch Ryo where they used to whiff. Mr. Big's other moves are unchanged; the boss Mr. Big keeps his normal fury.",
+  "do_keys": "4:d",
+  "proof": 200
+ },
+ "20261015-144529-e03d": {
+  "title": "The ending's story text types two times slower",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "Finish the game (beat the last boss) and watch the winner's story being typed under his portrait.",
+  "expect": "The story's letters appear half as fast as before (one every 4 frames, was 2): easy to read as it types.",
+  "do_keys": "",
+  "proof": 60
+ },
+ "20261015-144500-e03d": {
+  "title": "Haggar's fury: every hit deals double damage",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D next to Ryo and watch his life bar through the fury.",
+  "expect": "Each jab, finisher and spin hit takes twice the life it did before, and the closing piledriver too (14 instead of 7): the whole fury empties a full life bar.",
+  "do_keys": "4:d",
+  "proof": 420
+ },
+ "20261015-144120-e03d": {
+  "title": "Ki training: a press in the top quarter of the gauge succeeds",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is about three quarters full or more (not only at the very top).",
+  "expect": "From three quarters of the gauge up (power 96 of 127) the grade is PERFECT: the tree breaks, the meter reward and the win music. Below it: GREAT (90), GOOD (80), FAIR (64), WEAK (36), and TRAINING FAILED as before.",
+  "do_keys": "100:-,4:a",
+  "proof": 400
+ },
+ "haggar-max": {
+  "title": "Haggar's MAX: fast jabs and finishers, the spin, three backdrops, a low piledriver, the piledriver",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Your life is low (red): press down + D next to Ryo.",
+  "expect": "The super flash, then jab, jab, finisher three times, half again as fast as his fury; his spinning lariat; then Haggar grabs the reeling Ryo and backdrops him three times in a row (grabbed again each time, never sent flying), piledrives him with a jump half the usual height, then a full piledriver to finish. Haggar is invincible throughout; Ryo is launched only by the last piledriver.",
+  "do_keys": "4:Dd",
+  "proof": 600
  }
 }

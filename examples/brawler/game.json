@@ -1,7 +1,7 @@
 {
  "about": "The brawler as data (docs/brawler_data_model.md): roster (layer 1), enemies + AI presets (layer 2), stages (layer 3). tools/brawler/build_tables.py turns it into the tables the game reads (build/game_tables.c / .h, build/roster.json for the fighter export).",
  "schema": 1,
- "music": {"title": "TITLE", "select": "SELECT", "clear": "WIN", "continue": "CONTINUE", "gameover": "GAMEOVER"},
+ "music": {"title": "TITLE", "select": "SELECT", "clear": "WIN", "clear_frames": 345, "clear_frames_about": "note 20261015-145350-e03d (tester: the win music is cut, some characters have no big portrait): the stage clear's next screen waits until the clear song has played this many frames (KOF95 $30: 302 ticks, 5.6 s, stops by itself; docs/kof95_songs.md) whatever screens are shown (main.c PH_CLEAR)", "continue": "CONTINUE", "gameover": "GAMEOVER"},
  "roster": [
   {
    "name": "terry",
@@ -208,6 +208,8 @@
    "finishers": {"launcher": "up", "down": "slam"},
    "specials": {"D": "236A", "fD": "63214C", "dD": "623C", "uD": "63214D", "dfD": "623A", "ufD": "AAAA"},
    "fury": "23623C",
+   "fury_box_scale": 3,
+   "fury_box_scale_about": "note 20261015-144945-e03d (tester: 'the fury and the MAX fury of Mr. Big, the hitbox is too small, it keeps on whiffing; make it three times bigger'): every attack box of his fury and MAX (body and objects) has its half extents x 3 (fighter.c strike, gfury_box)",
    "unlock": {"boss_of_stage": 1},
    "voices": "kof"
   },
@@ -489,7 +491,10 @@
    "throws": {"hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}}, "b": {"travel": 94}},
    "blitz_slide": {"ff": {"about": "note 20261014-192939-5d29 (Bruno: 'for the forward-forward A blitz, in addition to this move, add a small sliding forward motion'): his ff Blitz (run + A / ff + A = the dash entry, FF's finisher atk_c_close, which stands still) glides 20 px forward over its first 12 frames, starting at his run's speed (3.08 px a frame) and slowing to a stop (fighter.c blitz_slide)", "px": 20, "frames": 12}},
    "hold_walk": {"about": "Final Fight's walk in the hold (note 20261014-171133-5d29; tools/ffight/rec_ff.py grab_walk*): the stick moves him and the held victim at his walk's speed on both axes (speed = x his walk), the facing kept, his bank's hold_walk animation ($14434) played forward / backward with the way he goes; the hold's timer runs on; A / forward or back + A / B as in the standing hold", "speed": 1},
-   "fury_throw": {"throw": "b", "damage": 7, "about": "note 20261014-171937-5d29 reopen (Bruno: 'at the very end of everything, add the piledriver motion'): after the spin (its 8 hits now all reels) the reeling victim is grabbed where it stands and slammed by his hold's B throw, the piledriver (FF $0B, roster[].throws.b; fighter.c fury_throw), invincible as every throw to its control return, 7 damage: jab 1 x 6 + finisher 3 x 3 + spin 1 x 8 + piledriver 7 = 30 = tiers.fury"},
+   "fury_damage_scale": 2,
+   "fury_damage_scale_about": "note 20261015-144500-e03d (tester: 'double the damage of each hit of Haggar's super'): every hit of his fury (and its MAX) x 2; his fury is not measured (damage_raw.json), so the scale multiplies its own hits (build_tables.py dtier_tables); the closing piledriver 7 -> 14 (fury_throw.damage)",
+   "max_chain": {"about": "Bruno 2026-10-15 (Haggar's MAX, down+D as every MAX: he had none, down+D played the fury): his fury's pieces played as the MAX, the jabs and finishers (the first 9 pieces) 50 % faster (rate 1.5), then the spin, then his reeling victim grabbed where it stands and thrown by each throw in turn, grabbed again after each one (no launch before the last): back throw (the backdrop) x 3, the piledriver at half its height, the piledriver; invincible throughout (every throw: INV_FURY), the MAX tier: pieces x 2 (max_damage_scale = fury_damage_scale) = 46 + throws 6 + 6 + 6 + 8 + 14 = 86, about tiers.max 45 x 2 (fighter.c 'the MAX chain')", "fast_pieces": 9, "rate": 1.5, "throws": [{"throw": "back", "damage": 6}, {"throw": "back", "damage": 6}, {"throw": "back", "damage": 6}, {"throw": "b", "height": 0.5, "damage": 8}, {"throw": "b", "damage": 14}]},
+   "fury_throw": {"throw": "b", "damage": 14, "about": "x 2 (note 20261015-144500-e03d); note 20261014-171937-5d29 reopen (Bruno: 'at the very end of everything, add the piledriver motion'): after the spin (its 8 hits now all reels) the reeling victim is grabbed where it stands and slammed by his hold's B throw, the piledriver (FF $0B, roster[].throws.b; fighter.c fury_throw), invincible as every throw to its control return, 7 damage: jab 1 x 6 + finisher 3 x 3 + spin 1 x 8 + piledriver 7 = 30 = tiers.fury"},
    "flash_pose": "stance",
    "hold_timeout": "knockdown",
    "hold_timeout_about": "note 20261014-193405-5d29 (Bruno: 'if the grab times out for Haggar, the character falls on the ground, on his back'): his hold's 90 frames without a hit run out -> the victim falls on its back (S_KNOCKDOWN, the trip's fall, no damage) and gets up; the other fighters' holds (default stand) let it go on its feet on the floor",
@@ -1518,7 +1523,7 @@
   "win_music": "BONUS_WIN",
   "games": [
    {"id": "ki", "name": "KI TRAINING", "kind": "gauge", "scene": "tree", "slot": 0, "voice": "AOF2 SPIRIT CARD", "music": "BONUS_KI", "seconds": 10, "step": 2,
-    "grades": [36, 68, 92, 108, 120], "chunks": [0, 0, 0, 0, 0, 2], "win_grade": 5, "blows": ["jab", "jab", "jab", "jab", "jab", "forward"],"fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]], "charge": {"about": "AOF2 measured (note 20261014-133606-5d29, tools/aof/ki_fail.py): Ryo stands 7 frames after the press, holds his concentration, punches; his punch lands 99 frames after the press on a failed grade, 159 on the pass: our blow starts 11 ticks before it lands", "stand": 7, "fail": 88, "pass": 148}, "punch_sound": "AOF2 PUNCH", "fail_sounds": [[67, "VOICE HIT"], [71, "AOF2 LEAF A"], [74, "AOF2 LEAF B"], [78, "AOF2 LEAF A"], [81, "AOF2 LEAF A"], [83, "AOF2 LEAF A"], [85, "AOF2 LEAF B"], [87, "AOF2 LEAF B"], [89, "AOF2 LEAF A"], [93, "AOF2 LEAF A"], [95, "AOF2 LEAF A"], [103, "AOF2 LEAF B"], [107, "AOF2 LEAF B"], [119, "AOF2 LEAF B"], [131, "AOF2 LEAF B"]], "fail_result": 239},
+    "grades": [36, 64, 80, 90, 96], "grades_about": "note 20261015-144120-e03d (tester: 'too hard; if you are in the top quarter, you succeed'): the top grade (PERFECT, the pass) from 96 = the gauge's top quarter (0-127); the lower grades spread under it (was AOF2's 36 68 92 108 120)", "chunks": [0, 0, 0, 0, 0, 2], "win_grade": 5, "blows": ["jab", "jab", "jab", "jab", "jab", "forward"],"fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]], "charge": {"about": "AOF2 measured (note 20261014-133606-5d29, tools/aof/ki_fail.py): Ryo stands 7 frames after the press, holds his concentration, punches; his punch lands 99 frames after the press on a failed grade, 159 on the pass: our blow starts 11 ticks before it lands", "stand": 7, "fail": 88, "pass": 148}, "punch_sound": "AOF2 PUNCH", "fail_sounds": [[67, "VOICE HIT"], [71, "AOF2 LEAF A"], [74, "AOF2 LEAF B"], [78, "AOF2 LEAF A"], [81, "AOF2 LEAF A"], [83, "AOF2 LEAF A"], [85, "AOF2 LEAF B"], [87, "AOF2 LEAF B"], [89, "AOF2 LEAF A"], [93, "AOF2 LEAF A"], [95, "AOF2 LEAF A"], [103, "AOF2 LEAF B"], [107, "AOF2 LEAF B"], [119, "AOF2 LEAF B"], [131, "AOF2 LEAF B"]], "fail_result": 239},
    {"id": "posts", "name": "SUPER DEATH BLOW", "kind": "break", "scene": "posts", "slot": 2, "voice": "AOF2 SDB CARD", "music": "BONUS_POSTS", "seconds": 30, "count": 3,
     "breaks_with": "any", "hp": 4, "unlock": "fury", "lesson": ["BREAK THE 3 POSTS!", "PUNCHES, KICKS, SPECIALS: ANY ATTACK", "BREAK ALL 3 TO UNLOCK YOUR FURY"],
     "won_text": ["FURY UNLOCKED!  PRESS D", "MAX  =  DOWN + D  AT LOW LIFE", "FOR THE WHOLE CREDIT"], "won_ticks": 480}
@@ -1603,7 +1608,8 @@
   "staff_music": "STAFF",
   "story": {
    "min": 60,
-   "type": 2,
+   "type": 4,
+   "type_about": "ticks per character typed (note 20261015-144529-e03d, tester: 'slow down the hero's text, two times slower': 2 -> 4)",
    "hold": 360,
    "fighters": {
     "*": [

@@ -1033,6 +1033,8 @@ def dtier_tables(g, build, dmul):
                               ('super_throw', 2, t['super_throw'], sup if sup in pool else None)):
             d = own(inp) if inp else None
             if d: v[len(pool) + j] = sc(tg, d)
+            elif k != 'super_throw': v[len(pool) + j] = round((fs if k == 'fury' else ms) * 256)   # not measured (note
+                                                         # 20261015-144500-e03d, Haggar): its own damage times the scale
             e[k] = {'input': inp, 'own': d, 'target': tg, 'scale': v[len(pool) + j] / 256}
         c.append(f'static const uint16_t dtier_{i}[{len(v)}]{SLOT_SEC if r.get("slot_of") else ""} = {{ {", ".join(map(str, v))} }};   /* {n} */')
         rows.append(f'dtier_{i}')
@@ -1250,7 +1252,8 @@ def ending_tables(g):
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result'),
+MAXC_N = 6                                               # roster[].max_chain: at most this many throws
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
@@ -1494,7 +1497,7 @@ def tables(g, build):
          f'#define SEL_NPLACE {sum(e[0] for e in select_layers(g, None, build))}             /* their places, back to back (SEL_SLOT) */',
          f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
          f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
-         f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
+         f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}', f'#define GAME_MUS_CLEAR_FRAMES {int(g["music"].get("clear_frames", 0))}   /* the clear song\'s length: PH_CLEAR\'s next screen waits for it */',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          (f'#define GAME_MUS_OVER 0   /* GAME OVER: no song, the continue song fades out ($0A + speed, KOF98) */\n#define GAME_OVER_FADE 0x2C'
           if g['music'].get('gameover') == 'FADE' else f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}\n#define GAME_OVER_FADE 0'),
@@ -1522,6 +1525,9 @@ def tables(g, build):
          'extern const uint16_t gwalk_anim;              /* the walk / run animations\' rate x this (8.8) */',
          'extern const int32_t grun_spd[BC_COUNT];       /* the run at its source\'s speed (16.16; roster[].run.speed), 0 = walk x gwalk_run */',
          'extern const uint16_t grun_anim[BC_COUNT];     /* the run animation\'s rate = the walk\'s x this (8.8; game.json walk.run_anim / walk.anim, 256 for a roster[].walk_rate fighter) */',
+         f'typedef struct {{ uint8_t fast, n; uint16_t rate; uint8_t kind[{MAXC_N}], dmg[{MAXC_N}]; uint16_t hsc[{MAXC_N}]; }} gmaxc_t;   /* the MAX\'s tail (game.json roster[].max_chain; fighter.c "the MAX chain"): its first `fast` pieces at rate (8.8), then n throws: kind 0 forward / 1 back / 2 the hold B throw, damage, height scale (8.8, 0 = 1x) */',
+         'extern const gmaxc_t gmax_chain[BC_COUNT];',
+         'extern const uint8_t gfury_box[BC_COUNT];     /* the fury\'s and MAX\'s attack boxes: half extents times this (game.json roster[].fury_box_scale; fighter.c strike) */',
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint16_t ghold_walk[BC_COUNT];    /* the walk in the hold (game.json roster[].hold_walk.speed: x its walk, 8.8; 0 = none: it stands; fighter.c hold_walk) */',
@@ -1630,6 +1636,32 @@ def tables(g, build):
         assert isinstance(e.get('damage'), int) and 1 <= e['damage'] <= 60, f"roster {r['name']}: fury_throw.damage 1-60"
         ft.append(f'{e["damage"]}   /* {r["name"]} */')
     c.append('const uint8_t gfury_throw[BC_COUNT] = {\n    ' + ',\n    '.join(ft) + '\n};')
+    fb = []                                              # the fury's attack box scale (note 20261015-144945-e03d, Mr. Big:
+    for r in g['roster']:                                # "the hitbox is too small, it keeps whiffing, make it three times
+        v = r.get('fury_box_scale', 1)                   # bigger"): roster[].fury_box_scale = the half extents of every
+        assert isinstance(v, int) and 1 <= v <= 4, f"roster {r['name']}: fury_box_scale 1-4"   # attack box of his fury
+        fb.append(f'{v}   /* {r["name"]} */')            # and MAX, their bodies and objects (fighter.c strike), times it
+    c.append('const uint8_t gfury_box[BC_COUNT] = {\n    ' + ',\n    '.join(fb) + '\n};')
+    mc = []                                              # the MAX's own tail (Bruno 2026-10-15, Haggar's MAX: "jab, jab,
+    for r in g['roster']:                                # finisher x 3, 50 % faster, the spin, back throw x 3, a half-height
+        me = r.get('max_chain')                           # piledriver, a piledriver"): roster[].max_chain = the fury's
+        if not me: mc.append(f'{{0}}   /* {r["name"]} */'); continue   # sequence played as the MAX with its first
+        for k in me: assert k in ('about', 'fast_pieces', 'rate', 'throws'), f"roster {r['name']}: max_chain: unknown field {k}"
+        assert isinstance(r.get('fury'), list), f"roster {r['name']}: max_chain needs a fury sequence (roster[].fury a list)"
+        fp, rt, ts = me.get('fast_pieces', 0), me.get('rate', 1), me.get('throws') or []   # fast_pieces at `rate`, then
+        assert isinstance(fp, int) and 0 <= fp <= len(r['fury']), f"roster {r['name']}: max_chain.fast_pieces 0-{len(r['fury'])}"
+        assert isinstance(rt, (int, float)) and 1 <= rt <= 2, f"roster {r['name']}: max_chain.rate 1-2"
+        assert 1 <= len(ts) <= MAXC_N, f"roster {r['name']}: max_chain.throws 1-{MAXC_N}"   # its reeling victim grabbed
+        kd, dm, hs = [], [], []                          # and thrown by each of `throws` in turn, each throw's victim
+        for mt in ts:                                     # grabbed again where it is (no launch before the last one):
+            for k in mt: assert k in ('throw', 'damage', 'height'), f"roster {r['name']}: max_chain.throws: unknown field {k}"
+            assert mt['throw'] in ('back', 'forward', 'b'), f"roster {r['name']}: max_chain.throws: throw back | forward | b"
+            assert mt['throw'] != 'b' or (r.get('throws') or {}).get('b'), f"roster {r['name']}: max_chain throw b needs roster[].throws.b"
+            assert isinstance(mt.get('damage'), int) and 1 <= mt['damage'] <= 60, f"roster {r['name']}: max_chain.throws damage 1-60"
+            ht = mt.get('height', 1); assert isinstance(ht, (int, float)) and 0.25 <= ht <= 1, f"roster {r['name']}: max_chain.throws height 0.25-1"
+            kd.append(str({'forward': 0, 'back': 1, 'b': 2}[mt['throw']])); dm.append(str(mt['damage'])); hs.append(str(round(ht * 256) if ht < 1 else 0))
+        mc.append(f'{{{fp}, {len(ts)}, {round(rt * 256)}, {{{", ".join(kd)}}}, {{{", ".join(dm)}}}, {{{", ".join(hs)}}}}}   /* {r["name"]} */')
+    c.append('const gmaxc_t gmax_chain[BC_COUNT] = {\n    ' + ',\n    '.join(mc) + '\n};')
     c += depth_tables(g, build)
     ch = g['chain']                                      # the chain core (revamp 1A): the engine's rules (gchain_t)
     for k in ch: assert k in CHAIN_KEYS, f'chain: unknown field {k}'
