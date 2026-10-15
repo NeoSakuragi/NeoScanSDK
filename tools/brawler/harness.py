@@ -324,7 +324,8 @@ class Brawler:
     def unlock_all(self):
         """campaign builds: every boss on the select screen (save.unlocked poked after the title loaded the save; the
         sum is not updated, so it lasts until the next power-on)"""
-        if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF)
+        if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF); self.w(self.syms['save'] + 9, 1, 0x7F)   # (+9: the
+                                                    # unlock ladder's rungs, main.c save_t rungs)
     def sel_slots(self):
         """the select screen's slot table (main.c SEL_SLOT, P ROM, in the layout's slot order): [(x, y, z, face)], read from the
         .neo (P word-swapped)"""

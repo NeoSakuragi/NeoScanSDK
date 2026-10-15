@@ -306,7 +306,8 @@ def lint_recipe(rid, rec, game):
     for k in ('fighter', 'dummy', 'cursor'):
         if k in s and s[k] not in names: bad.append(f'{k} {s[k]!r} is not in the roster')
     if mode == 'stage':
-        n = len(json.load(open(os.path.join(game, 'game.json')))['stages'])
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import build_tables   # (the stages in play)
+        n = len(build_tables.campaign(json.load(open(os.path.join(game, 'game.json')))))
         if not 0 <= int(s.get('stage', 0)) < n: bad.append(f'stage {s.get("stage")} (the game has {n})')
     for field in ('do_keys', 'pre'):
         src = rec.get(field) if field == 'do_keys' else s.get('pre')

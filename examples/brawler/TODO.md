@@ -280,6 +280,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
        Goenitz (KOF96) and put their command bytes in BOSS[].song (placeholders: $27).
 - [ ] 48. MVS save commit: the BIOS writes the backup block to battery RAM only when the game returns control; a stage
        cleared then powered off mid-run is lost on MVS (AES card saves at once). Decide whether that is acceptable.
+       2026-10-15 (the unlock ladder): a rung is unlocked at the game clear (the last stage's PH_END) and committed by
+       the hand-back after the ladder screen (ending + ladder: 1-2 min): a power-off inside the ending loses that
+       clear's rung on MVS; the title's save reset hands back on MVS 1.5 s later to commit it (tools/brawler/unlock_proof.py).
 
 ## Bruno, 2026-10-05
 

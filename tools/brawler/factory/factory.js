@@ -257,12 +257,14 @@
     const want = lvWant(), diff = lvDiff(), open = lvOpen();
     const songOf = n => G.songs.find(x => x.name === n) || { name: n, source: '?' };
     const rows = want.map((st, i) => {
-      const ed = diff[i].length, isOpen = lvOpenStage === i, bn = bnWant(), after = !!bn && bn.after.includes(i + 1);
+      const gs = G.stages[i] || {}, pn = gs.play || null;          // (a stage switched off: no number in play, tagged "off")
+      const ed = diff[i].length, isOpen = lvOpenStage === i, bn = bnWant(), after = !!bn && !!pn && bn.after.includes(pn);
       const row = h('button', { type: 'button', class: 'lrow' + (isOpen ? ' open' : ''), 'aria-expanded': isOpen ? 'true' : 'false',
         onclick: () => { lvOpenStage = isOpen ? -1 : i; lvEdit = null; lvScroll = null; L.msg.textContent = ''; drawLevels(); } },
-        h('b', { class: 'ln', text: String(i + 1) }), bgImg(st.background),
+        h('b', { class: 'ln', text: gs.off ? '–' : String(pn || i + 1) }), bgImg(st.background),
         h('span', { class: 'lt' }, h('b', { text: st.name }), h('span', { text: '♪ ' + st.music + (i === 0 ? ' *' : '') })),
         after ? h('span', { class: 'tag', text: '+ bonus' }) : null,
+        gs.off ? h('span', { class: 'tag', text: 'off', title: 'switched off in game.json (not in the campaign)' }) : null,
         ed ? h('span', { class: 'tag ' + (open ? 'ship' : 'edit'), text: open ? (open.status === 'building' ? 'building' : 'queued') : 'unshipped' }) : null);
       return [row, isOpen ? editor(i, st, G) : null];
     });

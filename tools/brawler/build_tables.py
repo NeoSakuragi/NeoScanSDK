@@ -45,8 +45,29 @@ def load(path):
     """game.json; in a Character Lab shell build (BRAWLER_SLOT=<f>, examples/brawler/Makefile LAB_SHELL / LAB_PACK) with
     the slot fighter added last (add_slot)"""
     g = json.load(open(path))
+    g['stages'] = campaign(g)
     if os.environ.get('BRAWLER_SLOT'): add_slot(g, os.environ['BRAWLER_SLOT'])
     return g
+
+
+def campaign(g):
+    """the stages in play, in order (Bruno 2026-10-15, the beta's 4 stages): game.json stages[] without the ones switched
+    off ("off": true), each with its boss from boss_order when there is one: the n-th stage in play fights the boss block
+    (of any stage, on or off) whose enemy is boss_order.bosses[n] (its enemy, song, minions, drama, seed, z), at the
+    stage's own boss lock and x (its length). Without boss_order each stage keeps its own boss."""
+    on = [s for s in g['stages'] if not s.get('off')]
+    assert on, 'stages: every stage is off'
+    bo = (g.get('boss_order') or {}).get('bosses')
+    if not bo: return on
+    blocks = {}
+    for s in g['stages']: blocks.setdefault(s['boss']['enemy'], s['boss'])
+    assert len(bo) == len(on), f'boss_order: {len(bo)} bosses for {len(on)} stages in play'
+    assert len(set(bo)) == len(bo), 'boss_order: a boss twice'
+    out = []
+    for s, e in zip(on, bo):
+        assert e in blocks, f'boss_order: no stage boss block fights {e} (stages[].boss.enemy: {sorted(blocks)})'
+        out.append(dict(s, boss=dict(blocks[e], lock=s['boss']['lock'], x=s['boss']['x'])))
+    return out
 
 
 SLOT = 'slot'                                            # the shell's slot fighter's roster name (its C prefix)
@@ -104,8 +125,14 @@ def select_layout(g):
     No block: the first layout (game.json select.slots: rows, x / z, facing the middle, the roster's watch poses, drawn
     back row first, a row in slot order; the stick's order = the slots' order)."""
     names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
+    U = unlocks(g)
+    if U: names = [n for n in names if n in U['all']]  # the unlock ladder: only its fighters on the select screen
     if 'select_layout' in g:
         L = g['select_layout']
+        if U:                                            # (renumbered: slot / z 0.. in their order)
+            L = {n: dict(v) for n, v in L.items() if n in names}
+            for k in ('slot', 'z'):
+                for i, n in enumerate(sorted(L, key=lambda m: L[m][k])): L[n][k] = i
     else:
         slots = [s for s in g['select']['slots'] if s.get('fighter')]
         watch = {r['name']: r['watch'] for r in g['roster']}
@@ -122,6 +149,46 @@ def select_layout(g):
         assert 0 <= v['x'] < SELECT_W and 0 <= v['y'] <= 223 and v['facing'] in ('left', 'right'), f'select_layout {n}: {v}'
         assert len(v['pose']) == 2 and all(isinstance(x, int) for x in v['pose']), f'select_layout {n}: pose {v["pose"]}'
     return L
+
+
+LADDER_MAX = 25                                          # main.c NA: the ladder screen's actors (one a fighter)
+
+
+def unlocks(g):
+    """game.json "unlocks" (Bruno 2026-10-15, the beta build's unlock ladder; main.c "the unlock ladder") checked: None
+    (no block: every selectable fighter from the start, a boss by its roster unlock boss_of_stage) or {starters, ladder,
+    rung_size, rungs: [[fighter]], all: starters + ladder}. starters: playable from the start; ladder: the fighters
+    unlocked in this order, rung_size at a time, one rung per game clear (the last stage's boss beaten); every other
+    roster fighter is off the select screen (an enemy only). Each must be a selectable roster fighter."""
+    u = g.get('unlocks')
+    if not u: return None
+    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size'), f'unlocks: unknown field {k}'
+    names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
+    st, la, n = list(u.get('starters') or []), list(u.get('ladder') or []), u.get('rung_size')
+    assert isinstance(n, int) and 1 <= n <= 6, f'unlocks.rung_size {n!r}: 1-6'
+    assert st, 'unlocks.starters: at least one fighter'
+    assert len(la) % n == 0, f'unlocks.ladder: {len(la)} fighters, not whole rungs of {n}'
+    al = st + la
+    dup = sorted({f for f in al if al.count(f) > 1})
+    assert not dup, f'unlocks: {", ".join(dup)} twice'
+    for f in al: assert f in names, f'unlocks: {f} is not a selectable roster fighter'
+    assert len(al) <= LADDER_MAX, f'unlocks: {len(al)} fighters, {LADDER_MAX} at most (main.c NA)'
+    return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': [la[i:i + n] for i in range(0, len(la), n)], 'all': al}
+
+
+def ladder_places(U):
+    """the unlock ladder screen's places (main.c ladder_start): a column per rung after the starters' (columns evenly
+    across x 32-288), a column's fighters stepping from the back (feet y 152) to the front (206) and 24 px
+    right; each faces the middle; drawn back first -> [(fighter, rung 0 = starters, x, y, z, face)]"""
+    cols = [U['starters']] + U['rungs']; w = 256 / len(cols); out = []
+    for k, c in enumerate(cols):
+        cx = 32 + w * (k + 0.5); m = len(c)
+        for j, f in enumerate(c):
+            t = j / (m - 1) if m > 1 else 1
+            x = round(cx - 12 + 24 * t) if m > 1 else round(cx)
+            out.append([f, k, x, round(152 + 54 * t), 0, 1 if cx < 160 else -1])
+    for z, e in enumerate(sorted(out, key=lambda e: (e[3], e[2]))): e[4] = z
+    return [tuple(e) for e in out]
 
 
 SEL_ROW_GAP = 16                                         # select_stick: body centres more than this apart (y) = another row
@@ -586,7 +653,8 @@ def model(g, build):
         assert len(trig) <= MAX_TRIGGERS, f'stage {si + 1}: at most {MAX_TRIGGERS} triggers'
         assert b.get('drama') is None or b['drama'] in dr_idx, f'stage {si + 1}: no drama {b.get("drama")}'
         be = enemies[en_idx[b['enemy']]]
-        unl = 1 if be['base'] in idx and g['roster'][idx[be['base']]].get('unlock') == {'boss_of_stage': si + 1} else 0
+        unl = 1 if be['base'] in idx and g['roster'][idx[be['base']]].get('unlock') == {'boss_of_stage': si + 1} and not g.get('unlocks') else 0
+                                                         # (the unlock ladder: no other unlock, no BOSS UNLOCKED)
         M['stages'].append({'name': s['name'], 'bg': s['background'], 'music': s['music'], 'power': s.get('power', 0), 'waves': wv,
                             'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
                             'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
@@ -1156,6 +1224,7 @@ BIG_USES = {                                   # game.json big_text: the screens
     'game_over': 'GAME OVER',
     'time_over': 'TIME OVER',
     'bonus_won': None,
+    'ladder': 'NEW CHALLENGERS!',              # the unlock ladder screen after a game clear that unlocked a rung
 }
 BIG_KEYS = ('y', 'slide', 'blink', 'pitch', 'text')
 
@@ -1458,13 +1527,31 @@ def tables(g, build):
     vert = lambda n, k: ', '.join([str(L[m]['slot']) for m in G[n][k]] + ['0xFF'] * (len(L) - 1 - len(G[n][k])))
     c.append('const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1] = {   /* up / down from each slot: the slots that way in preference (the first selectable wins), 0xFF none */\n    ' + '\n    '.join(
         f'{{ {{ {vert(n, "ups")} }}, {{ {vert(n, "downs")} }} }},   /* {n} */' for n in slots) + '\n};')
-    unl = []
+    unl = []; U = unlocks(g)
     for r in g['roster']:
         u = r.get('unlock', 'always')
+        if U:                                            # the ladder: 0 a starter, $80 + k rung k (1-based), 0xFF off the
+            n = r['name']                                # select screen (an enemy only)
+            unl.append(0xFF if not r.get('selectable', True) or n not in U['all'] else 0 if n in U['starters'] else
+                       0x80 + 1 + U['ladder'].index(n) // U['rung_size'])
+            continue
         unl.append(0xFF if not r.get('selectable', True) else 0 if u == 'always' else u['boss_of_stage'])   # 0xFF: never
                                                                  # picked (a form link's target, main.c char_locked)
         assert u == 'always' or 1 <= u['boss_of_stage'] <= len(g['stages']), f'{r["name"]}: unlock {u}'
-    c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, 0 = always, 0xFF = never (a form) */')
+    c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, '
+             '0 = always, $80 + k = the unlock ladder\'s rung k, 0xFF = never (a form; with the ladder: off the select screen) */')
+    P = ladder_places(U) if U else []
+    h += [f'#define LAD_N {len(P)}            /* the unlock ladder (game.json unlocks): its fighters, starters first; 0 = none */',
+          f'#define LAD_RUNGS {len(U["rungs"]) if U else 0}', f'#define LAD_RUNG {U["rung_size"] if U else 0}             /* fighters a rung */',
+          'extern const uint8_t lad_fighter[LAD_N ? LAD_N : 1], lad_rung[LAD_N ? LAD_N : 1], lad_slot[LAD_N ? LAD_N : 1];',
+          'extern const sel_slot_t lad_pos[LAD_N ? LAD_N : 1];']
+    if P:
+        c.append('const uint8_t lad_fighter[LAD_N] = { ' + ', '.join(str(idx[e[0]]) for e in P) + ' };   /* ' + ' '.join(e[0] for e in P) + ' */')
+        c.append('const uint8_t lad_rung[LAD_N] = { ' + ', '.join(str(e[1]) for e in P) + ' };   /* 0 the starters, k rung k */')
+        c.append('const uint8_t lad_slot[LAD_N] = { ' + ', '.join(str(L[e[0]]['slot']) for e in P) + ' };   /* its select slot (its palettes: sel_palbase) */')
+        c.append('const sel_slot_t lad_pos[LAD_N] = { ' + ', '.join(f'{{ {e[2]}, {e[3]}, {e[4]}, {e[5]} }}' for e in P) + ' };   /* screen x, feet y, draw order, face */')
+    else:
+        c += ['const uint8_t lad_fighter[1], lad_rung[1], lad_slot[1];', 'const sel_slot_t lad_pos[1];']
     known = {x['name'] for x in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['songs']}
     for r in g['roster']:                                # voice note 20261011-160158-5d29: stage 1 plays P1's theme
         assert r.get('music') is None or r['music'] in known, f"{r['name']}: music {r['music']!r} is no songs.json song"
@@ -1632,7 +1719,7 @@ def fmt(o, depth=0):
 
 if __name__ == '__main__':
     cmd, path = sys.argv[1], sys.argv[2]
-    g = load(path)
+    g = load(path) if cmd != 'format' else json.load(open(path))   # (format: the file as written, every stage)
     if cmd == 'chars': print(' '.join(chars(g)))
     elif cmd == 'roster': write_if_changed(sys.argv[3], json.dumps(roster_export(g), indent=1) + '\n')
     elif cmd == 'tables': tables(g, sys.argv[3])
