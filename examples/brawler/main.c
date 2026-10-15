@@ -3180,9 +3180,12 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
 _Static_assert(REF_PAL >= 16 + 2 * MAX_PALS && REF_PAL + REF_NPAL <= 16 + NF * MAX_PALS, "the referee's palettes: fighter slots past the players'");
 _Static_assert(RF_BACK_SPR + REF_MAXW_BACK <= SPR_BASE && RF_BACK_SPR + REF_MAXW_FRONT <= SPR_BASE && REF_MAXW_FRONT <= 8 &&
                RF_WIN_SPR + 12 <= BT_SPR, "the referee's sprites: 53-58 behind, 300-323 in front");
-enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE };
+enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE, RF_WAIT, RF_FLY, RF_DOWN, RF_GETUP };
+enum { RQ_NONE, RQ_RUN, RQ_FURY, RQ_HIT };       /* rf.quirk: the D quirk (gref.hit): none, the fighter running at him,
+                                                    his fury fired, the referee hit (his second speech: D ends it) */
 static struct {
     uint8_t ph, anim, step, tick, front, wface, nl, line, col, zoom, w;   /* w: the columns he took last tick */
+    uint8_t quirk;
     int16_t x, tx, g, wx, wy;                    /* his x, its target, the player's floor; the window's left / top */
     int32_t xs, y, vy, vx;                       /* 8.8: his x, his feet's y, the jump's speed, the walk's */
     uint16_t t, key;                             /* ticks in the phase; the step drawn last (its tiles written) */
@@ -3239,10 +3242,18 @@ static void rf_text(uint8_t clear) {             /* the lines typed so far (rf.l
         { char ch[2] = { rf.text[k][rf.col], 0 }; FIX_print((uint8_t)(col0 + ((20 - n) >> 1) + rf.col), row, ch, 0); }
     }
 }
+static void rf_win_place(const char *const *text, int16_t x) {   /* his lines and their window, him standing at x */
+    int16_t wox = rf.wface ? x + REF_WIN_X : x - REF_WIN_X, wy;   /* the window object (SS2's x / y from him) */
+    const ref_part_t *o = &ref_window_s[0].p[rf.wface][0];
+    rf.text = text; rf.nl = 0; while (rf.nl < 3 && text[rf.nl][0]) rf.nl++;
+    rf.wx = wox + o->x;
+    if (rf.wx < 0) rf.wx = 0; else if (rf.wx > 320 - 16 * o->w) rf.wx = 320 - 16 * o->w;   /* (knocked back: on screen) */
+    wy = rf.g + REF_LAND_DY + REF_WIN_Y + o->y - 16 * (rf.nl > 2 ? rf.nl - 2 : 0);   /* (taller: it grows upwards) */
+    rf.wy = (int16_t)(((wy + 4) & ~7) - 4);      /* (a line's 8 px centred in a 16 px row on a fix row: top = 4 mod 8) */
+}
 static void rf_start(const char *const *text, int16_t px) {   /* px: the player's screen x */
     uint8_t i;
     for (i = 0; i < REF_NPAL; i++) PAL_setPalette(REF_PAL + i, ref_pals + i * 16);
-    rf.text = text; rf.nl = 0; while (rf.nl < 3 && text[rf.nl][0]) rf.nl++;
     rf.wface = px < 160;                         /* (the player on the left: he comes from the right, SS2's own case) */
     rf.g = floor_top + BN_FEET_Z;
     rf.x = rf.wface ? 320 + gref.from : -(int16_t)gref.from;
@@ -3250,17 +3261,31 @@ static void rf_start(const char *const *text, int16_t px) {   /* px: the player'
     rf.xs = (int32_t)rf.x << 8; rf.vx = rf.tx > rf.x ? REF_WALK_VX : -REF_WALK_VX;
     rf.y = (int32_t)(rf.g + REF_BACK_DY) << 8; rf.front = 0; rf.w = 0; rf.key = 0xFFFF; rf.anim = 0xFF;
     rf_set(rf.vx > 0 ? REF_WALK_R : REF_WALK_L);
-    {   int16_t wox = rf.wface ? rf.tx + REF_WIN_X : rf.tx - REF_WIN_X, wy;   /* the window object (SS2's x / y from him) */
-        const ref_part_t *o = &ref_window_s[0].p[rf.wface][0];
-        rf.wx = wox + o->x;
-        wy = rf.g + REF_LAND_DY + REF_WIN_Y + o->y - 16 * (rf.nl > 2 ? rf.nl - 2 : 0);   /* (taller: it grows upwards) */
-        rf.wy = (int16_t)(((wy + 4) & ~7) - 4);  /* (a line's 8 px centred in a 16 px row on a fix row: top = 4 mod 8) */
-    }
-    rf.ph = RF_WALK; rf.t = 0;
+    rf_win_place(text, rf.tx);
+    rf.ph = RF_WALK; rf.t = 0; rf.quirk = RQ_NONE;
     FIX_print(17, 9, "                    ", 0);   /* (the game's TIME / POSTS line: under the window) */
+}
+static uint8_t rf_struck(void) {                 /* the fury (the fighter or its objects) striking him this tick */
+    int16_t rx0 = rf.x + cam_x - 20, rx1 = rf.x + cam_x + 20, ry1 = (int16_t)(rf.y >> 8), ry0 = ry1 - 96;   /* (world x,
+                                                    screen y: fighter_strike_box's) */
+    uint8_t i;
+    for (i = 0; i < nf; i++) {
+        int16_t x0, x1, y0, y1;
+        if (order[i]->team || !fighter_strike_box(order[i], &x0, &x1, &y0, &y1)) continue;
+        if (x1 > rx0 && x0 < rx1 && y1 > ry0 && y0 < ry1) return 1;
+    }
+    return 0;
 }
 static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_flow); 0 when it is over */
     rf.t++;
+    if (rf.quirk == RQ_FURY && rf_struck()) {    /* the fury into him: Kuroko's knockdown, away from the fighter */
+        fighter_t *f = &fighters[bn_lead];
+        if (rf.ph >= RF_OPEN && rf.ph <= RF_CLOSE) { rf_text(1); bn_hide(RF_WIN_SPR, 12); }
+        rf.quirk = RQ_HIT; rf.ph = RF_FLY; rf.t = 0; rf_set(REF_FLY);
+        rf.xs = (int32_t)rf.x << 8; rf.vx = (int32_t)gref.knock_vx << 8; if (INT(f->x) - cam_x > rf.x) rf.vx = -rf.vx;
+        rf.vy = gref.knock_vy;
+        snd_sfx(SFX_HIT_CD);
+    }
     switch (rf.ph) {
     case RF_WALK:                                /* $E5D0: moved, then compared */
         rf_anim_tick(); rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
@@ -3294,15 +3319,51 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
         return 1;
     case RF_HOLD:
         rf_anim_tick(); rf_draw();
-        if (rf.t >= gref.hold || (rf.t > 20 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)))) {
+        if (gref.hit && rf.quirk == RQ_NONE && (JOY_pressed(bn_lead) & JOY_D)) {   /* the quirk: D, his fury into
+                                                    the referee (bonus_input runs him there and fires it) */
+            rf_text(1); rf.ph = RF_CLOSE; rf.quirk = RQ_RUN; rf.t = 0;
+            return 1;
+        }
+        if (rf.t >= gref.hold || (rf.t > 20 && (JOY_pressed(bn_lead) & (JOY_A | JOY_B | JOY_C | JOY_START |
+                                                                      (gref.hit && rf.quirk == RQ_NONE ? 0 : JOY_D))))) {
             rf_text(1); rf.ph = RF_CLOSE;
         }
         return 1;
     case RF_CLOSE:                               /* MES-WIND $E8A6 */
         rf_anim_tick(); rf_draw();
         rf.zoom += REF_WIN_CLOSE;
-        if (rf.zoom >= REF_WIN_ZOOM) { bn_hide(RF_WIN_SPR, 12); rf.ph = RF_OFF; return 0; }
+        if (rf.zoom >= REF_WIN_ZOOM) {
+            bn_hide(RF_WIN_SPR, 12);
+            if (rf.quirk == RQ_RUN || rf.quirk == RQ_FURY) { rf.ph = RF_WAIT; rf.t = 0; return 1; }   /* (the fury coming) */
+            rf.ph = RF_OFF; return 0;
+        }
         rf_window(0); return 1;
+    case RF_WAIT: {                              /* the fighter runs at him, fires; the fury over without touching him
+                                                    (or never fired): the speech ends as without D */
+        const fighter_t *f = &fighters[bn_lead];
+        uint8_t i, busy = f->state == S_SPECIAL;
+        for (i = 0; i < NPJ; i++) busy |= projectiles[i].state == S_PROJ;
+        rf_anim_tick(); rf_draw();
+        if (rf.t > 600 || (rf.quirk == RQ_FURY && !busy && !sf_who)) { rf.ph = RF_OFF; return 0; }
+        return 1;
+    }
+    case RF_FLY:                                 /* SS2's knockdown flight (220), his jump's gravity, to his floor */
+        rf_anim_tick(); rf.vy += REF_GRAV; rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
+        if (rf.vy > 0 && (rf.y >> 8) + (rf.vy >> 8) >= rf.g + REF_LAND_DY) {
+            rf.y = (int32_t)(rf.g + REF_LAND_DY) << 8; rf_set(REF_DOWN); rf.ph = RF_DOWN; rf.t = 0; snd_sfx(ghitsnd.bounce);
+        } else rf.y += rf.vy;
+        bn_put(RF_SH_SPR, &ref_shadow_s[0].p[0][0], rf.x + ref_shadow_s[0].p[0][0].x, rf.g + REF_LAND_DY + ref_shadow_s[0].p[0][0].y, 0, 0xF, 0xFF, 0);
+        rf_draw(); return 1;
+    case RF_DOWN:                                /* landed, lying (222), down_ticks */
+        rf_anim_tick(); rf_draw();
+        if (rf.t >= gref.down_ticks + 5) { rf_set(REF_GETUP); rf.ph = RF_GETUP; }
+        return 1;
+    case RF_GETUP:                               /* the get-up (138), his idle, then his window again: hit_text */
+        if (rf_anim_tick()) {
+            rf_set(REF_IDLE); rf_win_place(gref.hit_text, rf.x);
+            rf.ph = RF_OPEN; rf.zoom = REF_WIN_ZOOM; rf.t = 0;
+        }
+        rf_draw(); return 1;
     }
     return 0;
 }
@@ -3453,6 +3514,7 @@ static void bonus_off(void) {                    /* out of a bonus: its sprites 
     if (bonus_on) bn_hide(BN_FRONT, 48);
     bt_hide();                                   /* (TIME OVER, the won headline: on 324-347) */
     if (rf.ph) { rf_text(1); rf.ph = RF_OFF; }   /* (the referee cut short: his sprites went with 47-58 / 300-347) */
+    rf.quirk = RQ_NONE;
     if (bonus_on == BN_PICK || bonus_on >= BN_INTRO) { bscr_clear(); shadow_init(); }   /* (cut short on one of AOF2's screens) */
     bonus_on = BN_OFF;
 }
@@ -3598,7 +3660,7 @@ static void bn_break_flow(fighter_t *f) {
     switch (bn_post) {
     case BP_NONE:                                /* the next post drops in */
         if (bn_left && bn_pt >= (bn_t < 100 ? 60 : 24)) {
-            bn_post = BP_DROP; bn_pt = 0; bn_hp = bn_g->hp; bn_touch = 1;
+            bn_post = BP_DROP; bn_pt = 0; bn_hp = bn_g->hp; bn_touch = 1; bn_img = 0;
             bn_px = INT(f->x) - cam_x < 160 ? bonus_post[0].x : 320 - 64 - bonus_post[0].x + 16;   /* (AOF2's 241, mirrored: 31) */
         }
         break;
@@ -3607,7 +3669,7 @@ static void bn_break_flow(fighter_t *f) {
         if (bn_pt >= 8) { bn_post = BP_STAND; bn_pt = 0; snd_sfx(ghitsnd.bounce); }
         break;
     case BP_STAND:
-        if (bn_thud) { bn_thud--; bn_post_show(0, (bn_thud & 2) ? 2 : -2, 0, 0); if (!bn_thud) bn_post_show(0, 0, 0, 0); }
+        if (bn_thud) { bn_thud--; bn_post_show(bn_img, (bn_thud & 2) ? 2 : -2, 0, 0); if (!bn_thud) bn_post_show(bn_img, 0, 0, 0); }
         for (i = 0, k = 0; i < nf; i++) {        /* the fighter and his objects: what strikes the post now */
             int16_t x0, x1, y0, y1;
             uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1);
@@ -3620,7 +3682,12 @@ static void bn_break_flow(fighter_t *f) {
                 fighter_prop_hit(order[i], bn_hp > 1);   /* a hit for the chain as on a fighter (note 20261014-231537-5d29:
                                                     its hit-stop, chain credit, cancel windows, its hit sound) */
                 if (bn_hp > 1) {                 /* it holds: it shakes, a chip flies off */
+                    uint8_t d = 0, taken;
                     bn_hp--; bn_thud = 16; bn_pt = 0;
+                    taken = bn_g->hp - bn_hp;    /* its damage shown (games[].damage_at, note 20261015-221208-e03d
+                                                    round 2): AOF2's cracked pictures 1-3 from those hits taken */
+                    while (d < 3 && taken >= bn_g->dmg_at[d]) d++;
+                    if (d != bn_img) { bn_img = d; bn_post_show(bn_img, 0, 0, 1); }
                     bn_chip_t = 30; bn_pc[BN_PIECES].x = (bn_px + 24) << 4; bn_pc[BN_PIECES].y = (py0 + 40 + 8 * (bn_hp & 3)) << 4;
                     bn_pc[BN_PIECES].vx = bn_px < 160 ? -24 : 24; bn_pc[BN_PIECES].vy = -48;
                     bn_put(BN_LEAF_SPR, &bonus_piece[bn_hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 1);
@@ -3700,6 +3767,17 @@ static void bonus_input(void) {                  /* this tick's intents: the gau
     if (bn_fall_t >= BN_FALL_LEAP && bn_fall_t < BN_FALL_LEAP + 10) {   /* the tree's top falls on him: he leaps back out
                                                     of its way (AOF2: Ryo from frame ~762, landing ~80 px back) */
         *i = (intent_t){ 0 }; i->dx = -1; i->hold = IN_B; if (bn_fall_t == BN_FALL_LEAP) i->press = IN_B; return;
+    }
+    if (bonus_on == BN_END && rf.quirk == RQ_RUN) {   /* the referee's D quirk: run at him, then the fury */
+        fighter_t *f = &fighters[bn_lead];
+        int16_t dx = rf.x + cam_x - INT(f->x), ad = dx < 0 ? -dx : dx;
+        int8_t s = dx < 0 ? -1 : 1;
+        *i = (intent_t){ 0 };
+        if (f->state != S_IDLE && f->state != S_WALK && f->state != S_RUN) return;   /* (his run's stop first) */
+        if (ad > gref.fury_dx && rf.t < 180) { i->dx = s; i->run = 1; return; }
+        if (f->state != S_IDLE) return;
+        i->face = s; fighter_meter_fill(f); i->press = IN_D; rf.quirk = RQ_FURY;
+        return;
     }
     if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
     if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; fighter_blow(&fighters[bn_lead], bn_g->blows[bn_grade]); return; }   /* the

@@ -372,6 +372,8 @@ typedef struct {
                                      fighter's own hurt voice (VK_HIT) */
     uint16_t fail_result;         /* BK_GAUGE: a failed grade's result + over_music, ticks from the punch mark (0: 58) */
     uint8_t hp;                   /* BK_BREAK: the hits an object takes (a strike touching it counts once; bonus-pillars-normals) */
+    uint8_t dmg_at[3];            /* BK_BREAK: hits taken from which the post shows AOF2's cracked picture 1 / 2 / 3 (games[].damage_at,
+                                     255: never; note 20261015-221208-e03d round 2) */
     uint16_t won_ticks;           /* BK_BREAK: a won result held this long (the unlock's message box) */
     const char *lesson[3];        /* BK_BREAK: the lesson box (fix rows 20 / 22 / 24, the first highlighted; "" = none) */
     const char *won_text[3];      /* BK_BREAK won the first time: the message box under CONGRATULATIONS (rows 20 / 22 / 24);
@@ -395,6 +397,14 @@ extern const gbonus_t gbonus;
  * to the front to speak (tools/samsho2/referee_ss2.py: his frames and motion decoded from SS2). He sidesteps in on the
  * back lane from `from` px outside the screen edge farther from the player, jumps at `mark` px from that edge, lands in
  * front and speaks; the window held `hold` ticks after its last letter (a button ends it from then) */
-typedef struct { uint8_t mark, from; uint16_t hold; } gref_t;
+typedef struct {
+    uint8_t mark, from; uint16_t hold;
+    uint8_t fury_dx, knock_vx;    /* the D quirk (game.json referee.hit_text, note 20261015-221208-e03d round 2): while his
+                                     message is held, D: the fighter runs to fury_dx px from him and fires his fury; its first
+                                     strike on him: Kuroko's knockdown, flying knock_vx px a tick away, knock_vy (8.8) up */
+    int16_t knock_vy; uint16_t down_ticks;   /* ... lying down_ticks, then up: his window again with hit_text */
+    uint8_t hit;                  /* hit_text given: the quirk on */
+    const char *const *hit_text;  /* [3] his lines after it ("" = none) */
+} gref_t;
 extern const gref_t gref;
 #endif

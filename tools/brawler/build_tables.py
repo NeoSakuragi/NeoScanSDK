@@ -1255,12 +1255,13 @@ BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
 MAXC_N = 6                                               # roster[].max_chain: at most this many throws
 BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
-                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about')}
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee")
-REF_KEYS = ('about', 'mark', 'from', 'hold')
+REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'knock_vx', 'knock_vy', 'down_ticks', 'hit_about')
+POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
 
@@ -1327,6 +1328,9 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert isinstance(x['count'], int) and 1 <= x['count'] <= 20, f"bonus game {x['id']}: count 1-20"
             assert x['breaks_with'] in ('fury', 'any') and x['unlock'] in ('fury', 'none'), f"bonus game {x['id']}: breaks_with fury | any, unlock fury | none"
             assert isinstance(x.get('hp', 1), int) and 1 <= x.get('hp', 1) <= 30, f"bonus game {x['id']}: hp 1-30 (hits a post takes)"
+            da = x.get('damage_at', [])
+            assert isinstance(da, list) and len(da) <= POST_DMG and all(isinstance(v, int) and 1 <= v < x.get('hp', 1) for v in da) and da == sorted(set(da)), \
+                f"bonus game {x['id']}: damage_at: up to {POST_DMG} rising hit counts 1..hp-1 (the post's cracked pictures 1-{POST_DMG})"
             assert isinstance(x.get('won_ticks', 300), int) and 120 <= x.get('won_ticks', 300) <= 1200, f"bonus game {x['id']}: won_ticks 120-1200"
             for k in ('lesson', 'won_text'):
                 t = x.get(k, [])
@@ -1367,7 +1371,7 @@ def bonus_tables(g, songs_known, sfx_names):
         else:
             ln = lambda k, d: '{ ' + ', '.join(c_str(l) for l in (x.get(k, d) + ['', '', ''])[:3]) + ' }'
             f += [f".count = {x['count']}", f".breaks = {'BB_FURY' if x['breaks_with'] == 'fury' else 'BB_ANY'}", f".unlock = {'BU_FURY' if x['unlock'] == 'fury' else 'BU_NONE'}",
-                  f".hp = {x.get('hp', 1)}", f".won_ticks = {x.get('won_ticks', 300)}",
+                  f".hp = {x.get('hp', 1)}", '.dmg_at = { ' + ', '.join(str(v) for v in (x.get('damage_at', []) + [255] * POST_DMG)[:POST_DMG]) + ' }', f".won_ticks = {x.get('won_ticks', 300)}",
                   '.lesson = ' + ln('lesson', ['ONLY YOUR FURY BREAKS THE POSTS!', 'FURY  =  D', 'MAX  =  DOWN + D  AT LOW LIFE']),
                   '.won_text = ' + ln('won_text', ['FURY + FURY MAX UNLOCKED ON D']), f".referee = {1 if x.get('won_by') == 'referee' else 0}"]
         f.append(f".show_name = {1 if x.get('show_name', True) else 0}")
@@ -1382,11 +1386,20 @@ def bonus_tables(g, songs_known, sfx_names):
              f".games = {{ {', '.join(rows)} }} }};")
     r = g.get('referee') or {}
     for k in r: assert k in REF_KEYS, f'referee: unknown field {k}'
-    rv = {'mark': 96, 'from': 48, 'hold': 124, **{k: v for k, v in r.items() if k != 'about'}}
-    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold: integers'
+    rv = {'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'knock_vx': 3, 'knock_vy': -1024, 'down_ticks': 40,
+          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text')}}
+    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold / fury_dx / knock_* / down_ticks: integers'
+    ht = r.get('hit_text', [])
+    assert isinstance(ht, list) and len(ht) <= 3 and all(isinstance(l, str) and 0 < len(l) <= REF_LINE and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in ht), \
+        f'referee: hit_text = his 1-3 lines after the fury hits him ([]: no D quirk), {REF_LINE} characters each'
+    assert 24 <= rv['fury_dx'] <= 160 and 0 <= rv['knock_vx'] <= 8 and -2048 <= rv['knock_vy'] <= 0 and 0 <= rv['down_ticks'] <= 600, \
+        'referee: fury_dx 24-160 px, knock_vx 0-8 px a tick, knock_vy -2048-0 (8.8), down_ticks 0-600'
     assert 40 <= rv['mark'] <= 160 and 32 <= rv['from'] <= 120 and 30 <= rv['hold'] <= 1200, \
         'referee: mark 40-160 px from his edge, from 32-120 px outside it, hold 30-1200 ticks'
-    c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']} }};   /* game.json referee */")
+    c.append('static const char *const gref_hit_text[3] = { ' + ', '.join(c_str(l) for l in (ht + ['', '', ''])[:3]) + ' };')
+    c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']}, .fury_dx = {rv['fury_dx']}, "
+             f".knock_vx = {rv['knock_vx']}, .knock_vy = {rv['knock_vy']}, .down_ticks = {rv['down_ticks']}, "
+             f".hit = {1 if ht else 0}, .hit_text = gref_hit_text }};   /* game.json referee */")
     return c
 
 

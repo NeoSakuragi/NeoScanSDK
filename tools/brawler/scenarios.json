@@ -4779,15 +4779,15 @@
   "proof": 60
  },
  "20261015-221208-e03d": {
-  "title": "Fury bonus (posts): no start messages, 5 tougher posts, SS2's referee announces the fury",
+  "title": "Fury bonus (posts): 4 posts that crack as they take hits; after the referee's message, D fires your fury into him",
   "setup": {
    "mode": "bonus",
    "fighter": "terry",
    "game": "posts",
    "after": 1
   },
-  "do": "Break the posts with any attacks (punches, kicks, specials) before the clock runs out.",
-  "expect": "At the start nothing is written but the TIME and POSTS line: it just goes. There are 5 posts, each taking 12 hits (three times as many as before). When the last one breaks, Samurai Shodown II's referee (Kuroko, in black) sidesteps in from the far side of the screen behind you, jumps up and lands in front, and his message window opens: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D! typed letter by letter, then it closes and stage 2 starts. A button ends his message once it is fully written.",
+  "do": "Break the posts with any attacks before the clock runs out, watching each post as you hit it. When the referee has written his whole message, press D (once). Play it a second time without pressing D.",
+  "expect": "4 posts, 12 hits each. Each post shows Art of Fighting 2's own cracks growing: a small crack after 3 hits, a bigger one after 6, a crack right across the trunk after 9, splinters at the 12th. When the last one breaks, SS2's referee comes to the front and writes FURY UNLOCKED! / WHEN YOU BLINK / PRESS D!. D then: his window closes, your fighter runs at him and fires his fury, the referee is knocked down (SS2's flight, lying, getting up), then his window opens again: HORRIBLE ATMOSPHERE., and stage 2 starts. Nothing else works in that moment. Without D the message closes and stage 2 starts as before.",
   "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
   "proof": 150
  },
@@ -4859,5 +4859,19 @@
   "expect": "Stage 3 is the control-room stage with the theme that stage 2 had, and Geese is its boss (the stage Krauser used to be fought in). Stage 2 is now the industrial stage (its highway music) with Krauser as boss. Bosses in the same order (Mr. Big, Krauser, Geese, Rugal), the bonus still after stage 1 and before the FINAL STAGE.",
   "do_keys": "",
   "proof": 60
+ },
+ "20261015-235142-e03d": {
+  "title": "Geese: his special (C) is the small Reppuken, not the big Double Reppuken",
+  "setup": {
+   "mode": "lab",
+   "fighter": "geese",
+   "dummy": "ryo",
+   "gap": 140,
+   "drive": "full"
+  },
+  "do": "As Geese press C (neutral). Then press up-forward + C. Then fight Geese as the stage 3 boss and watch his wave.",
+  "expect": "C throws KOF96's Reppuken: one small blue wave along the ground. The big Double Reppuken (a second, tall eruption) is now on up-forward + C only. Boss Geese throws the small one.",
+  "do_keys": "2:c,90:-,2:UR,1:URc,90:-",
+  "proof": 200
  }
 }
