@@ -4763,5 +4763,19 @@
   "expect": "The fire comes out about three times sooner than before (11 frames), and it is the slow version (SS2's A: each flame arc stays about twice as long before the next one 80 px on). Its hit sends Ryo straight up (no sideways push) and he can be juggled: your A hits him in the air, his juggle count starting from 0.",
   "do_keys": "2:Rc,24:-,2:R,2:-,26:R,3:a,5:-,3:a",
   "proof": 60
+ },
+ "20261015-220706-e03d": {
+  "title": "Haohmaru forward + C (Resshinzan): SS2's D version, a steep short leap",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 100,
+   "drive": "full"
+  },
+  "do": "Press forward + C (Ougi Resshinzan, his rising kick-slash) on Ryo.",
+  "expect": "Haohmaru plays SS2's D version (the medium kick one), no longer the C+D one: a steep leap that lands about half as far forward as before (SS2: 139 px instead of 266). Its height stays about the same (SS2's D peaks at 113 px, C+D at 103). The rest of his moves are unchanged.",
+  "do_keys": "2:Rc,60:-",
+  "proof": 60
  }
 }
