@@ -124,8 +124,9 @@ class FeedbackListActivity : Activity() {
         val y = scroll.scrollY
         filters.removeAllViews()
         val nOpen = decisions.count { Decisions.isOpen(it) }
+        if (!Auth.admin(this) && (filter == "decisions" || filter == "answered")) filter = "open"
         for (row in listOf(listOf("open" to "Open", "ready" to "Shipped: test it", "all" to "All"),
-                           listOf("decisions" to "Decisions to answer", "answered" to "Answered"))) {
+                           listOf("decisions" to "Decisions to answer", "answered" to "Answered")).take(if (Auth.admin(this)) 2 else 1)) {   // 0.0.37: decisions = admins
             val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             for ((k, t) in row) {
                 val n = when (k) { "decisions" -> nOpen; "answered" -> decisions.size - nOpen; else -> (0 until rows.length()).count { matches(rows.getJSONObject(it), k) } }

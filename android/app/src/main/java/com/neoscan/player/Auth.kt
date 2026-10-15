@@ -164,6 +164,16 @@ object Auth {
 
     fun logout(ctx: Context) { prefs(ctx).edit().clear().commit(); memo = null }
 
+    /** LOG OUT (0.0.37: Settings' Account in Brawler Dev, the account button in the Brawler app): the sign-in and the
+     *  downloaded build go (the next account gets ITS allowed build), the sign-in screen, the game process ends (a
+     *  fresh start after the login) */
+    fun signOut(a: android.app.Activity) {
+        logout(a); RomFetch.forget(a)
+        a.startActivity(android.content.Intent(a, LoginActivity::class.java)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        Runtime.getRuntime().exit(0)
+    }
+
     /** a request with the token; refused (401) once = renew the token and ask again. [open] makes the connection
      *  (headers set, body written) for a given token; the returned connection has its response code read */
     fun call(ctx: Context, open: (String?) -> HttpURLConnection): HttpURLConnection {

@@ -201,19 +201,34 @@ class MainActivity : Activity() {
 
     /** the list button: his notes (FeedbackListActivity); the game pauses while it is in front (onPause) and resumes on
      *  back (onResume, which also refreshes the badge) */
+    /** THE PROFILE MENU (0.0.37, the profile button, both apps; was the admin's Feedback list menu): who (account,
+     *  role), the build, My tickets (his notes: FeedbackListActivity), the admin's Decisions / Test queue / Character
+     *  lab, Log out (confirmed: Auth.signOut). The game pauses while it is open. */
     private fun openList() {
-        if (noteOpen || !admin) return
+        if (noteOpen) return
         val q = testQueue(); val d = openDecisions()
         val list = { f: String? -> startActivity(android.content.Intent(this, FeedbackListActivity::class.java).apply { if (f != null) putExtra("filter", f) }) }
         if (testMode?.active == true) { list(null); return }
         val inLab = lab?.active == true
         emu?.paused = true                                         // 0.0.22: his notes, or the test queue; 0.0.24: the decisions
         val items = ArrayList<Pair<String, () -> Unit>>()
-        if (d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
-        items.add("My notes" to { list(null) })
-        if (q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
-        items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
-        android.app.AlertDialog.Builder(this).setTitle("Feedback")
+        items.add("My tickets" to { list(null) })
+        if (admin && d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
+        if (admin && q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
+        if (admin) items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
+        items.add("Log out" to {
+            android.app.AlertDialog.Builder(this).setTitle("Log out ${Auth.user(this) ?: ""}?")
+                .setMessage("Back to the sign-in screen. The next account gets its own build.")
+                .setPositiveButton("Log out") { _, _ -> Auth.signOut(this) }.setNegativeButton("Back", null)
+                .setOnDismissListener { emu?.paused = held() }.show(); emu?.paused = true; Unit })
+        val dp = resources.displayMetrics.density
+        val head = TextView(this).apply { val m = (18 * dp).toInt(); setPadding(m, m, m, (6 * dp).toInt()); textSize = 14f
+            val role = when { Auth.role(this@MainActivity) == "admin" -> "admin"; Auth.role(this@MainActivity) == "tester" -> "tester"; else -> "?" }
+            text = android.text.SpannableStringBuilder().apply {
+                append(Auth.user(this@MainActivity) ?: "?", android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0)
+                setSpan(android.text.style.RelativeSizeSpan(1.35f), 0, length, 0)
+                append("  $role\nGame ${RomFetch.installed(this@MainActivity)}  ·  ${if (BuildConfig.DEV) "Brawler Dev" else "Brawler"} ${BuildConfig.VERSION_NAME}") } }
+        android.app.AlertDialog.Builder(this).setCustomTitle(head)
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
             .setOnDismissListener { if (testMode?.active != true) emu?.paused = held() }.show()
     }
@@ -247,6 +262,7 @@ class MainActivity : Activity() {
     private fun refreshBadge() {
         if (!::pad.isInitialized) return
         pad.tester = !admin                                            // the role may change with a renewed sign-in
+        pad.initial = (Auth.user(this) ?: "?").take(1).uppercase()     // the profile button (0.0.37)
         if (!admin) { pad.badge = 0; return }                          // a tester: no list, no badge, no /mine calls
         Thread {
             Feedback.mine(this).onSuccess { j ->
@@ -566,7 +582,8 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    private fun openSettings() = startActivity(android.content.Intent(this, SettingsActivity::class.java))
+    /** the gear: Settings (Brawler Dev only; the Brawler app has no settings page, 0.0.37) */
+    private fun openSettings() { if (BuildConfig.DEV) startActivity(android.content.Intent(this, SettingsActivity::class.java)) }
     private fun hwOf(p: Prefs) = if (p.system == "console") "aes" else "mvs"
     private fun applySettings() {
         val p = Prefs(this)

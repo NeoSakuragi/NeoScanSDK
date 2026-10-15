@@ -98,6 +98,14 @@ object RomFetch {
     /** the build number of the ROM actually there: the download's when its sha256 matches, else 0 (pushed by hand) */
     fun loadedBuild(ctx: Context): Long = loaded(ctx).build
 
+    /** logging out (Auth.signOut): the ROM and what was recorded about it (the chosen build URL, version, sha) go; the
+     *  install id stays */
+    @Synchronized fun forget(ctx: Context) {
+        romFile(ctx).delete(); File(romFile(ctx).path + ".part").delete()
+        val p = ctx.getSharedPreferences("fetch", 0); val id = p.getString("install", null)
+        p.edit().clear().apply { if (id != null) putString("install", id) }.commit()
+    }
+
     class Loaded(val sha: String, val version: String, val build: Long)
     fun romFile(ctx: Context) = File(ctx.getExternalFilesDir(null), "brawler.neo")
     private fun key(f: File) = "${f.length()}:${f.lastModified()}"

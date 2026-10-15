@@ -537,6 +537,15 @@ from stdin, so it never shows in ps or a shell history).
 - **Proof builds:** `-PorosBase=http://10.0.2.2:<port>/ -PfeedbackBase=http://10.0.2.2:<port>/ [-PromBase=...]`
   (cleartext is allowed only then). Proof 2026-10-14: `/data/feedback/proof_0036/` (screens, HTTP codes, fb.py list,
   the Factory Players tab at 390 px).
+- **Player 0.0.37 (the tester release):** the Brawler app has no settings page (SettingsActivity removed from its
+  manifest; `Prefs` returns fixed values: landscape, 50 % scanlines, the rest at their defaults) and is landscape only
+  (game + My tickets). Its launcher icon is the NEO·GEO wordmark of the MVS BIOS eye-catch
+  (`tools/brawler/make_tester_icon.py`, `src/brawler/res`). Both apps: a PROFILE button (the account's initial; under
+  START in landscape) opens the profile menu: account + role, game build + app version, My tickets (FeedbackListActivity,
+  testers too; Decisions filters admins only), the admin's Decisions / Test queue / Character lab (Brawler Dev), Log out
+  (confirmed; `Auth.signOut` drops the sign-in AND the downloaded build, so the next account gets its own). The update
+  button (down arrow) is drawn only while a newer build / app is waiting or downloading, in both apps, for every role.
+  Proof: `/data/brawler-share/proof_0037/` (Wael 0.10.92 -> log out -> Asenka 0.10.109).
 - **Retired:** T2's separate share accounts (`share/login`, the `nsp1.` tokens, `share_accounts.py`,
   `share/accounts.json`): Wael and Asenka are Oros accounts with brawler_tester, under the same names, so their
   assignments in the `players` section still apply.

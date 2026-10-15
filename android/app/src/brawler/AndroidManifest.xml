@@ -7,7 +7,13 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" tools:node="remove" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
-    <application android:usesCleartextTraffic="${cleartext}" tools:replace="android:usesCleartextTraffic">
+    <!-- 0.0.37: the NEO·GEO icon (res/mipmap-*, tools/brawler/make_tester_icon.py); no settings page (Prefs: fixed) -->
+    <application android:usesCleartextTraffic="${cleartext}" android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round" tools:replace="android:usesCleartextTraffic">
+        <activity android:name=".SettingsActivity" tools:node="remove" />
+        <!-- landscape only: the game (Prefs fixed) and My tickets, so the phone never turns between them -->
+        <activity android:name=".MainActivity" android:screenOrientation="sensorLandscape" tools:replace="android:screenOrientation" />
+        <activity android:name=".FeedbackListActivity" android:screenOrientation="sensorLandscape" />
         <receiver android:name=".PlayerUpdate$Status" tools:node="remove" />
         <receiver android:name=".PlayerUpdate$Restart" tools:node="remove" />
     </application>

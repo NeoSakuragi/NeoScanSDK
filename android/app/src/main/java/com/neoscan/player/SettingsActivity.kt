@@ -43,10 +43,7 @@ class SettingsActivity : Activity() {
         note(if (!BuildConfig.DEV) "Signed in as ${Auth.user(this) ?: "?"}. Your builds and your feedback notes need it." else
              "Signed in as ${Auth.user(this) ?: "?"} (Oros account, ${if (Auth.admin(this)) "admin" else "tester"}). The builds and the feedback need it.")
         col.addView(Button(this).apply { text = "Log out"; setOnClickListener {
-            Auth.logout(this@SettingsActivity)
-            startActivity(android.content.Intent(this@SettingsActivity, LoginActivity::class.java)
-                .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK))
-            Runtime.getRuntime().exit(0)                                 // the game process goes too: a fresh start after the login
+            Auth.signOut(this@SettingsActivity)                          // the build goes too: the next account gets its own
         } }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
 
         section("System")

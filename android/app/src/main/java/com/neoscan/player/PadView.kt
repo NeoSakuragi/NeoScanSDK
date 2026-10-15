@@ -30,23 +30,33 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     private val mic = Btn(0, "", Color.rgb(60, 60, 70))               // voice feedback: held = recording (glyph drawn)
     private var micId = -1                                             // the pointer holding it (-1 = none)
     private var micSince = 0L
-    private val fbl = Btn(0, "", Color.rgb(60, 60, 70))               // my feedback notes: the list (glyph drawn)
+    private val fbl = Btn(0, "", Color.rgb(60, 60, 70))               // THE PROFILE (0.0.37, both apps, testers too): the
+                                                                       // account's initial; a tap = [onList], the profile menu
+    var initial = "?"                                                  // the signed-in account's first letter
+        set(v) { field = v; invalidate() }
     private var fblHit = false
     var badge = 0                                                      // the test queue + the open decisions (0.0.24): a count on the list button
         set(v) { field = v; invalidate() }
     var updateReady = false                                            // a newer build is on the server: blink
-        set(v) { field = v; invalidate() }
+        set(v) { val was = shown(upd); field = v; if (shown(upd) != was) relayout() else invalidate() }
     var updateText: String? = null                                    // download progress ("45%") on the button
-        set(v) { field = v; invalidate() }
+        set(v) { val was = shown(upd); field = v; if (shown(upd) != was) relayout() else invalidate() }
     private var updHit = false
-    /** TESTER MODE (0.0.26, Auth.admin): no list button (notes, test queue, decisions), no badge, no update button (the
-     *  updates still come: the launch screen offers a downloaded player, the game build is fetched at launch) */
+    /** TESTER MODE (0.0.26, Auth.admin): no badge (0.0.37: the profile button and the update-when-needed button are
+     *  everyone's; the profile menu keeps the admin entries to admins) */
     var tester = false
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     /** the first launch's tip is up (MainActivity.showTip): a thick white ring pulses around the mic */
     var hint = false
         set(v) { field = v; invalidate() }
-    private fun shown(b: Btn) = !tester || (b !== fbl && b !== upd)
+    /** 0.0.37: the update button (the down arrow) only while it has something to do, in both apps and for every role:
+     *  a newer game build or app waiting (it blinks) or downloading; THE BRAWLER (TESTER) APP (BuildConfig.DEV false):
+     *  no gear (no settings page) */
+    private fun shown(b: Btn) = when {
+        b === gear -> BuildConfig.DEV
+        b === upd -> updateReady || updateText != null
+        else -> true
+    }
     var size = 1f                                                      // settings: button size factor
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     var vibrate = true
@@ -94,7 +104,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             start.x = w * 0.60f; start.y = top + ph * 0.12f; start.r = r * 0.7f
             val y = top + ph * 0.12f; val g = r * 0.55f                 // the top row, left to right, evenly spaced: no
             val row = listOf(rst to g, mic to g, fbl to g, coin to r * 0.7f, start to r * 0.7f, upd to g, gear to g)   // overlap at any size
-                .filter { shown(it.first) }                            // tester: no list, no update button
+                .filter { shown(it.first) }                            // the gear: Brawler Dev; the update: when needed
             val gap = (w - row.sumOf { (it.second * 2).toDouble() }.toFloat()) / (row.size + 1)
             var x = 0f
             for ((b, br) in row) { x += gap + br; b.x = x; b.y = y; b.r = br; x += br }
@@ -152,7 +162,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         if (mask and Pad.LEFT != 0) c.drawRect(dx - dr * 0.9f, dy - arm, dx - arm, dy + arm, paint)
         if (mask and Pad.RIGHT != 0) c.drawRect(dx + arm, dy - arm, dx + dr * 0.9f, dy + arm, paint)
         val holding = rstSince != 0L
-        for (b in btns + coin + start + gear + rst) {
+        for (b in (btns + coin + start + gear + rst).filter { shown(it) }) {
             val on = mask and b.bit != 0 || (b === rst && holding)
             paint.color = if (on) Color.WHITE else b.color; c.drawCircle(b.x, b.y, b.r, paint)
             paint.color = if (on) b.color else Color.WHITE; paint.textSize = b.r * (if (b.label.length > 1) 0.5f else 0.9f)
@@ -166,11 +176,12 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         c.drawArc(mic.x - 3.6f * u, mic.y - 3.6f * u, mic.x + 3.6f * u, mic.y + 3.2f * u, 0f, 180f, false, paint)
         c.drawLine(mic.x, mic.y + 3.2f * u, mic.x, mic.y + 5.6f * u, paint); c.drawLine(mic.x - 2f * u, mic.y + 5.6f * u, mic.x + 2f * u, mic.y + 5.6f * u, paint)
         paint.style = Paint.Style.FILL
-        if (shown(fbl)) {
-            paint.color = if (fblHit) Color.WHITE else fbl.color; c.drawCircle(fbl.x, fbl.y, fbl.r, paint)   // the list: 3 bullets + lines
-            paint.color = if (fblHit) fbl.color else Color.WHITE; val v = fbl.r * 0.11f
-            for (i in -1..1) { val ly = fbl.y + i * 2.6f * v
-                c.drawCircle(fbl.x - 3.6f * v, ly, 0.8f * v, paint); c.drawRect(fbl.x - 1.9f * v, ly - 0.6f * v, fbl.x + 4.4f * v, ly + 0.6f * v, paint) }
+        if (shown(fbl)) {                                              // the profile: a white ring, the initial in bold
+            paint.color = if (fblHit) Color.WHITE else fbl.color; c.drawCircle(fbl.x, fbl.y, fbl.r, paint)
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = fbl.r * 0.1f; paint.color = Color.WHITE
+            c.drawCircle(fbl.x, fbl.y, fbl.r * 0.92f, paint); paint.style = Paint.Style.FILL
+            paint.color = if (fblHit) fbl.color else Color.WHITE; paint.textSize = fbl.r * 0.95f; paint.isFakeBoldText = true
+            c.drawText(initial, fbl.x, fbl.y + paint.textSize * 0.36f, paint); paint.isFakeBoldText = false
         }
         if (!portrait) c.restore()
         micLabel(c)
