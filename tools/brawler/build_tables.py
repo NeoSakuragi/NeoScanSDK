@@ -251,19 +251,8 @@ def select_auto(g, names, E, L):
     n = len(names); fe = a['feet']
     P = {f: {'x': 0, 'y': fe[k % len(fe)], 'facing': 'right' if 2 * k < n - 1 else 'left'} for k, f in enumerate(names)}
     def span(f): return sel_spans(E[f], P[f])
-    U = 0
-    if n > 1:
-        s0, s1 = span(names[0]), span(names[-1])
-        ext = -min(l for l, r in s0.values()) + max(r for l, r in s1.values())
-        U = max(0, min(a['pitch'], (SEL_TV[1] - SEL_TV[0] - 2 * a['margin'] - ext) // (n - 1)))
-    for k, f in enumerate(names[1:], 1):
-        x = P[names[k - 1]]['x'] + U
-        sf = span(f)                                     # (at x 0: its spans relative to its feet)
-        for j in names[:k]:
-            sj = span(j)
-            need = [sj[y][1] - sf[y][0] + 1 + a['gap'] for y in sj if y in sf]
-            if need: x = max(x, max(need))
-        P[f]['x'] = x
+    for k, f in enumerate(names): P[f]['x'] = k * a['pitch']   # a fixed even spacing (Bruno 2026-10-15: "just space
+                                                                # them evenly with a fixed number, big enough")
     S = [span(f) for f in names]
     A, B = min(l for s in S for l, r in s.values()), max(r for s in S for l, r in s.values())
     dx = SELECT_W // 2 - (A + B + 1) // 2
