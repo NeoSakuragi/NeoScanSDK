@@ -1479,7 +1479,6 @@ class H(http.server.BaseHTTPRequestHandler):
                     if os.path.exists(p): return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
                 return self.reply(404, {'error': 'not found'})
             if len(parts) == 4 and parts[0] == 'scenario' and ID.match(parts[1]) and SHA.match(parts[2]) and SFILE.match(parts[3]):
-                if not admin: return self.reply(403, {'error': 'for brawler admins only'})   # the test queue
                 if not c.execute('SELECT 1 FROM feedback WHERE id=? AND user=?', (parts[1], user)).fetchone(): return self.reply(404, {'error': 'not found'})
                 p = os.path.join(SCENARIOS, parts[1], parts[2], parts[3])
                 if not os.path.exists(p): return self.reply(404, {'error': 'no test state for this build'})
@@ -1992,8 +1991,8 @@ class H(http.server.BaseHTTPRequestHandler):
         """Player 0.0.22: a test attempt of one of the user's notes, a zip: test.json {id, result (up / down / abandoned),
         rom_sha, game_version, system, seconds?, reply_id? (the thumbs reply it went with), note?, device?} + optionally
         the replay of the attempt (the feedback bundle's files: snap_*.state, inputs.bin, press.state, screen.png, meta.json),
-        unpacked into DATA/attempts/<attempt id>/"""
-        user = self.admin_player()
+        unpacked into DATA/attempts/<attempt id>/; a tester tests his own notes too (2026-10-15)"""
+        user = self.player()
         if not user: return
         body = self.body(MAX_BODY)
         if body is None: return self.reply(413, {'error': 'size'})
