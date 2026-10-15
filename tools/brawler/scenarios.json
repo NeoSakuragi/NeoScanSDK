@@ -4861,7 +4861,7 @@
   "proof": 60
  },
  "20261015-235142-e03d": {
-  "title": "Geese: his special (C) is the small Reppuken, not the big Double Reppuken",
+  "title": "Geese: his dragon punch (down + C) is the small Jaeiken; C is the Double Reppuken again",
   "setup": {
    "mode": "lab",
    "fighter": "geese",
@@ -4869,9 +4869,9 @@
    "gap": 140,
    "drive": "full"
   },
-  "do": "As Geese press C (neutral). Then press up-forward + C. Then fight Geese as the stage 3 boss and watch his wave.",
-  "expect": "C throws KOF96's Reppuken: one small blue wave along the ground. The big Double Reppuken (a second, tall eruption) is now on up-forward + C only. Boss Geese throws the small one.",
-  "do_keys": "2:c,90:-,2:UR,1:URc,90:-",
-  "proof": 200
+  "do": "As Geese press down + C. Then press down-forward + C. Then press C.",
+  "expect": "Down + C: the small Jaeiken (KOF96's 623A, a short low rise). Down-forward + C: the big Jaeiken (623C). C: the Double Reppuken as before 0.10.123.",
+  "do_keys": "2:D,1:Dc,90:-,2:DR,1:DRc,90:-,2:c,90:-",
+  "proof": 320
  }
 }
