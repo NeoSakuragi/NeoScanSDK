@@ -410,6 +410,11 @@ def build(outdir):
             h.append(f'#define BONUS_N_{o.upper()} {len(ims)}')
             h.append(f'static const bonus_obj_t bonus_{o}[BONUS_N_{o.upper()}] = {{ {", ".join(names)} }};')
             objs[o] = ims
+        if 'mark' in ob and 'tree' in ob:            # main.c bn_decal writes the mark into the tree's own cells
+            tx, ty, tw_, th_ = ob['tree'][0][:4]
+            for mx, my, mw, mh, _ in ob['mark']:
+                assert (mx - tx) % 16 == 0 and (my - ty) % 16 == 0 and 0 <= mx - tx and mx - tx + 16 * mw <= 16 * tw_ \
+                    and 0 <= my - ty and my - ty + 16 * mh <= 16 * th_, ('mark off the tree grid', mx, my, tx, ty)
         # the scene as the build draws it (a check picture)
         img = Image.new('RGB', (320, 224), (0, 0, 0)); P = img.load()
         def put(sx, sy, t, aw):

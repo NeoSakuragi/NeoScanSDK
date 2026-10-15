@@ -4631,8 +4631,50 @@
    "hp": 10
   },
   "do": "Your life is low (red): press down + D next to Ryo.",
-  "expect": "The super flash, then jab, jab, finisher three times, half again as fast as his fury; his spinning lariat; then Haggar grabs the reeling Ryo and backdrops him three times in a row (grabbed again each time, never sent flying), piledrives him with a jump half the usual height, then a full piledriver to finish. Haggar is invincible throughout; Ryo is launched only by the last piledriver.",
+  "expect": "The MAX super flash: orange, with the MAX whistle (not the fury's charge sound), then jab, jab, finisher three times, half again as fast as his fury; his spinning lariat; then Haggar grabs the reeling Ryo and backdrops him three times in a row and piledrives him with a jump half the usual height: after each of these throws Ryo stays where he landed, right against Haggar (no bounce or slide away), until Haggar grabs him for the next; then a full piledriver to finish. Haggar is invincible throughout; Ryo is launched only by the last piledriver.",
   "do_keys": "4:Dd",
   "proof": 600
+ },
+ "20261015-195132-e03d": {
+  "title": "Ki training: Terry's blow in front of the tree's punch mark",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is nearly full (the clip presses at the top): Terry throws his forward finisher into the trunk.",
+  "expect": "Terry is drawn whole in front of the tree all through the blow: no band of bark across his chest or head; the punch mark shows on the trunk behind him and shakes with the tree.",
+  "do_keys": "115:-,4:a",
+  "proof": 200
+ },
+ "20261015-201130-e03d": {
+  "title": "A C special out of a back throw goes toward the thrown enemy",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "pre": "20:R,4:-"
+  },
+  "do": "You hold Ryo: press back + A (the back throw), then while Ryo is still flying behind you press toward him + C.",
+  "expect": "Terry turns to face Ryo and the special comes out toward him (it hits him), never away from him into the empty side.",
+  "do_keys": "3:La,30:L,4:Lc,20:L",
+  "proof": 80
+ },
+ "20261015-201055-e03d": {
+  "title": "A C special hitting an enemy in the air resets his juggle count",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 30,
+   "drive": "full"
+  },
+  "do": "A, A, A, then up + A to launch Ryo, then press C (Terry's rising special) under him while he is in the air.",
+  "expect": "Every hit of the C special lands on the airborne Ryo (7 hits, more than the juggle limit of 5): each of its air hits puts his juggle count back to 0, so you can keep juggling him afterwards. Normals and the fury still count toward the limit.",
+  "do_keys": "3:a,9:-,3:a,9:-,3:a,4:-,2:U,3:Ua,8:-,3:a,6:-,3:a,6:-,3:a,6:-,3:c",
+  "proof": 120
  }
 }

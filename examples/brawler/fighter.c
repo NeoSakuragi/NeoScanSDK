@@ -1761,6 +1761,18 @@ static void voice_throw(const fighter_t *f, uint16_t from, uint16_t to) {   /* a
  * passes it. The attached victim follows (victim_rows, placed from the thrower). Returns 0 once the thrower's part is
  * over (its control return row reached). */
 static uint8_t max_chain(fighter_t *f, fighter_t *v);
+static uint16_t last_impact(const bthrow_t *th);
+/* the MAX chain's glue (note 20261015-150000-a8c1, Bruno: "after each throw is finished, keep the enemy glued to the
+ * character"): a chain throw with another to come, from the frame after its last impact (every row of the frame past it:
+ * the impact's damage lands as ever) to its release / control return, where the next throw grabs: the victim no longer
+ * plays the throw's bounce-away rows (the piledriver's slide apart, the backdrop's bounce), it stays in its impact pose,
+ * where it lay, at the impact's distance from the thrower, moving with him */
+static uint8_t max_glue(fighter_t *f, const bthrow_t *th, uint16_t j) {
+    uint16_t li;
+    if (!f->mchn || f->ch->id >= BC_COUNT || f->mchn - 1 >= gmax_chain[f->ch->id].n || !IS_THROW(f->throw_id)) return 0;
+    li = last_impact(th);
+    return li != 0xFFFF && j > li;
+}
 static uint8_t paired_update(fighter_t *f) {
     const bthrow_t *th = thr_of(f, f->throw_id);
     fighter_t *v = f->held;
@@ -1773,7 +1785,9 @@ static uint8_t paired_update(fighter_t *f) {
         throw_fx(INT(f->throw_x0) + (f->throw_face > 0 ? th->fx_dx : -th->fx_dx), floor_top + INT(f->z) - th->fx_dy, f->throw_face);
         snd_sfx(SFX_THROW);
     }
-    if (v && v->held == f) {
+    if (v && v->held == f && max_glue(f, th, j)) {               /* (glued: its place below) */
+        if (f->mgdx == 0x7FFF) f->mgdx = INT(v->x) - INT(f->x);
+    } else if (v && v->held == f) {
         uint8_t hit = victim_rows(v, th, j, i);
         if (hit & 2) {                                           /* released: the engine's knockdown from here */
             f->held = 0;
@@ -1794,7 +1808,7 @@ static uint8_t paired_update(fighter_t *f) {
         } else if (i >= th->nrows && IS_THROW(f->throw_id)) { victim_end(v); f->held = 0; v = 0; }   /* (a hold hit: held on) */
     }
     if (i >= th->ret) {                                          /* the control return: the victim still in the script */
-        if (v && i < th->nrows) thrown_place(v, vrow(v, th, i, &tmp));   /* shows this row's place with its pose, then */
+        if (v && i < th->nrows && !(f->mchn && f->mgdx != 0x7FFF)) thrown_place(v, vrow(v, th, i, &tmp));   /* shows this row's place with its pose, then */
         return 0;                                                /* plays on alone from it (throw_free); unplaced, it */
     }                                                            /* held last row's place a frame: a hitch in its flight (#196) */
     r = &th->rows[i];
@@ -1814,7 +1828,8 @@ static uint8_t paired_update(fighter_t *f) {
     f->y = f->thsc && r->ty > 0 ? FIX((int16_t)(mulu16((uint16_t)r->ty, f->thsc) >> 8)) : FIX(r->ty);   /* (the MAX chain's
                                                                     half-height piledriver: its heights x thsc) */
     f->facing = (r->flags & 8) ? -f->throw_face : f->throw_face;   /* turned around in the game (Terry's reverse throw) */
-    if (v) place_victim(f, v, vrow(v, th, i, &tmp), f->throw_face);
+    if (v && f->mchn && f->mgdx != 0x7FFF) v->x = f->x + FIX(f->mgdx);   /* (the MAX chain's glue: max_glue) */
+    else if (v) place_victim(f, v, vrow(v, th, i, &tmp), f->throw_face);
     return 1;
 }
 /* the fury a D press buys (down: down+D; "the meter"): the MAX (bchar_t.fury_max; none: the fury played as the MAX) in
@@ -1864,6 +1879,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     f->throw_id = t; f->throw_x0 = f->x; f->throw_face = f->facing; enter(f, S_THROW); f->srow = 0; f->speed = th->speed; f->zfront = 1;
     f->jdx = pend_jdx; f->jprev = 0; pend_jdx = 0;               /* (hold + B's travel: its airborne rows, paired_update) */
     f->thsc = pend_thsc; pend_thsc = 0;                          /* (its height scale: the MAX chain's, paired_update) */
+    f->mgdx = 0x7FFF;                                            /* (not glued: max_glue) */
     for (f->jr0 = 0; f->jdx && f->jr0 < th->land && th->rows[f->jr0].ty <= 0; f->jr0++) {}
     enter(v, S_THROWN); v->throw_id = t; v->thr = th; v->thr_by = f; v->throw_x0 = f->x; v->throw_face = f->facing;
     v->hv = IS_THROW(t);                                         /* a throw's victim: its landing voice to come (hurt_land) */
@@ -2542,8 +2558,12 @@ static uint16_t last_impact(const bthrow_t *th) {               /* a throw's can
 static void juggle_open(fighter_t *f, fighter_t *v) { if (v && v != f && v->team != f->team) v->jug_by = f; }
 /* the thrower's side after the grab (TODO #146): the paired script up to the control return, then it acts again; a
  * throw's last impact / the hold finisher's landing cancel ("cancels" rule 4) */
-static void cancel_go(fighter_t *f, uint8_t k) {                /* a throw's buffered C / D (cancel_pick's role): the fury, or
-                                                                    a C special (invincible: cspecial) */
+static void cancel_go(fighter_t *f, uint8_t k, const fighter_t *v) {   /* a throw's buffered C / D (cancel_pick's role): the
+                                                                    fury, or a C special (invincible: cspecial), turned
+                                                                    toward the throw's victim first (note 20261015-201130-e03d:
+                                                                    out of a back throw the thrower still faced the throw's
+                                                                    way, the special went off away from the victim behind) */
+    if (v && v != f && INT(v->x) != INT(f->x)) f->facing = v->x > f->x ? 1 : -1;
     if (k == BS_FURY || k == BS_FURY_MAX) start_special(f, k); else cspecial(f, k);
 }
 static void throw_update(fighter_t *f, const intent_t *in) {
@@ -2553,8 +2573,9 @@ static void throw_update(fighter_t *f, const intent_t *in) {
     if (!f->team && (f->fury_buf || f->spec_buf) &&               /* the impact shown (srow: the row shown + 1): */
         (f->throw_id == BT_HOLD_FIN ? !f->held : IS_THROW(f->throw_id) && f->srow > last_impact(thr_of(f, f->throw_id))) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* a buffered C / D fires now */
-        juggle_open(f, f->held ? f->held : f->target);           /* rule 5: its follow-up may hit the victim in flight */
-        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k); return;
+        jv = f->held ? f->held : f->target;
+        juggle_open(f, jv);                                      /* rule 5: its follow-up may hit the victim in flight */
+        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k, jv); return;
     }
     if (paired_update(f)) return;
     jv = f->held ? f->held : f->target;
@@ -2563,7 +2584,7 @@ static void throw_update(fighter_t *f, const intent_t *in) {
     if (!f->team && (f->fury_buf || f->spec_buf) && (IS_HOLD(f->throw_id) || last_impact(thr_of(f, f->throw_id)) != 0xFFFF) &&
         (k = cancel_pick(f)) != 0xFF) {                          /* the control return before the last impact (a throw
                                                                     whose only impact comes after it): the press fires */
-        juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k); return;
+        juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k, jv); return;
     }
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0; to_neutral(f, 0);
 }
@@ -4539,6 +4560,8 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     }
     {   fighter_t *o = a->owner ? a->owner : a;                  /* the chain core: an air hit counts toward the juggle cap */
         if (v->y > 0 && v->state == S_KNOCKDOWN && !(o->state == S_SPECIAL && o->spec_id == BS_FURY) && v->jug_n < 255) v->jug_n++;
+        if (v->y > 0 && (gchain.jreset & JR_C) && o->state == S_SPECIAL && o->sinv) v->jug_n = 0;   /* a C special's air hit:
+                                                                    the juggle counts from 0 again (chain.juggle_reset_button) */
         if (!v->team && v->state != S_PROJ) { v->guard = gchain.guard_player; v->guard_by = o; }   /* a player: untouchable
                                                                     to all but this attacker a moment ("guard") */
     }

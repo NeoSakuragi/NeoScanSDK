@@ -565,6 +565,8 @@ typedef struct fighter {
     uint8_t  mchn, mracc;         /* the MAX chain (fighter.c, game.json roster[].max_chain): mchn = its next throw + 1
                                    * (0: none); mracc: the fast pieces' rate accumulator */
     uint16_t thsc;                /* the paired throw playing: its height scale (8.8, 0 = 1x; the MAX chain's) */
+    int16_t  mgdx;                /* the MAX chain's glue: a throw with another to come, past its last impact: the
+                                   * victim kept this many px from the thrower (0x7FFF: not yet, fighter.c max_glue) */
     /* throws (revamp phase 3, fighter.c "hold and throws"): sthr = the special playing is a throw (1: an extra throw,
      * BS_THROW; 2: the super throw, played as a fury) and xix its special's index (start_special takes it); thr_dmg = a
      * paired throw's whole damage on its victim (THROW_DAMAGE, the super throw's gmeter.sthrow_dmg); tb_by = the throw

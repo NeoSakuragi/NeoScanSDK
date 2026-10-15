@@ -685,7 +685,10 @@ void super_flash(fighter_t *f) {
     const bspec_t *sp = f->state == S_SPECIAL ? &f->ch->specials[f->spec_ix] : 0;   /* (a paired super throw, revamp 3: none) */
     if (mode != 1) return;
     sf_who = f; sf_flash_t = 0; sf_glow_on = 0; sf_ray = 0xFF; sf_frozen = projectiles_alive();
-    sf_col = sp && f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max;   /* MAX: orange */
+    sf_col = f->fmax || (sp && f->ch->fury_max < f->ch->nspec && f->spec_ix == f->ch->fury_max);   /* MAX: orange + the
+                                                                whistle; fmax: the MAX role, whatever plays it (note
+                                                                20261015-150000-a8c1: Haggar's MAX = his fury's pieces,
+                                                                spec_ix never his fury_max, so it flashed as a fury) */
     if (f->ch->nfpose) { sf_dx = f->ch->fhead[0]; sf_dy = f->ch->fhead[1]; }   /* a flash pose (TODO #145): its head */
     else if (sp && sp->sf_anchor) { sf_dx = sp->sf_dx; sf_dy = sp->sf_dy; } else { sf_dx = gflash.dx; sf_dy = gflash.dy; }
     PAL_setPalette(SF_RAYS_PAL, sf_ray_pal[sf_col]);
@@ -3074,7 +3077,6 @@ _Static_assert(BONUS_TREE == 0 && BONUS_POSTS == 1, "build_tables.py BONUS_SCENE
 #define BN_FALL_SPR BN_FRONT                     /* the tree game's falling tree (BONUS_FALL_MAXW columns, in front of
                                                     the fighter as AOF2's 225-243; the posts game's splinters there) */
 #define BN_LEAF_SPR (BN_FRONT + (2 * BN_PIECES > BONUS_FALL_MAXW ? 2 * BN_PIECES : BONUS_FALL_MAXW))   /* 319-333 */
-#define BN_MARK_SPR (BN_LEAF_SPR + BN_LEAVES)    /* 334-338 (bonus_off hides BN_FRONT .. + 48) */
 #define BN_FEET_Z   10                           /* the fighter's lane: feet at the scene's floor_top + 10 (AOF2's) */
 #define BN_TREE_X   124                          /* the fighter's world x in front of the tree / before the posts */
 #define BN_TREE_STOP 146                         /* the trunk's face: the blow never carries his feet past it
@@ -3115,6 +3117,18 @@ static void bn_put(uint16_t spr, const bonus_obj_t *o, int16_t sx, int16_t sy, u
         }
         cmd_push(VRAM_SCB3 + spr + c, c ? 0x40 : (uint16_t)((((496 - sy) & 0x1FF) << 7) | h));
         if (!c) cmd_push(VRAM_SCB4 + spr, (uint16_t)(sx & 0x1FF) << 7);
+    }
+}
+/* the punch mark (note 20261015-195132-e03d, Terry drawn behind the tree): AOF2 draws it on the sprites right after the
+ * tree's, behind the fighter; ours has no free sprites there (shadows 43-44, tree 47-57, Terry from 59), so the mark's
+ * tiles are written into the tree's own columns (the cells it covers: make_bonus.py asserts it sits on the tree's 16 px
+ * grid). It then shakes with the tree and goes with it; the tree's put at the game's start writes the clean bark back. */
+static void bn_decal(const bonus_obj_t *t, const bonus_obj_t *o) {
+    uint8_t c, r, row = (uint8_t)((o->y - t->y) >> 4), col = (uint8_t)((o->x - t->x) >> 4);
+    for (c = 0; c < o->w; c++) {
+        uint16_t *w = cmd_run(VRAM_SCB1 + (BN_TREE_SPR + col + c) * 64 + row * 2, o->h * 2);
+        const uint16_t *m = o->map + c * o->h * 2;
+        for (r = 0; r < o->h; r++, m += 2) { *w++ = m[0]; *w++ = m[1]; }
     }
 }
 static void bn_hide(uint16_t spr, uint8_t n) { while (n--) cmd_push(VRAM_SCB3 + spr++, 0); }
@@ -3298,7 +3312,7 @@ static void bn_fall_step(void) {
         const bonus_obj_t *o;
         if (e->t != bn_fall_t - 1) continue;
         o = &bonus_fall[e->img];
-        if (!k) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_MARK_SPR, 5); }   /* the standing tree and its mark go: the
+        if (!k) bn_hide(BN_TREE_SPR, 12);         /* the standing tree (its mark in it) goes: the
                                                     cracked one in its place */
         bn_put(BN_FALL_SPR, o, o->x + e->dx, o->y + e->dy, 0, 0xF, e->vs, 1);
         if (o->w < BONUS_FALL_MAXW) bn_hide(BN_FALL_SPR + o->w, BONUS_FALL_MAXW - o->w);
@@ -3334,13 +3348,13 @@ static void bn_gauge_flow(fighter_t *f) {
         if (bn_hit_t == 12 && bn_pass) bn_fall_t = 1;   /* (the top grade: the tree falls from here) */
         bn_fall_step();
         if (bn_hit_t == 12) {                    /* the blow lands */
-            bn_put(BN_MARK_SPR, &bonus_mark[0], bonus_mark[0].x, bonus_mark[0].y, 0, 0xF, 0xFF, 1);
+            bn_decal(&bonus_tree[0], &bonus_mark[0]);
             bn_leaves(bn_grade * 3);
             snd_sfx(bn_grade >= 4 ? SFX_HIT_CD : ghitsnd.guard);
         }
         if (bn_hit_t >= 12 && bn_hit_t < 36)    /* the tree shakes: 2 px either side, every 2 ticks */
             bn_put(BN_TREE_SPR, &bonus_tree[0], bonus_tree[0].x + (bn_hit_t >= 34 ? 0 : (bn_hit_t & 2) ? 2 : -2), bonus_tree[0].y, 0, 0xF, 0xFF, 0);
-        if (bn_hit_t == 20) bn_put(BN_MARK_SPR, &bonus_mark[1], bonus_mark[1].x, bonus_mark[1].y, 0, 0xF, 0xFF, 1);
+        if (bn_hit_t == 20) bn_decal(&bonus_tree[0], &bonus_mark[1]);
         for (k = 0; k < bn_pc_n; k++) {          /* the leaves: falling, swaying */
             bn_pc[k].y += bn_pc[k].vy; bn_pc[k].x += bn_pc[k].vx; if (!((bn_hit_t + k * 5) & 31)) bn_pc[k].vx = -bn_pc[k].vx;
             if ((bn_pc[k].y >> 4) > 224) { bn_hide(BN_LEAF_SPR + k, 1); continue; }

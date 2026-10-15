@@ -138,13 +138,16 @@ extern const gjump_t gjump;
  * being hit restarts it); buffer: a player's press made this many frames (hit-stop not counted) before the next link may
  * start still fires (AI presses: kept whatever their age); juggle_cap: air hits a juggled fighter takes, then nothing
  * reaches it until it lands (a fury's excepted); stun_player / guard_player: a player's hit stun and its untouchable
- * window from the hit (only the attacker that hit it reaches it meanwhile); stun_light / stun_heavy: an enemy's. The
+ * window from the hit (only the attacker that hit it reaches it meanwhile); stun_light / stun_heavy: an enemy's; jreset
+ * (juggle_reset_button, note 20261015-201055-e03d): JR_C = a hit landed in the air by a special bought with C (sinv)
+ * sets its victim's juggle count back to 0 (the cap counts again from there). The
  * archetypes' lengths, damage totals and the hit-stop scale are build-time (routes.py chain_tree writes them into the
  * trees). ---- */
 typedef struct {
     uint8_t window, buffer, juggle_cap;
-    uint8_t stun_player, guard_player, stun_light, stun_heavy, pad;
+    uint8_t stun_player, guard_player, stun_light, stun_heavy, jreset;
 } gchain_t;
+enum { JR_C = 1 };
 extern const gchain_t gchain;
 
 /* ---- layer 2: throws (throws part 1, docs/throws_audit.md "After"; game.json "throw_handoff", "throw_swap"; fighter.c

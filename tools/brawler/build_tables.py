@@ -425,7 +425,8 @@ def watch_of(g, r):
 
 
 CHAIN_KEYS = ('about', 'window', 'buffer', 'lengths', 'totals', 'hitstop', 'juggle_cap', 'stun_player', 'guard_player',
-              'stun_light', 'stun_heavy')
+              'stun_light', 'stun_heavy', 'juggle_reset_button')
+JUGGLE_RESET = {None: 0, 'C': 1}                         # chain.juggle_reset_button -> gchain.jreset (gamedata.h JR_*)
 
 
 def chain_cfg(g, r):
@@ -1668,10 +1669,11 @@ def tables(g, build):
     assert 1 <= ch['window'] <= 255 and 0 <= ch['buffer'] <= 60 and 1 <= ch['juggle_cap'] <= 255 and \
         all(1 <= ch[k] <= 255 for k in ('stun_player', 'guard_player', 'stun_light', 'stun_heavy')), 'chain values'
     assert set(ch['lengths']) == set(ch['totals']) == {'fast', 'balanced', 'heavy'} and all(2 <= v <= 6 for v in ch['lengths'].values()), 'chain lengths'
+    assert ch.get('juggle_reset_button') in JUGGLE_RESET, f"chain.juggle_reset_button: one of {list(JUGGLE_RESET)}"
     assert len(ch['hitstop']) == 2 and 1 <= ch['hitstop'][0] <= ch['hitstop'][1] <= 60, 'chain hitstop'
     c.append(f"const gchain_t gchain = {{ .window = {ch['window']}, .buffer = {ch['buffer']}, .juggle_cap = {ch['juggle_cap']}, "
              f".stun_player = {ch['stun_player']}, .guard_player = {ch['guard_player']}, .stun_light = {ch['stun_light']}, "
-             f".stun_heavy = {ch['stun_heavy']} }};")
+             f".stun_heavy = {ch['stun_heavy']}, .jreset = {JUGGLE_RESET[ch.get('juggle_reset_button')]} }};")
     ho = g.get('throw_handoff', 'release')               # throws part 1 (docs/throws_audit.md "After", gamedata.h
     assert ho in ('release', 'landing'), f"throw_handoff: 'release' or 'landing', not {ho!r}"   # gthrow_t)
     sw = g.get('throw_swap', {})
