@@ -29,26 +29,31 @@
     try {
       const r = await fetch(LAB + 'players', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assign }) });
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
-      D = j; draw(); msg.textContent = name + ': ' + (v ? 'gets ' + v + ' at the next start of his app.' : 'no build assigned.');
+      D = j; draw(); msg.textContent = (name === '*' ? 'Every tester' : name) + ': ' + (v ? 'gets ' + v + ' at the next start of the app.' : 'no build assigned.');
     } catch (e) { btn.disabled = false; msg.className = 'msg bad'; msg.textContent = 'Not saved: ' + e.message; }
   }
-  function draw() {
+  function row(key, label, cur, empty, st) {
+    const sel = h('select', { 'aria-label': 'Build for ' + label },
+      h('option', { value: '', text: empty }),
+      (D.builds || []).map(v => h('option', { value: v, text: v, selected: v === cur ? '' : null })));
+    const btn = h('button', { type: 'button', class: 'primary', text: 'Save', disabled: '' });
+    sel.onchange = () => { btn.disabled = sel.value === cur; };
+    btn.onclick = () => save(key, sel.value, btn);
+    return h('div', { class: 'prow' }, h('b', { text: label }), sel, btn, h('span', { class: 'st', text: st }));
+  }
+  function seenText(a) {
+    const s = a.seen;
+    return s ? 'seen ' + ago(s.at) + ' ago' + (s.rom && s.rom !== 'none' ? ', playing ' + s.rom : '') : 'never signed in';
+  }
+  function draw() {   /* one build for every tester ("*", Bruno 2026-10-15), then each admin's own */
     if (!D) { P.replaceChildren(h('p', { class: 'msg', text: 'Loading…' })); return load(); }
     const assign = (D.draft && D.draft.assign) || {};
-    const rows = (D.accounts || []).map(a => {
-      const cur = assign[a.name] || '';
-      const sel = h('select', { 'aria-label': 'Build for ' + a.name },
-        h('option', { value: '', text: a.role === 'admin' ? 'Newest' : 'No build' }),
-        (D.builds || []).map(v => h('option', { value: v, text: v, selected: v === cur ? '' : null })));
-      const btn = h('button', { type: 'button', class: 'primary', text: 'Save', disabled: '' });
-      sel.onchange = () => { btn.disabled = sel.value === cur; };
-      btn.onclick = () => save(a.name, sel.value, btn);
-      const s = a.seen;
-      const st = (a.gets ? 'gets ' + a.gets : 'no build') + ' · ' + (s ? 'seen ' + ago(s.at) + ' ago' + (s.rom && s.rom !== 'none' ? ', playing ' + s.rom : '') : 'never signed in');
-      return h('div', { class: 'prow' }, h('b', { text: a.name + (a.role === 'admin' ? ' (admin)' : '') }), sel, btn, h('span', { class: 'st', text: st }));
-    });
-    P.replaceChildren(h('div', { class: 'card' }, h('h2', { text: 'Players' }),
-      rows.length ? rows : h('p', { class: 'msg', text: 'No Oros account has a brawler role yet (oros-server user-tags).' })), msg);
+    const acc = D.accounts || [];
+    const testers = acc.filter(a => a.role !== 'admin'), admins = acc.filter(a => a.role === 'admin');
+    const rows = [row('*', 'All testers', assign['*'] || '', 'No build',
+                      testers.length ? testers.map(a => a.name + ': ' + seenText(a)).join(' · ') : 'no tester account yet')]
+      .concat(admins.map(a => row(a.name, a.name + ' (admin)', assign[a.name] || '', 'Newest', (a.gets ? 'gets ' + a.gets : 'no build') + ' · ' + seenText(a))));
+    P.replaceChildren(h('div', { class: 'card' }, h('h2', { text: 'Players' }), rows), msg);
   }
   window.FactoryPlayers = { draw: () => { D = null; draw(); } };
 })();

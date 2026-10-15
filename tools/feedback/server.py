@@ -899,7 +899,8 @@ def share_build_for(name, role='tester'):
     """(VERSION, path) the account plays in the Brawler app: the newest build up to its assignment; nothing assigned =
     (None, None) for a tester, the newest build for an admin"""
     have = share_builds()
-    want = vkey(((section_load('players').get('draft') or {}).get('assign') or {}).get(name))
+    a = (section_load('players').get('draft') or {}).get('assign') or {}
+    want = vkey(a.get('*') if role == 'tester' else a.get(name))   # (Bruno 2026-10-15: every tester gets the same build, '*')
     if not want and role == 'admin' and have: want = max(vkey(v) for v in have)
     if not want: return None, None
     ok = sorted((v for v in have if vkey(v) <= want), key=vkey)
@@ -930,11 +931,11 @@ def sha_of(p):
 
 
 def players_clean(req):
-    """the Players draft {assign: {account: VERSION}}: every account a brawler Oros account, every VERSION a build there is"""
+    """the Players draft {assign: {"*": the testers' build, admin account: VERSION}}: every VERSION a build there is"""
     a = req.get('assign')
     accs = brawler_accounts(); have = share_builds()
-    if not isinstance(a, dict) or not all(k in accs and (v == '' or v in have) for k, v in a.items()):
-        return None, 'assign: {account: a published VERSION or ""}'
+    if not isinstance(a, dict) or not all((k == '*' or k in accs) and (v == '' or v in have) for k, v in a.items()):
+        return None, 'assign: {"*" (every tester) or an admin account: a published VERSION or ""}'
     return {'assign': {k: v for k, v in a.items() if v}}, None
 
 
