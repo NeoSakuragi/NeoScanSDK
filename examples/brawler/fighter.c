@@ -1279,7 +1279,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
         v->vx = dir_mul(away, FIX(push) >> 2);
         break;
     case R_KNOCKDOWN: case R_SLAM: enter(v, S_KNOCKDOWN); v->vy = FIX(7); v->vx = dir_mul(away, FIX(2)); play(v, blow); break;
-    case R_LAUNCH: case R_LIFT: enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = dir_mul(away, FIX(2) + 0x8000); play(v, blow); break;   /* KOF98 launches rise in it too (Burn Knuckle) */
+    case R_LAUNCH: case R_LIFT: enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = reaction == R_LIFT ? 0 : dir_mul(away, FIX(2) + 0x8000); play(v, blow); break;   /* KOF98 launches rise in it too (Burn Knuckle); R_LIFT
+                                                                    straight up, as std_flight (note 20261015-213144-e03d) */
     case R_TRIP:      enter(v, S_KNOCKDOWN); v->vy = FIX(3); v->vx = dir_mul(away, FIX(1)); play(v, BA_TRIP); break;
     case R_BLOWBACK:  enter(v, S_KNOCKDOWN); v->vy = FIX(4); v->vx = dir_mul(away, FIX(5)); play(v, blow); break;   /* KOF's C+D: low and far */
     }
@@ -1498,7 +1499,8 @@ static int16_t pair_fit(fighter_t *a, fighter_t *v, const bthrow_t *th) {
         if (i >= ret && i >= held && i) break;
         const bthrow_row_t *r = vrow(v, th, i, &tmp);
         int16_t ot = (int16_t)dir_mul(a->throw_face, r->tx), ov = (int16_t)dir_mul(a->throw_face, r->tx + r->vx);
-        if (i < ret || !i) { if (ot < otl) otl = ot; if (ot > oth) oth = ot; }
+        if ((i < ret && i < held) || !i) { if (ot < otl) otl = ot; if (ot > oth) oth = ot; }   /* (the thrower's own
+                                                                    rows past the release: its leap, thrower_edge) */
         if (i >= held && i) continue;                           /* (the flight: thrown_edge; row 0 always) */
         if (ov < ovl) ovl = ov;
         if (ov > ovh) ovh = ov;
@@ -1821,6 +1823,11 @@ static uint8_t paired_update(fighter_t *f) {
     f->frame_ovr = r->tframe;
     f->x = f->throw_x0 + dir_mul(f->throw_face, FIX(r->tx + (i < f->swn ? part16(f->swdx, f->swn - i, f->swn) : 0)));   /* (the
                                                                     start's glide: pair_fit's move, throw_start) */
+    if (th->rel < th->nrows && i > th->rel && !f->jdx) {         /* past the release the thrower moves alone (SS2 Hanzo's */
+        int16_t lo, hi;                                          /* leap back, note 20261015-212313-e03d): not the pair's */
+        view_bounds(f, &lo, &hi);                                /* fit (it slid them across the screen), it stops at the */
+        if (f->x < FIX(lo)) f->x = FIX(lo); else if (f->x > FIX(hi)) f->x = FIX(hi);   /* screen's edge, as the victim's flight */
+    }
     if (f->jdx) {                                                /* (the travel stops at the stage's ends: the pair's */
         int32_t e = f->x < FIX(X_MIN) ? FIX(X_MIN) - f->x : f->x > FIX(X_MAX) ? FIX(X_MAX) - f->x : 0;   /* origin with it) */
         f->x += e; f->throw_x0 += e; if (v) v->throw_x0 = f->throw_x0;
@@ -4455,8 +4462,9 @@ static void update(fighter_t *f, const intent_t *in) {
             carry_drop(f); special_end(f); f->pflags = 0;
             f->vx = vx; f->vy = vy; f->vz = 0; f->jt = 0; f->jump_kind = 0; f->air_node = 0;
             enter(f, S_AIR);
-            start_node(f, in->dz > 0 ? TREE(f)->air_b : jump_atk(f, in), LH_NEUTRAL); f->aact = 0;
-            break;
+            goto air;                                            /* the jump's own A from here: its attack, down + A its
+                                                                    down attack, down,down + A the air Blitz (air_pick; note
+                                                                    20261015-213055-e03d: SS2 Hanzo's Utsusemi bounce) */
         }
         f->pheld = in && (in->hold & (f->spec_id == BS_AIR ? air_button(f->ch, f->spec_ix) : f->spec_id == BS_BLITZ ? IN_A :
                                       f->spec_id >= BS_FURY ? IN_D : IN_C)) ? 1 : 0;   /* its button held (PC_HELD) */
@@ -4560,6 +4568,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     }
     {   fighter_t *o = a->owner ? a->owner : a;                  /* the chain core: an air hit counts toward the juggle cap */
         if (v->y > 0 && v->state == S_KNOCKDOWN && !(o->state == S_SPECIAL && o->spec_id == BS_FURY) && v->jug_n < 255) v->jug_n++;
+        if (a->pdef && (a->pdef->ppad & 2)) v->jug_n = 0;      /* an object whose hit restarts the juggle (bproj_t.ppad bit 1,
+                                                                    game.json roster[].proj_react juggle_reset: SS2 Hanzo's
+                                                                    Bakuen Ryuu, note 20261015-213144-e03d) */
         if (v->y > 0 && (gchain.jreset & JR_C) && o->state == S_SPECIAL && o->sinv) v->jug_n = 0;   /* a C special's air hit:
                                                                     the juggle counts from 0 again (chain.juggle_reset_button) */
         if (!v->team && v->state != S_PROJ) { v->guard = gchain.guard_player; v->guard_by = o; }   /* a player: untouchable

@@ -724,6 +724,21 @@ def samsho2_list(rname, name, cid):
                 if c[0] not in ('sound', 'sound_pan'): continue
                 i = c[1] + (1 if c[0] == 'sound_pan' else 0)
                 if i >= 0x100: uses.append((ss2_word(N, i), i, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k}))
+    # the win poses' common sounds (note 20261015-212935-e03d, Bruno: "the sound of the sword going back into the sheath
+    # is missing in the win pose"): ids below $100 are the game's shared effects, left out above, but a win pose's own
+    # steps send them as part of the pose (Hanzo's 198: step 8 $1D = $00D0 the sheathing, step 27 $E7 = $1A57 the puff):
+    # listed as effects of the fighter (channel 'fx', after his own sounds: the ids already given stay)
+    import wins_ss2 as WS
+    common = set()
+    for p in WS.poses(cid):
+        for part in p['parts']:
+            a = part['anim']
+            for k, x in enumerate(ss2.parse_anim(cid, a, 400)):
+                for c in x['cmds']:
+                    if c[0] not in ('sound', 'sound_pan'): continue
+                    i = c[1] + (1 if c[0] == 'sound_pan' else 0)
+                    if i < 0x100 and ss2_word(N, i):
+                        uses.append((ss2_word(N, i), i, {'kind': 'anim', 'slot': a, 'states': [a], 'step': k})); common.add(ss2_word(N, i))
     B = X.Builder(cid)
     for sp in H.specials(B, cid, name, versions=True):   # every piece a roster slot may name: each button version
                                                          # (623AB, its own input) and the Lab-only ones (34123421BC),
@@ -744,12 +759,13 @@ def samsho2_list(rname, name, cid):
         if f'{w:04X}' not in vo['cmds']: vo['cmds'].append(f'{w:04X}')
         if i not in vo['indices']: vo['indices'].append(i)
         if u not in vo['uses']: vo['uses'].append(u)
-    lst = sorted(voices.values(), key=lambda x: (int(x['cmd'], 16) >> 8 in SS2_FX, x['cmd']))
+    own = lambda x: not set(int(c, 16) for c in x['cmds']) <= common   # (a word also sent by his own ids: his)
+    lst = sorted(voices.values(), key=lambda x: (int(x['cmd'], 16) >> 8 in SS2_FX or not own(x), not own(x), x['cmd']))
     for k, vo in enumerate(lst, 1):
         vo['id'] = k; vo['bytes'] = len(sample_bytes(v, vo['segments']))
         vo['ms'] = write_wav(os.path.join(OUT, 'wav', rname, f'{k}.wav'), v, vo['segments'])
         vo['indices'] = [f'{x:03X}' for x in sorted(vo['indices'])]; vo['cmds'].sort()
-        if int(vo['cmd'], 16) >> 8 in SS2_FX: vo['channel'] = 'fx'
+        if int(vo['cmd'], 16) >> 8 in SS2_FX or not own(vo): vo['channel'] = 'fx'
     print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
     return {'game': 'samsho2', 'cid': cid, 'voices': [{k: vo[k] for k in ('id', 'cmd', 'cmds', 'indices', 'segments', 'level',
                                                                           'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}

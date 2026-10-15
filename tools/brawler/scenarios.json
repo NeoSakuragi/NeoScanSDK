@@ -4676,5 +4676,92 @@
   "expect": "Every hit of the C special lands on the airborne Ryo (7 hits, more than the juggle limit of 5): each of its air hits puts his juggle count back to 0, so you can keep juggling him afterwards. Normals and the fury still count toward the limit.",
   "do_keys": "3:a,9:-,3:a,9:-,3:a,4:-,2:U,3:Ua,8:-,3:a,6:-,3:a,6:-,3:a,6:-,3:c",
   "proof": 120
+ },
+ "20261015-212217-e03d": {
+  "title": "Hanzo (SS2) Mozu Otoshi: as high as in SS2, both shouts",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 30,
+   "x": 150
+  },
+  "do": "Walk into Ryo to grab him, then press up + A (Mozu Otoshi).",
+  "expect": "Hanzo shouts as he crouches, then leaps with Ryo fast and high, out of the top of the screen (SS2's own height: 160 px, not the old slow 62 px float); they come down head first, the slam with the fire columns and his second shout, then his leap back. Same frames as SS2's Mozu Otoshi.",
+  "do_keys": "20:R,3:Ua,2:U",
+  "proof": 180
+ },
+ "20261015-212313-e03d": {
+  "title": "Hanzo (SS2) forward throw: no sliding, a short leap back",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 30,
+   "x": 160
+  },
+  "do": "Walk into Ryo to grab him, then press forward + A (the slash throw).",
+  "expect": "Hanzo stays where he grabbed Ryo while he throws him over and slashes (he no longer slides across the screen with him), then hops back about a third of the screen, not most of it; at the screen's edge he stops there.",
+  "do_keys": "20:R,3:Ra,2:R",
+  "proof": 140
+ },
+ "20261015-212935-e03d": {
+  "title": "Hanzo (SS2) win pose: the sword's sheathing sound",
+  "setup": {
+   "mode": "stage",
+   "fighter": "hanzo_ss2",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss alone with 1 life point. Hit him with A and watch Hanzo's win pose. The pose is picked at random: clear again until he plays the one where he holds his sword up, sheathes it and vanishes in smoke.",
+  "expect": "As he puts the sword back, the sheathing sound plays (SS2's own, a little over a second in), then his voice, then the puff of smoke as he vanishes, as in Samurai Shodown II.",
+  "do_keys": "3:a",
+  "proof": 700
+ },
+ "20261015-213025-e03d": {
+  "title": "Hanzo (SS2) Utsusemi: on top of the enemy almost at once",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 100,
+   "drive": "full"
+  },
+  "do": "Press C (neutral: Ninpou Utsusemi, the smoke teleport).",
+  "expect": "The smoke puffs up where Hanzo stood and stays there, while Hanzo shows above Ryo about 4 frames after it starts (was half a second) and drops onto him spinning.",
+  "do_keys": "2:c",
+  "proof": 90
+ },
+ "20261015-213055-e03d": {
+  "title": "Hanzo (SS2) Utsusemi: air control after it hits",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 100,
+   "drive": "full"
+  },
+  "do": "Press C (Utsusemi). Once its drop has hit Ryo and Hanzo bounces back, press down, down + A (the air Blitz); try again with A alone (his jump attack).",
+  "expect": "During the bounce after the hit Hanzo has his jump's controls: down, down + A throws his air shurikens (the air Blitz), A plays his jump attack; then he lands as from a jump. Before the hit (the drop) nothing changes.",
+  "do_keys": "2:c,38:-,2:D,2:-,2:D,2:Da",
+  "proof": 60
+ },
+ "20261015-213144-e03d": {
+  "title": "Hanzo (SS2) Bakuen Ryuu: quick to come out, slow fire, straight-up bounce that juggles",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 100,
+   "drive": "full"
+  },
+  "do": "Press forward + C (Bakuen Ryuu), then run in and press A on Ryo while he is in the air.",
+  "expect": "The fire comes out about three times sooner than before (11 frames), and it is the slow version (SS2's A: each flame arc stays about twice as long before the next one 80 px on). Its hit sends Ryo straight up (no sideways push) and he can be juggled: your A hits him in the air, his juggle count starting from 0.",
+  "do_keys": "2:Rc,24:-,2:R,2:-,26:R,3:a,5:-,3:a",
+  "proof": 60
  }
 }

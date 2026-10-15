@@ -118,7 +118,7 @@ def main():
                     'pick_rule': any((((tk0 - d) & 0xFF) + 0) % n_poses == k for d in (0, 1)), 'done_t': done, 'next_t': log[-1]['t'],
                     'frames_match': shown == seq, 'timing_match': timing, 'steps_in_order': steps == sorted(steps),
                     'last_step': steps[-1], 'nsteps': len(want), 'voices_listed': [(s, v) for p, s, v in vox if p == k],
-                    'sound_bytes': len(stream)}
+                    'sound_bytes': len(stream), 'sounds': [(t - t0, '%02X' % x) for t, x in stream]}
             if obj and any(p == k for p, _, _ in fx):
                 hs = [(r['t'] - t0, r['sword']) for r in log if r.get('sword') is not None and r['t'] >= t0]
                 item['effect'] = {'frames_alive': len(hs), 'first': hs[:3], 'last': hs[-3:]}

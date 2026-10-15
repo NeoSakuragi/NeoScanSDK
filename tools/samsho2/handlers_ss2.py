@@ -54,6 +54,11 @@ def vtab(ch, i):
     base = N.u32(0x6A500 + 4 * ch)
     return N.s16(base + 4 * i), N.s16(base + 4 * i + 2)
 
+def grav(ch):
+    """the fighter's own gravity: word 1 of its velocity table entry 5 ($46BAE $3205; GRAVITY = Haohmaru's 131, Hanzo's
+    143: Mozu Otoshi measured, mozu_ss2.py, 143 fits his rise frame by frame) [code + meas]"""
+    return vtab(ch, 5)[1]
+
 def vword(ch, w):
     """$46BAE's word w -> (vx, vy) in 8.8 (entry = low byte + 16: bit 13 clear)"""
     assert not w & 0x2000
@@ -475,7 +480,10 @@ def han_j4123s(v):
 # free ($37288). The brawler's catch is a box against the victim's hurt box: GRAB_BOX reaches 69 px from his x to the
 # centre of a body 30 px half-wide (a KOF fighter's): a catch box 30 px forward, 5 px half-wide, the body's height.
 GRAB_BOX = [-35, -42, 5, 42]
-MOZU_TOP = 64                                     # Mozu Otoshi's leaps fitted to the brawler's screen (TODO #185's rule)
+MOZU_TOP = None                                   # Mozu Otoshi's leaps: SS2's own heights (notes 20261015-212217 /
+                                                  # 212313-e03d, Bruno: "in the real game the character goes out of the
+                                                  # screen or very high"; mozu_ss2.py: C rises 160 px in 25 frames, CD
+                                                  # 682 px). Was 64 (TODO #185's fit: 62 px at SS2's timing, a slow float)
 
 def han_623k(v):
     """Mozu Otoshi, 6 2 3 + C / D / C+D -> results 43-45 (one list $36DFC; the same code for Galford, his tables at
@@ -500,15 +508,16 @@ def han_623k(v):
     heights x MOZU_TOP / the rise (velocities and gravity: the same timing; SS2's camera follows him 160 px up)"""
     tab = N.u32(0x36F46 + 4 * v)
     vx, vy, vx2, vy2, _, hold = (N.s16(tab + 2 * i) for i in range(6))
-    top = (vy / 256) ** 2 / (2 * GRAVITY / 256)
-    q = min(1.0, MOZU_TOP / top); f = lambda w: round(w * q); g = ('custom', 0, f(GRAVITY))
+    G = grav(CUR['ch']); top = (vy / 256) ** 2 / (2 * G / 256)
+    q = min(1.0, MOZU_TOP / top) if MOZU_TOP else 1.0; f = lambda w: round(w * q); g = ('custom', 0, f(G))
     return [E(296, [('set', 'vx', 0)], [('now', 'next')], catch=2, grab=GRAB_BOX),
             E(None, conds=[('caught', None), ('end', 'end')]),
             E(58, [('set', 'vx', 0)], [('end', 'next')]),
             E(None, [('set', 'vy', by(f(vy)))], [('now', 'next')], phys=g),
             E(60, [('vsig',)], conds=[('apex', 'next')], phys=g),
             E(62, [('vsig',)], conds=[('land', 'next', [('spawn', 0), ('snd', 0x80), ('snd', 0x14D)])], phys=g),
-            E((62, 0, 0), [('vsig',), ('set', 'cnt', hold & 0xFF)], conds=[('cnt', 'next')]),
+            E((62, 0, 0), [('vsig',), ('set', 'cnt', hold & 0xFF)], conds=[('cnt', 'next')], voice=(0x14D,)),   # (the slam's
+                                                  # shout $14D = $1C44, sent by $36F74 with the fire [meas: mozu_ss2.py f96])
             E(38, [('vsig',), ('set', 'vx', bx(vx2)), ('set', 'vy', by(f(vy2)))], [('now', 'next')], phys=g),
             E(None, conds=[('end', 'next')], phys=g),
             E(None, conds=[('apex', 'next')], phys=g),
@@ -570,12 +579,25 @@ def han_63214bcd(v):
     dx, h = N.s16(0x6A95A + 4 * 0), -N.s16(0x6A95A + 4 * 0 + 2)        # (Haohmaru's row: dx -5)
     hn, hb = -N.s16(0x6A95A + 4 * 2 + 2), -N.s16(0x6A95A + 4 * 8 + 2)   # a normal victim (195) / Earthquake (259)
     q = UTSU_TOP / hn; f = lambda w: round(w * q); g = ('custom', 0, f(GRAVITY))
-    return [E(14, [('set', 'vx', 0)], [('end', 'next')]),
+    return [E(14, [('set', 'vx', 0), ('spawn', 0), ('set', 'cnt', UTSU_SMOKE - 1)], [('cnt', 'next')]),
             E(80, [('warp', 0, dx, f(hn)), ('set', 'vx', 0), ('set', 'vy', 0)], [('now', 'next')]),
             E(195, conds=[('hit', 'next'), ('land', 5)], phys=g),
-            E(22, [('set', 'vx', bx(bvx)), ('set', 'vy', by(f(bvy)))], [('end', 'next'), ('land', 'next')], phys=g),
+            E(22, [('set', 'vx', bx(bvx)), ('set', 'vy', by(f(bvy)))], [('land', 'next'), ('end', 'next')], phys=g),
             E(26, conds=[('land', 'next')], phys=g),
-            E(3, conds=[('end', 'end')])], []
+            E(3, conds=[('end', 'end')])], [('usmoke', 0)]
+# (the brawler's buff, notes 20261015-213025 / 213055-e03d, Bruno: "Hanzo almost instantly appears on top after the smoke
+# animation has started" / "after the teleport has hit, air control: air attack or air blitz"): his smoke (anim 14, SS2
+# 30 frames before he is gone) is left where he stood as a placed effect (usmoke) and he warps UTSU_SMOKE frames into it;
+# the bounce after a hit waits for the landing first (('land', 'next') ahead of its end: the program's landing wait, so
+# game.json keeps_air_attack 63214BCD hands it to the jump's controls, fighter.c air_free)
+UTSU_SMOKE = 4
+
+def usmoke(B, v):
+    """Utsusemi's smoke left behind (his anim 14 as a world-anchored effect: placed, no box), the brawler's buff above"""
+    rows = obj_rows(B, 2, play_anim(2, 14))
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0, 'placed': True,
+            'name': 'USMOKE', 'ss2': {'anim': 14}}
 
 def han_6464642bcd(v):
     """Ninpou Kagemai (the invisibility), 6 4 6 4 6 4 2 + B+C+D -> result 51, list $37386 [code]: entry 0 $373A4: +$118
@@ -1164,7 +1186,7 @@ def mozufire(B, k):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'MOZUFIRE', 'ss2': {'effect': 14, 'anim': 244}}
 
-OBJECTS = {'fuujin': fuujin, 'kclone': kclone, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'fuujin': fuujin, 'kclone': kclone, 'usmoke': usmoke, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False, grab=None, hits=None):
@@ -1394,8 +1416,8 @@ THROWS = {'haohmaru': {'throw_c': (274, 1), 'throw_d': (346, 2)}, 'genjuro': {'t
 # (entry $78 + 16: 4 px back, 12.5 up), gravity, next; $2CD60: 34's end -> next; anim 38 $2CD68: the apex -> next;
 # $2CD74: landed -> the landing (class 0 action 18, anim 178). Measured (moves/02.json close_throw_6ab): 274 to frame
 # 63, 34 from 64, the leap from 66 (the throw's slow motion moves him every other frame for 10 frames: not modelled),
-# 38 at the apex, landed at 115 176 px behind, 178 to 131. The height x FIT_TOP / its apex (TODO #185's rule, SS2's camera
-# follows him 134 px up), the same timing
+# 38 at the apex, landed at 115 176 px behind, 178 to 131. The height and the length x FIT_TOP / its apex (TODO #185's
+# rule, SS2's camera follows him 134 px up; the length since note 20261015-212313-e03d), the same timing
 LEAP = (0x2CD4C, 0x2CD54, 0x46BAA, 0x2CD60, 0x2CD68, 0x2CD74)
 FIT_TOP = 64
 
@@ -1409,6 +1431,8 @@ def throw_leap(ch, sub, a, B):
     up, fall, word = ents[k0 + 2][2] & 0x3FF, ents[k0 + 5][2] & 0x3FF, ents[k0 + 3][2]
     vx, vy = vtab(ch, (word & 0xFF) + 16)
     q = min(1.0, FIT_TOP / ((vy / 256) ** 2 / (2 * GRAVITY / 256))); vy = round(vy * q); g = GRAVITY * q
+    vx = round(vx * q)                                # (and its length: note 20261015-212313-e03d, Bruno: "he's jumping too
+                                                      # far after the throw": SS2's 176 px back fitted like its height, ~85)
     seq = lambda an: [(an, i) for i, s_ in enumerate(ss2.parse_anim(ch, an, 400)) for _ in range(s_['ticks'] + 1)]
     su, sf = seq(up), seq(fall)
     mv = next((c[1] for c in ss2.parse_anim(ch, up, 400)[0]['cmds'] if c[0] == 'move'), 0)

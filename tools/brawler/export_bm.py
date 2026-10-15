@@ -932,6 +932,22 @@ def proj_hits(n, sp):
     assert isinstance(rh, int) and 1 <= rh <= 255, f'{n}: proj_hits.{sp["input"]}.rehit {rh} (1-255 frames)'
     return dict(vhits=per, vmax=tot, stop=rh, away=1 if e.get('away', True) else 0)
 
+R_NAMES = {'heavy': 1, 'knockdown': 2, 'launch': 3, 'trip': 4, 'blowback': 5, 'slam': 6, 'lift': 7}   # (fighter.h R_*)
+def proj_react(n, sp):
+    """its travelling objects' hit on a victim (note 20261015-213144-e03d, SS2 Hanzo's Bakuen Ryuu: "on impact the
+    character bounces vertically, juggle activated and only zero juggle"): game.json roster[].proj_react {special input:
+    {react, juggle_reset}} -> the fields its travelling objects (kind 1, not pinned) take, or None: react = the reaction
+    by name (R_NAMES: "lift" = straight up, juggle-able), juggle_reset = its hit puts the victim's juggle count back to
+    0 (bproj_t.ppad bit 1, fighter.c fighter_hit)"""
+    e = ((roster().get(n) or {}).get('proj_react') or {}).get(sp.get('input'))
+    if not e: return None
+    out = {}
+    if 'react' in e:
+        assert e['react'] in R_NAMES, f'{n}: proj_react.{sp["input"]}.react {e["react"]!r} ({", ".join(R_NAMES)})'
+        out['react'] = R_NAMES[e['react']]
+    if e.get('juggle_reset'): out['jreset'] = True
+    return out
+
 FRAME_COLS = {}                                         # per fighter: each exported frame's hardware sprites (bframe_t ncols)
 def projectile_c(n, k, pjs, game, sp):
     """C tables of a special's projectiles (export96.projectile_entry, in spawn order): per projectile its flight
@@ -951,6 +967,10 @@ def projectile_c(n, k, pjs, game, sp):
     if hb:
         for pj in pjs:
             if pj.get('kind') == 1 and not pj.get('follow'): pj.update(hb)
+    pr = proj_react(n, sp)                               # its victims' reaction (game.json roster[].proj_react)
+    if pr:
+        for pj in pjs:
+            if pj.get('kind') == 1 and not pj.get('follow'): pj.update(pr)
     def one(name, pj, child='0', births=(0, 0, 0), cd=(0, 0), nxt='0'):
         rows = ', '.join(f'{{{f}, {q(x)}, {round(y)}, {box(a[1:] if a else None)}, {box(o)}, {(1 if a else 0) | (2 if o else 0) | (4 if pj.get('rearm') and rest and rest[0] else 0)}, 0}}'
                          for f, x, y, a, o, *rest in pj['rows'])   # flags 4: the row re-arms its hit (object.phase)
@@ -971,7 +991,7 @@ def projectile_c(n, k, pjs, game, sp):
                 f'{nxt}, {pj.get("phase_hits", 0)}, {pj.get("stop", 0)}, {1 if pj.get("hitnext") else 0}, ' +
                 (f'0, {bm["range"]}, {bm["catch"]}, {bm["seg_min"]}, {bm["hover"]}, {bm["held"]}, {bm["segs"]}, {bm["gap"]}, 0, 0'
                  if bm else   # a boomerang's flight (spawn.boomerang)
-                 f'{1 if pj.get("away") else 0}, 0, 0, 0, 0, 0, 0, 0, {(1 if pj.get("air") else 0) | (2 if pj.get("placed") else 0)}, {1 if pj.get("back") else 0}') +
+                 f'{(1 if pj.get("away") else 0) | (2 if pj.get("jreset") else 0)}, 0, 0, 0, 0, 0, 0, 0, {(1 if pj.get("air") else 0) | (2 if pj.get("placed") else 0)}, {1 if pj.get("back") else 0}') +
                                                          # ppad 1: its victims sent away from its thrower (TODO #193); air
                                                          # 1: born in the air (TODO #211, SS2 Hanzo's shuriken), 2: placed
                                                          # (a world-anchored effect, handlers98.placed_once); back 1:
@@ -2014,6 +2034,12 @@ def voice_data(ch, n, game, pool, sps):
                                                          # its program's own voices (TODO #163), the
         if vs: sug['special:' + inp] = [vs[0], 0]        # key's suggestion = the first it sends
         else: sug.pop('special:' + inp, None)
+    for sp, p in zip(pool, sps):                         # an SS2 special whose whiff sends nothing but whose connect does
+        k = 'special:' + sp['input']                     # (its step voices: Mozu Otoshi's "Mozu Otoshi!" at anim 58 step
+        if k in sug or not p.get('rom', {}).get('voice_frames') or not step_voiced(p): continue   # 1 and the slam's shout,
+        vs = prog_voices(n, game, p)                     # note 20261015-212217-e03d): the key = its first step voice so the
+        if vs: sug[k] = [vs[0], 255]                     # pvox sends resolve (prog_voice_res); at 255: never on the whiff's
+                                                         # frame clock (the program's steps send it)
     mp = V.mapping(roster()[n].get('voices'), sug)
     more = V.extras(n, ks, sug, mp, [(sp['input'], p['keep']) for sp, p in zip(pool, sps) if sp['input'] not in pv])
     more = sorted(more + V.anim_extras(n, ks, sug, mp, 'win', slot_of['win']))   # the win pose's further voices (#184)
