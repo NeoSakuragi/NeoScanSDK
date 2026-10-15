@@ -4364,7 +4364,7 @@
    "fighter": "terry",
    "stage": 0,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4380,7 +4380,7 @@
    "fighter": "terry",
    "stage": 1,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4396,7 +4396,7 @@
    "fighter": "terry",
    "stage": 2,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4412,7 +4412,7 @@
    "fighter": "terry",
    "stage": 3,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4428,7 +4428,7 @@
    "fighter": "terry",
    "stage": 0,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4444,7 +4444,7 @@
    "fighter": "terry",
    "stage": 1,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4460,7 +4460,7 @@
    "fighter": "terry",
    "stage": 2,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
@@ -4476,7 +4476,7 @@
    "fighter": "terry",
    "stage": 3,
    "wave": 99,
-   "wait": 205,
+   "wait": 160,
    "alone": true,
    "gap": 110
   },
