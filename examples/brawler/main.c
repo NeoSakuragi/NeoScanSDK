@@ -561,8 +561,17 @@ static void shadow_init(void) {
     }
 }
 static void shadows(void) {
-    uint16_t *y = cmd_run(VRAM_SCB3 + SH_SPR, sh_n), *x = cmd_run(VRAM_SCB4 + SH_SPR, sh_n);
+    uint16_t *y, *x;
     uint8_t i;
+    if (blk_cols == SEL_COLS) {                                  /* the select-width blocks start at SEL_SPR (57), inside
+                                                             the shadows' sprites: only the ones below it cleared (the
+                                                             ladder screen: its back actor lost its first 2 columns,
+                                                             Terry cut at the left edge) */
+        y = cmd_run(VRAM_SCB3 + SH_SPR, SEL_SPR - SH_SPR);
+        for (i = 0; i < SEL_SPR - SH_SPR; i++) y[i] = 0;
+        return;
+    }
+    y = cmd_run(VRAM_SCB3 + SH_SPR, sh_n); x = cmd_run(VRAM_SCB4 + SH_SPR, sh_n);
     shadow_parity ^= 1;
     for (i = shadow_parity; i < sh_n; i += 2, y += 2, x += 2) {
         fighter_t *f = order[i];
@@ -2141,6 +2150,11 @@ static uint8_t sel_phase;
 static uint16_t sel_t;
 static uint8_t slot_ch[SEL_NSLOT];       /* the fighter (bm_chars index) in each slot, 0xFF empty */
 static uint8_t slot_act[SEL_NSLOT];      /* the actor showing it */
+static uint8_t sel_lay, sel_base, sel_cnt;   /* the layout in use (build_tables.py select_layers; Bruno 2026-10-15: "only the
+                                            available characters show up"): with the unlock ladder layer save.rungs, its
+                                            sel_cnt fighters = slots 0 .. sel_cnt - 1 (the unlocked ones: the others are not
+                                            drawn), slot s at the place SEL_SLOT[sel_base + s] (a centred run of places);
+                                            without it one layer, every slot (a locked boss: a silhouette) */
 static fighter_t sel_extra[NA - NE];     /* actors NE.. (the fight's entities are actors 0..NE-1) */
 static fighter_t *actor(uint8_t a) { return a < NF ? &fighters[a] : a < NE ? &projectiles[a - NF] : &sel_extra[a - NE]; }
 /* the unlocked fighters in CHARS order (the attract demo's players) */
@@ -2156,7 +2170,7 @@ static void slots_build(void) {
     uint8_t s;
     for (s = 0; s < SEL_NSLOT; s++) slot_ch[s] = sel_fighter[s];
 }
-static uint8_t selectable(uint8_t s) { return slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
+static uint8_t selectable(uint8_t s) { return s < sel_cnt && slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
 static uint16_t col_dark(uint16_t c) {                      /* its own colour at half brightness: each 5-bit channel
@@ -2168,7 +2182,8 @@ static uint16_t col_dark(uint16_t c) {                      /* its own colour at
     return RGB(r >> 1, g >> 1, b >> 1);
 }
 #define SILHOUETTE RGB(4, 4, 5)
-/* an entity's palettes: its own colours (1), darkened (0), a silhouette (2) or white (3: the ladder's reveal flash) */
+#define SILHOUETTE_B RGB(8, 8, 10)                   /* the ladder's every other silhouette: overlapping ones stay apart */
+/* an entity's palettes: its own colours (1), darkened (0), a silhouette (2; 4 a lighter one) or white (3: the ladder's reveal flash) */
 static void fighter_pals(const fighter_t *f, uint8_t colour) {
     uint16_t buf[16];
     uint8_t i, j;
@@ -2176,7 +2191,7 @@ static void fighter_pals(const fighter_t *f, uint8_t colour) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++)
-            buf[j] = colour == 3 ? RGB(31, 31, 31) : colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_dark(src[j]);
+            buf[j] = colour == 3 ? RGB(31, 31, 31) : colour == 2 ? SILHOUETTE : colour == 4 ? SILHOUETTE_B : colour ? fighter_colour(f, src[j]) : col_dark(src[j]);
         PAL_setPalette(f->palbase + i, buf);
     }
 }
@@ -2186,8 +2201,8 @@ static void slot_show(uint8_t s, uint8_t set) {             /* (re)binds slot s'
     uint8_t a = slot_act[s];
     fighter_t *f = actor(a);
     const bchar_t *ch = &bm_chars[slot_ch[s]];
-    fighter_init(f, ch, set < ch->nsets ? set : 0, sel_palbase[s], 1, SEL_SLOT[s].x, SEL_SLOT[s].y - SELECT_FLOOR);
-    f->idx = a; f->facing = SEL_SLOT[s].face; sel_rank[a] = SEL_SLOT[s].z;
+    fighter_init(f, ch, set < ch->nsets ? set : 0, sel_palbase[s], 1, SEL_SLOT[sel_base + s].x, SEL_SLOT[sel_base + s].y - SELECT_FLOOR);
+    f->idx = a; f->facing = SEL_SLOT[sel_base + s].face; sel_rank[a] = SEL_SLOT[sel_base + s].z;
     fighter_play(f, BA_WATCH);
     fighter_pals(f, slot_look(s));
 }
@@ -2199,13 +2214,13 @@ static uint8_t sel_move(uint8_t s, uint16_t pr) {
     uint8_t d = (pr & JOY_RIGHT) ? 0 : (pr & JOY_LEFT) ? 1 : (pr & JOY_UP) ? 2 : (pr & JOY_DOWN) ? 3 : 4, t = s, n;
     if (d < 2) {
         for (n = 0; n < SEL_NSLOT; n++) {
-            t = sel_stick[t][d];
+            t = sel_stick[sel_lay][t][d];
             if (t == s) break;
             if (selectable(t)) return t;
         }
     } else if (d < 4) {
         for (n = 0; n < SEL_NSLOT - 1; n++) {
-            t = sel_vert[s][d - 2][n];
+            t = sel_vert[sel_lay][s][d - 2][n];
             if (t == 0xFF) break;
             if (selectable(t)) return t;
         }
@@ -2221,8 +2236,8 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
             /* the pose's head point (bm_head, TODO #157: export_bm.py / head_point.py, facing left; the actor faces
              * the middle: mirrored when it faces right); the arrow's 8 px cell centred on it, ending 2 px above it */
             const int8_t *hd = bm_head[slot_ch[s]];
-            int16_t sx = SEL_SLOT[s].x - cam_x + (SEL_SLOT[s].face > 0 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
-            int16_t sy = SEL_SLOT[s].y + hd[1] - 10;
+            int16_t sx = SEL_SLOT[sel_base + s].x - cam_x + (SEL_SLOT[sel_base + s].face > 0 ? -hd[0] : hd[0]) - 4 + (p && cursor[0] == s ? 16 : 0);   /* both on one fighter: 2P to the right */
+            int16_t sy = SEL_SLOT[sel_base + s].y + hd[1] - 10;
             if (sx < 0 || sx > 304) continue;                  /* off the screen (the street scrolls): none */
             col[p] = (uint8_t)((sx + 4) >> 3);                 /* FIX_print col c / row r = screen x c * 8, y r * 8 */
             row[p] = sy < 32 ? 4 : (uint8_t)((sy + 4) >> 3);       /* (rows 1-2: the title and the name; "1P" one row above) */
@@ -2254,8 +2269,8 @@ static void select_name(void) {                             /* top: P1's fighter
 #define SEL_BOTH_W 224
 static uint8_t sel_last;                                  /* the player whose cursor moved last */
 static int16_t sel_cam_goal(void) {
-    int16_t a = SEL_SLOT[cursor[0]].x, b = cursor[1] == 0xFF ? a : SEL_SLOT[cursor[1]].x, g;
-    g = (b > a ? b - a : a - b) <= SEL_BOTH_W ? (a + b) >> 1 : SEL_SLOT[cursor[sel_last]].x;   /* too far apart for one */
+    int16_t a = SEL_SLOT[sel_base + cursor[0]].x, b = cursor[1] == 0xFF ? a : SEL_SLOT[sel_base + cursor[1]].x, g;
+    g = (b > a ? b - a : a - b) <= SEL_BOTH_W ? (a + b) >> 1 : SEL_SLOT[sel_base + cursor[sel_last]].x;   /* too far apart for one */
     g -= 160;                                                                                  /* screen: the last mover's */
     return g < 0 ? 0 : g > LAND_CAM_MAX ? LAND_CAM_MAX : g;
 }
@@ -2278,12 +2293,14 @@ static void select_start(void) {
     FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
     FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* under the front row's feet (y 206) */   /* keyboard: WASD, U I O P */
     for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
+    sel_lay = LAD_N ? (save.rungs < LAD_RUNGS ? save.rungs : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers: select_layers) */
+    sel_cnt = sel_lay_n[sel_lay]; sel_base = sel_lay_base[sel_lay];
     slots_build(); roster_build();
     for (s = 0; s < SEL_NSLOT && !selectable(s); s++) ;
     cursor[0] = s; cursor[1] = 0xFF; sel_last = 0;           /* the first selectable slot (Terry); P2: START joins */
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; order[i] = actor(i); }
-    for (s = 0; s < SEL_NSLOT; s++) { slot_act[s] = 0xFF; if (slot_ch[s] != 0xFF) { slot_act[s] = a++; slot_show(s, 0); } }
+    for (s = 0; s < SEL_NSLOT; s++) { slot_act[s] = 0xFF; if (s < sel_cnt && slot_ch[s] != 0xFF) { slot_act[s] = a++; slot_show(s, 0); } }   /* (only the layer's) */
     nf = NA;
     cam_x = sel_cam_goal(); select_name();                  /* the camera on the cursor at once, then eased (sel_camera) */
 }
@@ -4214,9 +4231,10 @@ static void show_tick(void) {
 /* ---- the unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build): game.json unlocks = the starters, then
  * the ladder's fighters in order, LAD_RUNG a rung; each game clear (the last stage's boss beaten, PH_END) unlocks the next
  * rung (save.rungs, kept in the save: MVS backup RAM, AES memory card) and the select screen shows only these fighters
- * (a locked one a silhouette the cursor skips, char_locked). This screen shows them all at once, a column per rung after
- * the starters' (build_tables.py ladder_places: lad_pos, back to front), each in its select pose: unlocked in colour,
- * locked as a dark silhouette (SILHOUETTE), so the player sees what comes next. After a game clear (the ending's last
+ * (only the unlocked ones are drawn there: select_layers). This screen shows them all at once on ONE line (Bruno
+ * 2026-10-15: "every character on the same horizontal axis"; build_tables.py ladder_places: lad_pos, feet on one y, in
+ * ladder order left to right, evenly spaced, the middle ones in front), each in its select pose: unlocked in colour,
+ * locked as a dark silhouette (SILHOUETTE / SILHOUETTE_B every other one: LAD_SIL), so the player sees what comes next. After a game clear (the ending's last
  * screen): the rung just unlocked starts as silhouettes, then LAD_FLASH ticks of white / silhouette flashes, its
  * fighters in colour playing their win pose with their select voice, NEW CHALLENGERS! (big_text.ladder) and their names;
  * A-D / START after LAD_MIN ticks or LAD_TIME: back to the BIOS (SYSTEM_RETURN commits the MVS save). From the title's
@@ -4226,6 +4244,7 @@ static void show_tick(void) {
 #define LAD_FLASH  24                            /* its white / silhouette flashes, 4 ticks each */
 #define LAD_MIN    240                           /* after a game clear: a button passes it from here */
 #define LAD_TIME   720                           /* ... or by itself */
+#define LAD_SIL(i) ((i) & 1 ? 4 : 2)              /* a locked one's silhouette: two tones, every other one lighter (they overlap) */
 static uint8_t lad_title;                        /* shown from the title (back there), else after a game clear (the BIOS) */
 static uint16_t lad_t;
 static void lad_info(void) {                     /* the line under the front row's feet: the progress, what unlocks more */
@@ -4267,7 +4286,7 @@ static void ladder_start(uint8_t from_title) {
         fighter_init(f, &bm_chars[lad_fighter[i]], 0, sel_palbase[lad_slot[i]], 1, lad_pos[i].x, lad_pos[i].y - SELECT_FLOOR);
         f->idx = i; f->facing = lad_pos[i].face; sel_rank[i] = lad_pos[i].z;
         fighter_play(f, BA_WATCH);
-        fighter_pals(f, lad_rung[i] > save.rungs || (lad_new && lad_rung[i] == lad_new) ? 2 : 1);
+        fighter_pals(f, lad_rung[i] > save.rungs || (lad_new && lad_rung[i] == lad_new) ? LAD_SIL(i) : 1);
     }
     nf = NA;
     if (lad_new && !from_title) FIX_print(14, 2, "GAME CLEAR!", 1);
@@ -4291,7 +4310,7 @@ static void ladder_tick(void) {
                                                              silhouette, ... then the colours */
         for (i = 0; i < LAD_N; i++) {
             if (lad_rung[i] != lad_new) continue;
-            fighter_pals(actor(i), look);
+            fighter_pals(actor(i), look == 2 ? LAD_SIL(i) : look);
             if (look == 1) { fighter_play(actor(i), BA_WIN); voice_play(actor(i)->ch, 0, VK_SELECT); }
         }
         if (!k) snd_ssg(SSG_UNLOCK);
@@ -4318,7 +4337,7 @@ static void select_tick(void) {
             uint16_t best = 0xFFFF, d;
             for (s = 0; s < SEL_NSLOT; s++) {
                 if (!selectable(s) || s == cursor[0]) continue;
-                d = SEL_SLOT[s].x > SEL_SLOT[cursor[0]].x ? SEL_SLOT[s].x - SEL_SLOT[cursor[0]].x : SEL_SLOT[cursor[0]].x - SEL_SLOT[s].x;
+                d = SEL_SLOT[sel_base + s].x > SEL_SLOT[sel_base + cursor[0]].x ? SEL_SLOT[sel_base + s].x - SEL_SLOT[sel_base + cursor[0]].x : SEL_SLOT[sel_base + cursor[0]].x - SEL_SLOT[sel_base + s].x;
                 if (d < best) { best = d; t = s; }
             }
             cursor[1] = t; sel_last = 1;                     /* (none: both on P1's fighter) */
@@ -4356,7 +4375,7 @@ static void select_tick(void) {
             if (slot_act[s] == 0xFF || chosen(s)) continue;
             f = actor(slot_act[s]);
             if (f->state == S_OFF) continue;
-            if (sel_t == 1) { f->facing = SEL_SLOT[s].x - cam_x < 160 ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
+            if (sel_t == 1) { f->facing = SEL_SLOT[sel_base + s].x - cam_x < 160 ? -1 : 1; fighter_play(f, BA_WALK_FWD); }
             f->x += f->facing > 0 ? FIX(3) : -FIX(3);
             sx = INT(f->x) - cam_x;
             if (sx < -64 || sx > 384) f->state = S_OFF; else left++;

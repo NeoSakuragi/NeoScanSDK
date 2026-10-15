@@ -2,9 +2,11 @@
 """The unlock ladder (game.json unlocks, main.c "the unlock ladder"; Bruno 2026-10-15, decisions set unlocks), played in
 our emulator (harness.py, the arcade system mvs-mvs = SNK's MVS BIOS, a fresh save dir = a fresh battery RAM):
 
+  0. the ladder screen's places (build_tables.ladder_places): every ladder fighter on ONE line (one feet y), in ladder
+     order left to right, evenly spaced, on the screen
   1. power on, coin, the title: CHALLENGERS -> the ladder screen (fresh: the 2 starters in colour, 10 silhouettes),
-     back to the title; NEW GAME -> the select screen (2 selectable, the others silhouettes; the cursor walk reaches
-     only the starters)
+     back to the title; NEW GAME -> the select screen (ONLY the 2 starters drawn, on the layout's 2 middle places:
+     build_tables.select_layers; the cursor walk reaches only them; the same after each power cycle: 4, 12)
   2. a game clear x5 (scenario.py's stage mode: the last stage, its boss at 1 life, killed; then the ending passed with
      START, as a player does): each clear's ladder screen (the new rung revealed: silhouette -> white flash -> colour,
      NEW CHALLENGERS!), then the hand-back to the BIOS (which commits the MVS backup RAM)
@@ -27,6 +29,12 @@ for f in os.listdir(OUT):
     if f.endswith('.png'): os.remove(os.path.join(OUT, f))
 G = build_tables.load(os.path.join(GAME, 'game.json')); U = build_tables.unlocks(G); NST = len(G['stages'])
 names = [r['name'] for r in G['roster']]
+LAYERS = build_tables.select_layers(G)                  # the select screen's layout per unlocked count
+P = build_tables.ladder_places(U, U['screen'])          # the ladder screen: one line, ladder order, evenly spaced
+dx = [b2[2] - a[2] for a, b2 in zip(P, P[1:])]
+lines_pre = [f'ladder screen places: {len(P)} fighters, feet y {sorted({e[3] for e in P})}, x {P[0][2]}-{P[-1][2]} step {min(dx)}-{max(dx)}, '
+             f'order {" ".join(e[0] for e in P)}']
+ok_pre = len({e[3] for e in P}) == 1 and [e[0] for e in P] == U['all'] and max(dx) - min(dx) <= 1 and 8 <= P[0][2] and P[-1][2] <= 311
 H.OPTIONS.update(scenario.SYSTEMS['mvs-mvs'])
 b = H.Brawler(rom=os.path.join(GAME, 'brawler.neo'), game=GAME); b.game = GAME; Y = b.syms
 lines, bad = [], 0
@@ -94,7 +102,14 @@ def select_view(tag):
         seen.append(c); b.run(4, 'R'); b.run(12)
     got = [names[sc[s]] for s in seen]
     want = U['starters'] + U['ladder'][:U['rung_size'] * rungs()]
-    say(f'{tag}: {nslot} fighters on the select screen, the cursor reaches {len(got)}: {" ".join(got)}', sorted(got) == sorted(want) and nslot == len(U['all']))
+    say(f'{tag}: {nslot} select slots, the cursor reaches {len(got)}: {" ".join(got)}', sorted(got) == sorted(want) and nslot == len(U['all']))
+    act = [b.r(Y['slot_act'] + i, 1) for i in range(nslot)]   # only the unlocked ones drawn (Bruno 2026-10-15: no silhouettes)
+    drawn = [names[sc[s]] for s in range(nslot) if act[s] != 0xFF]
+    lay = b.r(Y['sel_lay'], 1); n, base, Ln = LAYERS[lay]
+    sx = [b.sel_slots()[base + s][0] for s in range(n)]
+    say(f'{tag}: drawn {len(drawn)} ({" ".join(drawn)}), layer {lay}: places {base}-{base + n - 1} of {nslot} (feet x {sx[0]}-{sx[-1]}, '
+        f'centre {(sx[0] + sx[-1]) / 2} vs the full layout\'s {(b.sel_slots()[0][0] + b.sel_slots()[-1][0]) / 2})',
+        drawn == want and n == len(want) and abs((sx[0] + sx[-1]) - (b.sel_slots()[0][0] + b.sel_slots()[-1][0])) <= 2 * 29)
     return got
 
 
@@ -122,6 +137,7 @@ def clear(k):
     say(f'clear {k}: A after the reveal -> back to the BIOS (mode {mode()})')
 
 
+say(lines_pre[0], ok_pre)
 b.core.retro_reset(); b.frame = 0
 to_title()
 say(f'fresh save: save.rungs {rungs()}', rungs() == 0)

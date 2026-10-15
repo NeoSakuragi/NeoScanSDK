@@ -133,6 +133,9 @@ def select_layout(g):
             L = {n: dict(v) for n, v in L.items() if n in names}
             for k in ('slot', 'z'):
                 for i, n in enumerate(sorted(L, key=lambda m: L[m][k])): L[n][k] = i
+            if sorted(L) == sorted(U['all']):            # the places (by slot) taken in ladder order: place k = U['all'][k]
+                P = [L[n] for n in sorted(L, key=lambda m: L[m]['slot'])]   # (its x, y, z, facing; the pose stays the fighter's)
+                L = {n: dict(P[k], pose=L[n]['pose']) for k, n in enumerate(U['all'])}
     else:
         slots = [s for s in g['select']['slots'] if s.get('fighter')]
         watch = {r['name']: r['watch'] for r in g['roster']}
@@ -162,7 +165,7 @@ def unlocks(g):
     roster fighter is off the select screen (an enemy only). Each must be a selectable roster fighter."""
     u = g.get('unlocks')
     if not u: return None
-    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size'), f'unlocks: unknown field {k}'
+    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'screen'), f'unlocks: unknown field {k}'
     names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
     st, la, n = list(u.get('starters') or []), list(u.get('ladder') or []), u.get('rung_size')
     assert isinstance(n, int) and 1 <= n <= 6, f'unlocks.rung_size {n!r}: 1-6'
@@ -173,21 +176,47 @@ def unlocks(g):
     assert not dup, f'unlocks: {", ".join(dup)} twice'
     for f in al: assert f in names, f'unlocks: {f} is not a selectable roster fighter'
     assert len(al) <= LADDER_MAX, f'unlocks: {len(al)} fighters, {LADDER_MAX} at most (main.c NA)'
-    return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': [la[i:i + n] for i in range(0, len(la), n)], 'all': al}
+    scr = u.get('screen') or {}
+    for k, v in scr.items(): assert k in LADDER_SCREEN and isinstance(v, int), f'unlocks.screen.{k} {v!r} (feet, from, to: px)'
+    return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': [la[i:i + n] for i in range(0, len(la), n)], 'all': al, 'screen': scr}
 
 
-def ladder_places(U):
-    """the unlock ladder screen's places (main.c ladder_start): a column per rung after the starters' (columns evenly
-    across x 32-288), a column's fighters stepping from the back (feet y 152) to the front (206) and 24 px
-    right; each faces the middle; drawn back first -> [(fighter, rung 0 = starters, x, y, z, face)]"""
-    cols = [U['starters']] + U['rungs']; w = 256 / len(cols); out = []
-    for k, c in enumerate(cols):
-        cx = 32 + w * (k + 0.5); m = len(c)
-        for j, f in enumerate(c):
-            t = j / (m - 1) if m > 1 else 1
-            x = round(cx - 12 + 24 * t) if m > 1 else round(cx)
-            out.append([f, k, x, round(152 + 54 * t), 0, 1 if cx < 160 else -1])
-    for z, e in enumerate(sorted(out, key=lambda e: (e[3], e[2]))): e[4] = z
+def select_layers(g, L=None):
+    """the select screen's layouts by unlocked count (Bruno 2026-10-15: "only the available characters show up"):
+    [(n, base, Ln)] per layer. No unlocks block: one layer, every slot (n = all, base 0, L). With the unlock ladder:
+    layer r = r rungs unlocked (0 .. len(rungs)); its n = starters + r x rung_size fighters = the first n of the ladder
+    order (slots 0 .. n - 1), standing on n CONSECUTIVE places of the full layout, centred: places base .. base + n - 1
+    (the places in slot order = along the street), base = (all - n) // 2. The layout's left half faces right, its right
+    half left, so a centred run still faces the middle. Ln = {fighter: its place} (slot 0 .. n - 1, z renumbered 0 ..):
+    the layer's own cursor graph (select_stick) is computed on it; main.c draws only those n (a locked one is not drawn)."""
+    L = L or select_layout(g); U = unlocks(g); order = sorted(L, key=lambda n: L[n]['slot'])
+    if not U: return [(len(L), 0, L)]
+    assert order == U['all'], f'select_layout: the slots must follow the ladder order {U["all"]} (got {order})'
+    out = []
+    for r in range(len(U['rungs']) + 1):
+        n = len(U['starters']) + r * U['rung_size']; base = (len(order) - n) // 2
+        Ln = {f: dict(L[order[base + k]], slot=k, pose=L[f]['pose']) for k, f in enumerate(order[:n])}
+        for i, f in enumerate(sorted(Ln, key=lambda m: Ln[m]['z'])): Ln[f]['z'] = i
+        out.append((n, base, Ln))
+    return out
+
+
+LADDER_SCREEN = {'feet': 200, 'from': 46, 'to': 289}     # unlocks.screen defaults (ladder_places)
+
+
+def ladder_places(U, scr=None):
+    """the unlock ladder screen's places (main.c ladder_start; Bruno 2026-10-15: "every character on the same horizontal
+    axis"): every ladder fighter (starters, then the rungs) on ONE line, feet at screen y `feet`, in ladder order left to
+    right, evenly spaced from screen x `from` to `to` (their feet; the TV shows x 8-311), each in its select pose facing
+    the middle; drawn from the ends inward (the middle ones in front where the bodies overlap) -> [(fighter, rung 0 =
+    starters, x, y, z, face)]"""
+    s = dict(LADDER_SCREEN, **(scr or {})); al = U['all']; n = len(al); out = []
+    rung = {f: 0 for f in U['starters']}
+    for k, c in enumerate(U['rungs']): rung.update({f: k + 1 for f in c})
+    for k, f in enumerate(al):
+        x = round(s['from'] + (s['to'] - s['from']) * k / (n - 1)) if n > 1 else (s['from'] + s['to']) // 2
+        out.append([f, rung[f], x, s['feet'], 0, 1 if 2 * k < n - 1 else -1])
+    for z, e in enumerate(sorted(out, key=lambda e: (-abs(2 * al.index(e[0]) - (n - 1)), e[2]))): e[4] = z
     return [tuple(e) for e in out]
 
 
@@ -1278,6 +1307,7 @@ def tables(g, build):
          f'#define EN_COUNT {len(M["enemies"])}', f'#define AI_COUNT {len(M["ai"])}            /* the presets, then the enemies\' own rows */',
          f'#define TINT_COUNT {len(M["tints"])}',
          f'#define SEL_NSLOT {len(select_layout(g))}',
+         f'#define SEL_NLAY {len(select_layers(g))}             /* the select screen\'s layouts: one per unlocked count (select_layers; the ladder: rungs + 1) */',
          f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
          f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
@@ -1290,7 +1320,7 @@ def tables(g, build):
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const int8_t gtint_lut[TINT_COUNT - 1][1024];   /* fighter.c tint_colour: tint t\'s (l * mix + c) * mul >> shift at [t - 1][l * 32 + c] */',
-         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_stick[SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1];',
+         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_lay_n[SEL_NLAY], sel_lay_base[SEL_NLAY];', 'extern const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          'extern const uint8_t roster_music[BC_COUNT];   /* the fighter\'s theme (game.json roster[].music), 0 = none: main.c stage_song */',
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
@@ -1521,12 +1551,23 @@ def tables(g, build):
     c.append('const uint8_t sel_palbase[SEL_NSLOT] = { ' + ', '.join(map(str, sel_palbases(g, build)[0])) + ' };   /* each slot\'s first palette: back to back, its fighter\'s own count */')
     stick = g.get('select', {}).get('stick', 'positions')
     assert stick in ('positions', 'order'), f'game.json select.stick: {stick!r} (positions | order)'
-    G = select_stick(L, bm_heads(build, g), stick)       # TODO #187: the cursor graph from the places
-    c.append('const uint8_t sel_stick[SEL_NSLOT][2] = {   /* the cursor from each slot: right, left (build_tables.py select_stick, select.stick ' + stick + '; locked: on past it) */\n    ' + '\n    '.join(
-        f'{{ {L[G[n]["right"]]["slot"]}, {L[G[n]["left"]]["slot"]} }},   /* {n}: ' + ' '.join(f'{d} {G[n][d]}' for d in SEL_DIRS) + ' */' for n in slots) + '\n};')
-    vert = lambda n, k: ', '.join([str(L[m]['slot']) for m in G[n][k]] + ['0xFF'] * (len(L) - 1 - len(G[n][k])))
-    c.append('const uint8_t sel_vert[SEL_NSLOT][2][SEL_NSLOT - 1] = {   /* up / down from each slot: the slots that way in preference (the first selectable wins), 0xFF none */\n    ' + '\n    '.join(
-        f'{{ {{ {vert(n, "ups")} }}, {{ {vert(n, "downs")} }} }},   /* {n} */' for n in slots) + '\n};')
+    heads = bm_heads(build, g); lay = select_layers(g, L); N = len(L)
+    sticks, verts = [], []
+    for r, (n, base, Ln) in enumerate(lay):              # a cursor graph per layer (select_layers: the unlocked count)
+        G = select_stick(Ln, heads, stick)               # TODO #187: the cursor graph from the places
+        sl = sorted(Ln, key=lambda m: Ln[m]['slot'])
+        sticks.append(f'  {{ /* layer {r}: {n} fighters, places {base}-{base + n - 1} */\n    ' + '\n    '.join(
+            [f'{{ {Ln[G[m]["right"]]["slot"]}, {Ln[G[m]["left"]]["slot"]} }},   /* {m}: ' + ' '.join(f'{d} {G[m][d]}' for d in SEL_DIRS) + ' */' for m in sl] +
+            [f'{{ {k}, {k} }},   /* (not shown) */' for k in range(n, N)]) + '\n  }')
+        vert = lambda m, k: ', '.join([str(Ln[t]['slot']) for t in G[m][k]] + ['0xFF'] * (N - 1 - len(G[m][k])))
+        none = ', '.join(['0xFF'] * (N - 1)) or '0xFF'
+        verts.append(f'  {{ /* layer {r} */\n    ' + '\n    '.join(
+            [f'{{ {{ {vert(m, "ups")} }}, {{ {vert(m, "downs")} }} }},   /* {m} */' for m in sl] +
+            [f'{{ {{ {none} }}, {{ {none} }} }},' for k in range(n, N)]) + '\n  }')
+    c.append('const uint8_t sel_lay_n[SEL_NLAY] = { ' + ', '.join(str(e[0]) for e in lay) + ' };   /* each layer\'s fighters: slots 0 .. n - 1 (select_layers) */')
+    c.append('const uint8_t sel_lay_base[SEL_NLAY] = { ' + ', '.join(str(e[1]) for e in lay) + ' };   /* its first place: slot s stands at SEL_SLOT[base + s] */')
+    c.append('const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2] = {   /* per layer, the cursor from each slot: right, left (build_tables.py select_stick, select.stick ' + stick + '; locked: on past it) */\n' + ',\n'.join(sticks) + '\n};')
+    c.append('const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1] = {   /* per layer, up / down from each slot: the slots that way in preference (the first selectable wins), 0xFF none */\n' + ',\n'.join(verts) + '\n};')
     unl = []; U = unlocks(g)
     for r in g['roster']:
         u = r.get('unlock', 'always')
@@ -1540,7 +1581,7 @@ def tables(g, build):
         assert u == 'always' or 1 <= u['boss_of_stage'] <= len(g['stages']), f'{r["name"]}: unlock {u}'
     c.append('const uint8_t roster_unlock[BC_COUNT] = { ' + ', '.join(map(str, unl)) + ' };   /* stage k + 1 whose boss unlocks it, '
              '0 = always, $80 + k = the unlock ladder\'s rung k, 0xFF = never (a form; with the ladder: off the select screen) */')
-    P = ladder_places(U) if U else []
+    P = ladder_places(U, U['screen']) if U else []
     h += [f'#define LAD_N {len(P)}            /* the unlock ladder (game.json unlocks): its fighters, starters first; 0 = none */',
           f'#define LAD_RUNGS {len(U["rungs"]) if U else 0}', f'#define LAD_RUNG {U["rung_size"] if U else 0}             /* fighters a rung */',
           'extern const uint8_t lad_fighter[LAD_N ? LAD_N : 1], lad_rung[LAD_N ? LAD_N : 1], lad_slot[LAD_N ? LAD_N : 1];',

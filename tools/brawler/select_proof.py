@@ -95,9 +95,10 @@ def main(game, out, sel_json=None):
     import ctypes as C
     T = (C.c_uint16 * (264 * 34)).from_address(stat) if stat else None
     shots, jobs = [], []
-    for unl in (0, 1):
-        b.core.retro_reset(); b.seq('600:-,4:o,100:-')
-        if unl: b.unlock_all()
+    G0 = json.load(open(os.path.join(game, 'game.json')))
+    for unl in ((1,) if G0.get('unlocks') else (0, 1)):  # (the unlock ladder: only the unlocked ones are drawn, the
+        b.core.retro_reset(); b.seq('600:-,4:o,100:-')   # editor's picture is the full layout: compared all unlocked;
+        if unl: b.unlock_all()                           # walk() walks every unlocked count)
         b.seq('4:s,120:-')
         seen = []
         while True:
@@ -129,25 +130,34 @@ def main(game, out, sel_json=None):
                      f'   editor hash {r["hash"]}   arrow col {r["arrow"]["col"]} row {r["arrow"]["row"]}{" over " + ",".join(r["arrow"]["hits"]) if r["arrow"]["hits"] else ""}')
     lines.append(f'{len(shots)} screens, {bad} mismatch(es)')
     sl, sb = stick_check(D, sel_json, out, L); lines += sl; bad += sb
-    wl, wb = walk(b, D, L, out); lines += wl; bad += wb
+    wl, wb = walk(b, D, L, out, game); lines += wl; bad += wb
     open(os.path.join(out, 'select_proof.txt'), 'w').write('\n'.join(lines) + '\n')
     print('\n'.join(lines))
     return bad
 
 
-def walk(b, D, L, out):
-    """the cursor walk in our emulator (TODO #187): from every selectable fighter, each direction, bosses locked / beaten:
-    the game's cursor after one press against the graph -> OUT/select_walk.txt (a table of moves) -> (summary, mismatches)"""
-    order = sorted(L, key=lambda n: L[n]['slot']); slot = {n: k for k, n in enumerate(order)}
-    G = D.get('graph') or build_tables.select_stick(L, heads_of(D, L), D.get('stick'))
+def walk(b, D, L, out, game):
+    """the cursor walk in our emulator (TODO #187): from every selectable fighter, each direction, bosses locked / beaten
+    (with the unlock ladder: every unlocked count, build_tables.select_layers, save.rungs poked; each count its own
+    layout and graph): the game's cursor after one press against the graph -> OUT/select_walk.txt (a table of moves)
+    -> (summary, mismatches)"""
+    G0 = json.load(open(os.path.join(game, 'game.json')))
     KEY = {'right': 'R', 'left': 'L', 'up': 'U', 'down': 'D'}; ARW = {'right': '->', 'left': '<-', 'up': '^', 'down': 'v'}
     cur = b.syms['cursor']; tab, bad, moves = [], 0, 0
-    for unl in (0, 1):
-        locked = set() if unl else {n for n in L if D['fighters'][n]['locked']}
+    if G0.get('unlocks'):
+        runs = [(r, Ln, build_tables.select_stick(Ln, heads_of(D, Ln), D.get('stick')), set(), f'{n} unlocked (save.rungs {r}): places {base}-{base + n - 1}')
+                for r, (n, base, Ln) in enumerate(build_tables.select_layers(G0, L))]
+    else:
+        G = D.get('graph') or build_tables.select_stick(L, heads_of(D, L), D.get('stick'))
+        runs = [(None if not unl else 'all', L, G, set() if unl else {n for n in L if D['fighters'][n]['locked']},
+                 'bosses beaten' if unl else 'bosses locked (a fresh game)') for unl in (0, 1)]
+    for rung, L, G, locked, what in runs:
+        order = sorted(L, key=lambda n: L[n]['slot']); slot = {n: k for k, n in enumerate(order)}
         b.core.retro_reset(); b.seq('600:-,4:o,100:-')
-        if unl: b.unlock_all()
+        if rung == 'all': b.unlock_all()
+        elif rung is not None: b.w(b.syms['save'] + 9, 1, rung)   # (main.c save_t rungs)
         b.seq('4:s,120:-')
-        tab.append(f'\nbosses {"beaten" if unl else "locked (a fresh game)"}: the game\'s cursor after one press (expected = the graph, locked skipped; * = differs)')
+        tab.append(f'\n{what}: the game\'s cursor after one press (expected = the graph, locked skipped; * = differs)')
         tab.append(f'{"from":10s} ' + ' '.join(f'{ARW[d] + " " + d:>20s}' for d in KEY))
         for n in order:
             if n in locked: continue

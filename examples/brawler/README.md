@@ -88,10 +88,14 @@ Roster & select: a Ladder picker on each row, the rung size, the ladder in one l
 | 5 | Geese, Krauser |
 
 Only these 12 stand on the select screen (12 places along the street in ladder order, x 224-543, the three depth rows in
-turn; a locked one is a silhouette the cursor skips); every other roster fighter is an enemy only. Goenitz is out of the
+turn), and only the UNLOCKED ones are drawn there (Bruno 2026-10-15: no silhouettes on the select screen): n unlocked =
+the first n of the ladder order on the n middle places (places (12 - n) / 2 on: 2 = places 6-7, 4 = 5-8 ... 12 = all;
+build_tables.select_layers, a cursor graph per count: sel_stick / sel_vert [layer]); every other roster fighter is an
+enemy only. Goenitz is out of the
 build (game.json roster_benched, Lab-only; his enemy, portrait, drama, story in `benched`, his song in songs.json
-songs_benched). The ladder screen (mode 7, main.c "the unlock ladder"): the 12 at once, a column per rung after the
-starters', locked ones as dark silhouettes of their select pose, unlocked ones in colour, UNLOCKED n/12 and what the
+songs_benched). The ladder screen (mode 7, main.c "the unlock ladder"): the 12 at once on ONE line (feet y 200, ladder
+order left to right, feet x 46-289 evenly spaced, the middle ones in front: game.json unlocks.screen,
+build_tables.ladder_places), locked ones as dark silhouettes of their select pose, unlocked ones in colour, UNLOCKED n/12 and what the
 next clear brings on the bottom line. After a game clear (the ending's THANK YOU): GAME CLEAR!, the new rung still dark,
 then flashing white / dark, then in colour playing their win pose with their select voice, NEW CHALLENGERS! in the big
 font (game.json big_text.ladder) and their names; A-D / START after 4 s (or 12 s) -> back to the BIOS (which commits the

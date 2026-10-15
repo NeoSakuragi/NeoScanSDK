@@ -338,11 +338,13 @@ class Brawler:
         return self._slots
     def sel_stick(self):
         """the select screen's right / left loop (main.c sel_stick, build_tables.py select_stick: from the places, TODO
-        #187), read from the .neo (P word-swapped): [(right, left)] per slot"""
-        if not hasattr(self, '_stick'):
-            d = open(self.rom, 'rb').read(); a = self.syms['sel_stick']
+        #187), read from the .neo (P word-swapped): [(right, left)] per slot, the layout in use (main.c sel_lay: one graph
+        per unlocked count, build_tables.select_layers)"""
+        lay = self.r(self.syms['sel_lay'], 1) if 'sel_lay' in self.syms else 0
+        if getattr(self, '_stick_lay', None) != lay:
+            d = open(self.rom, 'rb').read(); a = self.syms['sel_stick'] + lay * 2 * self.nslot
             b = bytes(d[0x1000 + ((a + i) ^ 1)] for i in range(2 * self.nslot))
-            self._stick = [(b[2 * i], b[2 * i + 1]) for i in range(self.nslot)]
+            self._stick = [(b[2 * i], b[2 * i + 1]) for i in range(self.nslot)]; self._stick_lay = lay
         return self._stick
     def sel_goto(self, k, p=0):
         """on the select screen: move player p's cursor to fighter k (bm_chars index) with the stick: right / left walk

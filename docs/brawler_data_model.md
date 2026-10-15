@@ -176,13 +176,16 @@ fighter + the rung size, roster.py merge):
 | `starters` | `["terry", "robert"]` | playable from the start |
 | `ladder` | `["ryo", "kyo", "iori", "mai", ...]` | the fighters earned, in order, `rung_size` at a time: each game clear (the last stage in play's boss beaten) unlocks the next rung |
 | `rung_size` | `2` | fighters a rung (the ladder: whole rungs) |
+| `screen` | `{"feet": 200, "from": 46, "to": 289}` | the ladder screen's line: feet y, first / last feet x (optional: these are the defaults) |
 
 While the block is there: only starters + ladder stand on the select screen (select_layout keeps only their places,
-renumbered; every other roster fighter is an enemy only), a ladder fighter not unlocked yet is a silhouette the cursor
-skips (`roster_unlock` = $80 + its rung, 0 a starter, 0xFF off the screen; main.c `char_locked` against `save.rungs`), the
+renumbered, taken in ladder order; every other roster fighter is an enemy only), a ladder fighter not unlocked yet is NOT
+drawn there: n unlocked = the first n on the n middle places of the layout (`select_layers`: places (all - n) / 2 on, a
+cursor graph per count, `SEL_NLAY` layers, `sel_lay_n` / `sel_lay_base`, `sel_stick` / `sel_vert` [layer]) (`roster_unlock` = $80 + its rung, 0 a starter, 0xFF off the screen; main.c `char_locked` against `save.rungs`), the
 bosses' own `unlock` is ignored (no BOSS UNLOCKED). The save keeps the rungs unlocked (save_t `rungs`, the former first
-spare byte: an older save reads 0). The ladder screen (mode 7): every ladder fighter at once, a column per rung after the
-starters', locked ones as dark silhouettes; after a game clear (the ending's last screen) with the new rung revealed, and
+spare byte: an older save reads 0). The ladder screen (mode 7): every ladder fighter at once on ONE line (`screen`: `feet` their
+feet's y, `from` / `to` the first's and the last's feet x, evenly spaced between, the middle ones in front;
+`ladder_places`), locked ones as dark silhouettes (two tones, every other one lighter); after a game clear (the ending's last screen) with the new rung revealed, and
 from the title's CHALLENGERS. Tables: `lad_fighter`, `lad_rung`, `lad_slot` (its select slot: its palettes), `lad_pos`
 (screen x, feet y, draw order, face). The attract demo plays every starter / ladder fighter whatever the save. Taking
 the block out: every selectable fighter from the start (the bosses' own locks back) and the select layout to be placed
