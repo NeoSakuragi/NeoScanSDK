@@ -159,6 +159,7 @@ def select_data(game, cand=None, b=None):
         lk = n not in U['starters'] if U else u != 'always'
         fighters[n] = {'name': disp.get(n, n.upper()), 'locked': lk, 'poses': poses, 'wide': wide}
     stick = G.get('select', {}).get('stick', 'positions')   # the cursor graph (TODO #187): the build's (game_tables.c sel_stick)
+    L = build_tables.select_shown(G, build)           # (select.auto: the build's places for everyone unlocked)
     graph = build_tables.select_stick(L, build_tables.bm_heads(build, G), stick)
     return {'layout': L, 'stick': stick, 'graph': graph, 'roster': names, 'fighters': fighters, 'lut': LUT, 'floor': floor, 'sel_cols': sel_cols, 'na': na, 'line_max': 96,
             'fix': fix_capture(game, b), 'version': open(os.path.join(game, 'VERSION')).read().strip(),

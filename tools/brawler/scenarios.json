@@ -4521,5 +4521,17 @@
   "expect": "The last stage starts with FINAL STAGE in the big letters (stages 1-3 still read STAGE n START); its STAGE CLEAR and the boss flow unchanged.",
   "do_keys": "",
   "proof": 120
+ },
+ "20261015-135645-e03d": {
+  "title": "Select screen: the fighters spread out, none overlapping",
+  "setup": {
+   "mode": "select",
+   "cursor": "terry",
+   "unlock": true
+  },
+  "do": "The select screen with every fighter unlocked, the cursor on Terry. Look at the group, then move the cursor right to Kim and back with the stick.",
+  "expect": "The six fighters stand in one line along the street, each one clear of the next (no fighter drawn over another), the left ones facing right and the right ones facing left. The group is a bit wider than the screen: on Terry the left end shows; moving towards Kim the camera glides along the group and stops at Kim's end (no empty street past either end). With fewer unlocked (a fresh save: Terry and Robert) they stand evenly spread on one screen.",
+  "do_keys": "30:-,4:R,20:-,4:R,20:-,4:R,20:-,4:R,20:-,4:R,40:-,4:L,20:-,4:L,20:-,4:L,20:-,4:L,20:-,4:L,40:-",
+  "proof": 60
  }
 }

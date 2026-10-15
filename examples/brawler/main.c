@@ -2165,7 +2165,7 @@ static uint8_t slot_act[SEL_NSLOT];      /* the actor showing it */
 static uint8_t sel_lay, sel_base, sel_cnt;   /* the layout in use (build_tables.py select_layers; Bruno 2026-10-15: "only the
                                             available characters show up"): with the unlock ladder layer save.rungs, its
                                             sel_cnt fighters = slots 0 .. sel_cnt - 1 (the unlocked ones: the others are not
-                                            drawn), slot s at the place SEL_SLOT[sel_base + s] (a centred run of places);
+                                            drawn), slot s at the place SEL_SLOT[sel_base + s] (the layer's own places: game.json select.auto spreads them, no overlap; the camera inside sel_lay_cam);
                                             without it one layer, every slot (a locked boss: a silhouette) */
 static fighter_t sel_extra[NA - NE];     /* actors NE.. (the fight's entities are actors 0..NE-1) */
 static fighter_t *actor(uint8_t a) { return a < NF ? &fighters[a] : a < NE ? &projectiles[a - NF] : &sel_extra[a - NE]; }
@@ -2284,7 +2284,9 @@ static int16_t sel_cam_goal(void) {
     int16_t a = SEL_SLOT[sel_base + cursor[0]].x, b = cursor[1] == 0xFF ? a : SEL_SLOT[sel_base + cursor[1]].x, g;
     g = (b > a ? b - a : a - b) <= SEL_BOTH_W ? (a + b) >> 1 : SEL_SLOT[sel_base + cursor[sel_last]].x;   /* too far apart for one */
     g -= 160;                                                                                  /* screen: the last mover's */
-    return g < 0 ? 0 : g > LAND_CAM_MAX ? LAND_CAM_MAX : g;
+    if (g < sel_lay_cam[sel_lay][0]) g = sel_lay_cam[sel_lay][0];   /* the layer's range (build_tables select_cams: inside the */
+    if (g > sel_lay_cam[sel_lay][1]) g = sel_lay_cam[sel_lay][1];   /* street, along the group; lo = hi: it fits, fixed) */
+    return g;
 }
 static void sel_camera(void) {
     int16_t d = sel_cam_goal() - cam_x, st = d >> 2;

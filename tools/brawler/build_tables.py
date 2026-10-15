@@ -192,24 +192,132 @@ def unlocks(g):
     return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': rg, 'all': al, 'screen': scr}
 
 
-def select_layers(g, L=None):
+BUILD_DEFAULT = os.path.join(REPO, 'examples', 'brawler', 'build')
+SEL_AUTO = {'feet': [196, 204], 'gap': 6, 'pitch': 100, 'margin': 16}   # game.json select.auto defaults (select_auto)
+SEL_TV = (8, 312)                                        # the screen x a TV shows (the LSPC's 8 .. 311)
+_SEL_EXT = {}
+
+
+def sel_extents(build, g, names):
+    """each fighter's select pose as the game draws it, facing LEFT (the ROM sprites'): its opaque pixels' span per row,
+    {name: {dy: (l, r)}} (px from the feet, l .. r inclusive; chainlab/select_images.py's picture of the build's
+    'watch' frame = the select screen's, select_proof pixel for pixel)"""
+    key = os.path.abspath(build)
+    if key not in _SEL_EXT:
+        sys.path.insert(0, os.path.join(HERE, 'chainlab'))
+        import numpy as np, base64
+        import select_images as SI
+        rom = SI.Rom(build); E = {}
+        for n in [r['name'] for r in g['roster'] if r.get('selectable', True)]:
+            w = rom.arr(f'{n}_watch')
+            if not w: continue
+            fi = int(re.findall(r'\{(\d+), (\d+), (\d+), \{', w)[-1][0])
+            fr = SI.left_frame(SI.rom_parts(rom, n, fi, rom.tile_hi[n]), rom.tile)
+            a = np.frombuffer(base64.b64decode(fr['pix']), np.uint8).reshape(fr['h'], fr['w']) & 15
+            E[n] = {}
+            for y in range(fr['h']):
+                c = np.nonzero(a[y])[0]
+                if len(c): E[n][y - fr['oy']] = (int(c[0]) - fr['ox'], int(c[-1]) - fr['ox'])
+        _SEL_EXT[key] = E
+    E = _SEL_EXT[key]
+    for n in names: assert n in E, f'select: no select pose for {n} in {build}'
+    return E
+
+
+def sel_spans(e, v):
+    """a fighter's opaque spans on the street at its place v ({x, y, facing}): {screen y: (l, r)}; facing right mirrors
+    as draw.s (x -> 2 ox - 1 - x: offset c -> -c - 1)"""
+    return {v['y'] + dy: ((v['x'] - r - 1, v['x'] - l - 1) if v['facing'] == 'right' else (v['x'] + l, v['x'] + r)) for dy, (l, r) in e.items()}
+
+
+def sel_overlap(a, b):
+    """two fighters' overlap on the screen in pixels (their spans' common pixels, row by row)"""
+    return sum(max(0, min(a[y][1], b[y][1]) - max(a[y][0], b[y][0]) + 1) for y in a if y in b)
+
+
+def select_auto(g, names, E, L):
+    """the select screen's places for the n fighters `names` (in the stick's order), automatic (Bruno's note
+    20261015-135645-e03d: "Characters are bunched up together... avoid overlap as much as possible"): one line along the
+    street, left to right in order, the left half facing right, the right half left (the middle one: left), feet y
+    alternating select.auto.feet (a front / back stagger; the front one drawn over, the middle ones over the ends).
+    x: each fighter as close to the previous one as its pose allows with `gap` px between their drawn pixels (row by row:
+    sel_extents, against every one before it), but never closer than an even pitch U = the TV's width minus 2 x `margin`
+    shared over the n - 1 steps, at most `pitch` px (2-4 fighters: evenly spaced on one screen); the whole run centred on
+    the street (SELECT_W / 2). Wider than the screen (6 fighters: ~450 px of bodies): the camera pans along the group
+    (select_cams). -> {fighter: {x, y, z, facing, pose, slot}} (pose: L's)."""
+    o = g.get('select', {}).get('auto'); o = o if isinstance(o, dict) else {}
+    for k in o: assert k in SEL_AUTO or k == 'about', f'select.auto.{k}: one of {sorted(SEL_AUTO)}'
+    a = dict(SEL_AUTO, **{k: v for k, v in o.items() if k in SEL_AUTO})
+    n = len(names); fe = a['feet']
+    P = {f: {'x': 0, 'y': fe[k % len(fe)], 'facing': 'right' if 2 * k < n - 1 else 'left'} for k, f in enumerate(names)}
+    def span(f): return sel_spans(E[f], P[f])
+    U = 0
+    if n > 1:
+        s0, s1 = span(names[0]), span(names[-1])
+        ext = -min(l for l, r in s0.values()) + max(r for l, r in s1.values())
+        U = max(0, min(a['pitch'], (SEL_TV[1] - SEL_TV[0] - 2 * a['margin'] - ext) // (n - 1)))
+    for k, f in enumerate(names[1:], 1):
+        x = P[names[k - 1]]['x'] + U
+        sf = span(f)                                     # (at x 0: its spans relative to its feet)
+        for j in names[:k]:
+            sj = span(j)
+            need = [sj[y][1] - sf[y][0] + 1 + a['gap'] for y in sj if y in sf]
+            if need: x = max(x, max(need))
+        P[f]['x'] = x
+    S = [span(f) for f in names]
+    A, B = min(l for s in S for l, r in s.values()), max(r for s in S for l, r in s.values())
+    dx = SELECT_W // 2 - (A + B + 1) // 2
+    out = {}
+    for k, f in enumerate(names): out[f] = dict(P[f], x=P[f]['x'] + dx, pose=L[f]['pose'], slot=k)
+    for z, f in enumerate(sorted(names, key=lambda f: (out[f]['y'], -abs(2 * names.index(f) - (n - 1))))): out[f]['z'] = z
+    for f, v in out.items(): assert 0 <= v['x'] < SELECT_W, f'select.auto: {f} at x {v["x"]} off the street'
+    return {f: {k: out[f][k] for k in ('x', 'y', 'z', 'facing', 'pose', 'slot')} for f in names}
+
+
+def select_cams(Ln, E, cam_max):
+    """a layout's camera range (main.c sel_cam_goal, selectrender.js camFor): the group's drawn pixels A .. B on the
+    street; fitting the TV with `margin` px each side: the camera fixed on its middle (lo = hi), else the cursor-centred
+    camera kept inside A - 16 .. B + 16 (no empty street past the group's ends); inside 0 .. cam_max -> (lo, hi)"""
+    S = [sel_spans(E[f], v) for f, v in Ln.items()]
+    A, B = min(l for s in S for l, r in s.values()), max(r for s in S for l, r in s.values())
+    m = SEL_AUTO['margin']; tv0, tv1 = SEL_TV
+    if B - A + 1 <= tv1 - tv0 - 2 * m: lo = hi = (A + B + 1) // 2 - 160
+    else: lo, hi = A - tv0 - m, B + 1 + m - tv1
+    lo, hi = (max(0, min(cam_max, v)) for v in (lo, hi))
+    return lo, max(lo, hi)
+
+
+def select_layers(g, L=None, build=None):
     """the select screen's layouts by unlocked count (Bruno 2026-10-15: "only the available characters show up"):
-    [(n, base, Ln)] per layer. No unlocks block: one layer, every slot (n = all, base 0, L). With the unlock ladder:
-    layer r = r rungs unlocked (0 .. len(rungs)); its n = starters + the first r rungs' fighters = the first n of the ladder
-    order (slots 0 .. n - 1), standing on n CONSECUTIVE places of the full layout, centred: places base .. base + n - 1
-    (the places in slot order = along the street), base = (all - n) // 2. The layout's left half faces right, its right
-    half left, so a centred run still faces the middle. Ln = {fighter: its place} (slot 0 .. n - 1, z renumbered 0 ..):
-    the layer's own cursor graph (select_stick) is computed on it; main.c draws only those n (a locked one is not drawn)."""
+    [(n, base, Ln)] per layer, base = the layer's first place in SEL_SLOT (the layers' places back to back: SEL_NPLACE).
+    No unlocks block: one layer, every slot (n = all, base 0, L). With the unlock ladder: layer r = r rungs unlocked
+    (0 .. len(rungs)); its n = starters + the first r rungs' fighters = the first n of the ladder order (slots 0 .. n - 1);
+    game.json select.auto (note 20261015-135645-e03d): their places laid out by select_auto for that count (spread, no
+    overlap); without it the n CONSECUTIVE places of the hand layout (select_layout), centred ((all - n) // 2 on). Ln =
+    {fighter: its place} (slot 0 .. n - 1, z 0 ..): the layer's own cursor graph (select_stick) is computed on it; main.c
+    draws only those n (a locked one is not drawn)."""
     L = L or select_layout(g); U = unlocks(g); order = sorted(L, key=lambda n: L[n]['slot'])
     if not U: return [(len(L), 0, L)]
     assert order == U['all'], f'select_layout: the slots must follow the ladder order {U["all"]} (got {order})'
-    out = []
+    auto = g.get('select', {}).get('auto')
+    E = sel_extents(build or BUILD_DEFAULT, g, order) if auto else None
+    out, base = [], 0
     for r in range(len(U['rungs']) + 1):
-        n = len(U['starters']) + sum(len(c) for c in U['rungs'][:r]); base = (len(order) - n) // 2
-        Ln = {f: dict(L[order[base + k]], slot=k, pose=L[f]['pose']) for k, f in enumerate(order[:n])}
-        for i, f in enumerate(sorted(Ln, key=lambda m: Ln[m]['z'])): Ln[f]['z'] = i
-        out.append((n, base, Ln))
+        n = len(U['starters']) + sum(len(c) for c in U['rungs'][:r])
+        if auto: Ln = select_auto(g, order[:n], E, L)
+        else:
+            c = (len(order) - n) // 2
+            Ln = {f: dict(L[order[c + k]], slot=k, pose=L[f]['pose']) for k, f in enumerate(order[:n])}
+            for i, f in enumerate(sorted(Ln, key=lambda m: Ln[m]['z'])): Ln[f]['z'] = i
+        out.append((n, base, Ln)); base += n
     return out
+
+
+def select_shown(g, build=None):
+    """the layout the select screen shows with everyone unlocked (select_layers' last layer: with select.auto the
+    build's own places; else select_layout): what the Factory's Select screen editor opens as "the game's layout" and
+    select_proof compares"""
+    return select_layers(g, None, build)[-1][2]
 
 
 LADDER_SCREEN = {'feet': 200, 'from': 46, 'to': 289}     # unlocks.screen defaults (ladder_places)
@@ -1395,7 +1503,8 @@ def tables(g, build):
          f'#define EN_COUNT {len(M["enemies"])}', f'#define AI_COUNT {len(M["ai"])}            /* the presets, then the enemies\' own rows */',
          f'#define TINT_COUNT {len(M["tints"])}',
          f'#define SEL_NSLOT {len(select_layout(g))}',
-         f'#define SEL_NLAY {len(select_layers(g))}             /* the select screen\'s layouts: one per unlocked count (select_layers; the ladder: rungs + 1) */',
+         f'#define SEL_NLAY {len(select_layers(g, None, build))}             /* the select screen\'s layouts: one per unlocked count (select_layers; the ladder: rungs + 1) */',
+         f'#define SEL_NPLACE {sum(e[0] for e in select_layers(g, None, build))}             /* their places, back to back (SEL_SLOT) */',
          f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
          f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}',
@@ -1408,7 +1517,7 @@ def tables(g, build):
          'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gbossai_t *const gbossai_rom[EN_COUNT];   /* (T9) a boss\'s own AI layer per enemy, 0 = none (gamedata.h) */', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const int8_t gtint_lut[TINT_COUNT - 1][1024];   /* fighter.c tint_colour: tint t\'s (l * mix + c) * mul >> shift at [t - 1][l * 32 + c] */',
-         'extern const sel_slot_t SEL_SLOT[SEL_NSLOT];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_lay_n[SEL_NLAY], sel_lay_base[SEL_NLAY];', 'extern const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1];',
+         'extern const sel_slot_t SEL_SLOT[SEL_NPLACE];', 'extern const int16_t sel_lay_cam[SEL_NLAY][2];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_lay_n[SEL_NLAY], sel_lay_base[SEL_NLAY];', 'extern const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1];',
          'extern const uint8_t roster_unlock[BC_COUNT];',
          'extern const uint8_t roster_music[BC_COUNT];   /* the fighter\'s theme (game.json roster[].music), 0 = none: main.c stage_song */',
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
@@ -1634,13 +1743,18 @@ def tables(g, build):
     c.append('const gdrama_t gdramas[DR_COUNT ? DR_COUNT : 1] = {\n' + ('\n'.join(drows) if drows else '    { 0 }') + '\n};')
     names = M['names']; idx = {n: i for i, n in enumerate(names)}
     L = select_layout(g); slots = sorted(L, key=lambda n: L[n]['slot'])          # the stick's order (a form link's target: no slot)
-    c.append('const sel_slot_t SEL_SLOT[SEL_NSLOT] = {   /* game.json select_layout: x, y (feet), z (draw order), face */\n    ' + '\n    '.join(
-        f'{{ {L[n]["x"]}, {L[n]["y"]}, {L[n]["z"]}, {1 if L[n]["facing"] == "right" else -1} }},   /* {n} */' for n in slots) + '\n};')
+    lay = select_layers(g, L, build); E = sel_extents(build, g, slots)
+    cam_max = int(re.search(r'#define LAND_CAM_MAX (\d+)', open(os.path.join(build, 'land.h')).read()).group(1))
+    c.append('const sel_slot_t SEL_SLOT[SEL_NPLACE] = {   /* the places, layer after layer (select_layers: game.json select.auto, else select_layout): x, y (feet), z (draw order), face */\n    ' + '\n    '.join(
+        f'{{ {Ln[m]["x"]}, {Ln[m]["y"]}, {Ln[m]["z"]}, {1 if Ln[m]["facing"] == "right" else -1} }},   /* layer {r} ({n}): {m} */'
+        for r, (n, base, Ln) in enumerate(lay) for m in sorted(Ln, key=lambda m: Ln[m]['slot'])) + '\n};')
+    c.append('const int16_t sel_lay_cam[SEL_NLAY][2] = { ' + ', '.join('{ %d, %d }' % select_cams(Ln, E, cam_max) for n, base, Ln in lay) +
+             ' };   /* each layer\'s camera range (select_cams: lo = hi, the group fits the screen) */')
     c.append('const uint8_t sel_fighter[SEL_NSLOT] = { ' + ', '.join(str(idx[n]) for n in slots) + ' };')
     c.append('const uint8_t sel_palbase[SEL_NSLOT] = { ' + ', '.join(map(str, sel_palbases(g, build)[0])) + ' };   /* each slot\'s first palette: back to back, its fighter\'s own count */')
     stick = g.get('select', {}).get('stick', 'positions')
     assert stick in ('positions', 'order'), f'game.json select.stick: {stick!r} (positions | order)'
-    heads = bm_heads(build, g); lay = select_layers(g, L); N = len(L)
+    heads = bm_heads(build, g); N = len(L)
     sticks, verts = [], []
     for r, (n, base, Ln) in enumerate(lay):              # a cursor graph per layer (select_layers: the unlocked count)
         G = select_stick(Ln, heads, stick)               # TODO #187: the cursor graph from the places

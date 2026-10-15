@@ -6,8 +6,8 @@ our emulator (harness.py, the arcade system mvs-mvs = SNK's MVS BIOS, a fresh sa
      order left to right, evenly spaced, on the screen
   1. power on, coin, the title: NEW GAME only (MVS), NO ladder line in its menu (Bruno 2026-10-15: "only show this at
      the end of the game when there is an unlocking") and no CONTINUE STAGE, even after clears (Bruno 2026-10-15: "There
-     is no resume: every new game starts from stage 1"); NEW GAME -> the select screen (ONLY the 2 starters drawn, on the layout's 2 middle
-     places: build_tables.select_layers; the cursor walk reaches only them; the same after each power cycle: 4, 12)
+     is no resume: every new game starts from stage 1"); NEW GAME -> the select screen (ONLY the 2 starters drawn, on their places for 2:
+     build_tables.select_layers, select.auto: spread with no overlap; the cursor walk reaches only them; the same after each power cycle: 4, 12)
   2. a game clear x5 (scenario.py's stage mode: the last stage, its boss at 1 life, killed; then the ending passed with
      START, as a player does): each clear's ladder screen (the new rung revealed: silhouette -> white flash -> colour,
      NEW CHALLENGERS!), every fighter drawn at half size (the hardware shrink) with NO overlap: on the screenshot, the
@@ -33,7 +33,7 @@ for f in os.listdir(OUT):
     if f.endswith('.png'): os.remove(os.path.join(OUT, f))
 G = build_tables.load(os.path.join(GAME, 'game.json')); U = build_tables.unlocks(G); NST = len(G['stages'])
 names = [r['name'] for r in G['roster']]
-LAYERS = build_tables.select_layers(G)                  # the select screen's layout per unlocked count
+LAYERS = build_tables.select_layers(G, None, os.path.join(GAME, 'build'))                # the select screen's layout per unlocked count
 P = build_tables.ladder_places(U, U['screen'])          # the ladder screen: one line, ladder order, evenly spaced
 dx = [b2[2] - a[2] for a, b2 in zip(P, P[1:])]
 lines_pre = [f'ladder screen places: {len(P)} fighters, feet y {sorted({e[3] for e in P})}, x {P[0][2]}-{P[-1][2]} step {min(dx)}-{max(dx)}, '
@@ -129,10 +129,13 @@ def select_view(tag):
     act = [b.r(Y['slot_act'] + i, 1) for i in range(nslot)]   # only the unlocked ones drawn (Bruno 2026-10-15: no silhouettes)
     drawn = [names[sc[s]] for s in range(nslot) if act[s] != 0xFF]
     lay = b.r(Y['sel_lay'], 1); n, base, Ln = LAYERS[lay]
-    sx = [b.sel_slots()[base + s][0] for s in range(n)]
-    say(f'{tag}: drawn {len(drawn)} ({" ".join(drawn)}), layer {lay}: places {base}-{base + n - 1} of {nslot} (feet x {sx[0]}-{sx[-1]}, '
-        f'centre {(sx[0] + sx[-1]) / 2} vs the full layout\'s {(b.sel_slots()[0][0] + b.sel_slots()[-1][0]) / 2})',
-        drawn == want and n == len(want) and abs((sx[0] + sx[-1]) - (b.sel_slots()[0][0] + b.sel_slots()[-1][0])) <= 2 * 29)
+    rom = [b.sel_slots()[base + s] for s in range(n)]; od = sorted(Ln, key=lambda m: Ln[m]['slot'])
+    exp = [(Ln[m]['x'], Ln[m]['y'], Ln[m]['z'], 1 if Ln[m]['facing'] == 'right' else -1) for m in od]
+    E = build_tables.sel_extents(os.path.join(GAME, 'build'), G, od); S = {m: build_tables.sel_spans(E[m], Ln[m]) for m in od}
+    ov = sum(build_tables.sel_overlap(S[x], S[y]) for i, x in enumerate(od) for y in od[i + 1:])
+    say(f'{tag}: drawn {len(drawn)} ({" ".join(drawn)}), layer {lay}: places {base}-{base + n - 1} (feet x {rom[0][0]}-{rom[-1][0]}; '
+        f'= select_layers: {rom == exp}), the drawn poses\' overlap {ov} px (select.auto: 0)',
+        drawn == want and n == len(want) and rom == exp and (ov == 0 or not G.get('select', {}).get('auto')))
     return got
 
 

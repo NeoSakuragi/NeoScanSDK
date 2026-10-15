@@ -119,6 +119,8 @@ class Brawler:
         self.layout, self.fsize, self.states, self.syms = _layout(game, build)   # (build: build_lab_<f> for a Lab build)
         m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
         self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)
+        m = re.search(r'#define SEL_NPLACE (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
+        self.nplace = int(m.group(1)) if m else self.nslot     # SEL_SLOT's places: every layer's, back to back (select_layers)
         os.makedirs(WORK, exist_ok=True)
         self.pad = [set(), set()]; self.frame = 0; self.hits = []; self._video = None
         self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in dict(OPTIONS, **(options or {})).items()}
@@ -328,11 +330,11 @@ class Brawler:
         if 'save' in self.syms: self.w(self.syms['save'] + 7, 1, 0xFF); self.w(self.syms['save'] + 9, 1, 0x7F)   # (+9: the
                                                     # unlock ladder's rungs, main.c save_t rungs)
     def sel_slots(self):
-        """the select screen's slot table (main.c SEL_SLOT, P ROM, in the layout's slot order): [(x, y, z, face)], read from the
+        """the select screen's places (main.c SEL_SLOT, P ROM, layer after layer, each in its slot order): [(x, y, z, face)], read from the
         .neo (P word-swapped)"""
         if not hasattr(self, '_slots'):
             d = open(self.rom, 'rb').read(); a = 0x1000 + self.syms['SEL_SLOT']; out = []
-            for i in range(self.nslot):
+            for i in range(self.nplace):
                 w = d[a + 6 * i:a + 6 * i + 6]; w = bytes([w[1], w[0], w[3], w[2], w[5], w[4]])
                 out.append(struct.unpack('>hhBb', w))
             self._slots = out

@@ -49,8 +49,37 @@
   const locked = (D, n, o) => D.fighters[n].locked && !o.unlocked;
   /* select_start: the cursor starts on the first selectable slot */
   function firstCursor(D, L, o) { return order(L).find(n => !locked(D, n, o || {})) || order(L)[0]; }
-  /* main.c sel_cam_goal (P1 alone): the camera centred on fighter n, inside the street */
-  function camFor(D, L, n) { return D.land ? Math.max(0, Math.min(D.land.cam_max, L[n].x - 160)) : 0; }
+  /* a pose's opaque pixels per row, facing left: {dy: [l, r]} from the feet (build_tables.py sel_extents) */
+  function extOf(P) {
+    if (P._ext) return P._ext;
+    const e = {};
+    for (let py = 0; py < P.h; py++) {
+      let l = -1, r = -1;
+      for (let px = 0; px < P.w; px++) if (P.px[py * P.w + px] & 15) { if (l < 0) l = px; r = px; }
+      if (l >= 0) e[py - P.oy] = [l - P.ox, r - P.ox];
+    }
+    return (P._ext = e);
+  }
+  /* build_tables.py select_cams: the camera's range for a layout: the group's drawn pixels A .. B on the street; fitting
+   * the TV (x 8-311) with 16 px each side: fixed on its middle, else kept inside A - 16 .. B + 16; inside 0 .. cam_max */
+  function camRange(D, L) {
+    prepare(D);
+    let A = Infinity, B = -Infinity;
+    for (const n of Object.keys(L)) {
+      const v = L[n], e = extOf(poseOf(D, n, v.pose));
+      for (const k in e) {
+        const [l, r] = e[k], a = v.facing === 'right' ? v.x - r - 1 : v.x + l, b = v.facing === 'right' ? v.x - l - 1 : v.x + r;
+        if (a < A) A = a; if (b > B) B = b;
+      }
+    }
+    let lo, hi;
+    if (B - A + 1 <= 312 - 8 - 32) lo = hi = Math.floor((A + B + 1) / 2) - 160;
+    else { lo = A - 8 - 16; hi = B + 1 + 16 - 312; }
+    lo = Math.max(0, Math.min(D.land.cam_max, lo)); hi = Math.max(0, Math.min(D.land.cam_max, hi));
+    return [lo, Math.max(lo, hi)];
+  }
+  /* main.c sel_cam_goal (P1 alone): the camera centred on fighter n, inside the layout's range (camRange) */
+  function camFor(D, L, n) { if (!D.land) return 0; const [lo, hi] = camRange(D, L); return Math.max(lo, Math.min(hi, L[n].x - 160)); }
   /* land_draw: each layer's scroll at camera cam (the far layer and its lights 64 + 5/7, the barriers 10/7) */
   function scrollOf(name, cam) { return name === 'top' || name === 'lights' ? 64 + ((cam * 731) >> 10) : name === 'front' ? (cam * 1463 + 512) >> 10 : cam; }
   /* the full street's picture: main + crowd 1:1, the far layer where the right end shows it (its only view), the
@@ -210,6 +239,6 @@
              arrow: { col: a.col, row: a.row, hits: [...hits], text, off: a.off || a.col > 38 || a.row >= ROWS } };
   }
 
-  const api = { render, prepare, rgb, dark, poseOf, order, firstCursor, arrowCell, camFor, scrollOf, stick, stickMove, DIRS, W: SW, H };
+  const api = { render, prepare, rgb, dark, poseOf, order, firstCursor, arrowCell, camFor, camRange, scrollOf, stick, stickMove, DIRS, W: SW, H };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SelectRender = api;
 })(typeof window !== 'undefined' ? window : globalThis);

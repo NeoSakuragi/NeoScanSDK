@@ -87,7 +87,7 @@ def main(game, out, sel_json=None):
         import select_images
         sel_json = os.path.join(out, 'select.json'); json.dump(select_images.select_data(game, b=b), open(sel_json, 'w'))
     D = json.load(open(sel_json))
-    L = build_tables.select_layout(json.load(open(os.path.join(game, 'game.json'))))
+    L = build_tables.select_shown(json.load(open(os.path.join(game, 'game.json'))), os.path.join(game, 'build'))   # (select.auto: the build's places)
     for n, v in L.items():                        # (a site's select.json from an older build: the game's poses must be among its frames)
         assert any(v['pose'] in p['alias'] for p in D['fighters'][n]['poses']), f'{n}: pose {v["pose"]} not in {sel_json}'
     order = sorted(L, key=lambda n: L[n]['slot'])
@@ -146,7 +146,7 @@ def walk(b, D, L, out, game):
     cur = b.syms['cursor']; tab, bad, moves = [], 0, 0
     if G0.get('unlocks'):
         runs = [(r, Ln, build_tables.select_stick(Ln, heads_of(D, Ln), D.get('stick')), set(), f'{n} unlocked (save.rungs {r}): places {base}-{base + n - 1}')
-                for r, (n, base, Ln) in enumerate(build_tables.select_layers(G0, L))]
+                for r, (n, base, Ln) in enumerate(build_tables.select_layers(G0, None, os.path.join(game, 'build')))]
     else:
         G = D.get('graph') or build_tables.select_stick(L, heads_of(D, L), D.get('stick'))
         runs = [(None if not unl else 'all', L, G, set() if unl else {n for n in L if D['fighters'][n]['locked']},
