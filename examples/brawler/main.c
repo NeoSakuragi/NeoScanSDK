@@ -1942,12 +1942,19 @@ static void save_load(void) {
     if (!save_ok(&save)) save_reset();
     difficulty = save.difficulty;
 }
+/* the select screen's cheat (Bruno 2026-10-15, note 20261015-210806-e03d): hold down CHEAT_HOLD frames (a flag), hold up
+ * CHEAT_HOLD frames (another flag), either order, either player; both flags = every fighter of the ladder selectable until
+ * the power goes off (RAM only: the save keeps its rungs) */
+#define CHEAT_HOLD 180
+static uint8_t cheat_all, cheat_flags;
+static uint16_t cheat_t[2];
+static uint8_t rungs_now(void) { return cheat_all ? 0x7F : save.rungs; }
 static uint8_t char_locked(uint8_t c) {          /* 0xFF: never picked (a form link's target; with the unlock ladder,
                                                     a fighter off the select screen); $80 + k: the ladder's rung k, until
                                                     k game clears (save.rungs); k: the boss of stage k, until beaten */
     uint8_t k = roster_unlock[c];
     if (k == 0xFF) return 1;
-    if (k & 0x80) return (k & 0x7F) > save.rungs;
+    if (k & 0x80) return (k & 0x7F) > rungs_now();
     return k && !(save.unlocked >> (k - 1) & 1);
 }
 static uint8_t camp, camp_from;                  /* the stage in play; the one a new game starts at (title CONTINUE) */
@@ -2308,7 +2315,7 @@ static void select_start(void) {
     FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
     FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* under the front row's feet (y 206) */   /* keyboard: WASD, U I O P */
     for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
-    sel_lay = LAD_N ? (save.rungs < LAD_RUNGS ? save.rungs : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers: select_layers) */
+    sel_lay = LAD_N ? (rungs_now() < LAD_RUNGS ? rungs_now() : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers: select_layers) */
     sel_cnt = sel_lay_n[sel_lay]; sel_base = sel_lay_base[sel_lay];
     slots_build(); roster_build();
     for (s = 0; s < SEL_NSLOT && !selectable(s); s++) ;
@@ -4388,6 +4395,13 @@ static void select_tick(void) {
     uint8_t a, p, s;
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
+        if (!cheat_all) {                                    /* the cheat: down held 3 s, up held 3 s */
+            uint16_t h = JOY_held(0) | JOY_held(1);
+            uint8_t d = (h & JOY_DIR_MASK) == JOY_DOWN ? 0 : (h & JOY_DIR_MASK) == JOY_UP ? 1 : 2;
+            if (d < 2) { if (++cheat_t[d] == CHEAT_HOLD) cheat_flags |= 1 << d; cheat_t[d ^ 1] = 0; }
+            else cheat_t[0] = cheat_t[1] = 0;
+            if (cheat_flags == 3) { cheat_all = 1; snd_ssg(SSG_CONFIRM); select_start(); return; }
+        }
         if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
             uint8_t t = cursor[0];                           /* the selectable fighter nearest P1's along the street */
             uint16_t best = 0xFFFF, d;
