@@ -215,7 +215,7 @@ class MainActivity : Activity() {
         val items = ArrayList<Pair<String, () -> Unit>>()
         items.add("My tickets" to { list(null) })
         if (admin && d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
-        if (admin && q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
+        if (q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
         if (admin) items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
         items.add("Reset game save" to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
         items.add("Log out" to {
@@ -287,7 +287,6 @@ class MainActivity : Activity() {
         if (!::pad.isInitialized) return
         pad.tester = !admin                                            // the role may change with a renewed sign-in
         pad.initial = (Auth.user(this) ?: "?").take(1).uppercase()     // the profile button (0.0.37)
-        if (!admin) { pad.badge = 0; return }                          // a tester: no list, no badge, no /mine calls
         Thread {
             Feedback.mine(this).onSuccess { j ->
                 rowsCache = j.getJSONArray("rows"); reviewsCache = j.optJSONArray("reviews")
@@ -631,7 +630,7 @@ class MainActivity : Activity() {
     override fun onPause() { super.onPause(); emu?.paused = true; lab?.paused = true; if (::gl.isInitialized) gl.onPause() }
     override fun onResume() { super.onResume(); applySettings(); if (game != null && !isFinishing && !restarting) claimEmu(); emu?.paused = held() || testMode?.active == true || lab?.facesShown == true; lab?.paused = false; if (::gl.isInitialized) gl.onResume(); refreshBadge()
         if (admin) localTest()
-        if (admin) TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
+        TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
     override fun onDestroy() { polling = false; lab?.stop(); EmuThread.release(this); super.onDestroy() }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
