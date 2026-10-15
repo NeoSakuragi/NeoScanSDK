@@ -76,19 +76,16 @@ def to_title():
 
 
 def title_check(tag):
-    """the title's menu: NEW GAME (+ OPTIONS on the AES): no CONTINUE STAGE (Bruno 2026-10-15: every new game starts
-    from stage 1), no ladder line (main.c TI_NEW 0, TI_OPT 1); a screenshot of it"""
-    n = b.r(Y['title_n'], 1); it = [b.r(Y['title_item'] + i, 1) for i in range(n)]
+    """the title: no menu at all (Bruno 2026-10-15: "when you play Final Fight there is no NEW GAME"): PRESS START only;
+    a screenshot of it"""
+    n = b.r(Y['title_n'], 1) if 'title_n' in Y else 1
     shot('title_' + tag.replace(' ', '_'))
-    say(f'{tag}: the title menu {[("NEW GAME", "OPTIONS")[i] for i in it]} (MVS: NEW GAME only: no CONTINUE, no OPTIONS, no ladder line)', it == [0])
+    say(f'{tag}: the title has no menu (menu lines: {n}; START goes to the select)', n <= 1)
 
 
 def title_pick(item):
-    """the title's cursor onto item (main.c TI_NEW 0, TI_OPT 1), then A"""
-    for k in range(8):
-        if b.r(Y['title_item'] + b.r(Y['title_sel'], 1), 1) == item: break
-        b.seq('4:D,12:-' if k < 4 else '4:U,12:-')
-    assert b.r(Y['title_item'] + b.r(Y['title_sel'], 1), 1) == item, 'title: no such line'
+    """START from the title (no menu since 2026-10-15): item must be 0, the new game"""
+    assert item == 0, 'the title has no menu'
     b.seq('4:a,2:-')
 
 

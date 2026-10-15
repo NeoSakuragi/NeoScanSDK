@@ -1968,8 +1968,7 @@ static void banner_show(int16_t x, int16_t y) {
 }
 static void banner_hide(void) { uint8_t c; for (c = 0; c < BANNER_COLS; c++) cmd_push(VRAM_SCB3 + BN_SPR + c, 0); }
 
-/* title: banner, PRESS START; a menu when there is a choice (stick up / down, then START): NEW GAME, OPTIONS (console =
- * AES only, see options_tick); A+B+C+D held 2 s clears the save. No CONTINUE STAGE (Bruno 2026-10-15: "There is no
+/* title: banner, PRESS START, no menu (START -> the select; console = AES: SELECT opens OPTIONS, see options_tick); A+B+C+D held 2 s clears the save. No CONTINUE STAGE (Bruno 2026-10-15: "There is no
  * resume: every new game starts from stage 1"; the Lab's and the scenarios' starts keep their stage), no ladder line
  * (the unlock ladder shows only after a clear that unlocked a rung). */
 static uint16_t title_t, title_hold;
@@ -1988,9 +1987,10 @@ static void title_menu(void) {
     static const char *const TXT[2] = { "NEW GAME", "OPTIONS" };
     uint8_t i;
     for (i = 0; i < 4; i++) FIX_print(12, 20 + i, "                  ", 0);   /* (4: CONTINUE STAGE and UNLOCKS, until 2026-10-15) */
-    title_n = 0; title_item[title_n++] = TI_NEW;
-    if (!BIOS_MVS_FLAG) title_item[title_n++] = TI_OPT;
-    if (title_sel >= title_n) title_sel = 0;
+    title_n = 0; title_item[title_n++] = TI_NEW;   /* no menu at all (Bruno 2026-10-15: "when you play Final Fight there
+                                                     is no NEW GAME"): PRESS START -> the select; the console's OPTIONS
+                                                     open with SELECT on the title (title_tick) */
+    title_sel = 0;
     if (title_n == 1) return;
     for (i = 0; i < title_n; i++) {
         FIX_print(12, 20 + i, i == title_sel ? "> " : "  ", 0); FIX_print(14, 20 + i, TXT[title_item[i]], 0);
@@ -2124,9 +2124,8 @@ static void title_tick(void) {
     if (title_clr && ++title_clr >= 90 && BIOS_MVS_FLAG) { title_clr = 0; SYS_return(); return; }   /* MVS: the BIOS writes
                                                              the cleared block to battery RAM when the game hands back
                                                              (the title again while credits remain) */
-    if (title_item[title_sel] == TI_OPT) {                   /* console only: no credit involved */
-        if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; snd_ssg(SSG_CONFIRM); options_start(); }
-        return;
+    if (!BIOS_MVS_FLAG && (pr & JOY_SELECT)) {         /* console only, no credit involved: SELECT = OPTIONS */
+        snd_ssg(SSG_CONFIRM); options_start(); return;
     }
     if (bios_start || (title_paid && (pr & (JOY_START | JOY_A)))) {   /* START with a credit (PLAYER_START), or START / A
                                                              when the credit was taken by the START that opened it */
