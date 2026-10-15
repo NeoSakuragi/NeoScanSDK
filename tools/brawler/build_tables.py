@@ -1546,6 +1546,9 @@ def tables(g, build):
          'extern const uint8_t gfury_box[BC_COUNT];     /* the fury\'s and MAX\'s attack boxes: half extents times this (game.json roster[].fury_box_scale; fighter.c strike) */',
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
+         'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
+         'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
+         'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; main.c win_tick) */',
          'extern const uint16_t ghold_walk[BC_COUNT];    /* the walk in the hold (game.json roster[].hold_walk.speed: x its walk, 8.8; 0 = none: it stands; fighter.c hold_walk) */',
          'extern const uint8_t *const gback_rom[];       /* the floor\'s back edge per background (game.json depth; fighter.h zback) */',
          f'#define DR_COUNT {len(M["dramas"])}            /* drama scenes (game.json dramas) */',
@@ -1643,6 +1646,23 @@ def tables(g, build):
         assert v in ('stand', 'knockdown'), f"roster {r['name']}: hold_timeout stand | knockdown"   # knockdown = it falls
         hb.append(('1' if v == 'knockdown' else '0') + f'   /* {r["name"]} */')   # on its back (no damage)
     c.append('const uint8_t ghold_timeout[BC_COUNT] = {\n    ' + ',\n    '.join(hb) + '\n};')
+    ta, tk, cw = [], [], []                              # the throws' air control (note 20261015-212313-e03d: SS2
+    for r in g['roster']:                                # Hanzo's leap back after his forward throw, "make him
+        ka = r.get('keeps_air_attack') or []             # controllable: air attacks or Blitz"): keeps_air_attack's
+        bad = [k for k in ka if k.startswith('throw_') and k not in ('throw_c', 'throw_d')]   # throw names, as bits
+        assert not bad, f"roster {r['name']}: keeps_air_attack {bad}: throw_c | throw_d"
+        ta.append(str((1 if 'throw_c' in ka else 0) | (2 if 'throw_d' in ka else 0)))
+        v = r.get('throw_keeps_chain', False)            # Final Fight Haggar's quirk (note 20261015-224938-e03d)
+        assert v in (True, False), f"roster {r['name']}: throw_keeps_chain true | false"
+        tk.append('1' if v else '0')
+        w = r.get('clear_walk')                          # Final Fight's stage end (note 20261015-224745-e03d)
+        if w is None: cw.append('0'); continue
+        for k in w: assert k in ('about', 'to'), f"roster {r['name']}: clear_walk: unknown field {k}"
+        assert isinstance(w['to'], int) and 160 <= w['to'] <= 360, f"roster {r['name']}: clear_walk.to {w['to']} (screen x 160-360)"
+        cw.append(str(w['to']))
+    c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
+    c.append('const uint8_t gthrow_keep[BC_COUNT] = { ' + ', '.join(tk) + ' };')
+    c.append('const uint16_t gclear_walk[BC_COUNT] = { ' + ', '.join(cw) + ' };')
     ft = []                                              # the fury's closing throw (note 20261014-171937-5d29, Haggar:
     for r in g['roster']:                                # "at the very end of everything, add the piledriver"): after the
         e = r.get('fury_throw')                          # fury's last piece its reeling victim is grabbed and thrown by

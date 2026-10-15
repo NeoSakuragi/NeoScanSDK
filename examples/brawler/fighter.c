@@ -590,7 +590,7 @@ static void start_node(fighter_t *f, uint8_t node, uint8_t how) {
     if (!own_swing(f))                                           /* the engine's whoosh (KOF98's), unless its data */
         snd_sfx(a == BA_ATK_A_CLOSE || a == BA_ATK_A_FAR || a == BA_ATK_A_CROUCH || a == BA_ATK_C_CLOSE || a == BA_ATK_C_FAR ||
                 a == BA_ATK_C_JUMP ? SFX_SWING_LIGHT : SFX_SWING_HEAVY);   /* gives its attacks their own (own_swing) */
-    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0;
+    f->node = node; f->buffered = 0; f->hit_mask = 0; f->landed = 0; f->chain_t = 0; f->spec_buf = 0; f->fury_buf = 0; f->ldmg = 0; f->blz_buf = 0; f->tkeep = 0;
     if (c->flags & RF_AIR) {                                     /* the jump in progress picks the air normal */
         if (a == BA_ATK_CD_JUMP) a = f->jump_kind ? BA_ATK_CD_HOP : f->jump_dir ? BA_ATK_CD_JUMP_DIAG : BA_ATK_CD_JUMP;   /* KOF's
                                                                     117, a KOF98 / 99 hop's 124; WHP's diagonal C+D (a KOF
@@ -1269,6 +1269,12 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
         enter(v, S_HITSTUN); play(v, reaction == R_LIGHT ? BA_HIT_STAND_LIGHT : BA_HIT_STAND_HEAVY);   /* fury's reel hits */
         v->vx = v->vy = 0; return;                               /* stops in its flight and drops to the floor in its reel */
     }                                                            /* (S_HITSTUN: DANCE_DROP), the dance rules from there */
+    if (v->y > 0 && reaction == R_LIFT) {                        /* a lift lifts an airborne victim the same: straight up,
+                                                                    its full launch (note 20261015-213144-e03d's reopen, SS2
+                                                                    Hanzo's Bakuen Ryuu: "if somebody is in the air and is
+                                                                    hit by this projectile, I want it to bounce again") */
+        enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = 0; play(v, blow); return;
+    }
     if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
         play(v, reaction == R_SLAM ? BA_KNOCKDOWN_FLIGHT : BA_BLOWBACK); return;   /* KOF's hit_air ends on standing frames (KOF96: none) */
@@ -1985,6 +1991,8 @@ static uint8_t lab_victim_side(const fighter_t *f, fighter_t *v, uint8_t k) {
     return 0;
 }
 #endif
+#define VANCH_THROWS 0       /* = export_bm.VICTIM_ANCHORS (off: measured further from KOF's truth than the mirror rows);
+                                bm_vanch is written for VL_CENTRE lists (export_bm.VANCH_TABLES), the throws keep its choice */
 static void victim_side(fighter_t *f, fighter_t *v, uint8_t t) {
     const bvthr_t *p;
     uint8_t k = t == BT_XTHROW ? 2 : t;
@@ -1995,7 +2003,7 @@ static void victim_side(fighter_t *f, fighter_t *v, uint8_t t) {
 #endif
     for (p = bm_vthr[f->ch->id][k]; p && p->victim != 0xFF; p++)
         if (p->victim == v->ch->id) { v->vrw = p->rows; v->vrn = p->n; return; }
-    v->vanc = bm_vanch[v->ch->id] && bm_vanch[f->ch->id];
+    v->vanc = VANCH_THROWS && bm_vanch[v->ch->id] && bm_vanch[f->ch->id];
     for (p = bm_vthr[f->ch->id][k]; v->vanc && p && p->victim != 0xFF; p++)   /* (the source's frame centres per row: */
         if (p->victim == 0xFE) { v->vrw = p->rows; v->vrn = p->n; v->vanc |= 4; }   /* victim 0xFE, vthrow.h) */
 }
@@ -2528,6 +2536,23 @@ static uint8_t throw_ok(const fighter_t *f) {
     dx = INT(v->x) - INT(f->x); dz = INT(v->z) - INT(f->z);
     return dx >= -CTHROW_DX && dx <= CTHROW_DX && dz >= -Z_HIT && dz <= Z_HIT;
 }
+/* Final Fight Haggar's quirk (game.json roster[].throw_keeps_chain -> gthrow_keep, note 20261015-224938-e03d; FF measured:
+ * /data/study/ffight/haggar_rethrow_trace.txt, the jab after the backdrop is the chain's second link, A2 = 2): when the
+ * chain's back throw's thrown body hits another enemy, his chain is not over: it stays one link in (the link before the
+ * one the throw came out of), so jab, jab, throw, jab, throw... (the next press within the chain window after the
+ * throw's control return is the second link, the one after it the finisher again). -> the node kept (0: none) */
+static uint8_t chain_parent(const fighter_t *f, uint8_t n) {    /* the node linking to n (0: none / the root) */
+    uint8_t k, j;
+    for (k = 1; k < TREE(f)->nnodes; k++) {
+        if (k == TREE(f)->root) continue;
+        for (j = 0; j < RI_N; j++) if (NODE(f, k)->next[j] == n) return k;
+    }
+    return 0;
+}
+static uint8_t chain_keep(const fighter_t *f, uint8_t node) {
+    uint8_t p = chain_parent(f, node);                           /* the link the throw came out of, */
+    return p ? chain_parent(f, p) & 0x7F : 0;                    /* the one before it */
+}
 static void chain_throw(fighter_t *f, uint8_t node, uint8_t how) {
     fighter_t *v = f->target;
     uint8_t t = cthrow_pick(f->ch);
@@ -2539,6 +2564,7 @@ static void chain_throw(fighter_t *f, uint8_t node, uint8_t how) {
     throw_start(f, t, TD_BACK);                                  /* (none landing behind: played turned, the victim over
                                                                     to its back at the grab) */
     f->inv = INV_FURY; f->cthrow = 1; f->node = 0; f->chain_t = 0; f->buffered = 0;
+    f->tkeep = f->ch->id < BC_COUNT && gthrow_keep[f->ch->id] ? chain_keep(f, node) : 0;
 }
 /* the thrower lets go (its control return, or a cancel): a victim still in its script plays its rows on alone
  * (thrown_update) from the row shown; done: this frame's row already played (paired_update), else it plays it itself */
@@ -2594,6 +2620,32 @@ static void throw_update(fighter_t *f, const intent_t *in) {
         juggle_open(f, jv); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k, jv); return;
     }
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0; to_neutral(f, 0);
+}
+/* a throw that leaves its thrower airborne with his air attack (game.json roster[].keeps_air_attack "throw_c" / "throw_d"
+ * -> gthrow_air, note 20261015-212313-e03d: SS2 Hanzo's leap back after his forward throw, "make him controllable, air
+ * attacks or Blitz in the air"; the throws' side of SF_AIRATK, air_free): past its release row, in the air, A hands
+ * the leap to the jump's controls at the leap's own velocity (its rows' motion at the script's speed): A its attack,
+ * down + A its down attack, down,down + A the air Blitz; it lands as from a jump. -> 1 when it did (the fighter is in
+ * S_AIR, the A press for the jump's code) */
+static uint8_t throw_air(fighter_t *f) {
+    const bthrow_t *th;
+    const bthrow_row_t *r;
+    uint16_t i;
+    int32_t y, vx, vy;
+    if (f->ch->id >= BC_COUNT || !IS_THROW(f->throw_id) || f->throw_id >= BT_COUNT || !(gthrow_air[f->ch->id] & (1 << f->throw_id))) return 0;
+    th = thr_of(f, f->throw_id); i = f->srow ? f->srow - 1 : 0;
+    if (f->y <= 0 || th->rel >= th->nrows || i <= th->rel || i + 1 >= th->nrows) return 0;   /* (a victim still in its
+                                                                    flight's rows plays them on alone: throw_free) */
+    r = &th->rows[i];
+    vx = muls16(r[1].tx - r->tx, th->speed ? th->speed : 0x100) << 8;   /* (px a row x rows a frame, 8.8 -> 16.16) */
+    vy = muls16(r[1].ty - r->ty, th->speed ? th->speed : 0x100) << 8;
+    y = f->y;
+    throw_free(f, 0);                                            /* (it zeroes the height: the leap's kept) */
+    f->y = y; f->vx = dir_mul(f->throw_face, vx); f->vy = vy; f->vz = 0;
+    f->jt = 0; f->jump_kind = 0; f->air_node = 0;
+    f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;
+    enter(f, S_AIR);
+    return 1;
 }
 static void thrown_update(fighter_t *v) {                        /* a thrown victim whose thrower let go */
     const bthrow_t *th = v->thr;
@@ -3549,6 +3601,9 @@ static void vlist_apply(fighter_t *f, const bspec_t *sp) {      /* KOF's victim 
         if (f->vlist && !(f->vlist & 0x80)) { f->vlist++; f->vent = 0xFF; vlist_place(f, sp); }
     }
 }
+#define VL_CENTRE 128                                            /* bvlist_t.flags bit 7 (export_bm vlists_c, handlers_ss2
+                                                                    VL centre): its entries are the source picture's centre
+                                                                    (vlist_place; the pack format's VL_* enum unchanged) */
 #define VE_BACK 128                                              /* bvent_t.flags bit 7 (export_bm: KOF's dx bit 7 clear):
                                                                     drawn behind its attacker at the same Z (defined here,
                                                                     the pack format's VE_* enum unchanged) */
@@ -3571,7 +3626,14 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     e = &l->e[k < l->n ? k : l->n - 1];
     if (!(l->flags & VL_FLY) || f->vent == 0xFF) {               /* placed at the attacker + its entry (a flying list: */
         t->x = f->x + dir_mul(f->facing, FIX(e->dx)); t->y = f->y + FIX(e->dy); t->z = f->z;   /* once; no clamp, no */
-    }                                                            /* wall: vlist_fit placed the pair at the catch) */
+        if ((l->flags & VL_CENTRE) && e->pose < VP_COUNT && bm_vanch[t->ch->id]) {   /* wall: vlist_fit placed the pair at */
+            const int8_t *a = bm_vanch[t->ch->id] + 2 * e->pose; /* the catch); VL_CENTRE: the entry is where the source's */
+            if (a[0] != -128) {                                  /* picture's centre sits, its posture frame's centre put */
+                int8_t tf = (e->flags & VE_TURN) ? f->facing : -f->facing;   /* there (anchor: px from its feet, ROM */
+                t->x += dir_mul(tf, FIX(a[0])); t->y += FIX(a[1]);   /* orientation, x < 0 the way it faces, y < 0 up; */
+            }                                                    /* SS2 Hanzo's Mozu Otoshi, note 20261015-212217-e03d) */
+        }
+    }
     if (l->flags & VL_FLY) {                                     /* it flies on its own (SS2's rage victims): its */
         if (f->vent == 0xFF) { t->vx = dir_mul(f->facing, (int32_t)l->vx << 8); t->vy = (int32_t)l->vy << 8; }   /* velocities */
         else { t->x += t->vx; t->y += t->vy; t->vy -= (int32_t)l->g << 8; if (t->y < 0) t->y = t->vy = 0; clamp(t); }
@@ -4094,6 +4156,10 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     every frame; in the special: prog_update's frames) */
     if (f->cthrow && f->state != S_THROW) { f->cthrow = 0; if (f->inv == INV_FURY) f->inv = 0; }   /* the chain's back throw
                                                                     returned control: untouchable no more */
+    if ((f->tkeep & 0x80) && f->state != S_THROW) {              /* its thrown body hit another enemy (throw_keeps_chain,
+                                                                    chain_keep): the chain goes on from the kept link */
+        f->chain_node = f->tkeep & 0x7F; f->chain_t = CHAIN_WINDOW + 1; f->tkeep = 0;
+    }
     if (f->inv == INV_FURY) {                                    /* held for the fury's script (and a form's transition, */
         if (!f->cthrow && (f->state != S_SPECIAL || (f->spec_id != BS_FURY && f->spec_id != BS_FORM && f->spec_id != BS_THROW &&   /* a move with */
                                       !(f->ch->specials[f->spec_ix].sflags & SF_INV) && !f->brk && !f->sinv))) f->inv = 0;   /* SF_INV; */
@@ -4393,7 +4459,9 @@ static void update(fighter_t *f, const intent_t *in) {
         if (!in->guard) to_neutral(f, in);
         break;
     case S_GRAB: hold_update(f, in); break;
-    case S_THROW: throw_update(f, in); break;
+    case S_THROW:
+        if (in && (in->press & IN_A) && throw_air(f)) goto air;   /* (its leap: the jump's A, game.json keeps_air_attack) */
+        throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
         if (lab_cnode && in && !f->idx && !f->team && f->buffered) {   /* a Lab chain press (RF_LAB, lab_node): on a hit the */
@@ -4951,7 +5019,9 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                                                                 victim stays catchable as before */
         if (v->state == S_KNOCKDOWN && !jug && !(a->state == S_SPECIAL && a->spec_id == BS_FURY) &&   /* at most */
             !(a->owner && a->owner->state == S_SPECIAL && a->owner->spec_id == BS_FURY) &&   /* juggle_cap air hits, */
-            (v->kfloor || v->jug_n >= gchain.juggle_cap)) continue;   /* none once it touched the floor; a fury's
+            (v->kfloor || (v->jug_n >= gchain.juggle_cap && !(a->pdef && (a->pdef->ppad & 2))))) continue;   /* none once it
+                                                                touched the floor; an object restarting the juggle (ppad
+                                                                bit 1) past the cap too; a fury's
                                                                 own hits and a cancel's juggle window excepted) */
         dz = INT(a->z) - INT(v->z); if (dz < -Z_HIT || dz > Z_HIT) continue;
         sv = fighter_hurt_step(v);
@@ -5178,7 +5248,11 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             dir = v->vx > 0 ? 1 : v->vx < 0 ? -1 : (INT(o->x) >= INT(v->x) ? 1 : -1);   /* the throw's way */
             v->hit_mask |= 1 << o->idx;
             o->hp -= p->dmg; o->freeze = p->stop;
-            by->target = o;                                      /* (the HUD's life; no chain credit) */
+            by->target = o;                                      /* (the HUD's life; no chain credit, but */
+            if (by->tkeep) {                                     /* throw_keeps_chain: his chain stays one link in) */
+                if (by->state == S_THROW) by->tkeep |= 0x80;
+                else { by->chain_node = by->tkeep & 0x7F; by->chain_t = CHAIN_WINDOW + 1; by->tkeep = 0; }
+            }
             if (o->state == S_SPECIAL) { carry_drop(o); special_end(o); }
             react(o, dir, R_KNOCKDOWN, 0);
             snd_sfx(p->snd);

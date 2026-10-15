@@ -1944,12 +1944,14 @@ static void save_load(void) {
     difficulty = save.difficulty;
 }
 /* the select screen's cheat (Bruno 2026-10-15, note 20261015-210806-e03d): hold down CHEAT_HOLD frames (a flag), hold up
- * CHEAT_HOLD frames (another flag), either order, either player; both flags = every fighter of the ladder selectable until
- * the power goes off (RAM only: the save keeps its rungs) */
-#define CHEAT_HOLD 180
-static uint8_t cheat_all, cheat_flags;
+ * CHEAT_HOLD frames (another flag), either order, either player; both flags = the whole unlock ladder unlocked IN THE
+ * SAVE (note 20261015-224121-e03d: 2 s each, "it unlocks the whole ladder and is saved directly, so it's already there;
+ * to reset, the player's Reset game save"): save.rungs = every rung, written at once (AES: the memory card; MVS: the
+ * backup block, which the BIOS keeps in battery RAM from the next return to it, as the stage clears' rungs) */
+#define CHEAT_HOLD 120
+static uint8_t cheat_flags;
 static uint16_t cheat_t[2];
-static uint8_t rungs_now(void) { return cheat_all ? 0x7F : save.rungs; }
+static uint8_t rungs_now(void) { return save.rungs; }
 static uint8_t char_locked(uint8_t c) {          /* 0xFF: never picked (a form link's target; with the unlock ladder,
                                                     a fighter off the select screen); $80 + k: the ladder's rung k, until
                                                     k game clears (save.rungs); k: the boss of stage k, until beaten */
@@ -2652,7 +2654,11 @@ static uint8_t ko_scream;                        /* 1: the boss's death voice st
 #define WIN_SETTLE 180                           /* a player not standing by then does not pose */
 #define WIN_MAX    720                           /* the next screen at the latest (Iori's KOF98 win: 305 frames; SS2
                                                     Hanzo's 202: 844, cut here as SS2's round end cuts it at 485) */
-enum { WIN_NONE, WIN_WAIT, WIN_POSE };
+enum { WIN_NONE, WIN_WAIT, WIN_POSE, WIN_WALK, WIN_WALKED };   /* WIN_WALK / WIN_WALKED: a fighter's stage-clear walk
+                                                    instead of the pose (game.json roster[].clear_walk -> gclear_walk, note
+                                                    20261015-224745-e03d, Final Fight's tribute: Haggar walks slowly off to
+                                                    the right part of the screen at his own walk, input off; then he stands
+                                                    there WIN_HOLD frames as a pose's end is held) */
 static uint8_t win_st[2];                        /* WIN_* per player */
 static uint16_t win_t[2];                        /* WIN_WAIT: frames waited; WIN_POSE: frames since the pose ended */
 static uint8_t win_step[2];                      /* the pose's step last applied (0xFF: none yet) */
@@ -2671,12 +2677,18 @@ static void win_tick(void) {                     /* every fight frame after the 
         if (win_st[i] == WIN_NONE) continue;
         if (f->inv < 2) f->inv = 2;
         if (win_st[i] == WIN_WAIT) {
-            if (f->state == S_IDLE && f->y == 0) {
+            if (f->state == S_IDLE && f->y == 0 && f->ch->id < BC_COUNT && gclear_walk[f->ch->id]) {
+                win_st[i] = INT(f->x) - cam_x < (int16_t)gclear_walk[f->ch->id] ? WIN_WALK : WIN_WALKED; win_t[i] = 0;
+                f->facing = 1;                               /* (already there: he stands, facing it) */
+            } else if (f->state == S_IDLE && f->y == 0) {
                 f->facing = INT(f->x) - cam_x < 160 ? 1 : -1;
                 f->frame_ovr = 0xFFFF; f->vx = f->vz = 0;
                 fighter_win_pose(f); win_st[i] = WIN_POSE; win_t[i] = 0; win_step[i] = 0xFF;
             } else if (++win_t[i] >= WIN_SETTLE || f->state == S_DEAD || f->state == S_OFF) win_st[i] = WIN_NONE;
-        } else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
+        } else if (win_st[i] == WIN_WALK) {              /* the walk (win_input: forward held) to the screen x */
+            if (INT(f->x) - cam_x >= (int16_t)gclear_walk[f->ch->id] || ++win_t[i] >= WIN_MAX) { win_st[i] = WIN_WALKED; win_t[i] = 0; }
+        } else if (win_st[i] == WIN_WALKED) { if (win_t[i] < 0xFFFF) win_t[i]++; }
+        else if (f->anim_done && win_t[i] < 0xFFFF) win_t[i]++;
         if (win_st[i] == WIN_POSE) {                 /* the source's own motion: each step's travel as it starts (KOF's
                                                         $FB), its height (Billy Lee's back flip, export_dd air_steps) */
             const bstep_t *s = fighter_step(f);
@@ -2694,8 +2706,12 @@ static void win_tick(void) {                     /* every fight frame after the 
 }
 static uint8_t win_done(void) {                  /* every pose played and held WIN_HOLD frames */
     uint8_t i;
-    for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || (win_st[i] == WIN_POSE && win_t[i] < WIN_HOLD)) return 0;
+    for (i = 0; i < 2; i++) if (win_st[i] == WIN_WAIT || win_st[i] == WIN_WALK || ((win_st[i] == WIN_POSE || win_st[i] == WIN_WALKED) && win_t[i] < WIN_HOLD)) return 0;
     return 1;
+}
+static void win_input(void) {                    /* the stage clear's walk (WIN_WALK): forward held, the input off else */
+    uint8_t i;
+    for (i = 0; i < 2; i++) if (win_st[i] == WIN_WALK) in[i].dx = 1;
 }
 static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_rest = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
@@ -4554,12 +4570,16 @@ static void select_tick(void) {
     uint8_t a, p, s;
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
-        if (!cheat_all) {                                    /* the cheat: down held 3 s, up held 3 s */
+        if (LAD_N && save.rungs < LAD_RUNGS) {               /* the cheat: down held 2 s, up held 2 s */
             uint16_t h = JOY_held(0) | JOY_held(1);
             uint8_t d = (h & JOY_DIR_MASK) == JOY_DOWN ? 0 : (h & JOY_DIR_MASK) == JOY_UP ? 1 : 2;
             if (d < 2) { if (++cheat_t[d] == CHEAT_HOLD) cheat_flags |= 1 << d; cheat_t[d ^ 1] = 0; }
             else cheat_t[0] = cheat_t[1] = 0;
-            if (cheat_flags == 3) { cheat_all = 1; snd_ssg(SSG_CONFIRM); select_start(); return; }
+            if (cheat_flags == 3) {                          /* the whole ladder, saved */
+                cheat_flags = 0; cheat_t[0] = cheat_t[1] = 0;
+                save.rungs = LAD_RUNGS; save_write();
+                snd_ssg(SSG_CONFIRM); select_start(); return;
+            }
         }
         if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
             uint8_t t = cursor[0];                           /* the selectable fighter nearest P1's along the street */
@@ -4726,6 +4746,7 @@ void game_tick(void) {
         for (i = 0; i < NF; i++) { in[i].dx = in[i].dz = 0; in[i].press = in[i].hold = in[i].run = in[i].grab = 0; in[i].face = 0; in[i].blitz = in[i].chord = 0; }
                                                           /* the boss's death: nobody acts any more (#172); the stage
                                                              clear: the input off (#184) */
+    if (!attract && !lab.active && phase == PH_CLEAR) win_input();   /* (but a clear_walk's forward) */
     mark(P_AI);
     close_marks();
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }

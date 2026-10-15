@@ -285,18 +285,35 @@ def gen_auto(nparts):
     as P_TURN when the opponent is strictly behind him: PC_PASSED with v -1; SS2 at the same x faces left)"""
     return lambda v: gen_236s(v, auto=nparts)
 
-def VL(entries, fly=None, rel=None):
+def VL(entries, fly=None, rel=None, centre=False):
     """a caught victim's list (vocabulary hold.victim_list; fighter.c vlist_apply): entries [(dx, dy, posture key
     'anim.step' of victim_poses_ss2.json, flags)] one per attacker step (the last for later steps), placed at the
     attacker + (dx forward, dy up) every frame; fly = (vx, vy, g) 8.8 SS2 words (vx forward of the attacker, vy DOWN,
     g the reaction gravity): placed at its first entry once, then it flies on its own velocities (posture held); rel =
-    (vx, vy) the release's velocity (8.8, vy DOWN) for an entry flagged 64 (instead of KOF's blowback)"""
+    (vx, vy) the release's velocity (8.8, vy DOWN) for an entry flagged 64 (instead of KOF's blowback); centre: (dx, dy)
+    is where the CENTRE of SS2's victim picture sits (vcentre), the brawler's victim placed so its posture frame's
+    centre is there (VL_CENTRE, fighter.c vlist_place; note 20261015-212217-e03d)"""
     out = {'e': [dict(dx=e[0], dy=e[1], state=e[2], flags=e[3], turn=bool(e[4]) if len(e) > 4 else False) for e in entries]}
     for e in out['e']:                                # (turn: it faces the attacker's way, VE_TURN: Hanzo's grab)
         if not e['turn']: del e['turn']
     if fly: out['fly'] = list(fly)
     if rel: out['rel'] = list(rel)
+    if centre: out['centre'] = True
     return out
+
+def vcentre(a, k):
+    """(dx forward, dy up) of the centre of the opaque pixels of step k of the victim's animation a as SS2 draws it at
+    its place (= its catcher's, Mozu Otoshi's $370B4) + its $20 offset (voff), Haohmaru's art as voff's reference. SS2's
+    victim pictures sit far from their origin (Mozu Otoshi's head-down 494: drawn 43 px ahead, its picture back over
+    Hanzo): placing another fighter's posture frame at voff alone left Ryo 43 px off him in the fall (note
+    20261015-212217-e03d: "the opponent is not stuck properly to Hanzo, all over the place") [code: ss2.render_step]"""
+    import numpy as np
+    dx, dy = voff(a, k)
+    img = np.zeros((512, 512), np.uint16)
+    ss2.render_step(img, ss2.parse_anim(0, a, 400)[k], 256 + dx, 384 - dy, 0, (0, 0, 0, 0))
+    ys, xs = np.nonzero(img)
+    if not len(xs): return dx, dy
+    return int(round(xs.mean() - 256)), int(round(384 - ys.mean()))
 
 def voff(a, k):
     """the drawing offset (its $20 command: dx forward, dy up) of step k of the victim's animation a: the victim stands
@@ -660,9 +677,9 @@ def mozu_lists(v):
     place facing his way; lists: 490 (his 58), 492 (his 60), 494 (his 62, step by step), the slam (a blow, his held pose),
     the release (460 burning: the flight $371D8[b], 8.8 vy down)"""
     rv = N.u32(0x371D8 + 4 * v)
-    t = lambda a, k, fl=0: voff(a, k) + ('%d.%d' % (a, k), fl, 1)
-    return [VL([t(490, 0), t(490, 1)]), VL([t(492, 0)]), VL([t(494, k) for k in range(4)]),
-            VL([t(494, 0, 1)]), VL([(0, 0, '460.0', 64, 1)], rel=(N.s16(rv), N.s16(rv + 2)))]
+    t = lambda a, k, fl=0: vcentre(a, k) + ('%d.%d' % (a, k), fl, 1)   # (held: the pictures' centres, VL centre)
+    return [VL([t(490, 0), t(490, 1)], centre=True), VL([t(492, 0)], centre=True), VL([t(494, k) for k in range(4)], centre=True),
+            VL([t(494, 0, 1)], centre=True), VL([(0, 0, '460.0', 64, 1)], rel=(N.s16(rv), N.s16(rv + 2)))]
 
 # fighter -> its specials: input -> (decoder, buttons, the command results per button (moves/CC.json's entries))
 SPECIALS = {

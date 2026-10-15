@@ -543,7 +543,9 @@ typedef struct fighter {
     uint8_t  buf_age, jug_n;
     uint8_t  kfloor, kslam;
     uint8_t  guard, cthrow;
-    uint8_t  ldmg, lpad;          /* the normal playing: the victims its damage was dealt to (bit per fighter_t.idx; its node's
+    uint8_t  ldmg, tkeep;         /* tkeep: the chain's back throw playing, the node its chain stays at when its thrown body
+                                     hits another enemy (bit 7: it did; fighter.c chain_throw, game.json roster[]
+                                     .throw_keeps_chain: Final Fight Haggar's quirk); ldmg: the normal playing: the victims its damage was dealt to (bit per fighter_t.idx; its node's
                                      damage once per victim, on the first hit: fixed damage, "chain core") */
     struct fighter *guard_by;
     const uint16_t *rt_S, *rt_T;  /* retiming (fighter.c "retiming"): the move's segments' source lengths (bm_seg) and

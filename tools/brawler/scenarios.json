@@ -4678,7 +4678,7 @@
   "proof": 120
  },
  "20261015-212217-e03d": {
-  "title": "Hanzo (SS2) Mozu Otoshi: as high as in SS2, both shouts",
+  "title": "Hanzo (SS2) Mozu Otoshi: Ryo stays stuck to Hanzo through the whole grab",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -4687,12 +4687,12 @@
    "x": 150
   },
   "do": "Walk into Ryo to grab him, then press up + A (Mozu Otoshi).",
-  "expect": "Hanzo shouts as he crouches, then leaps with Ryo fast and high, out of the top of the screen (SS2's own height: 160 px, not the old slow 62 px float); they come down head first, the slam with the fire columns and his second shout, then his leap back. Same frames as SS2's Mozu Otoshi.",
+  "expect": "Ryo stays on Hanzo the whole time, where SS2 draws its victim: over him as he grabs, hunched behind his back in the crouch, carried up with him in the leap, then head down right on top of him through the fall (no longer 40 px off to the side), slammed head first with the fire columns and his shout; then the leap back. Same heights and shouts as before.",
   "do_keys": "20:R,3:Ua,2:U",
   "proof": 180
  },
  "20261015-212313-e03d": {
-  "title": "Hanzo (SS2) forward throw: no sliding, a short leap back",
+  "title": "Hanzo (SS2) forward throw: his leap back is a jump, A attacks, down, down + A throws shurikens",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -4700,10 +4700,10 @@
    "gap": 30,
    "x": 160
   },
-  "do": "Walk into Ryo to grab him, then press forward + A (the slash throw).",
-  "expect": "Hanzo stays where he grabbed Ryo while he throws him over and slashes (he no longer slides across the screen with him), then hops back about a third of the screen, not most of it; at the screen's edge he stops there.",
-  "do_keys": "20:R,3:Ra,2:R",
-  "proof": 140
+  "do": "Walk into Ryo to grab him, then press forward + A (the slash throw). While Hanzo leaps back after it, press A. Try again with down, down + A during the leap.",
+  "expect": "The throw plays as before (no sliding, a short leap back). During the leap Hanzo has his jump's controls: A plays his jump attack, down, down + A throws his air shurikens (the air Blitz); then he lands as from a jump. Without a press the leap ends as before.",
+  "do_keys": "20:R,3:Ra,2:R,42:-,2:a",
+  "proof": 60
  },
  "20261015-212935-e03d": {
   "title": "Hanzo (SS2) win pose: the sword's sheathing sound",
@@ -4751,21 +4751,21 @@
   "proof": 60
  },
  "20261015-213144-e03d": {
-  "title": "Hanzo (SS2) Bakuen Ryuu: quick to come out, slow fire, straight-up bounce that juggles",
+  "title": "Hanzo (SS2) Bakuen Ryuu: an airborne enemy hit by the fire bounces straight up again",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
    "dummy": "ryo",
-   "gap": 100,
+   "gap": 70,
    "drive": "full"
   },
-  "do": "Press forward + C (Bakuen Ryuu), then run in and press A on Ryo while he is in the air.",
-  "expect": "The fire comes out about three times sooner than before (11 frames), and it is the slow version (SS2's A: each flame arc stays about twice as long before the next one 80 px on). Its hit sends Ryo straight up (no sideways push) and he can be juggled: your A hits him in the air, his juggle count starting from 0.",
-  "do_keys": "2:Rc,24:-,2:R,2:-,26:R,3:a,5:-,3:a",
-  "proof": 60
+  "do": "Press forward + C (Bakuen Ryuu): Ryo goes up. As soon as Hanzo is back on his feet, press forward + C again while Ryo is still in the air.",
+  "expect": "The second fire catches Ryo in the air and sends him straight up again as high as the first (no sideways push, no small juggle pop), his juggle count back to 0. The first hit as before: quick startup, slow fire, straight-up bounce.",
+  "do_keys": "2:Rc,54:-,2:Rc",
+  "proof": 90
  },
  "20261015-220706-e03d": {
-  "title": "Haohmaru forward + C (Resshinzan): SS2's D version, a steep short leap",
+  "title": "Haohmaru forward + C (Resshinzan): SS2's C version; up, up + A no longer plays it",
   "setup": {
    "mode": "lab",
    "fighter": "haohmaru",
@@ -4773,9 +4773,9 @@
    "gap": 100,
    "drive": "full"
   },
-  "do": "Press forward + C (Ougi Resshinzan, his rising kick-slash) on Ryo.",
-  "expect": "Haohmaru plays SS2's D version (the medium kick one), no longer the C+D one: a steep leap that lands about half as far forward as before (SS2: 139 px instead of 266). Its height stays about the same (SS2's D peaks at 113 px, C+D at 103). The rest of his moves are unchanged.",
-  "do_keys": "2:Rc,60:-",
+  "do": "Press forward + C (Ougi Resshinzan). Then press up, up + A (where the Blitz used to play it).",
+  "expect": "Forward + C plays SS2's C version (the light kick one): a low, short rising kick-slash (about 40 px high, 75 px forward; the D version went 113 high and 140 forward). Up, up + A has no Blitz any more: it plays his normal A.",
+  "do_keys": "2:Rc,70:-,2:U,2:-,2:U,1:Ua",
   "proof": 60
  },
  "20261015-221208-e03d": {
@@ -4790,5 +4790,74 @@
   "expect": "At the start nothing is written but the TIME and POSTS line: it just goes. There are 5 posts, each taking 12 hits (three times as many as before). When the last one breaks, Samurai Shodown II's referee (Kuroko, in black) sidesteps in from the far side of the screen behind you, jumps up and lands in front, and his message window opens: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D! typed letter by letter, then it closes and stage 2 starts. A button ends his message once it is fully written.",
   "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
   "proof": 150
+ },
+ "20261015-224121-e03d": {
+  "title": "Select screen cheat: down 2 s + up 2 s unlocks the whole ladder in the save",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "On the select screen hold down for 2 seconds, then hold up for 2 seconds.",
+  "expect": "The confirm sound plays and every fighter of the unlock ladder stands on the select screen, selectable. It is written to the save (the unlock ladder's rungs), so after a game over or a power cycle they are all still there; the Player's Reset game save locks them again. Under 2 seconds each nothing happens.",
+  "do_keys": "120:D,120:U",
+  "proof": 60
+ },
+ "20261015-210806-e03d": {
+  "title": "Select screen cheat: hold down then up (2 s each) = every fighter",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "On the select screen hold down for 2 seconds, then hold up for 2 seconds (either order).",
+  "expect": "Both flags raised: the confirm sound and every fighter of the unlock ladder is on the select screen and selectable (since note 20261015-224121-e03d: 2 seconds each, and kept in the save).",
+  "do_keys": "120:D,120:U",
+  "proof": 60
+ },
+ "20261015-224745-e03d": {
+  "title": "Haggar's stage clear: he walks slowly to the right of the screen (Final Fight)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "haggar",
+   "stage": 0,
+   "wave": 5,
+   "wait": 420,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 36
+  },
+  "do": "Stage 1, the boss alone with 1 life point. Walk into him to grab him and throw him (forward + A), then watch Haggar after STAGE CLEAR.",
+  "expect": "At the stage clear Haggar does not pose: he turns to the right and walks at his own slow walk toward the right part of the screen, as at the end of Final Fight's stages, stops there and stands until the next screen. The other fighters still play their win poses.",
+  "do_keys": "25:R,3:Ra",
+  "proof": 700
+ },
+ "20261015-224938-e03d": {
+  "title": "Haggar: a back throw into another enemy keeps his chain going (jab, jab, throw, jab, throw)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "x": 140,
+   "extra": [
+    -100,
+    100
+   ]
+  },
+  "do": "Jab, jab, then back + A: Haggar backdrops the Ryo in front of him onto the Ryo behind him. Right after, step forward to the third Ryo, jab once, then back + A.",
+  "expect": "Because the thrown Ryo hit the other one, the chain counter stays: the jab after the throw is the chain's SECOND jab, and back + A on the next press throws again (jab, jab, throw, jab, throw), as in Final Fight. A back throw that hits nobody ends the chain as before (the next jab is the first).",
+  "do_keys": "2:a,14:-,2:a,14:-,2:La,52:-,10:R,2:a,14:-,2:La",
+  "proof": 60
+ },
+ "20261015-225154-e03d": {
+  "title": "Stages 2 and 3 swapped, bosses in the same order: Geese in Krauser's former stage",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 2,
+   "wave": 5,
+   "wait": 420
+  },
+  "do": "Stage 3's boss (Geese). Then play a new game through stages 2 and 3.",
+  "expect": "Stage 3 is the control-room stage with the theme that stage 2 had, and Geese is its boss (the stage Krauser used to be fought in). Stage 2 is now the industrial stage (its highway music) with Krauser as boss. Bosses in the same order (Mr. Big, Krauser, Geese, Rugal), the bonus still after stage 1 and before the FINAL STAGE.",
+  "do_keys": "",
+  "proof": 60
  }
 }
