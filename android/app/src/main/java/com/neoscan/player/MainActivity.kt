@@ -189,13 +189,13 @@ class MainActivity : Activity() {
 
     /** take the process's emulation thread (a new one, or the live one handed over from another MainActivity of this
      *  process: TODO #183); at the game's start and on every resume, so the activity in front always drives it */
-    private fun claimEmu() {
+    private fun claimEmu(beforeLoad: (() -> Unit)? = null) {
         val (sys, save, rom) = game ?: return
         val hints = if (android.os.Build.VERSION.SDK_INT >= 31) getSystemService(android.os.PerformanceHintManager::class.java) else null
         mine = EmuThread.claim(this, sys.absolutePath, save.absolutePath, rom.absolutePath, hints, hwOf(Prefs(this)),
-            { if (VsyncPacer.perFrame < 2) gl.requestRender() }) { msg ->
+            { if (VsyncPacer.perFrame < 2) gl.requestRender() }, { msg ->
             runOnUiThread { setContentView(TextView(this).apply { text = msg; gravity = Gravity.CENTER }) }
-        }
+        }, beforeLoad)
         VsyncPacer.draw = { gl.requestRender() }
     }
 
@@ -216,6 +216,7 @@ class MainActivity : Activity() {
         if (admin && d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
         if (admin && q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
         if (admin) items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
+        items.add("Reset game save" to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
         items.add("Log out" to {
             android.app.AlertDialog.Builder(this).setTitle("Log out ${Auth.user(this) ?: ""}?")
                 .setMessage("Back to the sign-in screen. The next account gets its own build.")
@@ -231,6 +232,27 @@ class MainActivity : Activity() {
         android.app.AlertDialog.Builder(this).setCustomTitle(head)
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
             .setOnDismissListener { if (testMode?.active != true) emu?.paused = held() }.show()
+    }
+    /** RESET GAME SAVE (0.0.38, the profile menu, both apps): the loaded ROM's backup data erased and the game booted
+     *  fresh. Generic, keyed by the ROM's name: the save dir's <rom>.nv (MVS backup RAM), .srm (cart RAM), .mcr (AES
+     *  memory card), .brm (CD backup RAM), as player.c's flushSaves names them; other games' saves and the ROM stay.
+     *  Order: the running core stops first (its loop flushes and retro_unload_game writes the old RAM), then the files
+     *  go, then a new thread loads the core with no backup data (EmuThread beforeLoad, run after the old one joined). */
+    private var resetOpen = false                                  // the confirm keeps the game paused (held) after the menu closes
+    private fun confirmResetSave() {
+        resetOpen = true; emu?.paused = true
+        android.app.AlertDialog.Builder(this).setTitle("Reset game save?")
+            .setMessage("Erase this game's saved data? Unlocks and settings stored by the game will be lost.")
+            .setPositiveButton("Erase") { _, _ -> resetOpen = false; resetSave() }.setNegativeButton("Back", null)
+            .setOnDismissListener { resetOpen = false; emu?.paused = held() }.show()
+    }
+    private fun resetSave() {
+        val g = game ?: return
+        val dir = g[1]; val base = g[2].name.substringBeforeLast('.')
+        if (testMode?.active == true) testMode?.end()
+        claimEmu { for (x in arrayOf("nv", "srm", "mcr", "brm")) File(dir, "$base.$x").let { f ->
+            if (f.exists()) android.util.Log.i("NeoScanPlayer", "reset save: ${f.name} ${if (f.delete()) "deleted" else "NOT deleted"}") } }
+        emu?.paused = false
     }
     var testMode: TestMode? = null
     /** TESTER MODE (0.0.26): the Oros account's role (Auth.admin: "admin" = everything; any other account = a tester,
@@ -281,7 +303,7 @@ class MainActivity : Activity() {
     private lateinit var root: android.widget.FrameLayout
     private var noteOpen = false                                       // the scribble + note box is up: the game stays paused
     private var tipOpen = false                                        // the first-launch tip is up: the game stays paused
-    private fun held() = noteOpen || tipOpen || lab?.facesShown == true   // what keeps the game paused once a dialog closes
+    private fun held() = resetOpen || noteOpen || tipOpen || lab?.facesShown == true   // what keeps the game paused once a dialog closes
     private var sheet: Sheet? = null
     private var pending: android.graphics.Bitmap? = null               // the screenshot, if it came before the sheet
     private fun onFeedback(down: Boolean) {

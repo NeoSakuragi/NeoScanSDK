@@ -17,7 +17,7 @@ import java.nio.ByteOrder
 class EmuThread private constructor(private val sysDir: String, private val saveDir: String, val rom: String,
                 private val hints: android.os.PerformanceHintManager?, val hw: String,
                 @Volatile var onFrame: () -> Unit, @Volatile var onError: (String) -> Unit,
-                private var prev: EmuThread?) : Thread("emu") {
+                private var prev: EmuThread?, private val beforeLoad: (() -> Unit)? = null) : Thread("emu") {
     /** the activity driving this thread now (TODO #183): the last one that claimed it ([claim]); only it pauses /
      *  stops it */
     @Volatile private var owner: java.lang.ref.WeakReference<Any>? = null
@@ -43,6 +43,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
         // a stopping predecessor (another ROM / system, or its activity gone): the core is free once it has returned
         prev?.let { p -> p.running = false; Log.i(TAG, "EmuThread ${hashCode()} waits for ${p.hashCode()} to stop"); p.join() }
         prev = null
+        beforeLoad?.invoke()                                        // the old core is gone (its saves written): Reset game save
         Log.i(TAG, "EmuThread ${hashCode()} starting (tid ${android.os.Process.myTid()})")
         try { loop() } finally { Native.unload(); Log.i(TAG, "EmuThread ${hashCode()} stopped") }
     }
@@ -141,13 +142,13 @@ class EmuThread private constructor(private val sysDir: String, private val save
          *  starts, which first waits for the old one to stop and release the core (Native.unload; player.c refuses a
          *  second load while one is live). UI thread. */
         @Synchronized fun claim(owner: Any, sysDir: String, saveDir: String, rom: String, hints: android.os.PerformanceHintManager?,
-                                hw: String, onFrame: () -> Unit, onError: (String) -> Unit): EmuThread {
+                                hw: String, onFrame: () -> Unit, onError: (String) -> Unit, beforeLoad: (() -> Unit)? = null): EmuThread {
             val cur = live
-            val t = if (cur != null && cur.isAlive && cur.running && cur.sysDir == sysDir && cur.saveDir == saveDir && cur.rom == rom && cur.hw == hw) {
+            val t = if (beforeLoad == null && cur != null && cur.isAlive && cur.running && cur.sysDir == sysDir && cur.saveDir == saveDir && cur.rom == rom && cur.hw == hw) {
                 cur.onFrame = onFrame; cur.onError = onError
                 if (!cur.ownedBy(owner)) Log.i(TAG, "EmuThread ${cur.hashCode()} handed over to ${owner.javaClass.simpleName} ${owner.hashCode()}")
                 cur
-            } else EmuThread(sysDir, saveDir, rom, hints, hw, onFrame, onError, cur?.takeIf { it.isAlive }).also { cur?.running = false; live = it; it.start() }
+            } else EmuThread(sysDir, saveDir, rom, hints, hw, onFrame, onError, cur?.takeIf { it.isAlive }, beforeLoad).also { cur?.running = false; live = it; it.start() }
             t.owner = java.lang.ref.WeakReference(owner)
             return t
         }

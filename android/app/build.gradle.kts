@@ -20,8 +20,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 37
-        versionName = "0.0.37"
+        versionCode = 38
+        versionName = "0.0.38"
         // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDevDebug -PplayerCode=22 -PplayerName=0.0.22
         (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
         (project.findProperty("playerName") as String?)?.let { versionName = it }
