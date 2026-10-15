@@ -1342,12 +1342,19 @@ static void draw(void) {
     if (land_on) { land_draw(); land_clip(1); }             /* the select: the Neo Geo Land, the actors' columns off screen */
     line_guard();
     mark(P_GUARD);
-    for (i = 0; i < NA; i++)                                 /* a block that moved: its old place cleared first */
-        if (block_placed[i] && block_spr[i] != slot_spr[i]) {
-            uint16_t *y = cmd_run(VRAM_SCB3 + block_spr[i], block_placed[i]); uint8_t c;
-            for (c = 0; c < block_placed[i]; c++) y[c] = 0;
-            block_placed[i] = 0;
-        }
+    {   uint8_t moved = 0;
+        for (i = 0; i < NA; i++)                             /* a block that moved: its old place cleared first */
+            if (block_placed[i] && block_spr[i] != slot_spr[i]) {
+                uint16_t *y = cmd_run(VRAM_SCB3 + block_spr[i], block_placed[i]); uint8_t c;
+                for (c = 0; c < block_placed[i]; c++) y[c] = 0;
+                block_placed[i] = 0; moved = 1;
+            }
+        /* (note 20261011-225104-5d29, Kyo vanished in his win pose) those sprites may be another slot's now, and its key
+           can say "written" from an older frame (a slot that wrote nothing keeps no key, below, but the entity itself
+           sits there again: Kyo back in slot 14 at sprite 199, the move of slot 13 off 199 cleared him): every key
+           dropped, the blocks rewritten this frame (order changes only) */
+        if (moved) blk_key_reset();
+    }
     if (mode != 1 || land_on) { blk_key_reset(); bg_ok = 0; }   /* (the caches: the fight's blocks and stage only) */
     {   uint8_t ob = neo_bank, keep = mode == 1 && !land_on;
         for (i = 0; i < NA; i++) {
@@ -1358,7 +1365,7 @@ static void draw(void) {
                 int32_t fy = f->y, b = f->state == S_RUN ? run_bob(f) : 0;
                 uint32_t pos, frm, sm;
                 n = f->ncols; m = n > block_placed[i] ? n : block_placed[i];
-                if (!m) goto next;
+                if (!m) { bk_f[i] = 0; goto next; }              /* (nothing written: no key kept) */
                 pos = (uint32_t)(uint16_t)(INT(f->x) - cam_x) << 16 | (uint16_t)(floor_top + INT(f->z) - INT(fy + b));
                 frm = (uint32_t)f->shown_frame << 8 | (uint8_t)f->facing; sm = (uint32_t)spr << 8 | m;
                 if (bk_f[i] == f && bk_pos[i] == pos && bk_frm[i] == frm && bk_sm[i] == sm) {
@@ -1378,10 +1385,12 @@ static void draw(void) {
 #if BLK_CHECK
                 { uint8_t c; for (c = 0; c < m; c++) { blk_sy[i][c] = y[c]; blk_sx[i][c] = x[c]; } }
 #endif
-            } else if ((m = block_placed[i])) {                  /* hidden or none: its sprites height 0 */
+            } else {                                             /* hidden or none: its sprites height 0 */
                 uint8_t c;
-                y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
-                for (c = 0; c < m; c++) y[c] = x[c] = 0;
+                if ((m = block_placed[i])) {
+                    y = cmd_run(VRAM_SCB3 + spr, m); x = cmd_run(VRAM_SCB4 + spr, m);
+                    for (c = 0; c < m; c++) y[c] = x[c] = 0;
+                }
                 bk_f[i] = 0;
             }
         next:

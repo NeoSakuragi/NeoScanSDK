@@ -4341,7 +4341,7 @@
   "proof": 120
  },
  "20261011-225104-5d29": {
-  "title": "Win poses: Kyo's hand fire, Terry's thrown cap and the other KOF fighters' win-pose effects",
+  "title": "Win poses: Kyo stays drawn through his fire poses; the KOF fighters' win-pose effects",
   "setup": {
    "mode": "stage",
    "fighter": "kyo",
@@ -4353,7 +4353,7 @@
    "gap": 50
   },
   "do": "Beat the stage 1 boss with Kyo (one hit) and watch his win pose; clear the stage a few more times (the pose is picked at random). Then do the same with Terry.",
-  "expect": "Kyo's win poses with fire show it as in KOF98: the flame lights up in his hand (the raised-hand pose and the fist pose). Terry's two cap poses throw his cap: it flies up in an arc and lands on the floor in front of him. Robert, Mai, Yashiro, Iori, Rugal (not his D pose) and K' show their own pose effects too.",
+  "expect": "Kyo stays on screen for the whole win pose, every frame (he used to vanish mid-pose while the hand fire burned). His fire poses show the flame lighting up in his hand as in KOF98 (the raised-hand pose and the fist pose). Terry's two cap poses throw his cap: it flies up in an arc and lands on the floor in front of him. Robert, Mai, Yashiro, Iori, Rugal (not his D pose) and K' show their own pose effects, the fighter always drawn.",
   "do_keys": "8:a,8:-,8:a,8:-,8:a",
   "proof": 400
  }

@@ -9,9 +9,11 @@ source game's own pose (winfx98's snapshots, our emulator).
 Per fighter, per pose that has effects (bm_wins fx): the stage clear is run with the pose forced (game_ticks set while
 the winner waits to pose: fighter.c fighter_win_pose picks (game_ticks + index) % poses), and logged from the pose's
 start: the effect entities alive (a pool entity whose bproj_t is one of the fighter's bm_wins obj), their rows / place /
-frame. Checks: each listed effect is born on its step (its entity alive from that frame), lives its rows' count, ends.
+frame. Checks: each listed effect is born on its step (its entity alive from that frame), lives its rows' count, ends;
+and the fighter stays drawn on every frame of the pose (reopen 2026-10-15, "in the middle of the animation, Kyo
+disappears": his block's SCB3 words in VRAM, some column with a height, unless the line guard hid him).
 Out: OUT/results.json, OUT/<fighter>_pose<k>.png (source above, brawler below: every 6th frame from the pose start)."""
-import json, os, sys
+import ctypes as C, json, os, sys
 from PIL import Image, ImageDraw
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -44,9 +46,15 @@ def run_pose(name, k, n, delta):
             if bb.pget(i, 'state') and HOOK['obj'] <= bb.pget(i, 'pdef') < HOOK['obj'] + HOOK['span']:
                 ents.append([i, bb.pget(i, 'pdef'), bb.pget(i, 'prow'), bb.pget(i, 'frame_ovr'), round(bb.pget(i, 'x'), 1), round(bb.pget(i, 'y'), 1)])
         row['fx'] = ents
+        if VRAM['v'] is None:
+            bb.core.retro_get_memory_data.restype = C.c_void_p
+            VRAM['v'] = (C.c_uint16 * 0x8800).from_address(bb.core.retro_get_memory_data(3))   # (RETRO_MEMORY_VIDEO_RAM)
+        v, spr, nc = VRAM['v'], bb.fget(0, 'spr'), bb.fget(0, 'ncols')
+        row['drawn'] = [nc, sum(1 for c in range(nc) if v[0x8200 + spr + c] & 63), bb.r(bb.syms['guard_hidden'], 1)]
     return W.stage_run(name, shots_every=2, extra=('wan', 'wpose', 'frame_ovr'), hook=hook)
 
 HOOK = {'obj': 1 << 30, 'span': 0}
+VRAM = {'v': None}                                           # the core's VRAM words (one core per process)
 
 def src_row(game, cid, b, offsets):
     """the source's snapshots from its pose start (winfx98: snap every 3 frames from START + FROM), P1 cropped"""
@@ -92,7 +100,10 @@ def main():
             last = max((t for t, c in alive if c), default=None)
             item = {'pose': k, 'button': btn, 'wpose': pr[0]['p0']['wpose'], 'effects': len(births), 'births_at': births,
                     'first_alive': first, 'last_alive': last, 'max_at_once': max(c for _, c in alive)}
-            item['ok'] = item['wpose'] == k and first is not None and first == births[0]
+            # the fighter drawn on every frame of the pose (VRAM lags the tick by one frame: from its second frame)
+            gone = [r['t'] - t0 for r in log if r['t'] > t0 and r['p0'].get('wan') and r['drawn'][0] and not r['drawn'][1] and not r['drawn'][2]]
+            item['fighter_gone_frames'] = len(gone); item['fighter_gone_first'] = gone[:5]
+            item['ok'] = item['wpose'] == k and first is not None and first == births[0] and not gone
             ok_all &= item['ok']
             res[name][str(k)] = item
             print(name, 'pose', k, btn, 'OK' if item['ok'] else 'FAIL', item, flush=True)
