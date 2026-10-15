@@ -109,8 +109,8 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_read_timeout 30s;
     }
-    # cloud saves (Player 0.0.39): GET / PUT / DELETE saves/<game>, the signed-in account's own save only (the service
-    # checks the token and the role)
+    # cloud saves, Player 0.0.39: GET, PUT, DELETE saves/GAME, the signed-in account own save only: the service
+    # checks the token and the role
     location ^~ /brawler/feedback/saves/ {
         limit_except GET PUT DELETE { deny all; }
         client_max_body_size 2m;
