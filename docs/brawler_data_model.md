@@ -142,7 +142,7 @@ voice sample its KOF plays, with the moves that play it.
 | `fury_final_area` | `{"front": 143, "back": 44, "depth": 24, "blows": "all"}` (absent = none) | note 20261009-235250-b3f3 (Iori): the fury's (and its MAX's) blow on its caught victim (a VE_BLOW of its victim lists) also hits every other opponent standing within `front` px ahead of the fighter, `back` px behind, `depth` px (1-127) either side in z, with that blow's damage, burn and release flight, sent away from him (fighter.c `fury_area`; build_tables -> `gfury_area[fighter]` [front, back, depth \| 0x80]). `blows`: `last` (default) = only the last blow, `all` (note 20261011-204335-5d29) = every blow. Set: Iori 112 / 96 / 24 (the Ya Otome's final purple blast), Rugal 143 / 44 / 24 all (the Gigantic Pressure's red column, -4..+103 px from him; the MAX raises two, the second after he turns round) |
 | `special_final_area` | `{"624D": {"front": 100, "back": 40, "depth": 24}}` (absent = none) | note 20261011-230030-5d29 (Iori 624D's explosion): `fury_final_area`'s fields per special input: the last blow of that special's victim lists (`blows` "all": every blow) also hits every other opponent within the box around the fighter, with that blow's damage, burn and release flight (export_bm special_area -> the lists' end entry vx / vy, fighter.c fury_area; a MAX takes its DM's entry unless it has its own; a fury keeps `fury_final_area` first). Set: Iori 624D |
 | `music` | `"THEME_ROBERT"` (absent = none) | his theme, a songs.json song: stage 1 plays it instead of the stage's own song when he is the selected fighter (P1's, P2's when alone; a P2 joining changes nothing; voice note 20261011-160158-5d29). build_tables `roster_music`, main.c `stage_song`; the Fighter Lab shows it |
-| `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1) |
+| `unlock` | `"always"` or `{"boss_of_stage": 1}` | locked on the select screen until that stage's boss is beaten (save bit stage - 1); ignored while game.json has an `unlocks` block (the ladder below) |
 | `voices` | absent, `"kof"` or `{"kof": true, "set": {"hit": 3, "special:236C": null}}` | absent = silent (none of its samples in the V ROM); `"kof"` = KOF's own voice on every move (the suggestion); an object = that base (`kof` false: none) with these keys changed to a voice id of its list (null: silent). Keys: every BA_* move name, `throw_c` / `throw_d`, `hit`, `ko`, `select`, `special:<input>` of its pool ("Voices" below) |
 | `display` | `"BILLY LEE"` | the name shown (HUD, select) when it differs from `name` upper-cased (at most 10 characters) |
 | `scale` | `1` | the fighter's size: 1 = its game's art at full size (Double Dragon's Billy Lee, 115 px, Bruno 2026-10-06; Kizuna's fighters are exported at 0.80 by their exporter); a per-fighter value so it can change later (export_dd accepts 1 today) |
@@ -166,6 +166,27 @@ start at him (so the loop left / right is unchanged). Since decision select-boss
 locked bosses to the edges"): the locked bosses stand at the street's outermost places (Mr. Big, Krauser, Geese x 42-100;
 Rugal, Goenitz x 685-714), the playable fighters fill the places around the middle three in their former loop order
 (places, facings, rows and slots unchanged; each fighter keeps its pose).
+
+**The unlock ladder** (game.json `unlocks`, Bruno 2026-10-15, decisions set unlocks: the beta build; build_tables.py
+`unlocks` / `ladder_places`, main.c "the unlock ladder"; edited in the Factory's Roster & select: a Ladder picker per
+fighter + the rung size, roster.py merge):
+
+| field | example | meaning |
+|---|---|---|
+| `starters` | `["terry", "robert"]` | playable from the start |
+| `ladder` | `["ryo", "kyo", "iori", "mai", ...]` | the fighters earned, in order, `rung_size` at a time: each game clear (the last stage in play's boss beaten) unlocks the next rung |
+| `rung_size` | `2` | fighters a rung (the ladder: whole rungs) |
+
+While the block is there: only starters + ladder stand on the select screen (select_layout keeps only their places,
+renumbered; every other roster fighter is an enemy only), a ladder fighter not unlocked yet is a silhouette the cursor
+skips (`roster_unlock` = $80 + its rung, 0 a starter, 0xFF off the screen; main.c `char_locked` against `save.rungs`), the
+bosses' own `unlock` is ignored (no BOSS UNLOCKED). The save keeps the rungs unlocked (save_t `rungs`, the former first
+spare byte: an older save reads 0). The ladder screen (mode 7): every ladder fighter at once, a column per rung after the
+starters', locked ones as dark silhouettes; after a game clear (the ending's last screen) with the new rung revealed, and
+from the title's CHALLENGERS. Tables: `lad_fighter`, `lad_rung`, `lad_slot` (its select slot: its palettes), `lad_pos`
+(screen x, feet y, draw order, face). The attract demo plays every starter / ladder fighter whatever the save. Taking
+the block out: every selectable fighter from the start (the bosses' own locks back) and the select layout to be placed
+again (the full one before the beta: `benched.select_layout_full`). Proof: `tools/brawler/unlock_proof.py`.
 
 ROM side of a fighter (`bchar_t`, export_bm.py): name, palettes, frames, animations (`banim_t` / `bstep_t`), physics,
 throws, victim poses, specials (`bspec_t`, rows of a script: its whole pool, `nspec` of them, in build/bm_spec.c, compiled
@@ -664,9 +685,19 @@ Proofs (our emulator's core, harness; scripts and outputs in /data/tmp/rv1b, too
 
 ## Layer 3: stages
 
+The campaign = `stages[]` in order without the ones switched off (`"off": true`; build_tables.py `campaign`, every build
+reads the stages through it): the beta (Bruno 2026-10-15) plays 4, stage 2 (the garage, background 0) off.
+`boss_order.bosses` (`["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]`): the n-th stage in play fights the boss block (of any
+stage, on or off) whose `enemy` is bosses[n] (its song, minions, drama, seed, z), at that stage's own boss `lock` / `x`
+(its length); one boss a stage in play; absent: each stage its own boss. The last stage in play's boss = the game clear
+(the ending, the unlock ladder). Kept out of the build but in game.json: `roster_benched` (Goenitz, Lab-only), `benched`
+(his enemy, big portrait, intro drama, ending story, the full select layout), songs.json `songs_benched` (BOSS_GOENITZ,
+STAGE_HIGHWAY).
+
 | field | example | meaning |
 |---|---|---|
 | `name` | `"STAGE 1"` | |
+| `off` | `true` (absent = in play) | out of the campaign (its data kept); the Factory's Levels shows it as "off", no number |
 | `background` | `0` | stages[] of make_stage_ra.py (Robo Army's parts today) |
 | `music` | `"FIGHT"` | songs.json name, started at the stage start (stage 1: the selected fighter's roster `music` first, when he has one) |
 | `power` | `0` | its enemies' extra damage a hit |

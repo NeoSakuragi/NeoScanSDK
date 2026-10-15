@@ -192,7 +192,9 @@ _Static_assert(SEL_SPR <= SPR_BASE && LAND_FRONT_SPR + LAND_RING <= 381, "the se
 static fighter_t fighters[NF];
 static fighter_t *order[NA];                     /* back (small Z) to front, the nf entities in play */
 static uint8_t nf;                               /* entities in play: the previews on the select screen, NE in the fight */
-static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending, 5 GAME OVER */
+static uint8_t mode;                             /* 0 select, 1 fight, 2 title, 3 BOSS UNLOCKED, 4 the ending, 5 GAME OVER,
+                                                    6 the bonus screens, 7 the unlock ladder (MODE_LADDER) */
+#define MODE_LADDER 7
 static uint8_t attract;                          /* the fight is the attract demo: P1 is ai_bot, enemies their attract_ai */
 static uint16_t attract_t;
 static uint8_t tap_t[2], tap_dir[2];             /* double-tap run detection per player */
@@ -602,7 +604,7 @@ static void sparks_init(void) {
 }
 static void sparks_draw(void) {
     uint8_t i, c, r;
-    if (!mode) return;                                       /* the select's actors use sprites 300-379 */
+    if (!mode || mode == MODE_LADDER) return;                /* the select's / ladder's actors use sprites 300-379 */
     for (i = 0; i < SPARK_N; i++) {
         spark_state_t *k = &spk[i];
         uint16_t spr = SPARK_SPR + i * 3;
@@ -740,7 +742,7 @@ static void tfx_reset(void) {
 }
 static void tfx_draw(void) {
     uint8_t c, k;
-    if (!mode) { tfx_on = 0; return; }                      /* the select's actors use sprites 300-379 */
+    if (!mode || mode == MODE_LADDER) { tfx_on = 0; return; }   /* the select's / ladder's actors use sprites 300-379 */
     if (!tfx_on) return;
     if (tfx_wait) { tfx_wait = 0; return; }
     for (k = 0; k < TFX_N && !(tfx_t >= tfx_frames[k].at && tfx_t < tfx_frames[k].at + tfx_frames[k].dur); k++) ;
@@ -1866,7 +1868,9 @@ typedef struct {
     uint8_t  furthest;                           /* the campaign stage reached, 0-4 (the title's CONTINUE) */
     uint8_t  unlocked;                           /* bit k: BOSS[k] beaten (selectable) */
     uint8_t  difficulty;                         /* format 2: AES OPTIONS difficulty 0-3 (format 1: 0, a spare) */
-    uint8_t  pad[5];
+    uint8_t  rungs;                              /* the unlock ladder's rungs unlocked (game.json unlocks: one a game clear;
+                                                    a spare 0 before 2026-10-15: same format, nothing unlocked) */
+    uint8_t  pad[4];
     uint16_t sum;
 } save_t;
 NEO_BACKUP save_t save;
@@ -1895,8 +1899,8 @@ static void save_write(void) {
 static void save_reset(void) {
     uint8_t i;
     for (i = 0; i < 4; i++) save.magic[i] = SAVE_MAGIC[i];
-    save.furthest = 0; save.unlocked = 0; save.difficulty = 1;
-    for (i = 0; i < 5; i++) save.pad[i] = 0;
+    save.furthest = 0; save.unlocked = 0; save.difficulty = 1; save.rungs = 0;
+    for (i = 0; i < 4; i++) save.pad[i] = 0;
     save.sum = save_sum(&save);
 }
 static void save_load(void) {
@@ -1910,7 +1914,14 @@ static void save_load(void) {
     if (!save_ok(&save)) save_reset();
     difficulty = save.difficulty;
 }
-static uint8_t char_locked(uint8_t c) { uint8_t k = roster_unlock[c]; return k == 0xFF || (k && !(save.unlocked >> (k - 1) & 1)); }   /* 0xFF: a form link's target, never picked */
+static uint8_t char_locked(uint8_t c) {          /* 0xFF: never picked (a form link's target; with the unlock ladder,
+                                                    a fighter off the select screen); $80 + k: the ladder's rung k, until
+                                                    k game clears (save.rungs); k: the boss of stage k, until beaten */
+    uint8_t k = roster_unlock[c];
+    if (k == 0xFF) return 1;
+    if (k & 0x80) return (k & 0x7F) > save.rungs;
+    return k && !(save.unlocked >> (k - 1) & 1);
+}
 static uint8_t camp, camp_from;                  /* the stage in play; the one a new game starts at (title CONTINUE) */
 
 /* ---- title banner (tools/brawler/make_banner.py): one sticky sprite chain, BANNER_COLS columns of BANNER_ROWS tiles,
@@ -1935,19 +1946,22 @@ static void banner_hide(void) { uint8_t c; for (c = 0; c < BANNER_COLS; c++) cmd
 static uint16_t title_t, title_hold;
 static uint8_t title_sel;                        /* the menu line */
 static uint8_t title_paid;                       /* the START that opened the title already took the credit */
-enum { TI_NEW, TI_CONT, TI_OPT };
-static uint8_t title_item[3], title_n;           /* the menu's lines */
+enum { TI_NEW, TI_CONT, TI_LAD, TI_OPT };
+static uint8_t title_item[4], title_n;           /* the menu's lines */
+static uint8_t title_clr;                        /* MVS: ticks since SAVE DATA CLEARED (then SYSTEM_RETURN commits it) */
 static uint8_t opt_on;                           /* the OPTIONS screen is up (a part of the title, mode 2) */
 static void select_start(void);
+static void ladder_start(uint8_t from_title);
 static void save_load(void);
 static void save_reset(void);
 static void save_write(void);
 static void title_menu(void) {
-    static const char *const TXT[3] = { "NEW GAME", "CONTINUE STAGE", "OPTIONS" };
+    static const char *const TXT[4] = { "NEW GAME", "CONTINUE STAGE", "CHALLENGERS", "OPTIONS" };
     uint8_t i;
-    for (i = 0; i < 3; i++) FIX_print(12, 20 + i, "                  ", 0);
+    for (i = 0; i < 4; i++) FIX_print(12, 20 + i, "                  ", 0);
     title_n = 0; title_item[title_n++] = TI_NEW;
     if (save.furthest) title_item[title_n++] = TI_CONT;
+    if (LAD_N) title_item[title_n++] = TI_LAD;           /* the unlock ladder's screen (MVS and AES) */
     if (!BIOS_MVS_FLAG) title_item[title_n++] = TI_OPT;
     if (title_sel >= title_n) title_sel = 0;
     if (title_n == 1) return;
@@ -1974,7 +1988,7 @@ static void title_start(void) {
     snd_music(GAME_MUS_TITLE);                               /* a credit is in: KOF94's coin song (game.json music.title;
                                                              voice note 20261011-114853-5d29) */
     save_load();
-    title_sel = save.furthest != 0; title_hold = 0; title_paid = 0;   /* line 1 = CONTINUE when there is one */
+    title_sel = save.furthest != 0; title_hold = 0; title_paid = 0; title_clr = 0;   /* line 1 = CONTINUE when there is one */
     title_menu();
 }
 
@@ -2078,9 +2092,16 @@ static void title_tick(void) {
         title_menu();
     }
     if ((h & (JOY_A | JOY_B | JOY_C | JOY_D)) == (JOY_A | JOY_B | JOY_C | JOY_D)) {   /* held 2 s: the save cleared */
-        if (++title_hold == 120) { save_reset(); save_write(); difficulty = save.difficulty; title_menu(); FIX_print(12, 23, "SAVE DATA CLEARED", 0); }
+        if (++title_hold == 120) { save_reset(); save_write(); difficulty = save.difficulty; title_menu(); FIX_print(12, 16, "SAVE DATA CLEARED", 0); title_clr = 1; }
         return;
     } else title_hold = 0;
+    if (title_clr && ++title_clr >= 90 && BIOS_MVS_FLAG) { title_clr = 0; SYS_return(); return; }   /* MVS: the BIOS writes
+                                                             the cleared block to battery RAM when the game hands back
+                                                             (the title again while credits remain) */
+    if (title_item[title_sel] == TI_LAD) {                   /* the unlock ladder: no credit involved */
+        if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; snd_ssg(SSG_CONFIRM); banner_hide(); ladder_start(1); }
+        return;
+    }
     if (title_item[title_sel] == TI_OPT) {                   /* console only: no credit involved */
         if (bios_start || (pr & (JOY_START | JOY_A))) { bios_start = 0; snd_ssg(SSG_CONFIRM); options_start(); }
         return;
@@ -2128,7 +2149,8 @@ static uint8_t char_locked(uint8_t c);
 static void roster_build(void) {
     uint8_t c;
     lu_n = 0;
-    for (c = 0; c < BC_COUNT; c++) if (!char_locked(c)) lu[lu_n++] = c;
+    for (c = 0; c < BC_COUNT; c++) if (LAD_N ? roster_unlock[c] != 0xFF : !char_locked(c)) lu[lu_n++] = c;   /* (the
+                                                             unlock ladder: its every fighter, whatever the save) */
 }
 static void slots_build(void) {
     uint8_t s;
@@ -2146,7 +2168,7 @@ static uint16_t col_dark(uint16_t c) {                      /* its own colour at
     return RGB(r >> 1, g >> 1, b >> 1);
 }
 #define SILHOUETTE RGB(4, 4, 5)
-/* an entity's palettes: its own colours (1), darkened (0) or a silhouette (2) */
+/* an entity's palettes: its own colours (1), darkened (0), a silhouette (2) or white (3: the ladder's reveal flash) */
 static void fighter_pals(const fighter_t *f, uint8_t colour) {
     uint16_t buf[16];
     uint8_t i, j;
@@ -2154,7 +2176,7 @@ static void fighter_pals(const fighter_t *f, uint8_t colour) {
         const uint16_t *src = fighter_src_pal(f, i);
         buf[0] = src[0];
         for (j = 1; j < 16; j++)
-            buf[j] = colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_dark(src[j]);
+            buf[j] = colour == 3 ? RGB(31, 31, 31) : colour == 2 ? SILHOUETTE : colour ? fighter_colour(f, src[j]) : col_dark(src[j]);
         PAL_setPalette(f->palbase + i, buf);
     }
 }
@@ -2279,6 +2301,8 @@ static void select_start(void) {
  * stages[] index) without a boss, the last wave again and again. ---- */
 
 static uint8_t unlock_k;                         /* the boss just unlocked + 1 (0 none) */
+static uint8_t lad_new;                          /* the unlock ladder's rung this game clear unlocked (0 none) */
+static void ladder_start(uint8_t from_title);
 static uint16_t phase_t;
 static const gstage_t *gs;                       /* the stage playing: gstages[camp] */
 static uint8_t power;                            /* this stage's enemies' extra damage */
@@ -2977,7 +3001,7 @@ static void select_start(void);
  * or once the stage's boss is beaten, never in the attract demo's fight (a coin ends the demo first). */
 uint8_t game_start_accept(uint8_t flags) {
     if (lab.active) return 0;                                /* the Chain Lab's training: nobody joins */
-    if (mode == 2 || attract) return opt_on ? 0 : flags;
+    if (mode == 2 || attract) return opt_on || (mode == 2 && !attract && title_item[title_sel] == TI_LAD) ? 0 : flags;   /* (CHALLENGERS: a look, no game) */
     if (mode == 0) return sel_phase == SEL_CHOOSE && cursor[1] == 0xFF ? flags & 2 : 0;   /* the select: P2 joins */
     if (mode != 1 || cont_ov == 2 || phase >= PH_END || ko_seq || bonus_on) return 0;   /* (a bonus game: nobody joins) */
     return flags & ((in_play(&fighters[0]) ? 0 : 1) | (in_play(&fighters[1]) ? 0 : 2));
@@ -3501,10 +3525,12 @@ static void campaign(uint8_t left) {
         if (left) break;
         if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
         if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
-        phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0;
+        phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0; lad_new = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
         if (camp + 1 < GS_COUNT && save.furthest < camp + 1) save.furthest = camp + 1;
+        if (LAD_N && camp + 1 >= GS_COUNT && save.rungs < LAD_RUNGS) lad_new = ++save.rungs;   /* the game clear: the
+                                                             ladder's next rung (shown after the ending: ladder_start) */
         if (gs->unlock && !(save.unlocked >> camp & 1)) { save.unlocked |= 1 << camp; unlock_k = camp + 1; }
         save_write();
         break;
@@ -3546,6 +3572,9 @@ static void p2_join(void) {                      /* P2 joins mid-fight: START wi
         for (i = 2; i < NF && !used; i++) used = fighters[i].state != S_OFF && fighters[i].ch == &bm_chars[c];
         if (!used) break;
     }
+    if (c >= BC_COUNT)                                       /* every unlocked one on screen (the ladder's first rungs):
+                                                                an unlocked one other than P1's, an enemy may share it */
+        for (c = 0; c < BC_COUNT && (char_locked(c) || &bm_chars[c] == fighters[0].ch); c++) ;
     fighter_init(&fighters[1], &bm_chars[c < BC_COUNT ? c : 1], 1, 16 + MAX_PALS, 0, cam_x + 40, 20);
     fighters[1].idx = 1; fighter_revive(&fighters[1]); lives[1] = 2; BIOS_PLAYER_MOD[1] = 1;
     bios_start &= ~2;
@@ -4165,6 +4194,7 @@ static void ending_tick(void) {
         fighter_animate(&fighters[0]);
         if (!((skip && en_t >= END_THANKS_MIN) || en_t >= END_THANKS_TIME)) break;
         if (unlock_k) unlock_start(unlock_k - 1);   /* a boss beaten for the first time: BOSS UNLOCKED, then the BIOS */
+        else if (LAD_N) ladder_start(0);             /* the unlock ladder (its new rung revealed), then the BIOS */
         else SYS_return();                           /* back to the BIOS: it commits the MVS save, shows the title
                                                         (credits left) or the attract demo */
         break;
@@ -4180,6 +4210,104 @@ static void show_tick(void) {
                                                                 ending): back to the BIOS, which commits the MVS save and
                                                                 shows the title (credits left) or the attract demo */
     else stage_next();
+}
+/* ---- the unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build): game.json unlocks = the starters, then
+ * the ladder's fighters in order, LAD_RUNG a rung; each game clear (the last stage's boss beaten, PH_END) unlocks the next
+ * rung (save.rungs, kept in the save: MVS backup RAM, AES memory card) and the select screen shows only these fighters
+ * (a locked one a silhouette the cursor skips, char_locked). This screen shows them all at once, a column per rung after
+ * the starters' (build_tables.py ladder_places: lad_pos, back to front), each in its select pose: unlocked in colour,
+ * locked as a dark silhouette (SILHOUETTE), so the player sees what comes next. After a game clear (the ending's last
+ * screen): the rung just unlocked starts as silhouettes, then LAD_FLASH ticks of white / silhouette flashes, its
+ * fighters in colour playing their win pose with their select voice, NEW CHALLENGERS! (big_text.ladder) and their names;
+ * A-D / START after LAD_MIN ticks or LAD_TIME: back to the BIOS (SYSTEM_RETURN commits the MVS save). From the title's
+ * CHALLENGERS: the same screen without the reveal, A-D / START (after 20 ticks) back to the title. The actors are the
+ * select screen's (NA blocks of SEL_COLS from SEL_SPR; palettes: each fighter's select slot's, sel_palbase). ---- */
+#define LAD_REVEAL 60                            /* ticks before the new rung's flash */
+#define LAD_FLASH  24                            /* its white / silhouette flashes, 4 ticks each */
+#define LAD_MIN    240                           /* after a game clear: a button passes it from here */
+#define LAD_TIME   720                           /* ... or by itself */
+static uint8_t lad_title;                        /* shown from the title (back there), else after a game clear (the BIOS) */
+static uint16_t lad_t;
+static void lad_info(void) {                     /* the line under the front row's feet: the progress, what unlocks more */
+    uint8_t i, n = 0, row = 26, c;
+    for (i = 0; i < LAD_N; i++) if (lad_rung[i] <= save.rungs) n++;
+    FIX_print(0, row, "                                        ", 0);
+    if (save.rungs >= LAD_RUNGS) { FIX_print(10, row, "ALL", 0); FIX_printNum(14, row, LAD_N, 0); FIX_print(LAD_N >= 10 ? 17 : 16, row, "FIGHTERS UNLOCKED", 0); return; }
+    c = 3;                                       /* "UNLOCKED n/N - CLEAR THE GAME: +m" (columns 3-36: the TV shows 1-38) */
+    FIX_print(c, row, "UNLOCKED", 0); c += 9; FIX_printNum(c, row, n, 0); c += n >= 10 ? 2 : 1;
+    FIX_print(c++, row, "/", 0); FIX_printNum(c, row, LAD_N, 0); c += LAD_N >= 10 ? 3 : 2;
+    FIX_print(c, row, "- CLEAR THE GAME: +", 0); FIX_printNum(c + 19, row, LAD_RUNG, 0);
+}
+static void lad_names(uint8_t rung) {            /* the new rung's names, side by side under the headline */
+    char t[41];
+    uint8_t i, k = 0, j;
+    for (i = 0; i < LAD_N && k < 38; i++) {
+        const char *n = bm_chars[lad_fighter[i]].name;
+        if (lad_rung[i] != rung) continue;
+        if (k) { t[k++] = ' '; t[k++] = ' '; }
+        for (j = 0; n[j] && k < 40; j++) t[k++] = n[j];
+    }
+    t[k] = 0;
+    centre(8, t);
+}
+static void ladder_start(uint8_t from_title) {
+    uint8_t i;
+    mode = MODE_LADDER; lad_t = 0; lad_title = from_title; cam_x = 0; attract = 0;
+    FIX_clear(); arcade_line_reset(); bt_hide(); pb_hide();
+    stage_hide();
+    floor_top = SELECT_FLOOR;
+    bd_set(RGB8(8, 8, 32));
+    if (!from_title) snd_music(GAME_MUS_SELECT);
+    for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; order[i] = actor(i); sel_rank[i] = 0xFF; }   /* (the unused ones
+                                                             drawn last: the fighters' blocks from SEL_SPR, clear of the big text's) */
+    for (i = 0; i < LAD_N; i++) {
+        fighter_t *f = actor(i);
+        fighter_init(f, &bm_chars[lad_fighter[i]], 0, sel_palbase[lad_slot[i]], 1, lad_pos[i].x, lad_pos[i].y - SELECT_FLOOR);
+        f->idx = i; f->facing = lad_pos[i].face; sel_rank[i] = lad_pos[i].z;
+        fighter_play(f, BA_WATCH);
+        fighter_pals(f, lad_rung[i] > save.rungs || (lad_new && lad_rung[i] == lad_new) ? 2 : 1);
+    }
+    nf = NA;
+    if (lad_new && !from_title) FIX_print(14, 2, "GAME CLEAR!", 1);
+    else centre(2, "CHALLENGERS");
+    lad_info();
+}
+static void lad_hide(void) {                     /* back to the title: the actors' sprites off (the title draws none) */
+    uint16_t i, *y = cmd_run(VRAM_SCB3 + SEL_SPR, BLK_END - SEL_SPR);
+    for (i = 0; i < BLK_END - SEL_SPR; i++) y[i] = 0;
+    for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; block_placed[i] = 0; }
+    blk_key_reset();
+    nf = 0;
+}
+static void ladder_tick(void) {
+    uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
+    uint8_t i, btn = (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)) != 0;
+    lad_t++;
+    bios_start = 0;
+    if (lad_new && !lad_title && lad_t >= LAD_REVEAL && lad_t <= LAD_REVEAL + LAD_FLASH && !((lad_t - LAD_REVEAL) & 3)) {
+        uint8_t k = (uint8_t)((lad_t - LAD_REVEAL) >> 2), look = k == LAD_FLASH / 4 ? 1 : (k & 1) ? 2 : 3;   /* white,
+                                                             silhouette, ... then the colours */
+        for (i = 0; i < LAD_N; i++) {
+            if (lad_rung[i] != lad_new) continue;
+            fighter_pals(actor(i), look);
+            if (look == 1) { fighter_play(actor(i), BA_WIN); voice_play(actor(i)->ch, 0, VK_SELECT); }
+        }
+        if (!k) snd_ssg(SSG_UNLOCK);
+        if (look == 1) {
+            FIX_print(0, 2, "                                        ", 0);
+            if (gbig[BIG_LADDER].on) bt_show(0, BIG_LADDER); else centre(4, "NEW CHALLENGERS!");
+            lad_names(lad_new);
+        }
+    }
+    for (i = 0; i < LAD_N; i++) if (actor(i)->state != S_OFF) fighter_animate(actor(i));
+    if (lad_title) {
+        if (lad_t >= 20 && btn) { lad_hide(); bd_set(COLOR_BLACK); mode = 2; title_screen(); title_menu(); snd_ssg(SSG_CANCEL); }
+        return;
+    }
+    if ((lad_t >= LAD_MIN && btn) || lad_t >= LAD_TIME) { bt_hide(); SYS_return(); }   /* back to the BIOS: it commits the
+                                                             MVS save, shows the title (credits left) or the attract demo */
 }
 static void select_tick(void) {
     uint8_t a, p, s;
@@ -4321,6 +4449,7 @@ void game_tick(void) {
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode == 6) { bonus_screen_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus screens (AOF2's) */
+    if (mode == MODE_LADDER) { ladder_tick(); if (mode == MODE_LADDER) { depth_sort(); draw(); } return; }
     if (mode >= 3) { show_tick(); if (mode >= 3) { depth_sort(); draw(); } return; }
     if (dr_on) { drama_tick(); depth_sort(); draw(); return; }   /* drama mode: the fight held, drawn as it stands */
     if (cont_ov) { cont_tick(); if (mode == 1) { depth_sort(); draw(); hud(); } return; }   /* CONTINUE?: the fight frozen */

@@ -273,20 +273,6 @@
    "throws": {"extra": {"u": "624A"}, "super": "23624C"}
   },
   {
-   "name": "goenitz",
-   "nopush": ["214B", "214D"],
-   "bank": "kof96:goenitz",
-   "watch": {"frame": 216, "step": -1},
-   "routes": "default",
-   "archetype": "balanced",
-   "chain": {"length": 4},
-   "finishers": {"launcher": "up", "down": "sweep"},
-   "specials": {"D": "41236A", "fD": "214B", "dD": "214C", "uD": "41236C", "dfD": "41236B", "ufD": "41236D"},
-   "fury": "2141236C",
-   "unlock": {"boss_of_stage": 5},
-   "voices": "kof"
-  },
-  {
    "name": "haohmaru",
    "music": "THEME_HAOHMARU",
    "bank": "samsho2:haohmaru",
@@ -632,8 +618,29 @@
      "voices": "kof",
      "unlock": "always",
      "throws": {"extra": {"u": "214B"}, "super": "6246A"}
+    },
+    {
+     "name": "goenitz",
+     "lab": true,
+     "nopush": ["214B", "214D"],
+     "bank": "kof96:goenitz",
+     "watch": {"frame": 216, "step": -1},
+     "routes": "default",
+     "archetype": "balanced",
+     "chain": {"length": 4},
+     "finishers": {"launcher": "up", "down": "sweep"},
+     "specials": {"D": "41236A", "fD": "214B", "dD": "214C", "uD": "41236C", "dfD": "41236B", "ufD": "41236D"},
+     "fury": "2141236C",
+     "unlock": {"boss_of_stage": 5},
+     "voices": "kof"
     }
   ]
+ },
+ "unlocks": {
+  "about": "The unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build). starters: playable from the start. ladder: the fighters earned in this order, rung_size at a time: each game clear (the last stage's boss beaten, boss_order) unlocks the next rung, kept forever in the save (MVS backup RAM / AES memory card: main.c save_t rungs). No other unlock (the roster's boss_of_stage locks are ignored while this block is here). Only these fighters stand on the select screen (select_layout: a place each); every other roster fighter is an enemy only. The ladder screen (main.c 'the unlock ladder') shows them all in order, locked ones as dark silhouettes: after a game clear (NEW CHALLENGERS!, the new rung revealed) and from the title (CHALLENGERS). The save is cleared on the title with A+B+C+D held 2 s. Edited in the Factory (Characters: Roster & select, the ladder). Removing the block: every selectable fighter from the start again (and the bosses' own locks), the select layout to be re-placed.",
+  "starters": ["terry", "robert"],
+  "rung_size": 2,
+  "ladder": ["ryo", "kyo", "iori", "mai", "kim", "haggar", "moriya", "haohmaru", "geese", "krauser"]
  },
  "select": {
   "stick": "order",
@@ -663,31 +670,18 @@
   ]
  },
  "select_layout": {
-  "terry": {"x": 480, "y": 210, "z": 21, "facing": "left", "pose": [351, -1], "slot": 0},
-  "kim": {"x": 509, "y": 197, "z": 13, "facing": "right", "pose": [55, 11], "slot": 1},
-  "cheng_fu": {"x": 539, "y": 184, "z": 5, "facing": "left", "pose": [99, 7], "slot": 2},
-  "hanzo_ss2": {"x": 568, "y": 210, "z": 22, "facing": "right", "pose": [140, -1], "slot": 3},
-  "yashiro": {"x": 597, "y": 197, "z": 14, "facing": "left", "pose": [340, -1], "slot": 4},
-  "hanzo": {"x": 626, "y": 184, "z": 6, "facing": "right", "pose": [0, -1], "slot": 5},
-  "ryo": {"x": 656, "y": 210, "z": 23, "facing": "left", "pose": [343, -1], "slot": 6},
-  "rugal": {"x": 685, "y": 197, "z": 15, "facing": "right", "pose": [338, -1], "slot": 7},
-  "goenitz": {"x": 714, "y": 184, "z": 7, "facing": "left", "pose": [215, 0], "slot": 8},
-  "moriya": {"x": 728, "y": 210, "z": 24, "facing": "left", "pose": [0, 0], "slot": 9},
-  "mr_big": {"x": 42, "y": 210, "z": 16, "facing": "right", "pose": [216, -1], "slot": 10},
-  "krauser": {"x": 71, "y": 197, "z": 8, "facing": "left", "pose": [215, -1], "slot": 11},
-  "geese": {"x": 100, "y": 184, "z": 0, "facing": "right", "pose": [210, -1], "slot": 12},
-  "kyo": {"x": 130, "y": 210, "z": 17, "facing": "left", "pose": [336, -1], "slot": 13},
-  "iori": {"x": 159, "y": 197, "z": 9, "facing": "right", "pose": [342, -1], "slot": 14},
-  "mai": {"x": 188, "y": 184, "z": 1, "facing": "left", "pose": [338, -1], "slot": 15},
-  "ralf": {"x": 217, "y": 210, "z": 18, "facing": "right", "pose": [353, -1], "slot": 16},
-  "billy": {"x": 247, "y": 197, "z": 10, "facing": "left", "pose": [347, -1], "slot": 17},
-  "yamazaki": {"x": 276, "y": 184, "z": 2, "facing": "right", "pose": [349, 0], "slot": 18},
-  "haohmaru": {"x": 305, "y": 210, "z": 19, "facing": "left", "pose": [140, -1], "slot": 19},
-  "genjuro": {"x": 334, "y": 197, "z": 11, "facing": "right", "pose": [140, -1], "slot": 20},
-  "haggar": {"x": 363, "y": 184, "z": 3, "facing": "left", "pose": [77052, 0], "slot": 21},
-  "billy_lee": {"x": 393, "y": 210, "z": 20, "facing": "right", "pose": [100, -1], "slot": 22},
-  "k_dash": {"x": 422, "y": 197, "z": 12, "facing": "left", "pose": [349, -1], "slot": 23},
-  "robert": {"x": 451, "y": 184, "z": 4, "facing": "right", "pose": [340, -1], "slot": 24}
+  "terry": {"x": 224, "y": 210, "z": 8, "facing": "right", "pose": [351, -1], "slot": 0},
+  "robert": {"x": 253, "y": 197, "z": 4, "facing": "right", "pose": [340, -1], "slot": 1},
+  "ryo": {"x": 282, "y": 184, "z": 0, "facing": "right", "pose": [343, -1], "slot": 2},
+  "kyo": {"x": 311, "y": 210, "z": 9, "facing": "right", "pose": [336, -1], "slot": 3},
+  "iori": {"x": 340, "y": 197, "z": 5, "facing": "right", "pose": [342, -1], "slot": 4},
+  "mai": {"x": 369, "y": 184, "z": 1, "facing": "right", "pose": [338, -1], "slot": 5},
+  "kim": {"x": 398, "y": 210, "z": 10, "facing": "left", "pose": [55, 11], "slot": 6},
+  "haggar": {"x": 427, "y": 197, "z": 6, "facing": "left", "pose": [77052, 0], "slot": 7},
+  "moriya": {"x": 456, "y": 184, "z": 2, "facing": "left", "pose": [0, 0], "slot": 8},
+  "haohmaru": {"x": 485, "y": 210, "z": 11, "facing": "left", "pose": [140, -1], "slot": 9},
+  "geese": {"x": 514, "y": 197, "z": 7, "facing": "left", "pose": [210, -1], "slot": 10},
+  "krauser": {"x": 543, "y": 184, "z": 3, "facing": "left", "pose": [215, -1], "slot": 11}
  },
 
 
@@ -716,7 +710,7 @@
    "about": "Every enemy's shared rules (revamp 1B, docs/brawler_data_model.md 'Enemy rules', ai.c): attack tokens, the ready pose during the random wait, wind-up by damage, the hidden difficulty rank.",
    "attackers": 3,
    "approach_max": 150,
-   "ready": {"pose": ["atk_c_close", 0], "fallback": ["atk_a_close", 0], "by_fighter": {"yamazaki": ["atk_c_close", 1], "krauser": ["atk_c_far", 0], "geese": ["atk_c_close", 1], "rugal": ["atk_c_close", 1], "goenitz": ["atk_c_close", 1], "mr_big": ["atk_c_far", 0]}, "pulse": 12,
+   "ready": {"pose": ["atk_c_close", 0], "fallback": ["atk_a_close", 0], "by_fighter": {"yamazaki": ["atk_c_close", 1], "krauser": ["atk_c_far", 0], "geese": ["atk_c_close", 1], "rugal": ["atk_c_close", 1], "mr_big": ["atk_c_far", 0]}, "pulse": 12,
              "wait": [1, 1, 10, 10, 10, 10, 20, 20, 20, 20, 20, 20, 30, 30, 30, 30, 30, 30, 30, 30, 40, 40, 40, 40, 40, 40, 50, 50, 50, 50, 60, 60]},
    "windup": {"light": [3, 6], "heavy": [12, 15], "heavy_from": 5, "special_hold": [12, 15]},
    "rank": {"start": 8, "max": 31, "every": 600, "fast_clear": 1200, "fast": 1, "clean": 1, "death": 4, "wait": 16, "rest": 16, "damage": 11}
@@ -827,7 +821,6 @@
   {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 208, "power": 1, "ai": "boss", "hud": "fighter"},
   {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 216, "power": 1, "ai": "boss", "hud": "fighter"},
   {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 224, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 232, "power": 1, "ai": "boss", "hud": "fighter"},
   {
    "name": "YAKUZA",
    "base": "yamazaki",
@@ -921,6 +914,7 @@
   "stage_clear": {"y": 36, "slide": 16},
   "game_over": {"y": 52},
   "time_over": {"y": 36},
+  "ladder": {"y": 6, "slide": 16},
   "bonus_won": {"y": 58, "pitch": 42}
  },
  "stages": [
@@ -1012,7 +1006,8 @@
    }
   },
   {
-   "name": "STAGE 2",
+   "name": "GARAGE",
+   "off": true,
    "background": 0,
    "music": "STAGE_HIGHWAY",
    "power": 1,
@@ -1112,7 +1107,7 @@
    }
   },
   {
-   "name": "STAGE 3",
+   "name": "STAGE 2",
    "background": 3,
    "music": "THEME_KIM",
    "power": 1,
@@ -1224,7 +1219,7 @@
    }
   },
   {
-   "name": "STAGE 4",
+   "name": "STAGE 3",
    "background": 4,
    "music": "FIGHT",
    "power": 2,
@@ -1347,7 +1342,7 @@
    }
   },
   {
-   "name": "STAGE 5",
+   "name": "STAGE 4",
    "background": 5,
    "music": "FIGHT",
    "power": 2,
@@ -1471,6 +1466,10 @@
    }
   }
  ],
+ "boss_order": {
+  "about": "The campaign's bosses in play order (Bruno 2026-10-15, beta: 4 stages, stage 2 the garage off): the n-th stage in play (stages[] without \"off\": true) fights the boss of the stage boss block whose enemy is bosses[n] (enemy, song, minions, drama, seed, z from that block, whichever stage holds it; lock and x from the stage's own boss block: its length). One boss per stage in play; the last one's stage clear = the game clear (unlocks).",
+  "bosses": ["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]
+ },
  "bonus": {
   "about": "The bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; analysis /data/neogeo_dict/aof/bonus.md): after each stage listed in `after` (1-based) a pick screen offers every game of `games` (AOF2's SELECT BONUS GAME: stick + A, `pick.seconds` on the clock, the cursor's game at 0). A game is a level type the engine reads (main.c 'bonus stages', build_tables.py bonus_tables): scene = an AOF2 scene of tools/brawler/make_bonus.py (tree, posts); kind gauge = one press on a sweeping gauge (power 0-127, + step a frame, wrapping; grade k = the power reached grades[k - 1], AOF2 Spirit Training's table $17EF8 at its default row: 36 68 92 108 120), reward chunks[grade] = drive chunks added to both players' bars for the credit (up to 4); win_grade = the lowest grade that passes (AOF2: only the top, 5; note 20261014-133606-5d29): a pass breaks the tree (AOF2's fall, make_bonus.py fall_seq) and plays win_music (AOF2's $2D), a lower grade fails (the tree stands, TRAINING FAILED, over_music $2E); blows = the blow per grade 0-5 (Bruno results-1014: a jab when the tree holds, the forward finisher when it breaks): jab = his chain's first link (neutral A), finisher = its neutral finisher, forward = its forward finisher (fighter.c fighter_blow; the tree's reaction and timing stay AOF2's); kind break = break `count` objects before `seconds` run out, one at a time, with the move class `breaks_with` (any: every regular strike, `hp` hits an object, the fury staying locked while it plays, note bonus-pillars-normals; fury: only the fury's or the MAX's body or its objects, any other hit only shakes it), `lesson` = the lesson box's 3 lines, all broken = reward unlock (fury: Fury and Fury MAX on D; the first win shows `won_text`'s 3 lines for `won_ticks`). fury_lock true: D's fury and MAX locked from a new game until a game with unlock fury is won; a fail keeps it locked for the credit (a continue keeps it); the attract demo and the Lab are never locked. Before the pick and the game, AOF2's own screens (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14: AOF2's original select screen; tools/brawler/make_bonus.py screens, tools/aof/bonus_rip.py): `intro` = AOF2's BONUS GAME screen (`music` + the announcer `voice`, a songs.json sfx name, at tick `at`; `ticks` long); the pick screen is AOF2's SELECT BONUS GAME (its three pictures; a game takes AOF2's slot `slot`: 0 Spirit Training, 2 Super Death Blow; a slot without a game, 1 Strength Training here, is greyed and the cursor skips it; `pick.seconds` 3-9 on its clock); then the game's title card (its slot's kanji and name, `card.ticks` long, the game's `voice` + `card.sound`). A game already won shows its bonus only (the game has no score).",
   "after": [1, 3],
@@ -1492,7 +1491,6 @@
   "mr_big": "kof96:mr_big",
   "krauser": "kof96:krauser",
   "geese": "kof96:geese",
-  "goenitz": "kof96:goenitz",
   "rugal": "kof98:rugal",
   "terry": "kof98:terry",
   "ryo": "kof98:ryo",
@@ -1545,14 +1543,6 @@
     "lines": ["Hmph. You are strong enough", "to stand before me.", "You'll make a fine statue!"]
    }
   ],
-  "goenitz_intro": [
-   {
-    "speaker": "GOENITZ",
-    "side": "right",
-    "portrait": "goenitz",
-    "lines": ["The wind is blowing...", "Let it carry you away!"]
-   }
-  ],
   "stage_win": [
    {
     "speaker": "$P1",
@@ -1587,7 +1577,7 @@
      "A new legend has been born."
     ],
     "terry": [
-     "Goenitz falls, and the wind over the city goes still.",
+     "Rugal falls, and the wind over the city goes still.",
      "Terry tips his cap and walks away without a word.",
      "Rock is waiting for him back in South Town.",
      "The Lone Wolf has a promise to keep.",
@@ -1690,13 +1680,6 @@
      "Their statues will join his gallery tonight.",
      "The power of Orochi still burns in his eye.",
      "The King of Fighters is Rugal alone."
-    ],
-    "goenitz": [
-     "The storm dies down, and Goenitz folds his hands.",
-     "The humans fought well, but no one stops the wind.",
-     "He returns to his quiet church to pray.",
-     "Orochi will awaken soon, as it was written.",
-     "Heaven's wind blows in his favour."
     ],
     "haohmaru": [
      "Haohmaru drinks sake under the cherry blossoms.",
@@ -1816,6 +1799,60 @@
    "lines": [
     "THANK YOU FOR PLAYING"
    ]
+  }
+ },
+ "benched": {
+  "about": "The beta build (Bruno 2026-10-15): what is kept in game.json but not built. Goenitz is out (his roster entry is in roster_benched, Lab-only); here his enemy definition, his big portrait, his stage intro drama and his ending story (and his AI ready pose: ai.rules.ready.by_fighter \"goenitz\": [\"atk_c_close\", 1]); select_layout_full = the full roster's select places before the beta (0.10.106, Goenitz's taken out): put it back as select_layout when the unlocks block goes. To bring him back: his roster entry back into roster (+ a select_layout place, + a place in unlocks), these back into enemies / portraits / dramas / ending.story.fighters, BOSS_GOENITZ back from songs.json songs_benched, and GOENITZ into boss_order (STAGE 4's own boss block, the former stage 5's, still names him).",
+  "select_layout_full": {
+   "terry": {"x": 480, "y": 210, "z": 21, "facing": "left", "pose": [351, -1], "slot": 0},
+   "kim": {"x": 509, "y": 197, "z": 13, "facing": "right", "pose": [55, 11], "slot": 1},
+   "cheng_fu": {"x": 539, "y": 184, "z": 5, "facing": "left", "pose": [99, 7], "slot": 2},
+   "hanzo_ss2": {"x": 568, "y": 210, "z": 22, "facing": "right", "pose": [140, -1], "slot": 3},
+   "yashiro": {"x": 597, "y": 197, "z": 14, "facing": "left", "pose": [340, -1], "slot": 4},
+   "hanzo": {"x": 626, "y": 184, "z": 6, "facing": "right", "pose": [0, -1], "slot": 5},
+   "ryo": {"x": 656, "y": 210, "z": 23, "facing": "left", "pose": [343, -1], "slot": 6},
+   "rugal": {"x": 685, "y": 197, "z": 15, "facing": "right", "pose": [338, -1], "slot": 7},
+   "moriya": {"x": 728, "y": 210, "z": 24, "facing": "left", "pose": [0, 0], "slot": 9},
+   "mr_big": {"x": 42, "y": 210, "z": 16, "facing": "right", "pose": [216, -1], "slot": 10},
+   "krauser": {"x": 71, "y": 197, "z": 8, "facing": "left", "pose": [215, -1], "slot": 11},
+   "geese": {"x": 100, "y": 184, "z": 0, "facing": "right", "pose": [210, -1], "slot": 12},
+   "kyo": {"x": 130, "y": 210, "z": 17, "facing": "left", "pose": [336, -1], "slot": 13},
+   "iori": {"x": 159, "y": 197, "z": 9, "facing": "right", "pose": [342, -1], "slot": 14},
+   "mai": {"x": 188, "y": 184, "z": 1, "facing": "left", "pose": [338, -1], "slot": 15},
+   "ralf": {"x": 217, "y": 210, "z": 18, "facing": "right", "pose": [353, -1], "slot": 16},
+   "billy": {"x": 247, "y": 197, "z": 10, "facing": "left", "pose": [347, -1], "slot": 17},
+   "yamazaki": {"x": 276, "y": 184, "z": 2, "facing": "right", "pose": [349, 0], "slot": 18},
+   "haohmaru": {"x": 305, "y": 210, "z": 19, "facing": "left", "pose": [140, -1], "slot": 19},
+   "genjuro": {"x": 334, "y": 197, "z": 11, "facing": "right", "pose": [140, -1], "slot": 20},
+   "haggar": {"x": 363, "y": 184, "z": 3, "facing": "left", "pose": [77052, 0], "slot": 21},
+   "billy_lee": {"x": 393, "y": 210, "z": 20, "facing": "right", "pose": [100, -1], "slot": 22},
+   "k_dash": {"x": 422, "y": 197, "z": 12, "facing": "left", "pose": [349, -1], "slot": 23},
+   "robert": {"x": 451, "y": 184, "z": 4, "facing": "right", "pose": [340, -1], "slot": 24}
+  },
+  "enemies": [
+   {"name": "GOENITZ", "base": "goenitz", "stand_in": "iori", "life": 232, "power": 1, "ai": "boss", "hud": "fighter"}
+  ],
+  "portraits": {
+   "goenitz": "kof96:goenitz"
+  },
+  "dramas": {
+   "goenitz_intro": [
+   {
+    "speaker": "GOENITZ",
+    "side": "right",
+    "portrait": "goenitz",
+    "lines": ["The wind is blowing...", "Let it carry you away!"]
+   }
+  ]
+  },
+  "stories": {
+   "goenitz": [
+     "The storm dies down, and Goenitz folds his hands.",
+     "The humans fought well, but no one stops the wind.",
+     "He returns to his quiet church to pray.",
+     "Orochi will awaken soon, as it was written.",
+     "Heaven's wind blows in his favour."
+    ]
   }
  }
 }

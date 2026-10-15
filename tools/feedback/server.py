@@ -787,7 +787,8 @@ def game_clean(req):
 
 def roster_clean(req):
     """the Roster & select draft {selectable: {fighter: true | false} (only what differs from the game), layout?:
-    {fighter: {x, y, z, facing, pose, slot}} (the select layout editor's)}; the real checks: tools/brawler/roster.py merge"""
+    {fighter: {x, y, z, facing, pose, slot}} (the select layout editor's), unlocks?: {starters, ladder, rung_size} (the unlock
+    ladder)}; the real checks: tools/brawler/roster.py merge"""
     s = req.get('selectable') or {}
     if not isinstance(s, dict) or len(s) > 64 or not all(FIGHTER.match(k) and isinstance(v, bool) for k, v in s.items()):
         return None, 'selectable: {fighter: true | false}'
@@ -802,6 +803,13 @@ def roster_clean(req):
                not (isinstance(v['pose'], list) and len(v['pose']) == 2 and all(num(p) for p in v['pose'])):
                 return None, 'layout %s: {x, y, z, facing, pose, slot}' % k[:40]
         out['layout'] = L
+    U = req.get('unlocks')                                  # the unlock ladder (game.json unlocks; Bruno 2026-10-15)
+    if U is not None:
+        names = lambda x: isinstance(x, list) and len(x) <= 32 and all(isinstance(n, str) and FIGHTER.match(n) for n in x)
+        if not isinstance(U, dict) or set(U) != {'starters', 'ladder', 'rung_size'} or not names(U['starters']) or \
+           not names(U['ladder']) or not (isinstance(U['rung_size'], int) and not isinstance(U['rung_size'], bool) and 1 <= U['rung_size'] <= 6):
+            return None, 'unlocks: {starters: [fighter], ladder: [fighter], rung_size: 1-6}'
+        out['unlocks'] = U
     return out, None
 
 

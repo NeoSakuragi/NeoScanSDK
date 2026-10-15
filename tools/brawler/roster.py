@@ -8,7 +8,8 @@ lab/roster), shipped by the ship service (labcfg.py SECTIONS "roster") like the 
                                            stage-1 theme, his lock, his place; the free place a new one would take; the
                                            room left (C ROM, P banks: bank_proof.py on the build), JSON on stdout
     roster.py merge GAME_DIR DRAFT.json    the draft {selectable: {fighter: true | false}, layout: {fighter: {x, y, z,
-                                           facing, pose, slot}} (optional: the Select screen editor's)} into game.json:
+                                           facing, pose, slot}} (optional: the Select screen editor's), unlocks:
+                                           {starters, ladder, rung_size} (optional: the unlock ladder)} into game.json:
                                            a Lab-only fighter moved onto the roster (or back), select_layout rewritten,
                                            validated: "roster: moriya selectable" / "select: moriya at place 10 of 25
                                            (x 728, y 210)" lines, or "REFUSED: <reason>" and exit 1, game.json untouched
@@ -19,7 +20,12 @@ him: no enemy, form, story, drama); at most MAX selectable (main.c NA: the selec
 selectable fighter exactly one place (build_tables.select_layout), the stick's walk reaching every one (select_stick).
 A fighter without a place in the draft takes the free place (free_place). His stage-1 theme: his roster "music" when
 songs.json has it, else the stage's song; no song is dropped from the sound ROM to make room (the page says so). The
-C ROM / bank room is checked by the ship's own build + bank_proof.py (ALL OK)."""
+C ROM / bank room is checked by the ship's own build + bank_proof.py (ALL OK).
+
+The unlock ladder (game.json unlocks, Bruno 2026-10-15; build_tables.unlocks): while it is there, only its fighters (the
+starters + the ladder) stand on the select screen; the draft's `unlocks` rewrites its starters / ladder / rung_size lines
+(build_tables.unlocks' checks: roster fighters, each once, whole rungs), a fighter new on the ladder takes the free place,
+one taken off it leaves the select screen (an enemy only). "unlocks: ..." lines say what changed."""
 import json, os, re, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -84,18 +90,23 @@ def room(game):
 
 def state(game, with_room=True):
     g = json.load(open(os.path.join(game, 'game.json'))); S = songs(game)
-    L = build_tables.select_layout(g); lab = build_tables.lab_only(g)
+    L = build_tables.select_layout(g); lab = build_tables.lab_only(g); U = build_tables.unlocks(g)
     order = sorted(L, key=lambda n: L[n]['slot'])
+    rung = {}
+    if U:
+        rung = {n: 0 for n in U['starters']}
+        for k, r in enumerate(U['rungs']): rung.update({n: k + 1 for n in r})
     fs = []
     for r in g['roster'] + list(lab.values()):
-        n = r['name']; sel = n in L
-        if not sel and n not in lab: continue            # (a form's other half: never on the select screen)
+        n = r['name']; sel = n in L or (bool(U) and r.get('selectable', True) and n not in lab)   # (the ladder: a roster
+        if not sel and n not in lab: continue            # fighter off it is still in the roster) (a form's other half: never)
         mu = r.get('music')
         fs.append({'name': n, 'display': r.get('display') or n.upper().replace('_', ' '), 'bank': r['bank'], 'selectable': sel,
-                   'lab': n in lab, 'from_lab': bool(r.get('from_lab')), 'face': bool(face(r)), 'locked': r.get('unlock', 'always') != 'always',
-                   'unlock': r.get('unlock', 'always'), 'music': mu, 'music_ok': bool(mu and mu in S),
-                   'place': order.index(n) + 1 if sel else None, 'pose': [r['watch']['frame'], r['watch']['step']]})
-    return {'fighters': fs, 'layout': L, 'max': MAX, 'stick': g['select'].get('stick', 'positions'),
+                   'lab': n in lab, 'from_lab': bool(r.get('from_lab')), 'face': bool(face(r)), 'locked': rung.get(n, 0) > 0 if U else r.get('unlock', 'always') != 'always',
+                   'unlock': r.get('unlock', 'always'), 'rung': rung.get(n) if U else None, 'music': mu, 'music_ok': bool(mu and mu in S),
+                   'place': order.index(n) + 1 if n in L else None, 'pose': [r['watch']['frame'], r['watch']['step']]})
+    return {'fighters': fs, 'layout': L, 'max': MAX,
+            'unlocks': {k: U[k] for k in ('starters', 'ladder', 'rung_size')} if U else None, 'stick': g['select'].get('stick', 'positions'),
             'free': dict(zip(('x', 'y'), free_place(L))), 'room': room(game) if with_room else None,
             'version': open(os.path.join(game, 'VERSION')).read().strip()}
 
@@ -192,6 +203,20 @@ def check(game, draft):
             moves.append((n, False)); lines.append(f'roster: {n} back to the Lab only')
         else: raise ValueError(f'selectable.{n}: true or false')
     sel = (set(L0) | {n for n, t in moves if t}) - {n for n, t in moves if not t}
+    U0 = build_tables.unlocks(g); Ud = draft.get('unlocks'); U = U0
+    if Ud is not None:
+        if not U0: raise ValueError('unlocks: game.json has no unlocks block (the ladder is switched off)')
+        if not isinstance(Ud, dict) or set(Ud) != {'starters', 'ladder', 'rung_size'}: raise ValueError('unlocks: {starters, ladder, rung_size}')
+        on = {r['name'] for r in g['roster'] if r.get('selectable', True)} | {n for n, t in moves if t}
+        on -= {n for n, t in moves if not t}
+        g2 = dict(g, roster=[{'name': n} for n in sorted(on)], unlocks=dict(g['unlocks'], **Ud))
+        try: U = build_tables.unlocks(g2)
+        except AssertionError as e: raise ValueError(str(e))
+        for k, w in (('starters', 'the starters'), ('ladder', 'the ladder'), ('rung_size', 'a rung')):
+            if Ud[k] != U0[k]: lines.append(f'unlocks: {w} ' + (' '.join(Ud[k]) if k != 'rung_size' else f'{Ud[k]} fighters'))
+    if U:                                                # (the ladder: only its fighters on the screen, every one)
+        on = ({r['name'] for r in g['roster'] if r.get('selectable', True)} | {n for n, t in moves if t}) - {n for n, t in moves if not t}
+        sel = {n for n in on if n in U['all']}
     if len(sel) > MAX: raise ValueError(f'{len(sel)} selectable fighters: the select screen has {MAX} places (main.c NA, its sprites)')
     D = draft.get('layout')
     L = {n: dict(v) for n, v in (D if isinstance(D, dict) and D else L0).items() if n in sel}
@@ -224,12 +249,23 @@ def check(game, draft):
         seen, n = set(), order[0]
         while n not in seen: seen.add(n); n = G[n][d]
         if seen != set(L): raise ValueError(f'the stick ({d}) does not reach {", ".join(sorted(set(L) - seen))}')
-    return moves, L, lines
+    return moves, L, lines, (Ud if Ud is not None and U0 and any(Ud[k] != U0[k] for k in Ud) else None)
 
 
-def write(game, moves, L):
+def unlocks_text(text, U):
+    """game.json text with its unlocks block's starters / rung_size / ladder lines rewritten (one line each)"""
+    k = text.index('\n "unlocks": {'); e = text.index('\n }', k)
+    blk = text[k:e]
+    for f in ('starters', 'rung_size', 'ladder'):
+        blk, n = re.subn(r'(\n  "' + f + r'": )[^\n]*?(,?)$', lambda m: m.group(1) + json.dumps(U[f]) + m.group(2), blk, count=1, flags=re.M)
+        assert n == 1, f'unlocks.{f}: not one line'
+    return text[:k] + blk + text[e:]
+
+
+def write(game, moves, L, U=None):
     p = os.path.join(game, 'game.json'); text = open(p).read()
     for n, t in moves: text = move(text, n, t)
+    if U: text = unlocks_text(text, U)
     open(p + '.part', 'w').write(text)
     try:
         select_layout.write(p + '.part', L)              # (build_tables.select_layout's checks on the moved roster)
@@ -243,8 +279,8 @@ def main():
     if len(a) >= 2 and a[0] == 'state': return print(json.dumps(state(a[1], '--no-room' not in a), ensure_ascii=False))
     if len(a) == 3 and a[0] == 'merge':
         try:
-            moves, L, ch = check(a[1], json.load(open(a[2])))
-            if ch: write(a[1], moves, L)
+            moves, L, ch, U = check(a[1], json.load(open(a[2])))
+            if ch: write(a[1], moves, L, U)
         except ValueError as e: print('REFUSED:', e); sys.exit(1)
         print('\n'.join(ch) or 'roster: no change')
         return

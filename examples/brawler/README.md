@@ -73,10 +73,39 @@ animation slots 36-41 of every fighter's table, in KOF95's art; KOF96 dropped th
 slot, so the watch pose is the closest front-facing frame (KOF98 / 99 intros 347-354 and wins 336-343; KOF96 208-239).
 HUD portraits (32x32 fix layer) stay for the fight.
 
+## The unlock ladder and the beta's cast (Bruno 2026-10-15, decisions set unlocks)
+Start: Terry and Robert. Each game clear (the last stage's boss, Rugal, beaten) unlocks the next 2 fighters, kept
+forever in the save; no other unlock. The ladder (game.json `unlocks`: starters, ladder, rung_size; Factory: Characters,
+Roster & select: a Ladder picker on each row, the rung size, the ladder in one line):
+
+| rung | fighters |
+|---|---|
+| start | Terry, Robert |
+| 1 | Ryo, Kyo |
+| 2 | Iori, Mai |
+| 3 | Kim, Haggar |
+| 4 | Moriya, Haohmaru |
+| 5 | Geese, Krauser |
+
+Only these 12 stand on the select screen (12 places along the street in ladder order, x 224-543, the three depth rows in
+turn; a locked one is a silhouette the cursor skips); every other roster fighter is an enemy only. Goenitz is out of the
+build (game.json roster_benched, Lab-only; his enemy, portrait, drama, story in `benched`, his song in songs.json
+songs_benched). The ladder screen (mode 7, main.c "the unlock ladder"): the 12 at once, a column per rung after the
+starters', locked ones as dark silhouettes of their select pose, unlocked ones in colour, UNLOCKED n/12 and what the
+next clear brings on the bottom line. After a game clear (the ending's THANK YOU): GAME CLEAR!, the new rung still dark,
+then flashing white / dark, then in colour playing their win pose with their select voice, NEW CHALLENGERS! in the big
+font (game.json big_text.ladder) and their names; A-D / START after 4 s (or 12 s) -> back to the BIOS (which commits the
+MVS save). From the title: CHALLENGERS (MVS and AES; no credit taken), any button back. The attract demo plays any of the
+12 whatever the save; the Lab builds keep the whole roster. Reset: the title's A+B+C+D held 2 s (SAVE DATA CLEARED; on
+MVS the game hands back to the BIOS 1.5 s later so the cleared block reaches the battery RAM). Proof:
+tools/brawler/unlock_proof.py (fresh / after 1 clear / after all, select 2 / 4 / 12, power cycles, the reset; /data/tmp/unlock_beta).
+
 ## Campaign (2026-10-05, Streets of Rage 2 / Golden Axe style)
 All of it is data since 2026-10-05: game.json `stages` (background, music, waves with their lock points and spawns,
 the boss with its minions), `enemies`, `ai.presets`, `tints` (docs/brawler_data_model.md); what follows is today's
-content. Five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`background`; 2, the
+content. Beta (2026-10-15): 4 stages in play, `stages[]` 1, 3, 4, 5 of game.json (the second, the garage on background 0, is
+switched off: `"off": true`) with the bosses of game.json `boss_order`: Mr. Big, Krauser, Geese, Rugal (the last = the game
+clear); the bonus games after the 1st and the 3rd. Before: five stages, Robo Army's horizontal ones in this order: `stages[]` 0, 1, 3, 4, 5 (`background`; 2, the
 512 px arena, is not used), one ROM, `stage_init(n)` at each stage start, a 32-frame fade to black and back between
 stages. Each stage scrolls end to end through 5 lock points spread evenly from camera x 0 to its end (448 px apart on
 the 2560 px stages, 256 on the 1600 px last one): at a lock point the camera stops until the wave there is beaten,
@@ -112,7 +141,7 @@ tools/brawler/win184_proof.py.
 | 2 | Krauser | KRAUSER | FF Special "Kaiser Wave" |
 | 3 | Geese | GEESE | FF Special |
 | 4 | Rugal | RUGAL / YASHIRO | KOF98 |
-| 5 | Goenitz | GOENITZ / IORI | KOF96 |
+| (5) | Goenitz: out of the beta | GOENITZ / IORI | KOF96 |
 
 A boss enemy's `base` is a roster fighter; when it is not in the roster, its `stand_in` fights instead (resolved by
 build_tables.py). A boss fighter is locked on the select screen until its stage is cleared (roster `unlock`:
@@ -153,7 +182,8 @@ Songs: game.json `music.continue` / `music.gameover` (a song, or FADE). Proof: /
 
 ## Save (SNK conventions, sdk/include/neo_backup.h)
 `save_t` (main.c, 16 bytes): 2 bytes debug dipswitches (SNK: the backup block starts with them), "BRW2", furthest
-stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), difficulty (0-3, AES OPTIONS), 5 spare, a 16-bit sum;
+stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), difficulty (0-3, AES OPTIONS), the unlock ladder's rungs (`rungs`,
+the first of the former 5 spare bytes: an older save reads 0), 4 spare, a 16-bit sum;
 anything that fails magic + sum is a fresh save. Format 1 ("BRW1", 2026-10-05: the difficulty byte was a 0 spare) is
 read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 (crt0; a released game needs its own number).
 - MVS (`BIOS_MVS_FLAG` $10FD82 != 0): the struct is the header's backup RAM block (`NEO_BACKUP`: header $10E/$112 =

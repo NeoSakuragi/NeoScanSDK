@@ -155,7 +155,9 @@ def select_data(game, cand=None, b=None):
                                                 # head_point.py can't find its head (the export would stop): not offered
             poses.append(dict(t['frame'], pose=t['poses'][0], alias=t['poses'], head=t['head'], pals=cand[n]['pals'], rom=False))
         u = r.get('unlock', 'always')
-        fighters[n] = {'name': disp.get(n, n.upper()), 'locked': u != 'always', 'poses': poses, 'wide': wide}
+        U = build_tables.unlocks(G)                    # (the unlock ladder: every ladder fighter locked in a fresh game)
+        lk = n not in U['starters'] if U else u != 'always'
+        fighters[n] = {'name': disp.get(n, n.upper()), 'locked': lk, 'poses': poses, 'wide': wide}
     stick = G.get('select', {}).get('stick', 'positions')   # the cursor graph (TODO #187): the build's (game_tables.c sel_stick)
     graph = build_tables.select_stick(L, build_tables.bm_heads(build, G), stick)
     return {'layout': L, 'stick': stick, 'graph': graph, 'roster': names, 'fighters': fighters, 'lut': LUT, 'floor': floor, 'sel_cols': sel_cols, 'na': na, 'line_max': 96,

@@ -22,6 +22,11 @@ The stage intro (voice note 20261014-192343-5d29, game.json stage_intro; build_t
 intro") is edited here too: the draft's optional `intro` = {fade, title, title_at, title_hold, walk_at, side, from, gait,
 wave_delay} (game-wide; a stage's own stages[].intro and the marks stay in game.json); only that block is rewritten.
 
+A stage switched off (game.json stages[] "off": true, the beta's 4 stages, Bruno 2026-10-15; build_tables.campaign) is
+listed with off = true and play = None (the others: play = their number in the campaign, what the HUD, the bonus's
+`after` and boss_order count); its fields are kept as they are (its song may be a benched one: songs.json
+songs_benched). Switching a stage on / off: game.json directly (with boss_order's bosses, one a stage in play).
+
 A name: 1-12 characters A-Z 0-9 space . ! - (the fix font; build_tables.STAGE_NAME, the HUD's room before WAVE).
 A background: a stage of the build wide enough for the stage's lock points (each wave's and the boss's: lock <= width
 - 320, build_tables.model). A song: a songs.json song. Stage 1 plays P1's own theme instead when he has one (game.json
@@ -50,10 +55,11 @@ def preview_key(s):
 def state(game):
     g = json.load(open(os.path.join(game, 'game.json')))
     songs = json.load(open(os.path.join(game, 'songs.json')))['songs']
-    st = []
+    st = []; play = 0
     for s in g['stages']:
         locks = [w['lock'] for w in s['waves']] + [s['boss']['lock']]
-        st.append({**{k: s[k] for k in FIELDS}, 'need_w': max(locks) + 320})
+        play += not s.get('off')
+        st.append({**{k: s[k] for k in FIELDS}, 'need_w': max(locks) + 320, 'off': bool(s.get('off')), 'play': None if s.get('off') else play})
     return {'stages': st, 'bgs': backgrounds(), 'stage1_theme': True, 'bonus': bonus_view(g), 'intro': intro_view(g),
             'songs': [{'name': s['name'], 'source': s['source'], 'what': s.get('what', '')[:160], 'preview': 'songs/' + preview_key(s)} for s in songs],
             'version': open(os.path.join(game, 'VERSION')).read().strip()}
@@ -139,7 +145,8 @@ def check(game, draft):
             raise ValueError(f'stage {n}: background {v["background"]!r}: none in the build (0-{len(bgs) - 1})')
         if bgs[v['background']]['w'] < old['need_w']:
             raise ValueError(f'stage {n}: background {v["background"]} is {bgs[v["background"]]["w"]} px wide, its waves need {old["need_w"]}')
-        if v['music'] not in songs: raise ValueError(f'stage {n}: music {v["music"]!r} is no song of songs.json')
+        if v['music'] not in songs and not (old['off'] and v['music'] == old['music']):   # (a stage off: its benched song kept)
+            raise ValueError(f'stage {n}: music {v["music"]!r} is no song of songs.json')
         for k in FIELDS:
             if v[k] != old[k]: ch.append(f'levels: stage {n} {k} {json.dumps(old[k])} -> {json.dumps(v[k])}'.replace('"', ''))
         out.append(v)
