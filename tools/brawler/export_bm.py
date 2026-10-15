@@ -1112,6 +1112,19 @@ def sreact_c():
         f'{{{fx(r["vx"])}, {fx(r["ax"])}, {fx(r["vy"])}, {fx(-r["ay"])}, {fx(r["bvx"])}, {fx(r["bvy"])}, {fx(-r["bay"])}, {r["r"]}, {r["n"]}, '
         f'{0xFF if r["land"] < 0 else r["land"]}, {r["anim"] & 0xFF}}}' for r in SREACTS) + (' {0}' if not SREACTS else '') + '};']
 
+def both_sides(n, sp):
+    """game.json roster[].box_both_sides {special input: {"states": [...]}} (note 20261016-003923-e03d, Robert's MAX
+    23624C: "make the hitbox of that Spinning Dragon punch also touch people behind him"): the attack boxes of the ROM
+    program's steps in those states (its 'anim' ops' states) mirrored to both sides of the body: centred on it (x 0),
+    half width |x| + w, so the box reaches as far behind as ahead (fighter.c combat: a box centred on the body sends
+    its victims away from the attacker, both ways). -> {state: 0} (rom_c counts the boxes it widened)"""
+    e = ((roster().get(n) or {}).get('box_both_sides') or {}).get(sp['input'])
+    if not e: return {}
+    assert set(e) <= {'about', 'states'} and e.get('states'), f'{n}: box_both_sides {sp["input"]}: {{"states": [...]}}'
+    missing = [st for st in e['states'] if st not in sp['rom']['states']]
+    assert not missing, f'{n}: box_both_sides {sp["input"]}: states {missing} are not in its program ({sp["rom"]["states"]})'
+    return {st: 0 for st in e['states']}
+
 def rom_c(n, k, sp, game, vres=None):
     """a special read from the ROM (tools/kof96/handlers98.export_rom) as C: its animations (bstep_t: flags 1 attack box
     live (KOF $0100, the last box loaded), 2 hurt box, 8 event ($0080), 16 same hit ($4000)), its program (bprim_t), its
@@ -1126,6 +1139,7 @@ def rom_c(n, k, sp, game, vres=None):
         if not jug or r.get('sreact'): return v        # KOF's hurt-kept bit: fighter.c kof_react KM_HURT), the juggle
         return v | (8 if v & 7 else 0) | (0x80 if v & 0x70 else 0)   # cap still counting (Bruno 2026-10-11, Kyo's 623A)
     kof = kof_prog(sp, game)                           # KOF96 / 98 / 99: a step's hurt box counts only with its $0200 flag
+    both = both_sides(n, sp)                           # roster[].box_both_sides: those states' attack boxes cover behind too
     for j, st in enumerate(r['states']):               # (TODO #205: the boxes stay loaded across steps, $0200 says the
         a = r['anims'][st]; steps = []                 # step has one; Kyo's EX 421D 774 / 775 / 776 have none: KOF98's
         for s in a['steps']:                           # 11 untouchable frames; tools/kof96/handlers98.react_hurt's rule)
@@ -1134,9 +1148,11 @@ def rom_c(n, k, sp, game, vres=None):
             if kof and not fl & 0x200: hb = None
             if ab: live = ab
             ab = live if fl & 0x100 else None
+            if ab and st in both: ab = (0, ab[1], min(255, abs(ab[0]) + ab[2]), ab[3]); both[st] += 1
             steps.append(f'{{{s["frame"]}, {s["ticks"]}, {(1 if ab else 0) | (2 if hb else 0) | (8 if fl & 0x80 else 0) | (16 if fl & 0x4000 else 0) | (32 if fl & 0x2000 else 0) | (64 if ab and s.get("catch") else 0) | (128 if ab and s.get("nostop") else 0) | (4 if ab and s.get("noslide") else 0) | (4 if r.get("sreact") and s.get("push") else 0)}, '
                          f'{bb(hb)}, {bb(ab)}, {-s["dx"]}, {(sr_hy(n, s.get("react", 0)) if r.get("sreact") else hy(s.get("react", 0))) if ab else 0}}}')   # hy: KOF's reaction (handlers98.box_react) / a source reaction
         out.append(f'static const bstep_t {n}_sp{k}_a{j}[] = {{' + ', '.join(steps) + '};')
+    assert all(both.values()), f'{n}: box_both_sides {sp["input"]}: states {[st for st, c in both.items() if not c]} have no attack box'
     out.append(f'static const banim_t {n}_sp{k}_an[] = {{' + ', '.join(
         f'{{{len(r["anims"][st]["steps"])}, {1 if r["anims"][st]["mode"] == "hold" else 0}, {n}_sp{k}_a{j}}}' for j, st in enumerate(r['states'])) + '};')
     if r.get('prims'):                               # a program written by its source's exporter (export_dd: the

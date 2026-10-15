@@ -4873,5 +4873,25 @@
   "expect": "Down + C: the small Jaeiken (KOF96's 623A, a short low rise). Down-forward + C: the big Jaeiken (623C). C: the Double Reppuken as before 0.10.123.",
   "do_keys": "2:D,1:Dc,90:-,2:DR,1:DRc,90:-,2:c,90:-",
   "proof": 320
+ },
+ "20261016-003923-e03d": {
+  "title": "Robert's MAX fury: the final spinning dragon punch also hits the enemy behind him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "x": 240,
+   "gap": 40,
+   "extra": [
+    -45
+   ],
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Robert's life is low (red) and his meters are full; one Ryo stands in front of him near the right edge, another a step behind him. Press down + D (the MAX fury) and watch the last move, the spinning dragon punch.",
+  "expect": "The MAX rushes and hits the Ryo in front; its final spinning dragon punch hits both Ryos: the one in front and the one behind Robert, each knocked away from him. The plain fury (D) and his other moves are unchanged.",
+  "do_keys": "3:Dd",
+  "proof": 400
  }
 }

@@ -75,6 +75,7 @@
    "fury": "23624C",
    "fury_damage_scale": 2,
    "hit_sfx": {"23624C": {"states": [184, 185], "sound": "94 DRAGON HIT"}, "MAX 23624C": {"states": [196, 197], "sound": "94 DRAGON HIT"}},
+   "box_both_sides": {"MAX 23624C": {"about": "note 20261016-003923-e03d (tester, Robert's MAX fury: 'make the hitbox of that Spinning Dragon punch also touch people behind him'): the final dragon punch's attack boxes (states 196 / 197, its hit_sfx states) mirrored to both sides of his body (export_bm both_sides)", "states": [196, 197]}},
    "unlock": "always",
    "voices": "kof"
   },
