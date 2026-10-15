@@ -389,7 +389,6 @@ static void camera(void) {
 
 /* Neo Geo draws higher sprite numbers on top: fighters further back get the lower blocks. A fighter whose block changed
  * gets its tiles rewritten into the new block (the position pass covers every block every frame, so nothing to hide). */
-static void lad_shrink(uint16_t *y, uint16_t *x, uint8_t m, uint16_t spr, int16_t ox, int16_t oy, uint8_t k);
 static uint8_t block_placed[NA];                 /* columns each sprite block showed last frame */
 static uint16_t block_spr[NA];                   /* where it showed them (a block's place moves with the widths before it) */
 static uint16_t slot_spr[NA];                    /* each depth slot's first sprite this frame (depth_sort) */
@@ -1404,7 +1403,6 @@ static void draw(void) {
                 BANK_set(CH_BANK(f->ch));
                 f->y += b;                                       /* (the run's float: drawn only, the shadow on the floor) */
                 trim_cur = &col_trim[f->idx]; fighter_place(f, y, x, cam_x, m);
-                if (mode == MODE_LADDER) lad_shrink(y, x, m, spr, INT(f->x) - cam_x, floor_top + INT(f->z) - INT(f->y), f->idx);
                 f->y = fy;
                 bk_f[i] = keep && f->shown_frame != 0xFFFF && !blk_new[f->idx] ? f : 0;   /* (thinned this frame: its
                                                                     trims come back next frame) */
@@ -4260,9 +4258,10 @@ static void show_tick(void) {
  * rung (save.rungs, kept in the save: MVS backup RAM, AES memory card) and the select screen shows only these fighters
  * (only the unlocked ones are drawn there: select_layers). This screen shows them all at once on ONE line (Bruno
  * 2026-10-15: "every character on the same horizontal axis"; build_tables.py ladder_places: lad_pos, feet on one y, in
- * ladder order left to right, evenly spaced), each in its select pose at 5/16 size (Bruno 2026-10-15 "spread out the
- * players to avoid overlap": the hardware shrink, SCB2 LAD_SHRINK on their blocks, and lad_shrink pulls each column's
- * place toward the feet: ~25 px a fighter, none overlapping), unlocked in colour,
+ * ladder order left to right at a fixed pitch: game.json unlocks.screen.pitch), each in its select pose at full size
+ * (Bruno 2026-10-15, the select screen's idea: "make them spaced enough, from left to right; if the characters are too
+ * far to the right, just scroll": a row wider than the TV pans the camera, 0 .. LAD_CAM_MAX, over the plain backdrop
+ * to the rung just unlocked, lad_camera), unlocked in colour,
  * locked as a dark silhouette (SILHOUETTE / SILHOUETTE_B every other one: LAD_SIL), so the player sees what comes next. After a game clear (the ending's last
  * screen): the rung just unlocked starts as silhouettes, then LAD_FLASH ticks of white / silhouette flashes, its
  * fighters in colour playing their win pose with their select voice, NEW CHALLENGERS! (big_text.ladder) and their names;
@@ -4275,9 +4274,6 @@ static void show_tick(void) {
 #define LAD_MIN    240                           /* after a game clear: a button passes it from here */
 #define LAD_TIME   720                           /* ... or by itself */
 #define LAD_SIL(i) ((i) & 1 ? 4 : 2)              /* a locked one's silhouette: two tones, every other one lighter (they overlap) */
-/* LAD_K (game_tables.h, build_tables.ladder_scale): the ladder's fighters at LAD_K / 16 of their size (12 fighters 26 px
-   apart: 5, at 8 or 6 a held-out arm or a wide stance touched the next one; the beta's 6, 54 px apart: 8, half size) */
-#define LAD_SHRINK ((LAD_K - 1) << 8 | (LAD_K * 16 - 1))   /* SCB2: LAD_K of 16 px wide, LAD_K * 16 of 256 lines high */
 static uint16_t lad_t;
 static void lad_info(void) {                     /* the line under the front row's feet: the progress, what unlocks more */
     uint8_t i, n = 0, row = 26, c, m = 0;
@@ -4303,48 +4299,15 @@ static void lad_names(uint8_t rung) {            /* the new rung's names, side b
     t[k] = 0;
     centre(8, t);
 }
-static void lad_scb2(uint16_t v) {               /* the ladder fighters' blocks (slots 0 .. LAD_N - 1: depth_sort puts
-                                                    the unused actors last) */
-    uint16_t i;
-    for (i = SEL_SPR; i < SEL_SPR + LAD_N * SEL_COLS; i++) cmd_push(VRAM_SCB2 + i, v);
-}
-/* draw(): a ladder fighter's (actor k) SCB3 / SCB4 words (fighter_place, full size) at LAD_K / 16 of its size around
- * its feet (ox, oy): each column's top and x pulled toward them, its height in tiles scaled (rounded up: the window
- * shows up to 15 lines past the shrunk column, the tile rows there set blank: tile 0, export_bm's empty tile); then the
- * whole body moved so its columns' box is centred on its place (lad_off, measured on its first frame: a pose reaching
- * one way, a fist held out, stays in its own 25 px) */
-static int8_t lad_off[LAD_N ? LAD_N : 1];
-static uint16_t lad_off_set;                     /* bit k: lad_off[k] measured (LAD_N <= 16) */
-static void lad_shrink(uint16_t *y, uint16_t *x, uint8_t m, uint16_t spr, int16_t ox, int16_t oy, uint8_t k) {
-    uint8_t c, b0[MAX_COLS], bn[MAX_COLS];      /* each column's blank tile rows: the first, how many */
-    int16_t lo = 0x7FFF, hi = -0x7FFF;
-    for (c = 0; c < m; c++) {
-        uint16_t rows = y[c] & 0x3F, n;
-        int16_t t, d;
-        bn[c] = 0;
-        if (!rows) continue;
-        t = (int16_t)((496 - (y[c] >> 7) - oy) & 0x1FF); if (t >= 256) t -= 512;   /* its top line, from the feet */
-        t = oy + ((t * LAD_K) >> 4);
-        n = (uint16_t)((rows * LAD_K + 15) >> 4);                 /* its height in tiles */
-        y[c] = (uint16_t)(((496 - t) & 0x1FF) << 7) | n;
-        d = (int16_t)(((x[c] >> 7) - ox) & 0x1FF); if (d >= 256) d -= 512;
-        d = (d * LAD_K) >> 4;
-        if (d < lo) lo = d;
-        if (d + LAD_K > hi) hi = d + LAD_K;
-        x[c] = (uint16_t)((ox + d) & 0x1FF) << 7;
-        b0[c] = (uint8_t)rows;                   /* the window's lines past the column: their tile rows blank */
-        for (t = (int16_t)(n * 16 - rows * LAD_K); t > 0 && rows < 32; t -= LAD_K, rows++) bn[c]++;
-    }
-    if (k < LAD_N && lo <= hi) {
-        if (!(lad_off_set >> k & 1)) { lad_off_set |= 1 << k; lad_off[k] = (int8_t)(-((lo + hi) >> 1)); }
-        if (lad_off[k]) for (c = 0; c < m; c++) if (y[c] & 0x3F) x[c] = (uint16_t)(x[c] + (lad_off[k] << 7)) & 0xFF80;
-    }
-    for (c = 0; c < m; c++)                      /* (only now: a full queue flushes at once, the y / x runs with it) */
-        if (bn[c]) { uint16_t *w = cmd_run(VRAM_SCB1 + (spr + c) * 64 + b0[c] * 2, bn[c] * 2), j; for (j = 0; j < bn[c] * 2; j++) w[j] = 0; }
+static int16_t lad_goal;                         /* the camera's goal: the new rung's fighters centred (0: none new) */
+static void lad_camera(void) {                   /* eased toward lad_goal (the select's sel_camera feel) */
+    int16_t d = lad_goal - cam_x, st = d >> 3;
+    if (!st && d) st = d > 0 ? 1 : -1;
+    cam_x += st;
 }
 static void ladder_start(void) {
     uint8_t i;
-    mode = MODE_LADDER; lad_t = 0; cam_x = 0; attract = 0; lad_off_set = 0;
+    mode = MODE_LADDER; lad_t = 0; cam_x = 0; attract = 0;
     FIX_clear(); arcade_line_reset(); bt_hide(); pb_hide();
     stage_hide();
     floor_top = SELECT_FLOOR;
@@ -4364,23 +4327,27 @@ static void ladder_start(void) {
         fighter_pals(f, lad_rung[i] > save.rungs || (lad_new && lad_rung[i] == lad_new) ? LAD_SIL(i) : 1);
     }
     nf = NA;
-    lad_scb2(LAD_SHRINK);
+    {   int16_t lo = 0x7FFF, hi = -0x7FFF;           /* the new rung's feet x: the camera pans to centre them */
+        for (i = 0; i < LAD_N; i++) if (lad_new && lad_rung[i] == lad_new) { if (lad_pos[i].x < lo) lo = lad_pos[i].x; if (lad_pos[i].x > hi) hi = lad_pos[i].x; }
+        lad_goal = lo <= hi ? ((lo + hi) >> 1) - 160 : 0;
+        if (lad_goal < 0) lad_goal = 0;
+        if (lad_goal > LAD_CAM_MAX) lad_goal = LAD_CAM_MAX; }
     FIX_print(14, 2, "GAME CLEAR!", 1);
     lad_info();
 }
-static void lad_hide(void) {                     /* the hand-back: the actors' sprites off, their blocks full size again */
+static void lad_hide(void) {                     /* the hand-back: the actors' sprites off */
     uint16_t i, *y = cmd_run(VRAM_SCB3 + SEL_SPR, BLK_END - SEL_SPR);
     for (i = 0; i < BLK_END - SEL_SPR; i++) y[i] = 0;
     for (i = 0; i < NA; i++) { actor(i)->state = S_OFF; block_placed[i] = 0; }
     blk_key_reset();
     nf = 0;
-    lad_scb2(0x0FFF);
 }
 static void ladder_tick(void) {
     uint16_t pr = JOY_pressed(0) | JOY_pressed(1);
     uint8_t i, btn = (pr & (JOY_A | JOY_B | JOY_C | JOY_D | JOY_START)) != 0;
     lad_t++;
     bios_start = 0;
+    if (lad_t >= 20) lad_camera();               /* a beat on the start, then the pan (done before the flash) */
     if (lad_new && lad_t >= LAD_REVEAL && lad_t <= LAD_REVEAL + LAD_FLASH && !((lad_t - LAD_REVEAL) & 3)) {
         uint8_t k = (uint8_t)((lad_t - LAD_REVEAL) >> 2), look = k == LAD_FLASH / 4 ? 1 : (k & 1) ? 2 : 3;   /* white,
                                                              silhouette, ... then the colours */

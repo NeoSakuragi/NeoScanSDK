@@ -3,16 +3,15 @@
 our emulator (harness.py, the arcade system mvs-mvs = SNK's MVS BIOS, a fresh save dir = a fresh battery RAM):
 
   0. the ladder screen's places (build_tables.ladder_places): every ladder fighter on ONE line (one feet y), in ladder
-     order left to right, evenly spaced, on the screen
+     order left to right at the fixed pitch (unlocks.screen.pitch), full size; a row wider than the TV scrolls
   1. power on, coin, the title: NEW GAME only (MVS), NO ladder line in its menu (Bruno 2026-10-15: "only show this at
      the end of the game when there is an unlocking") and no CONTINUE STAGE, even after clears (Bruno 2026-10-15: "There
      is no resume: every new game starts from stage 1"); NEW GAME -> the select screen (ONLY the 2 starters drawn, on their places for 2:
      build_tables.select_layers, select.auto: spread with no overlap; the cursor walk reaches only them; the same after each power cycle: 4, 12)
   2. a game clear x5 (scenario.py's stage mode: the last stage, its boss at 1 life, killed; then the ending passed with
      START, as a player does): each clear's ladder screen (the new rung revealed: silhouette -> white flash -> colour,
-     NEW CHALLENGERS!), every fighter drawn at half size (the hardware shrink) with NO overlap: on the screenshot, the
-     fighters' band (feet - 100 .. feet) has no lit pixel column holding two fighters' feet x (each fighter's drawn box
-     disjoint from its neighbours'), then the hand-back to the BIOS (which commits the MVS backup RAM)
+     NEW CHALLENGERS!), every fighter at full size, the camera panned so the new rung's feet x are on the TV once the
+     flash starts, then the hand-back to the BIOS (which commits the MVS backup RAM)
   3. after clear 1: a POWER CYCLE (the core writes the .nv and loads it again): the select screen shows 4 fighters
      (save.rungs = 1 read back from the battery RAM)
   4. after the last rung's clear (3 in the beta: Haohmaru + Hanzo, Kyo + Kim, Haggar alone) the ladder complete, one more clear unlocks nothing: NO ladder screen, the ending hands
@@ -38,7 +37,8 @@ P = build_tables.ladder_places(U, U['screen'])          # the ladder screen: one
 dx = [b2[2] - a[2] for a, b2 in zip(P, P[1:])]
 lines_pre = [f'ladder screen places: {len(P)} fighters, feet y {sorted({e[3] for e in P})}, x {P[0][2]}-{P[-1][2]} step {min(dx)}-{max(dx)}, '
              f'order {" ".join(e[0] for e in P)}']
-ok_pre = len({e[3] for e in P}) == 1 and [e[0] for e in P] == U['all'] and max(dx) - min(dx) <= 1 and 8 <= P[0][2] and P[-1][2] <= 311
+PITCH = dict(build_tables.LADDER_SCREEN, **(U['screen'] or {}))['pitch']
+ok_pre = len({e[3] for e in P}) == 1 and [e[0] for e in P] == U['all'] and set(dx) == {PITCH} and 8 <= P[0][2]
 H.OPTIONS.update(scenario.SYSTEMS['mvs-mvs'])
 b = H.Brawler(rom=os.path.join(GAME, 'brawler.neo'), game=GAME); b.game = GAME; Y = b.syms
 lines, bad = [], 0
@@ -89,27 +89,11 @@ def title_pick(item):
     b.seq('4:a,2:-')
 
 
-def apart(path):
-    """the fighters' band on a ladder screenshot: its lit pixel columns' runs (not the backdrop); each run may hold at
-    most one fighter's feet x (two = their bodies touch or overlap) -> (ok, runs, feet x)"""
-    from PIL import Image
-    from collections import Counter
-    im = Image.open(path).convert('RGB'); W, Hh = im.size; x0 = (320 - W) // 2   # (the screenshot: x 8-311, 304 px)
-    feet = P[0][3]
-    band = range(feet - 90, feet - 1)                   # (above the info line under the feet)
-    bg = Counter(im.getpixel((x, y)) for x in range(W) for y in band).most_common(1)[0][0]   # the backdrop
-    lit = [x0 <= x < x0 + W and any(im.getpixel((x - x0, y)) != bg for y in band) for x in range(320)]
-    runs, x = [], 0
-    while x < 320:
-        if lit[x]:
-            x0 = x
-            while x < 320 and lit[x]: x += 1
-            runs.append((x0, x - 1))
-        else: x += 1
-    fx = [e[2] for e in P]
-    worst = max(sum(r0 - 1 <= f <= r1 + 1 for f in fx) for r0, r1 in runs) if runs else 0
-    owned = sum(any(r0 - 1 <= f <= r1 + 1 for r0, r1 in runs) for f in fx)
-    return worst <= 1 and owned >= len(fx) - 1, runs, fx
+def on_screen(new):
+    """the camera (cam_x) at the moment: the new rung's feet x on the TV (x 8-311) -> (ok, cam, their screen x)"""
+    cam = b.r(Y['cam_x'], 2); cam -= 0x10000 if cam >= 0x8000 else 0
+    sx = [e[2] - cam for e in P if e[1] == new]
+    return all(24 <= x <= 296 for x in sx), cam, sx
 
 
 def select_view(tag):
@@ -163,9 +147,9 @@ def clear(k):
     for t, at in (('a', 30), ('b', 64), ('c', 70), ('d', 76), ('e', 90), ('f', 200)):
         while b.r(Y['lad_t'], 2) < at: b.run(1)
         p = shot(f'clear{k}_{t}_t{at}')
-        if t in ('a', 'f'):
-            ok, runs, fx = apart(p)
-            say(f'clear {k} t{at}: no overlap: {len(runs)} lit runs in the fighters\' band {runs}, feet x {fx}', ok)
+        if t in ('d', 'f'):
+            ok, cam, sx = on_screen(new)
+            say(f'clear {k} t{at}: camera x {cam}, rung {new} at screen x {sx}', ok)
     b.run(260 - b.r(Y['lad_t'], 2)); b.seq('4:a,2:-')
     wait(lambda: mode() != 7, 'the hand-back', 600)
     say(f'clear {k}: A after the reveal -> back to the BIOS (mode {mode()})')

@@ -187,8 +187,8 @@ def unlocks(g):
     for f in al: assert f in names, f'unlocks: {f} is not a selectable roster fighter'
     assert len(al) <= LADDER_MAX, f'unlocks: {len(al)} fighters, {LADDER_MAX} at most (main.c NA)'
     scr = u.get('screen') or {}
-    for k, v in scr.items(): assert (k in LADDER_SCREEN or k == 'scale') and isinstance(v, int), f'unlocks.screen.{k} {v!r} (feet, from, to: px; scale: 16ths)'
-    assert 4 <= scr.get('scale', 8) <= 16, 'unlocks.screen.scale: 4-16 (16ths of full size)'
+    for k, v in scr.items(): assert k in LADDER_SCREEN and isinstance(v, int), f'unlocks.screen.{k} {v!r} (feet, margin, pitch: px)'
+    assert 40 <= scr.get('pitch', 90) <= 200, 'unlocks.screen.pitch: 40-200 px'
     return {'starters': st, 'ladder': la, 'rung_size': n, 'rungs': rg, 'all': al, 'screen': scr}
 
 
@@ -309,33 +309,31 @@ def select_shown(g, build=None):
     return select_layers(g, None, build)[-1][2]
 
 
-LADDER_SCREEN = {'feet': 200, 'from': 46, 'to': 289}     # unlocks.screen defaults (ladder_places)
-
-
-def ladder_scale(U):
-    """the ladder screen's fighters' size in 16ths (main.c LAD_K: the hardware shrink, Bruno 2026-10-15 "spread out the
-    players to avoid overlap"): unlocks.screen.scale, else from the spacing: a KOF pose up to ~80 px wide at full size
-    within its place's width, 4-8 (25-50 %; 12 fighters 26 px apart: 5, 7 fighters 48 px apart: 8)"""
-    s = dict(LADDER_SCREEN, **(U['screen'] or {})); n = len(U['all'])
-    if 'scale' in s: return s['scale']
-    step = (s['to'] - s['from']) / (n - 1) if n > 1 else 300
-    return max(4, min(8, int(step * 16 / 80)))
+LADDER_SCREEN = {'feet': 200, 'margin': 40, 'pitch': 90}   # unlocks.screen defaults (ladder_places)
 
 
 def ladder_places(U, scr=None):
     """the unlock ladder screen's places (main.c ladder_start; Bruno 2026-10-15: "every character on the same horizontal
-    axis"): every ladder fighter (starters, then the rungs) on ONE line, feet at screen y `feet`, in ladder order left to
-    right, evenly spaced from screen x `from` to `to` (their feet; the TV shows x 8-311), each in its select pose facing
-    the middle; drawn from the ends inward (the middle ones in front where the bodies overlap) -> [(fighter, rung 0 =
-    starters, x, y, z, face)]"""
+    axis", then "same idea as the select screen: make them spaced enough, from left to right; if the characters are too
+    far to the right, just scroll"): every ladder fighter (starters, then the rungs) at full size on ONE line, feet at
+    screen y `feet`, in ladder order left to right at a fixed `pitch` px feet to feet, the first `margin` px from the
+    left; a row narrower than the TV centred on it, a wider one panned by the camera (ladder_cam_max, main.c lad_camera);
+    each in its select pose facing the middle; drawn from the ends inward (the middle ones in front where the bodies
+    overlap) -> [(fighter, rung 0 = starters, world x, y, z, face)]"""
     s = dict(LADDER_SCREEN, **(scr or {})); al = U['all']; n = len(al); out = []
     rung = {f: 0 for f in U['starters']}
     for k, c in enumerate(U['rungs']): rung.update({f: k + 1 for f in c})
-    for k, f in enumerate(al):
-        x = round(s['from'] + (s['to'] - s['from']) * k / (n - 1)) if n > 1 else (s['from'] + s['to']) // 2
-        out.append([f, rung[f], x, s['feet'], 0, 1 if 2 * k < n - 1 else -1])
+    w = (n - 1) * s['pitch']
+    x0 = 160 - w // 2 if w <= 320 - 2 * s['margin'] else s['margin']
+    for k, f in enumerate(al): out.append([f, rung[f], x0 + k * s['pitch'], s['feet'], 0, 1 if 2 * k < n - 1 else -1])
     for z, e in enumerate(sorted(out, key=lambda e: (-abs(2 * al.index(e[0]) - (n - 1)), e[2]))): e[4] = z
     return [tuple(e) for e in out]
+
+
+def ladder_cam_max(U, scr=None):
+    """the ladder camera's right end (main.c LAD_CAM_MAX): the last fighter's feet `margin` px from the TV's right edge"""
+    s = dict(LADDER_SCREEN, **(scr or {})); P = ladder_places(U, scr)
+    return max(0, P[-1][2] + s['margin'] - 320) if P else 0
 
 
 SEL_ROW_GAP = 16                                         # select_stick: body centres more than this apart (y) = another row
@@ -1777,14 +1775,14 @@ def tables(g, build):
     P = ladder_places(U, U['screen']) if U else []
     h += [f'#define LAD_N {len(P)}            /* the unlock ladder (game.json unlocks): its fighters, starters first; 0 = none */',
           f'#define LAD_RUNGS {len(U["rungs"]) if U else 0}             /* rungs (each its own size: lad_rung) */',
-          f'#define LAD_K {ladder_scale(U) if U else 8}             /* the ladder screen\'s fighters: LAD_K / 16 of full size (ladder_scale) */',
+          f'#define LAD_CAM_MAX {ladder_cam_max(U, U["screen"]) if U else 0}             /* the ladder screen\'s camera: 0 .. this (a row wider than the TV: ladder_cam_max) */',
           'extern const uint8_t lad_fighter[LAD_N ? LAD_N : 1], lad_rung[LAD_N ? LAD_N : 1], lad_slot[LAD_N ? LAD_N : 1];',
           'extern const sel_slot_t lad_pos[LAD_N ? LAD_N : 1];']
     if P:
         c.append('const uint8_t lad_fighter[LAD_N] = { ' + ', '.join(str(idx[e[0]]) for e in P) + ' };   /* ' + ' '.join(e[0] for e in P) + ' */')
         c.append('const uint8_t lad_rung[LAD_N] = { ' + ', '.join(str(e[1]) for e in P) + ' };   /* 0 the starters, k rung k */')
         c.append('const uint8_t lad_slot[LAD_N] = { ' + ', '.join(str(L[e[0]]['slot']) for e in P) + ' };   /* its select slot (its palettes: sel_palbase) */')
-        c.append('const sel_slot_t lad_pos[LAD_N] = { ' + ', '.join(f'{{ {e[2]}, {e[3]}, {e[4]}, {e[5]} }}' for e in P) + ' };   /* screen x, feet y, draw order, face */')
+        c.append('const sel_slot_t lad_pos[LAD_N] = { ' + ', '.join(f'{{ {e[2]}, {e[3]}, {e[4]}, {e[5]} }}' for e in P) + ' };   /* world x (the camera 0 .. LAD_CAM_MAX), feet y, draw order, face */')
     else:
         c += ['const uint8_t lad_fighter[1], lad_rung[1], lad_slot[1];', 'const sel_slot_t lad_pos[1];']
     SJ = json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))
