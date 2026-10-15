@@ -135,6 +135,24 @@ block = """    # >>> brawler-feedback (NeoScanSDK tools/feedback/deploy_vps.sh, 
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
     }
+    location = /brawler-player-auth {
+        internal;
+        proxy_pass http://127.0.0.1:8900/api/authcheck?tag=brawler_tester,brawler_admin;
+        proxy_pass_request_body off;
+        proxy_set_header Content-Length "";
+    }
+    # the Brawler app for the web (Bruno 2026-10-15): /brawler/get/ = a download page + the tester APK
+    # (/data/brawler/get, filled by tools/brawler/publish_app.sh), behind the Oros sign-in, testers and admins only
+    location = /brawler/get { return 301 /brawler/get/; }
+    location = /brawler/get/login.html { alias /data/brawler/get/login.html; add_header Cache-Control "no-cache" always; }
+    location ^~ /brawler/get/ {
+        auth_request /brawler-player-auth;
+        error_page 401 = @brawlerget_login;
+        alias /data/brawler/get/;
+        add_header Cache-Control "no-cache" always;
+        types { text/html html; application/vnd.android.package-archive apk; }
+    }
+    location @brawlerget_login { return 302 /brawler/get/login.html; }
     location = /brawler-dl-auth {
         internal;
         proxy_pass http://127.0.0.1:8920/dlauth;
