@@ -325,6 +325,8 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
   grabs you); vary combos (remember the ones used, try another next time to show the variety); a red-flash low-life
   period where he can use his fury and MAX fury like a player. Harder than today even at level 4.
 
+- [ ] Lab packs (paused 2026-10-15, Bruno: not using the Lab): since 0.10.109 the Character Lab shell/packs don't build (T9 guard anim = new slot ABI; shell past .labanchor). Unmerged branch `lab-pack-format2` (75732a4: format 2 + stage maps to P2 bank 0) — finish: rebuild all packs, Brawler Dev APK accepting format 2, labpub.
+
 ## Open work (2026-10-05) — the 10-minute loop takes the first unchecked item of "Loop queue", one agent at a time
 
 ### Loop queue (in order)
