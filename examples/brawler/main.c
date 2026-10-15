@@ -583,20 +583,34 @@ static void shadows(void) {
 #define SPARK_SPR 364
 #define SPARK_N   4
 #define SPARK_PAL 254
-typedef struct { uint8_t on, kind, frame, t; int16_t x, y; int8_t facing; } spark_state_t;
+#define GSPARK_PAL 247                                       /* the guard spark's (T9): one of the big portraits' palettes
+                                                                (a drama never shows during a fight's hit), loaded with
+                                                                each guard spark */
+typedef struct { uint8_t on, kind, frame, t; int16_t x, y; int8_t facing; uint8_t pal; } spark_state_t;
 static spark_state_t spk[SPARK_N];
+static uint16_t gspark_pal[16];                              /* KOF98's small spark in cold blue-white (sparks_init) */
+/* big: 0 small, 1 big, 2 the guard spark (a blocked hit, fighter.c "guard"): the small spark's frames in a blue-white
+ * palette (a stand-in until KOF's own guard spark is captured) */
 void spark_hit(int16_t wx, int16_t sy, uint8_t big, int8_t facing) {
     uint8_t i, best = 0;
     for (i = 0; i < SPARK_N; i++) {                          /* a free slot, else the oldest */
         if (!spk[i].on) { best = i; break; }
         if (spk[i].frame > spk[best].frame) best = i;
     }
-    spk[best].on = 1; spk[best].kind = big ? SPARK_BIG : SPARK_SMALL; spk[best].frame = 0; spk[best].t = 0;
-    spk[best].x = wx; spk[best].y = sy; spk[best].facing = facing;
+    spk[best].on = 1; spk[best].kind = big == 1 ? SPARK_BIG : SPARK_SMALL; spk[best].frame = 0; spk[best].t = 0;
+    spk[best].x = wx; spk[best].y = sy; spk[best].facing = facing; spk[best].pal = big == 2 ? GSPARK_PAL : SPARK_PAL;
+    if (big == 2) PAL_setPalette(GSPARK_PAL, gspark_pal);
 }
 static void sparks_init(void) {
     uint8_t i;
     PAL_setPalette(SPARK_PAL, spark_pal);
+    for (i = 0; i < 16; i++) {                               /* the guard spark's: each colour's light, cold */
+        uint16_t c = spark_pal[i];
+        int16_t r = ((c >> 7) & 0x1E) | ((c >> 14) & 1), g = ((c >> 3) & 0x1E) | ((c >> 13) & 1), b = ((c << 1) & 0x1E) | ((c >> 12) & 1);
+        int16_t l = (r * 5 + g * 9 + b * 2) >> 4;
+        gspark_pal[i] = i ? RGB(((l * 3) >> 2) + 6, ((l * 7) >> 3) + 7, l + 12 > 31 ? 31 : l + 12) : c;   /* (no dark
+                                                                    blues: a light burst) */
+    }
     for (i = 0; i < SFX_NPAL; i++) PAL_setPalette(SFX_PAL + i, bm_sfx_pals + (i << 4));   /* KOF's shared effects bank's
                                                                     palettes (TODO #214: Iori 624D's explosion, Rugal's slam) */
     for (i = 0; i < SPARK_N * 3; i++) { cmd_push(VRAM_SCB2 + SPARK_SPR + i, 0x0FFF); cmd_push(VRAM_SCB3 + SPARK_SPR + i, 0); }
@@ -623,7 +637,7 @@ static void sparks_draw(void) {
                 uint16_t *w = cmd_run(VRAM_SCB1 + (spr + c) * 64, f->rows * 2);
                 for (r = 0; r < f->rows; r++) {
                     w[r * 2] = f->tiles[col * f->rows + r];
-                    w[r * 2 + 1] = (uint16_t)(SPARK_PAL << 8) | (k->facing > 0 ? 1 : 0);
+                    w[r * 2 + 1] = (uint16_t)(k->pal << 8) | (k->facing > 0 ? 1 : 0);
                 }
             }
             cmd_push(VRAM_SCB3 + spr + c, c ? 0x40 : (uint16_t)((((496 - y) & 0x1FF) << 7) | f->rows));
@@ -2319,6 +2333,15 @@ static void hud_wave(void) {
 }
 static int16_t lock_at(int16_t x) { int16_t m = world_w - 320; return x > m ? m : x; }   /* inside the background shown */
 static uint8_t ai_of(const genemy_t *en) { return attract ? en->attract_ai : en->ai; }
+/* a boss's own AI layer (T9, game.json enemies[].boss_ai -> gbossai_rom): its definition's, by its index in the ROM's
+ * enemies; a pack's enemy (the Lab) takes the ROM boss of the same fighter's. The attract demo: none (it has no boss) */
+static const gbossai_t *boss_ai_of(const genemy_t *en) {
+    uint8_t k;
+    if (attract) return 0;
+    for (k = 0; k < EN_COUNT; k++) if (en == &genemies_rom[k]) return gbossai_rom[k];   /* (no pointer division: no __mulsi3) */
+    for (k = 0; k < EN_COUNT; k++) if (gbossai_rom[k] && genemies_rom[k].base == en->base) return gbossai_rom[k];
+    return 0;
+}
 /* an enemy from its definition: its fighter c, its colours (its own set / tint when it has one, else the spawn's; its
  * custom colours), its HUD name, its route tree, life and power */
 static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t z, uint8_t tint, const genemy_t *en) {
@@ -2776,6 +2799,7 @@ static void boss_start(void) {
     }
     spawns_ai(gs->boss_seed, &gs->spawns[gs->boss_first], gs->nmin, 3);
     ai_set(BOSS_IDX, ai_of(be));
+    ai_boss(BOSS_IDX, boss_ai_of(be));                  /* (T9: its own layer, game.json enemies[].boss_ai) */
     wave_on = gs->nwaves; wave_t = 0;
     k = gstagex[camp].drama;                         /* its scene first (the fight held), then its song */
     if (k < DR_COUNT && !attract) drama_start(k, gs->boss_song); else snd_music(gs->boss_song);
@@ -3900,6 +3924,7 @@ static void lab_enemy(void) {
     c = en->base != 0xFF ? en->base : en->pool[0];
     enemy_init(LAB_DUMMY, c, c == pl_ch[0], cam_x + 190, 34, 0, en);
     ai_init(0x1D2B, en->ai);
+    ai_boss(LAB_DUMMY, boss_ai_of(en));                     /* (a boss: its own layer, T9) */
     fighters[0].target = &fighters[LAB_DUMMY];              /* the HUD shows it from the start */
 }
 static void lab_start(uint8_t kind) {

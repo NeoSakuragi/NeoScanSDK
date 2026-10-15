@@ -715,6 +715,7 @@
    "windup": {"light": [3, 6], "heavy": [12, 15], "heavy_from": 5, "special_hold": [12, 15]},
    "rank": {"start": 8, "max": 31, "every": 600, "fast_clear": 1200, "fast": 1, "clean": 1, "death": 4, "wait": 16, "rest": 16, "damage": 11}
   },
+  "guard": {"about": "The guard's engine rules (T9, Bruno 2026-10-15: bosses can block; fighter.c 'guard', any fighter the AI makes guard: a boss's enemies[].boss_ai.guard). A hit from the front on a guarding fighter is blocked: a normal deals nothing, a special / Blitz / projectile chip = its damage x chip / 256 (never the last point); the guard stun: stun frames in the guard pose, sliding back push px a frame (decaying); the guard sound hit_sounds.guard and the guard spark. Beaten by: a hit from behind, a fury or a MAX (unblockable), a grab or a command grab, and the guard's own limit (boss_ai.guard.max hits, the next one breaks it).", "stun": 14, "push": 2, "chip": 64},
   "presets": {
    "minion": {
     "flags": ["grab", "projectile"],
@@ -817,10 +818,50 @@
    "attract_ai": "minion_attract",
    "hud": "fighter"
   },
-  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 200, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 208, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 216, "power": 1, "ai": "boss", "hud": "fighter"},
-  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 224, "power": 1, "ai": "boss", "hud": "fighter"},
+  {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 200, "power": 1, "ai": "boss", "hud": "fighter",
+   "ai_over": {"rest_shift": 2, "rest_random": 31, "bspec_chance": 32, "jump_chance": 6},
+   "boss_ai": {
+    "about": "T9 (Bruno 2026-10-15, ai.c 'the boss layer'): guard {chance of 256 per attack of his target starting within dx / dz, hold frames at least, max hits blocked before it breaks, rest frames before the next}; run {chance of 256 an approach from farther than `from` px runs in, to `stop` px}; grab {immune / counter: of 256, rolled each time his target comes near: a grab on him does not take / is reversed into his own throw after delay frames}; red {low % of his life: the red period (he blinks red), his fury every rest frames within dx, the first max of them the MAX}; ready_shift (his ready wait >> it); combos: his strings, each attack plays one not used yet this fight (A / C / D after an optional stick f b u d df uf, run / jump first, grab last; a D only in the red period)",
+    "guard": {"chance": 48, "dx": 84, "dz": 12, "hold": 16, "max": 2, "rest": 60},
+    "run": {"chance": 96, "from": 110, "stop": 40},
+    "grab": {"immune": 48, "counter": 32, "delay": 12},
+    "red": {"low": 25, "rest": 600, "dx": 110, "max": 1},
+    "ready_shift": 0,
+    "combos": ["A A A", "A A fA", "A A uA", "A fC", "run A", "jump A A", "A A dA", "A C", "grab", "A A C D"]
+   }},
+  {"name": "KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 208, "power": 1, "ai": "boss", "hud": "fighter",
+   "ai_over": {"rest_shift": 3, "rest_random": 31, "bspec_chance": 32, "jump_chance": 6},
+   "boss_ai": {
+    "about": "(as MR_BIG)",
+    "guard": {"chance": 96, "dx": 88, "dz": 12, "hold": 16, "max": 3, "rest": 36},
+    "run": {"chance": 150, "from": 110, "stop": 40},
+    "grab": {"immune": 80, "counter": 72, "delay": 10},
+    "red": {"low": 30, "rest": 540, "dx": 120, "max": 1},
+    "ready_shift": 1,
+    "combos": ["A A A", "A A fA", "A dC", "run A", "jump A A", "A A uA", "A fC", "A A dA", "grab", "A A C D"]
+   }},
+  {"name": "GEESE", "base": "geese", "stand_in": "geese", "life": 216, "power": 1, "ai": "boss", "hud": "fighter",
+   "ai_over": {"rest_shift": 3, "rest_random": 15, "bspec_chance": 32, "jump_chance": 6},
+   "boss_ai": {
+    "about": "(as MR_BIG)",
+    "guard": {"chance": 120, "dx": 92, "dz": 12, "hold": 16, "max": 4, "rest": 30},
+    "run": {"chance": 170, "from": 110, "stop": 40},
+    "grab": {"immune": 72, "counter": 96, "delay": 8},
+    "red": {"low": 30, "rest": 480, "dx": 130, "max": 1},
+    "ready_shift": 1,
+    "combos": ["A A A A", "A A A fA", "A C", "A dC", "run A", "jump A A", "A A A uA", "A A fC", "grab", "A A A C D"]
+   }},
+  {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 224, "power": 1, "ai": "boss", "hud": "fighter",
+   "ai_over": {"rest_shift": 4, "rest_random": 15, "bspec_chance": 32, "jump_chance": 6},
+   "boss_ai": {
+    "about": "(as MR_BIG)",
+    "guard": {"chance": 136, "dx": 96, "dz": 12, "hold": 16, "max": 4, "rest": 26},
+    "run": {"chance": 190, "from": 110, "stop": 40},
+    "grab": {"immune": 96, "counter": 96, "delay": 8},
+    "red": {"low": 30, "rest": 420, "dx": 130, "max": 1},
+    "ready_shift": 2,
+    "combos": ["A A A", "A A fA", "A dC", "run A", "jump A A", "A A uA", "A uC", "A A dA", "grab", "A A C D"]
+   }},
   {
    "name": "YAKUZA",
    "base": "yamazaki",

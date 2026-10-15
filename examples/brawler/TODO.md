@@ -318,7 +318,9 @@ Work through in order; one item per loop tick when it fits, tested in our emulat
 - [x] T7 (built 2026-10-14, awaiting Bruno's check; docs/brawler_data_model.md "Bonus stages"). After stages 1 and 3 a pick screen (AOF2's SELECT BONUS GAME, 9 s): Ki training (AOF2's big tree, one press on the sweeping gauge, PERFECT = +2 drive chunks for the credit) or Super Death Blow (AOF2's wooden posts, 9 in 60 s, only the fury breaks them; won = Fury + Fury MAX unlocked on D, locked before, a fail keeps the lock). game.json "bonus" (Levels tab), AOF2 scenes ripped in our emulator (tools/aof/bonus_rip.py, tools/brawler/make_bonus.py: 67 KB C), AOF2's 4 bonus songs ported. Proof tools/brawler/bonus_proof.py (+ --sweep: all 25 selectable fighters break the 9 posts), scenarios t7-*. (Analysis: /data/neogeo_dict/aof/bonus.md, tools/aof/bonus_cap.py; decision sets bonus-game + bonus-followup.) Bonus game: analyze how bonus games work in AOF1 and AOF2; prepare an integration decision page (canneji,
   Oros login) for Bruno to choose how to bring it over.
 
-- [ ] T9 (Bruno 2026-10-15, running). Tougher bosses, testable in isolation (a boss-only Lab scenario per boss): sometimes GUARD
+- [x] T9 (Bruno 2026-10-15; done 2026-10-15, docs/brawler_data_model.md "The boss layer": game.json enemies[].boss_ai +
+  ai.guard, ai.c boss layer, fighter.c S_GUARD / grab response; proof tools/brawler/t9_boss_proof.py -> /data/tmp/t9;
+  scenarios boss-mrbig / -krauser / -geese / -rugal). Tougher bosses, testable in isolation (a boss-only Lab scenario per boss): sometimes GUARD
   (new feature); more aggressive, use the run more; often throw-proof, or SoR2-style grab reversal (you grab him, he
   grabs you); vary combos (remember the ones used, try another next time to show the variety); a red-flash low-life
   period where he can use his fury and MAX fury like a player. Harder than today even at level 4.

@@ -24,6 +24,18 @@ void ai_bot(fighter_t *fs, uint8_t nf, uint8_t p, intent_t *in);
 extern uint8_t ai_rank;
 extern uint8_t ai_tokens;         /* attack tokens held this frame (<= gai.attackers): the Lab's readout, the proofs */
 extern uint8_t ai_wlog[16][4], ai_wlog_n;   /* the last wind-ups given (ai.c windup_hold): the proofs */
+/* the boss layer (T9, ai.c): fighter i (the boss) plays b on top of its preset (0: none); main.c boss_start after ai_set */
+void ai_boss(uint8_t i, const gbossai_t *b);
+enum { BE_COMBO = 1,              /* a string starts: a = its index, b = the strings used so far this cycle (bits) low byte */
+       BE_CEND,                   /* it ends: a = its index, b = its ops done, c = the last move connected */
+       BE_GUARD,                  /* a guard: a = the target's state, b = its move */
+       BE_RED,                    /* the red period starts: a = its life */
+       BE_SUPER,                  /* a fury: a = 1 the MAX, b = its life */
+       BE_COUNTER,                /* its counter-hold throws */
+       BE_RUN };                  /* an approach run */
+typedef struct { uint8_t kind, a, b, c; uint16_t t; } ai_bev_t;
+extern ai_bev_t ai_blog[32];      /* the boss layer's events (a ring, ai_blog_n counts them; t = the AI's tick): the proofs */
+extern uint8_t ai_blog_n;
 #if LAB_BUILD
 extern uint8_t ai_skip;           /* practice mode (main.c): bit i = fighter i is driven by the practice code, not the AI (no
                                      target, never holds an attack token) */
