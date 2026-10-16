@@ -921,6 +921,182 @@
     "press_gap": 10,
     "hold_gap": 24
    },
+   "wave_t3": {
+    "flags": ["grab", "projectile", "jump_in"],
+    "moves": ["roles", "flank"],
+    "rest_shift": 0,
+    "rest_random": 31,
+    "rest_add": 0,
+    "rest_start": 30,
+    "rest_attack": 72,
+    "rest_special": 150,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 150,
+    "spec_dz": 10,
+    "follow_ups": 1,
+    "press_gap": 10,
+    "hold_gap": 24,
+    "proj_chance": 256,
+    "jump_min": 40,
+    "jump_max": 120,
+    "jump_dz": 6,
+    "jump_chance": 3,
+    "rest_jump": 110,
+    "air_b_dx": 50,
+    "hop_dx": 40,
+    "hop_chance": 2,
+    "aa_dx": 64,
+    "aa_dz": 12,
+    "aa_chance": 64,
+    "aa_react": 12,
+    "rest_rev": 120,
+    "punish_chance": 64,
+    "punish_react": 12,
+    "rush_min": 70,
+    "rush_max": 130,
+    "rush_chance": 3
+   },
+   "wave_t4": {
+    "flags": ["grab", "projectile", "jump_in"],
+    "moves": ["roles", "flank"],
+    "rest_shift": 0,
+    "rest_random": 31,
+    "rest_add": 0,
+    "rest_start": 30,
+    "rest_attack": 64,
+    "rest_special": 150,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 150,
+    "spec_dz": 10,
+    "follow_ups": 1,
+    "press_gap": 10,
+    "hold_gap": 24,
+    "proj_chance": 128,
+    "jump_min": 40,
+    "jump_max": 120,
+    "jump_dz": 6,
+    "jump_chance": 4,
+    "rest_jump": 100,
+    "air_b_dx": 50,
+    "hop_dx": 40,
+    "hop_chance": 3,
+    "aa_dx": 64,
+    "aa_dz": 12,
+    "aa_chance": 96,
+    "aa_react": 10,
+    "rest_rev": 110,
+    "punish_chance": 96,
+    "punish_react": 10,
+    "rush_min": 70,
+    "rush_max": 130,
+    "rush_chance": 4
+   },
+   "wave_t5": {
+    "flags": ["grab", "projectile", "jump_in"],
+    "moves": ["roles", "flank"],
+    "rest_shift": 1,
+    "rest_random": 31,
+    "rest_add": 0,
+    "rest_start": 30,
+    "rest_attack": 80,
+    "rest_special": 150,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 150,
+    "spec_dz": 10,
+    "follow_ups": 3,
+    "press_gap": 10,
+    "hold_gap": 24,
+    "proj_chance": 64,
+    "jump_min": 40,
+    "jump_max": 120,
+    "jump_dz": 6,
+    "jump_chance": 3,
+    "rest_jump": 90,
+    "air_b_dx": 50,
+    "hop_dx": 40,
+    "hop_chance": 3,
+    "aa_dx": 64,
+    "aa_dz": 12,
+    "aa_chance": 128,
+    "aa_react": 8,
+    "rest_rev": 100,
+    "punish_chance": 128,
+    "punish_react": 8,
+    "rush_min": 70,
+    "rush_max": 130,
+    "rush_chance": 5
+   },
+   "wave_t6": {
+    "flags": ["grab", "projectile", "jump_in"],
+    "moves": ["roles", "flank"],
+    "rest_shift": 1,
+    "rest_random": 31,
+    "rest_add": 0,
+    "rest_start": 30,
+    "rest_attack": 96,
+    "rest_special": 150,
+    "rest_throw": 60,
+    "grab_plan": 1,
+    "attack_dx": 36,
+    "hover_dx": 90,
+    "hover_go_dx": 16,
+    "hover_go_dz": 8,
+    "range_min": 20,
+    "range_max": 52,
+    "range_dz": 6,
+    "spec_min": 70,
+    "spec_max": 150,
+    "spec_dz": 10,
+    "follow_ups": 3,
+    "press_gap": 10,
+    "hold_gap": 24,
+    "proj_chance": 64,
+    "jump_min": 40,
+    "jump_max": 120,
+    "jump_dz": 6,
+    "jump_chance": 4,
+    "rest_jump": 80,
+    "air_b_dx": 50,
+    "hop_dx": 40,
+    "hop_chance": 4,
+    "aa_dx": 64,
+    "aa_dz": 12,
+    "aa_chance": 150,
+    "aa_react": 8,
+    "rest_rev": 90,
+    "punish_chance": 144,
+    "punish_react": 8,
+    "rush_min": 70,
+    "rush_max": 130,
+    "rush_chance": 6
+   },
    "boss": {
     "flags": ["token", "grab", "projectile", "boss_moves"],
     "rest_shift": 2,
@@ -974,6 +1150,39 @@
    "attract_ai": "minion_attract",
    "hud": "fighter"
   },
+  {"name": "THUG", "base": "pool", "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"], "life": 78, "power": 0, "ai": "minion", "attract_ai": "minion_attract", "hud": "fighter"},
+  {"name": "BRAWLER", "base": "pool", "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"], "life": 78, "power": 0, "ai": "wave_t3", "attract_ai": "minion_attract", "hud": "fighter",
+   "boss_ai": {
+    "about": "the wave tiers (Bruno 2026-10-16, after Wael's 0.10.150 run: \"the enemies are too boring - give them a WIDE RANGE OF MOVES\"; \"more difficulty but fewer of them\"): MINION (stage 1 wave 1, the intro), THUG (wave 2: MINION's AI, life x1.4), then BRAWLER, VETERAN, ELITE (near the boss), CHAMPION (the later stages): each its preset's situations (anti-air, punish, rush, projectile by role, flank: ai.c) and this AI layer (ai.c 'the boss layer': guard, run, strings); no red period, no grab immunity: those stay the bosses'",
+    "guard": {"chance": 24, "dx": 70, "dz": 12, "hold": 12, "max": 1, "rest": 90},
+    "run": {"chance": 48, "from": 130, "stop": 44},
+    "ready_shift": 0,
+    "combos": ["A A", "A A A dA", "A fC", "jump A", "grab", "A A A", "run A"]
+   }},
+  {"name": "VETERAN", "base": "pool", "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"], "life": 84, "power": 0, "ai": "wave_t4", "attract_ai": "minion_attract", "hud": "fighter",
+   "boss_ai": {
+    "about": "(as BRAWLER)",
+    "guard": {"chance": 40, "dx": 76, "dz": 12, "hold": 14, "max": 1, "rest": 75},
+    "run": {"chance": 64, "from": 120, "stop": 44},
+    "ready_shift": 0,
+    "combos": ["A A A", "A A A dA", "A fC", "jump A A", "grab", "A A A A dA", "run A", "A C"]
+   }},
+  {"name": "ELITE", "base": "pool", "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"], "life": 84, "power": 0, "ai": "wave_t5", "attract_ai": "minion_attract", "hud": "fighter",
+   "boss_ai": {
+    "about": "(as BRAWLER)",
+    "guard": {"chance": 56, "dx": 80, "dz": 12, "hold": 16, "max": 2, "rest": 60},
+    "run": {"chance": 96, "from": 110, "stop": 42},
+    "ready_shift": 1,
+    "combos": ["A A A", "A A A dA", "A A A A dA", "A fC", "jump A A", "grab", "A A fA", "run A", "A C", "A A uA"]
+   }},
+  {"name": "CHAMPION", "base": "pool", "pool": ["terry", "ryo", "ralf", "robert", "yamazaki", "billy", "kyo", "iori", "mai", "yashiro", "k_dash"], "life": 90, "power": 0, "ai": "wave_t6", "attract_ai": "minion_attract", "hud": "fighter",
+   "boss_ai": {
+    "about": "(as BRAWLER)",
+    "guard": {"chance": 64, "dx": 84, "dz": 12, "hold": 16, "max": 2, "rest": 50},
+    "run": {"chance": 112, "from": 110, "stop": 42},
+    "ready_shift": 1,
+    "combos": ["A A A", "A A A dA", "A A A A dA", "A A fC", "jump A A", "grab", "A A fA", "run A", "A C", "A A uA"]
+   }},
   {"name": "MR_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 200, "power": 1, "damage_out": 0.5, "damage_about": "note 20261016-180551-e03d (tester: 'the bosses inflict too much damage: divide the damage of all of them by two'): every boss deals half (its hits incl. power, specials, projectiles, throws, holds, chip, thrown bodies; fighter.c dmg_out), minions whole", "ai": "boss", "hud": "fighter",
    "ai_over": {"rest_shift": 2, "rest_random": 31, "bspec_chance": 32, "jump_chance": 6},
    "boss_ai": {
@@ -1136,42 +1345,35 @@
      "lock": 448,
      "seed": "0x1D2C",
      "spawns": [
-      {"enemy": "MINION", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 4, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 5, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28}
+      {"enemy": "THUG", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "THUG", "pick": 4, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17}
      ]
     },
     {
      "lock": 896,
      "seed": "0x1D2D",
      "spawns": [
-      {"enemy": "MINION", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 7, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 8, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 9, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+      {"enemy": "BRAWLER", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "BRAWLER", "pick": 7, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "BRAWLER", "pick": 8, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     },
     {
      "lock": 1344,
      "seed": "0x1D2E",
      "spawns": [
-      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 13, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+      {"enemy": "VETERAN", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "VETERAN", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "VETERAN", "pick": 11, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     },
     {
      "lock": 1792,
      "seed": "0x1D2F",
      "spawns": [
-      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 16, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 17, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 14, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     }
    ],
@@ -1216,54 +1418,46 @@
      "lock": 0,
      "seed": "0x1D33",
      "spawns": [
-      {"enemy": "MINION", "pick": 1, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 2, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
-      {"enemy": "MINION", "pick": 3, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28}
+      {"enemy": "THUG", "pick": 1, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "THUG", "pick": 2, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17}
      ]
     },
     {
      "lock": 448,
      "seed": "0x1D34",
      "spawns": [
-      {"enemy": "MINION", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 5, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 6, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 7, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+      {"enemy": "BRAWLER", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "BRAWLER", "pick": 5, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "BRAWLER", "pick": 6, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     },
     {
      "lock": 896,
      "seed": "0x1D35",
      "spawns": [
-      {"enemy": "MINION", "pick": 7, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 8, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 9, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 10, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 11, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+      {"enemy": "VETERAN", "pick": 7, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "VETERAN", "pick": 8, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "VETERAN", "pick": 9, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     },
     {
      "lock": 1344,
      "seed": "0x1D36",
      "spawns": [
-      {"enemy": "MINION", "pick": 10, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 11, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 12, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 13, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 14, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 15, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 10, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 11, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 12, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 13, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1792,
      "seed": "0x1D37",
      "spawns": [
-      {"enemy": "MINION", "pick": 13, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 14, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 15, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 16, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 17, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 18, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 13, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 14, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 15, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 16, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     }
    ],
@@ -1316,57 +1510,48 @@
      "lock": 0,
      "seed": "0x1D3B",
      "spawns": [
-      {"enemy": "MINION", "pick": 2, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
-      {"enemy": "MINION", "pick": 4, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28},
-      {"enemy": "MINION", "pick": 5, "set": 3, "walk_in": {"side": "right", "rank": 3}, "z": 39}
+      {"enemy": "BRAWLER", "pick": 2, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "BRAWLER", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
+      {"enemy": "BRAWLER", "pick": 4, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28}
      ]
     },
     {
      "lock": 448,
      "seed": "0x1D3C",
      "spawns": [
-      {"enemy": "MINION", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 6, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 7, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 8, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 9, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50}
+      {"enemy": "VETERAN", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "VETERAN", "pick": 6, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "VETERAN", "pick": 7, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28}
      ]
     },
     {
      "lock": 896,
      "seed": "0x1D3D",
      "spawns": [
-      {"enemy": "MINION", "pick": 8, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 13, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 8, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 9, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 10, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 11, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1344,
      "seed": "0x1D3E",
      "spawns": [
-      {"enemy": "MINION", "pick": 11, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 16, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 11, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 12, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 13, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 14, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1792,
      "seed": "0x1D3F",
      "spawns": [
-      {"enemy": "MINION", "pick": 14, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 15, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 16, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 17, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 18, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 19, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 14, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 15, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 16, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 17, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     }
    ],
@@ -1428,59 +1613,49 @@
      "lock": 0,
      "seed": "0x1D43",
      "spawns": [
-      {"enemy": "MINION", "pick": 3, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
-      {"enemy": "MINION", "pick": 5, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28},
-      {"enemy": "MINION", "pick": 6, "set": 3, "walk_in": {"side": "right", "rank": 3}, "z": 39},
-      {"enemy": "MINION", "pick": 7, "set": 4, "walk_in": {"side": "right", "rank": 4}, "z": 50}
+      {"enemy": "VETERAN", "pick": 3, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "VETERAN", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
+      {"enemy": "VETERAN", "pick": 5, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28}
      ]
     },
     {
      "lock": 448,
      "seed": "0x1D44",
      "spawns": [
-      {"enemy": "MINION", "pick": 6, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 7, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 8, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 9, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 10, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 11, "set": 6, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 6, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 7, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 8, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 9, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 896,
      "seed": "0x1D45",
      "spawns": [
-      {"enemy": "MINION", "pick": 9, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 10, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 11, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 12, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 13, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 14, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 9, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 10, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 11, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 12, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1344,
      "seed": "0x1D46",
      "spawns": [
-      {"enemy": "MINION", "pick": 12, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 13, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 14, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 15, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 16, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 17, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 12, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 13, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 14, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 15, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1792,
      "seed": "0x1D47",
      "spawns": [
-      {"enemy": "MINION", "pick": 15, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 16, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 17, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 18, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 19, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 20, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 15, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 16, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 17, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 18, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     }
    ],
@@ -1552,60 +1727,50 @@
      "lock": 0,
      "seed": "0x1D4B",
      "spawns": [
-      {"enemy": "MINION", "pick": 4, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
-      {"enemy": "MINION", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28},
-      {"enemy": "MINION", "pick": 7, "set": 3, "walk_in": {"side": "right", "rank": 3}, "z": 39},
-      {"enemy": "MINION", "pick": 8, "set": 4, "walk_in": {"side": "right", "rank": 4}, "z": 50},
-      {"enemy": "MINION", "pick": 9, "set": 5, "walk_in": {"side": "right", "rank": 5}, "z": 61}
+      {"enemy": "ELITE", "pick": 4, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
+      {"enemy": "ELITE", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28},
+      {"enemy": "ELITE", "pick": 7, "set": 3, "walk_in": {"side": "right", "rank": 3}, "z": 39}
      ]
     },
     {
      "lock": 256,
      "seed": "0x1D4C",
      "spawns": [
-      {"enemy": "MINION", "pick": 7, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 8, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 11, "set": 5, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 12, "set": 6, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "ELITE", "pick": 7, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 8, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 10, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 512,
      "seed": "0x1D4D",
      "spawns": [
-      {"enemy": "MINION", "pick": 10, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 11, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 14, "set": 6, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 15, "set": 7, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 10, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 11, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 13, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 768,
      "seed": "0x1D4E",
      "spawns": [
-      {"enemy": "MINION", "pick": 13, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 14, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 15, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 16, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 17, "set": 7, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 18, "set": 8, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 13, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 14, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 15, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 16, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     },
     {
      "lock": 1024,
      "seed": "0x1D4F",
      "spawns": [
-      {"enemy": "MINION", "pick": 16, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "MINION", "pick": 17, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "MINION", "pick": 18, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "MINION", "pick": 19, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39},
-      {"enemy": "MINION", "pick": 20, "set": 8, "walk_in": {"side": "right", "rank": 2}, "z": 50},
-      {"enemy": "MINION", "pick": 21, "set": 9, "walk_in": {"side": "left", "rank": 2}, "z": 61}
+      {"enemy": "CHAMPION", "pick": 16, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 17, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 18, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "CHAMPION", "pick": 19, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39}
      ]
     }
    ],

@@ -1841,7 +1841,7 @@ static uint8_t gd_check(const uint8_t *p) {      /* 0, or the check that failed 
     const gstage_t *st;
     uint16_t size = h->size, i, k;
     if (h->magic[0] != 'G' || h->magic[1] != 'D') return 1;
-    if (h->version != GD_VERSION) return 2;     /* 7 (TODO #71): route trees version 4; an older pack's trees read the old buttons */
+    if (h->version != GD_VERSION) return 2;     /* 8: AI rows of 52 bytes (7: route trees version 4; an older pack's trees read the old buttons) */
     gd_head = h->version >= 4 ? sizeof(gdpack_t) : sizeof(gdpack_t) - 2;
     if (size < gd_head || size > GD_MAX) return 3;
     if (h->nstages != GS_COUNT || !h->nenemies || !h->nai) return 4;
@@ -2483,7 +2483,7 @@ static const gbossai_t *boss_ai_of(const genemy_t *en) {
     uint8_t k;
     if (attract) return 0;
     for (k = 0; k < EN_COUNT; k++) if (en == &genemies_rom[k]) return gbossai_rom[k];   /* (no pointer division: no __mulsi3) */
-    for (k = 0; k < EN_COUNT; k++) if (gbossai_rom[k] && genemies_rom[k].base == en->base) return gbossai_rom[k];
+    for (k = 0; k < EN_COUNT; k++) if (gbossai_rom[k] && en->base != 0xFF && genemies_rom[k].base == en->base) return gbossai_rom[k];
     return 0;
 }
 /* an enemy from its definition: its fighter c, its colours (its own set / tint when it has one, else the spawn's; its
@@ -2574,11 +2574,17 @@ static void spawn(uint8_t slot, const gspawn_t *sp, uint8_t boss_c) {
     uint8_t c = en->base != 0xFF ? en->base : pool_pick(en, sp->pick, sp->flags & SP_NOT_BOSS ? boss_c : 0xFF);
     enemy_init(slot, c, sp->set, spawn_x(sp), sp->z, sp->tint, en);
 }
-/* the spawns' AI: every slot the first spawn's preset (ai_init, the RNG seeded), then any other spawn's its own */
+/* the spawns' AI: every slot the first spawn's preset (ai_init, the RNG seeded), then any other spawn's its own; an enemy
+ * with an AI layer (game.json enemies[].boss_ai: its guard, runs, strings) plays it, a wave's too (2026-10-16: the enemies'
+ * wide range of moves) */
 static void spawns_ai(uint16_t seed, const gspawn_t *sp, uint8_t n, uint8_t slot0) {
     uint8_t k, p0 = n ? ai_of(&genemies[sp[0].enemy]) : AI_MINION, p;
+    const gbossai_t *b;
     ai_init(seed, p0);
-    for (k = 0; k < n; k++) if ((p = ai_of(&genemies[sp[k].enemy])) != p0) ai_set(slot0 + k, p);
+    for (k = 0; k < n; k++) {
+        if ((p = ai_of(&genemies[sp[k].enemy])) != p0) ai_set(slot0 + k, p);
+        if ((b = boss_ai_of(&genemies[sp[k].enemy])) != 0) ai_boss(slot0 + k, b);
+    }
 }
 /* ---- drama mode (docs/brawler_data_model.md "Drama mode"): black bars slide in from the top and the bottom (fix rows
  * 0-3 and 20-27, DRAMA_FONT's opaque cells), the fight held (no AI, no update, no flow: game_tick only draws), each scene's
@@ -2957,6 +2963,7 @@ static void triggers(void) {
         for (slot = 2; slot < NF && fighters[slot].state != S_OFF; slot++) ;
         spawn(slot, &sp, genemies[gs->boss].base);
         ai_set(slot, ai_of(&genemies[sp.enemy]));
+        if (boss_ai_of(&genemies[sp.enemy])) ai_boss(slot, boss_ai_of(&genemies[sp.enemy]));   /* (its layer, if any) */
         for (slot = k; slot + 1 < tq_n; slot++) tq[slot] = tq[slot + 1];
         tq_n--;
     }

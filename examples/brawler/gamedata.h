@@ -35,7 +35,22 @@ typedef struct {
     uint8_t hop_dx, hop_chance;   /* jump_in: resting closer than hop_dx, a back-hop (hop_chance of 256 a frame, 0 = never) */
     uint8_t proj_mask, proj_mask2;    /* the projectile: (random & proj_mask) == 0 and (random & proj_mask2) == 0 in a frame
                                          (game.json proj_chance "1 in N a frame": 512 = 255 and 1) */
+    /* the situations (Bruno 2026-10-16, "the enemies are too boring - give them a WIDE RANGE OF MOVES"; ai.c "situations";
+     * every chance of 256, 0 = never: the presets before them play as they did) */
+    uint8_t moves;                /* AIM_* */
+    uint8_t aa_dx, aa_dz, aa_chance, aa_react;   /* him in the air within aa_dx / aa_dz: its anti-air special (ai_roles
+                                         AR_AA), rolled once a jump of his, once he has been up aa_react frames (an air
+                                         attack: at once) */
+    uint8_t punish_chance, punish_react;   /* his attack (or his hold on a teammate) punish_react frames in without a hit,
+                                         within its reach: punished (its string at once, or its rush from farther), rolled
+                                         once an attack */
+    uint8_t rush_min, rush_max, rush_chance;   /* approaching, him this far on its line: its rush special (AR_RUSH), a think */
 } ai_preset_t;
+enum { AIM_ROLES = 1,             /* its projectile is the fighter's projectile special (ai_roles AR_PROJ; none: never),
+                                     not its neutral C */
+       AIM_FLANK = 2 };           /* a token holder approaches its player from the other side than one already on him */
+enum { AR_PROJ, AR_AA, AR_RUSH, AR_COUNT };   /* ai_roles[fighter][AR_*]: the special slot BS_* (0xFF none; build_tables.py
+                                                 ai_roles, from the export's travel / height / first hit / projectile) */
 
 /* ---- layer 2: the enemies' shared rules (revamp 1B, docs/brawler_data_model.md "Enemy rules"; game.json ai.rules, ROM
  * only, ai.c): attack tokens, the ready pose and its random wait, wind-up by damage, the hidden difficulty rank ---- */
@@ -346,10 +361,11 @@ typedef struct { int16_t x, y; uint8_t z; int8_t face; } sel_slot_t;
  * offset from the pack's start (0 = none); the game checks it (version, sizes, every offset and index), copies it into
  * its own RAM, turns the offsets into pointers and repoints gstages / genemies / ai_tab at the next safe point (a wave,
  * the boss, a stage start, the lab's enemy respawn). lab.load = 4: back to the ROM's tables (at the same point). ---- */
-#define GD_VERSION 7              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
+#define GD_VERSION 8              /* 2 (2026-10-05): + the roster section; 3: + its voices part; 4: + the stages' triggers
                                      (header 20 bytes); 5: AI rows + hop_dx, hop_chance (42 bytes); 6: the roster section
                                      6 bytes per fighter (+ down-forward+D, up-forward+D), route trees version 3; 7 (TODO
-                                     #71): route trees version 4 (one attack button). Only version 7 loads. */
+                                     #71): route trees version 4 (one attack button); 8 (2026-10-16): AI rows + the situations (52 bytes).
+                                     Only version 8 loads. */
 #define GD_ROLES(v) ((v) >= 6 ? BS_COUNT : 4)   /* roster section bytes per fighter */
 #define GD_MAX     4096           /* bytes, header included */
 typedef struct {
