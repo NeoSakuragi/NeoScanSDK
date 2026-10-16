@@ -5262,7 +5262,7 @@
    "chunks": 4
   },
   "do": "Press down + C (Ougi Senpuu Retsuzan) at Ryo standing across the screen. Then try again up close and follow the lifted Ryo with an attack. Then, once the tornado is gone, press down-forward + C.",
-  "expect": "The tornado leaves his sword about twice as soon as before (about 16 frames after the press, was about 30) and travels half as fast (3 px a frame, was 6). It lifts Ryo straight up (no sideways push), high, juggle-able, his juggle count back to 0, like Hanzo's Bakuen Ryuu. Ougi Kogetsuzan's A version, formerly on down + C, is now up-forward + C (C alone still plays its A+B version). A second tornado waits until the first one's spin on Ryo is over (one projectile at a time). Round 2 (the reopen): his recovery after throwing the tornado is twice as fast (about 29 frames, was 58), and down-forward + C no longer plays the Senpuu Retsuzan feint (that slot is empty: down-forward + C now plays down + C's tornado, as every empty diagonal plays its vertical).",
+  "expect": "The tornado leaves his sword about twice as soon as before (about 16 frames after the press, was about 30) and travels half as fast (3 px a frame, was 6). It lifts Ryo straight up (no sideways push), high, juggle-able, his juggle count back to 0, like Hanzo's Bakuen Ryuu. Ougi Kogetsuzan's A version, formerly on down + C, is now up-forward + C (C alone still plays its A+B version). A second tornado waits until the first one's spin on Ryo is over (one projectile at a time). Round 2 (the reopen): his recovery after throwing the tornado is twice as fast (about 29 frames, was 58), and down-forward + C no longer plays the Senpuu Retsuzan feint (that slot is empty: down-forward + C now plays down + C's tornado, as every empty diagonal plays its vertical). Round 3: his voice plays whole: the first part (about 1 s) to its end, then the second part right after it (about 1 s after the press, was about 0.35 s: no cut, no overlap), even though the move itself is already over; the tornado still leaves on the same frame.",
   "do_keys": "2:Dc,240:-,2:DRc,100:-",
   "proof": 60
  },
@@ -5303,7 +5303,7 @@
    "chunks": 4
   },
   "do": "Press down + C, then forward + C, then up + C, then C alone (Ryo standing 100 px ahead; a 4-chunk drive bar, full: one chunk a special).",
-  "expect": "Down + C throws the Power Wave (the travelling shot along the floor, across the screen). Forward + C is the Burn Knuckle (the flaming dash punch; it was on down + C). Up + C is the Power Dunk (the leap and the falling punch; it was on forward + C). C alone, down-forward + C and up-forward + C stay the Rising Tackle. The Blitz down, up + A keeps its short ground wave.",
+  "expect": "Down + C throws the Power Wave (the travelling shot along the floor, across the screen). Forward + C is the Burn Knuckle (the flaming dash punch; it was on down + C). Up + C is the Power Dunk (the leap and the falling punch; it was on forward + C). C alone, down-forward + C and up-forward + C stay the Rising Tackle. The Blitz down, up + A keeps its short ground wave. Round 2: the Power Wave travels at Hanzo's Bakuen Ryuu speed, 3 px a frame (was 7): it crawls along the floor and takes about a second and a half to cross the screen.",
   "do_keys": "2:Dc,90:-,2:Rc,90:-,2:Uc,90:-,2:c,100:-",
   "proof": 30
  },
@@ -5334,18 +5334,19 @@
   "proof": 60
  },
  "20261016-133443-e03d": {
-  "title": "MAX CANCEL: the fury cancelled into the MAX (down + D) with 4 chunks",
+  "title": "MAX CANCEL: the fury cancelled into the MAX (down + D), only when the MAX itself is allowed",
   "setup": {
    "mode": "lab",
    "fighter": "terry",
    "dummy": "ryo",
    "gap": 60,
-   "chunks": 4,
+   "chunks": 5,
    "drive": "full",
-   "fury": "full"
+   "fury": "full",
+   "hp": 15
   },
-  "do": "With a 4-chunk drive bar and the fury ready, press D (the fury) at Ryo; once it hits him, press down + D.",
-  "expect": "The fury stops and everything freezes for about two thirds of a second: the stage goes black behind the fighters and MAX CANCEL shows in the big Savage Reign letters. Then the MAX starts from its beginning with its own orange flash and whistle. The cancel costs 2 drive chunks on top of the fury's. With only 2 chunks (1 left after the fury), or D without down, the fury just plays on. Every fighter with a fury works the same way.",
+  "do": "Your life is low (the bar blinks red), the fury is ready and the drive bar full: press D (the fury) at Ryo; once it hits him, press down + D. Then try again with a full life bar (reload with hp 60).",
+  "expect": "Round 2: with the bar blinking red, the fury cuts straight into the MAX: Terry shows the MAX's own opening pose (never a jab or any normal), the MAX's own freeze with the stage black behind the fighters and MAX CANCEL in the big Savage Reign letters behind its flash, then the MAX plays. It costs what a MAX costs (2 drive chunks, the fury gauge). There is no other freeze before it. With a full life bar (not red), or D without down, the fury just plays on: no MAX cancel. Every fighter with a fury works the same way.",
   "do_keys": "1:d,10:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,200:-",
   "proof": 30
  },
@@ -5373,8 +5374,22 @@
    "cursor": "terry"
   },
   "do": "Press A on Terry and watch STAGE 1 START.",
-  "expect": "The message slides in from the right to the centre, then blinks hard for one second (a frame shown, a frame hidden, a frame all white, as Savage Reign's round call flickers), stays still for two seconds, then slides out to the left and is gone. STAGE CLEAR, TIME OVER, the bonus messages and FURY UNLOCKED! do the same; GAME OVER and NEW CHALLENGERS! blink and then stay on their screen.",
+  "expect": "The message slides in from the right to the centre, then blinks hard for half a second (a frame shown, a frame hidden, a frame all white, as Savage Reign's round call flickers; round 2: the all-white frame really shows white now, 10 of them in the half second), stays still for two seconds, then slides out to the left and is gone. STAGE CLEAR, TIME OVER, the bonus messages and FURY UNLOCKED! do the same; GAME OVER and NEW CHALLENGERS! blink and then stay on their screen.",
   "do_keys": "30:-,3:a,300:-",
+  "proof": 60
+ },
+  "20261016-152232-e03d": {
+  "title": "Ki training (the big tree) at 4 chunks: the 5th chunk, and a 5-chunk bar as long as the life bar",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1,
+   "chunks": 4
+  },
+  "do": "With a 4-chunk drive bar, press A when the gauge is in its top quarter (PERFECT), then look at the HUD in the next stage.",
+  "expect": "The tree falls and the big headline says 1 METER GAINED! (or 2 on the credit's first clear, up to 5): no more METER ALREADY FULL at 4. The drive bar now holds 5 chunks, and those 5 chunks span exactly the full life bar above them, edge to edge; with fewer chunks each one keeps that size (a fifth of the life bar). Only at 5 chunks does a clear say METER ALREADY FULL.",
+  "do_keys": "40:-,1:a,400:-",
   "proof": 60
  }
 }

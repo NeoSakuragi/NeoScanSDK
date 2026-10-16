@@ -201,10 +201,11 @@ typedef struct {
 extern const gflash_t gflash;
 
 /* ---- the MAX cancel (game.json "max_cancel", note 20261016-133443-e03d: KOF's Dream Cancel): a player's fury cancels into
- * the MAX on down + D (any: from its first frame; else once one of its hits landed) for `cost` drive chunks (0: off);
- * before the MAX the game holds still `freeze` frames over a `backdrop` colour, MAX CANCEL in the big font, `sound` (an
- * sfx code, 0 none) played (fighter.c fury_buy / may_cancel, main.c "the MAX cancel") ---- */
-typedef struct { uint8_t cost, any, freeze, sound; uint16_t backdrop; } gmaxcan_t;
+ * the MAX on down + D (any: from its first frame; else once one of its hits landed) only when that MAX could start
+ * (fighter.c max_ready: the fury gauge full, low life, the MAX's drive; paid as the MAX); the MAX then plays from its
+ * first frame with its own super flash, the stage hidden behind `backdrop` from the cancel to the flash's end, MAX CANCEL
+ * in the big font, `sound` (an sfx code, 0 none) played (fighter.c fury_buy, main.c "the MAX cancel"); on 0: off ---- */
+typedef struct { uint8_t on, any, sound; uint16_t backdrop; } gmaxcan_t;
 extern const gmaxcan_t gmaxcan;
 /* a special's effects sent on its program's frames (game.json roster[].special_sounds; fighter.c spec_sounds): rows by
  * fighter (bchar_t.id), then special (pool index), then frame (fighter_t.srow); fighter 0xFF ends the table */

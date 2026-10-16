@@ -311,9 +311,13 @@ static uint8_t bd_on, bd_t;                      /* screen_fx: the stage hidden 
 static uint16_t bd_next;
 static uint8_t bd_pend;
 static void bd_set(uint16_t c) { bd_next = c; bd_pend = 1; }
+static const uint16_t *bt_pal_next;              /* the big text's palette to write in vblank (bt_pal: its blink's white
+                                                    frame, note 20261016-133635-e03d round 2; written at once it changed
+                                                    mid-frame and the next tick put it back before a whole frame showed it) */
 static void vblank_flush(void) {
     SYS_vblankFlush();
     if (bd_pend) { PAL_setBackdrop(bd_next); bd_pend = 0; }
+    if (bt_pal_next) { PAL_setPalette(250, bt_pal_next); bt_pal_next = 0; }   /* (BT_PAL) */
 }
 static void land_off(void);
 static void stage_hide(void) {                              /* title, select: no stage (nor the select's Neo Geo Land) */
@@ -684,11 +688,13 @@ static fighter_t *sf_who;                /* the attacker while the flash runs (0
 static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it started; 0 DM blue / 1 MAX orange; shown frames */
 static uint8_t sf_frozen;                /* the projectile entities alive when it started: frozen through it (TODO #202) */
 /* the MAX cancel (game.json max_cancel, note 20261016-133443-e03d; KOF 2002's MAX CANCEL / KOF XI's DREAM CANCEL screen,
- * simple): a fury cancelled into its MAX (fighter.c fury_cancel) holds the whole game still for gmaxcan.freeze ticks
- * (game_tick: nothing updates, the timers hold), the stage hidden behind gmaxcan.backdrop with the fighters on it
- * (screen_fx), MAX CANCEL in the big font (big_text.max_cancel), gmaxcan.sound sent; then the MAX plays from its first
- * frame, its own super flash */
-static uint8_t mc_t;                     /* ticks of the MAX cancel's freeze left (0: none) */
+ * simple): a fury cancelled into its MAX (fighter.c fury_cancel) plays the MAX from its first frame as any MAX, its own
+ * super flash its freeze; from the cancel to that flash's end the stage is hidden behind gmaxcan.backdrop with the
+ * fighters on it (screen_fx, over the flash's own white / black), MAX CANCEL in the big font (big_text.max_cancel),
+ * gmaxcan.sound sent. Round 2 (Bruno: "no weird light-punch frame"): the 0.10.143 freeze of its own held the game
+ * BEFORE the MAX's first frame ran (start_special sets no frame; its program's first P_ANIM does), so the fighter
+ * showed a stale normal's frame (a jab) for 40 ticks; there is no such freeze any more */
+static fighter_t *mc_who;                /* the MAX cancel's fighter, until its MAX's flash ends (0: none) */
 static int16_t sf_dx, sf_dy;
 void super_flash(fighter_t *f) {
     const bspec_t *sp = f->state == S_SPECIAL ? &f->ch->specials[f->spec_ix] : 0;   /* (a paired super throw, revamp 3: none) */
@@ -707,14 +713,15 @@ void super_flash(fighter_t *f) {
 }
 static void bt_show(const char *t, uint8_t use);
 void max_cancel_fx(fighter_t *f) {
-    (void)f;
-    if (mode != 1 || !gmaxcan.freeze) return;
-    mc_t = gmaxcan.freeze;
+    if (mode != 1) return;
+    mc_who = f;
     if (gmaxcan.sound) snd_sfx(gmaxcan.sound);
     if (gbig[BIG_MAX_CANCEL].on) bt_show(0, BIG_MAX_CANCEL);
 }
+static void mc_end(void);
 static void sf_reset(void) {
     uint8_t c;
+    mc_end();                                                /* (its MAX's flash over: the MAX CANCEL screen too) */
     sf_who = 0; sf_glow_on = 0; sf_ray = 0xFF;
     for (c = 0; c < SF_GLOW_COLS; c++) { cmd_push(VRAM_SCB2 + SF_GLOW_SPR + c, 0x0FFF); cmd_push(VRAM_SCB3 + SF_GLOW_SPR + c, 0); }
     for (c = 0; c < SF_RAYS_COLS; c++) { cmd_push(VRAM_SCB2 + SF_RAYS_SPR + c, 0x0FFF); cmd_push(VRAM_SCB3 + SF_RAYS_SPR + c, 0); }
@@ -871,7 +878,7 @@ static void dbg_draw(void) {
  * back. ---- */
 #define BT_SPR (DBG_SPR + 24)
 #define BT_MAX 24
-#define BT_PAL 250                       /* BN_PAL / SR_PAL: the title banner's, the staff roll's */
+#define BT_PAL 250                       /* (vblank_flush's 250) BN_PAL / SR_PAL: the title banner's, the staff roll's */
 #define BT_W 304                         /* the widest line */
 _Static_assert(BT_SPR + BT_MAX <= DBG_SPR + DBG_BOXES * 8, "big text: inside the debug boxes' sprites");
 enum { BT_SHOWN, BT_HIDDEN, BT_WHITE };   /* gbig_anim.cyc */
@@ -889,6 +896,7 @@ static uint8_t bt_glyph(char c) {                            /* a character -> i
 static int16_t bt_width(const char *t, uint8_t n) { int16_t w = 0; while (n--) w += bigf_adv[bt_glyph(*t++)]; return w; }
 static void bt_hide(void) {
     uint8_t i;
+    bt_pal_next = 0;                                         /* (no white write after it: BT_PAL is the banner's too) */
     if (!bt_n) return;
     for (i = 0; i < bt_n; i++) {
         uint16_t *w = cmd_run(VRAM_SCB1 + (BT_SPR + i) * 64, 2);   /* the debug boxes' corner tile back (dbg_init's) */
@@ -896,6 +904,11 @@ static void bt_hide(void) {
         w[0] = CORNER_TILE + ((BT_SPR - DBG_SPR + i) & 3); w[1] = DBG_ATK_PAL << 8;
     }
     bt_n = 0;
+}
+static void mc_end(void) {                                  /* the MAX cancel's screen over */
+    if (!mc_who) return;
+    mc_who = 0;
+    if (bt_s == &gbig[BIG_MAX_CANCEL]) bt_hide();
 }
 static void bt_line(const char *t, uint8_t n, int16_t y) {   /* one line, centred: its glyphs' columns as sprites */
     int16_t x = (320 - bt_width(t, n)) >> 1;
@@ -921,7 +934,7 @@ static void bt_show(const char *t, uint8_t use) {           /* t: the text (gbig
     while (t[n]) n++;
     while (n && t[n - 1] == ' ') n--;
     bt_s = s; bt_t = 0; bt_white = 0; bt_k = 0;
-    PAL_setPalette(BT_PAL, bigf_pal);
+    bt_pal_next = bigf_pal;
     if (bt_width(t, n) > BT_W)                               /* two lines: at the first double space */
         for (b = 1; b + 1 < n && !(t[b] == ' ' && t[b + 1] == ' '); b++) ;
     if (b && b + 1 < n) {
@@ -948,7 +961,8 @@ static void bt_draw(void) {                                  /* a tick: the head
         else d = -(int16_t)(t - e2 + 1) * (int16_t)bt_out;   /* out to the left */
     }
     if (bt_t < 0xFFFF) bt_t++;
-    if ((look == BT_WHITE) != bt_white) { bt_white = look == BT_WHITE; PAL_setPalette(BT_PAL, bt_white ? BT_WHITE_PAL : bigf_pal); }
+    if ((look == BT_WHITE) != bt_white) { bt_white = look == BT_WHITE; bt_pal_next = bt_white ? BT_WHITE_PAL : bigf_pal; }   /* (in vblank,
+                                                                    with this tick's sprites: bt_pal_next) */
     y = cmd_run(VRAM_SCB3 + BT_SPR, bt_n); x = cmd_run(VRAM_SCB4 + BT_SPR, bt_n);
     for (i = 0; i < bt_n; i++) {
         int16_t px = bt_x[i] + d;
@@ -978,8 +992,9 @@ static void screen_fx(void) {
     }
     /* (TODO #217) every colour here goes through bd_set: written at the next vblank with the stage's sprites (cmd
        queue), so the stage and its backdrop change on the same frame and no frame shows two backdrops */
-    if (mc_t) {                                              /* the MAX cancel's freeze: the stage hidden, its backdrop (over
-                                                                every other screen effect: theirs hold with the game) */
+    if (mc_who && !sf_who && (mc_who->state != S_SPECIAL || !mc_who->fmax)) mc_end();   /* (its MAX gone before a flash) */
+    if (mc_who) {                                            /* the MAX cancel: the stage hidden, its backdrop (over every
+                                                                other screen effect, the MAX's flash included) */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
         bd_set(gmaxcan.backdrop);
     } else if (bighit_red) {                                 /* SS2's big hit (fighter.c big_hit): red, no stage */
@@ -1581,8 +1596,10 @@ static uint8_t cont_digit(uint8_t p) {           /* 9 .. 0 */
  * share of the drive (the first chunk first), no label; the fury gauge is never drawn. A player's life bar has its own fix palette (LIFE_PAL + player): at low life (fighter_low) it blinks red,
  * KOF95's (measured in our emulator, /data/tmp/newsys/scripts/kof_bar.py: 8 frames red, 8 frames its colours; the life
  * left pure red #FF0000 with a darker top / bottom row, the emptied part #C93616 instead of its dark) */
-#define CHUNK_CELLS 4
-#define MAX_CHUNKS  4                    /* (gmeter.chunks: build_tables allows 1-4) */
+#define MAX_CHUNKS  GM_MAX_CHUNKS        /* game.json meter.max_chunks: the bar's most chunks (a bonus game's reward up to it) */
+#define CHUNK_CELLS (BAR_CELLS / MAX_CHUNKS)   /* a chunk's cells, whatever the bar holds: MAX_CHUNKS of them span the life
+                                    bar exactly (note 20261016-152232-e03d: 5 x 3 cells = its 15) */
+_Static_assert(CHUNK_CELLS * MAX_CHUNKS == BAR_CELLS, "meter.max_chunks: the life bar's cells / max_chunks, whole");
 #define METER_PAL 4                      /* fix palette 4: palette 0 with the bar colours' red and blue swapped */
 #define LIFE_PAL  5                      /* fix palettes 5 / 6: P1's / P2's life bar (palette 0's colours; red at low life) */
 static bar_t bars[5 + 2 * MAX_CHUNKS];
@@ -1639,10 +1656,10 @@ static void bar_clear(bar_t *b) {
 }
 static void hud_reset(void) {
     static const uint8_t COL[5] = { 5, 20, 5, 20, 5 }, ROW[5] = { 1, 1, 5, 5, 7 };   /* the name above its bar (Bruno 2026-10-09, note 20261009-234250-b3f3) */
-    uint8_t p, c, cc = drive_chunks > 2 ? 3 : CHUNK_CELLS;   /* a chunk's cells: 3 when the bar has more than 2 (the bonus's
-                                                                    reward: 4 x 3 a side, P1's and P2's never meet) */
+    uint8_t p, c, cc = CHUNK_CELLS;                          /* a chunk's cells: the life bar / MAX_CHUNKS (P1's and P2's never meet) */
     for (p = 0; p < 5 + 2 * MAX_CHUNKS; p++) {
-        uint8_t k = (p - 5) % MAX_CHUNKS, two = p >= 5 + MAX_CHUNKS;   /* (a chunk: its index, P2's) */
+        uint8_t two = p >= 5 + MAX_CHUNKS, k = (uint8_t)(p - 5 - (two ? MAX_CHUNKS : 0));   /* (a chunk: its index, P2's;
+                                                                    no %: MAX_CHUNKS 5 would call __modsi3) */
         bars[p].col = p < 5 ? COL[p] : two ? 35 - cc - cc * k : 5 + cc * k;   /* (the chunks side by side: one bar, note
                                                                     20261009-114418-5d29) */
         bars[p].open = p >= 5 && k + 1 < drive_chunks && k + 1 < MAX_CHUNKS;   /* (a chunk before another: no inner cap;
@@ -4916,7 +4933,7 @@ void game_tick(void) {
 #endif
     if (!lab.active && !dr_on && mode != 4) arcade_line();   /* (the ending: its own screens, no bottom line) */
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
-    if (mc_t && mode != 1) mc_t = 0;                         /* (the MAX cancel's freeze: the same) */
+    if (mc_who && mode != 1) mc_end();                       /* (the MAX cancel's screen: the same) */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode == 6) { bonus_screen_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus screens (AOF2's) */
@@ -4954,10 +4971,6 @@ void game_tick(void) {
     mark(P_AI);
     close_marks();
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
-    if (mc_t) {                                              /* the MAX cancel: everything held (see max_cancel_fx) */
-        if (!--mc_t && bt_s == &gbig[BIG_MAX_CANCEL]) bt_hide();
-        depth_sort(); draw(); hud(); return;
-    }
                                                           /* SS2's big hit's slow motion: every other tick held */
     if (in_ph == IN_WALK) intro_pre();
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */

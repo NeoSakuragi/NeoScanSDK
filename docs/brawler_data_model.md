@@ -398,6 +398,11 @@ each), scenario.py lint 0.
 - A gauge bonus game's `pass_reward` {chunks: [per clear], text: [per chunks added]} (notes 20261016-133045 /
   -135212-e03d): a pass adds chunks[k] on the credit's (k + 1)-th pass of that game (main.c bn_clr), its result =
   text[n] alone in the big font (big_text.bonus_meter), no grade / BONUS line, the gauge bar cleared. Ki training: 2, 1.
+- `meter.max_chunks` (note 20261016-152232-e03d): the drive bar's most chunks (5; a bonus reward adds up to it, the
+  cheat's full bar = it; main.c MAX_CHUNKS = game_tables.h GM_MAX_CHUNKS). Each chunk is drawn as the 15-cell life bar /
+  max_chunks (3 cells): five chunks span the full life bar exactly, fewer keep that size (main.c CHUNK_CELLS; build_tables
+  allows 1, 3, 5, 15). bonus_proof.py: the tree's second pass from 4 gives the 5th (1 METER GAINED!), from 5 METER
+  ALREADY FULL.
 - Win poses 1+ (bm_wins vox): their voices now have samples in the V ROM (export_bm voice_map + WVOX; note
   20261016-133259-e03d: SS2 Haohmaru's poses 198 / 202 / 203 were silent); voices.py list haohmaru adds the shared
   effects his win animations send ($00CC $00D0 $1A $1B $1A $23). tools/samsho2/winsnd_ss2.py (SS2's per pose) /
@@ -673,10 +678,15 @@ feet, KOF orientation: where the concentration plays when the move has no anchor
 
 `max_cancel` (`gmaxcan_t`, ROM only; note 20261016-133443-e03d, KOF's Dream Cancel): a player's fury cancels into the MAX
 (down + D) once one of its hits landed (`window` "hit"; "any": from its first frame), on the ground, not while it holds a
-caught victim, for `cost` drive chunks (2; 0 = off; nothing else: no gauge, no low life). The fury's objects end; then
-the whole game holds still `freeze` frames (40) over the `backdrop` colour (black) with MAX CANCEL in the big font
-(big_text.max_cancel) and `sound`, and the MAX plays from its start with its own super flash (fighter.c fury_buy /
-may_cancel / fury_cancel, main.c max_cancel_fx / mc_t). Proof: tools/brawler/maxcancel_proof.py (every fighter with a fury).
+caught victim, only when that MAX could start on its own (round 2, Bruno: "meter AND life bar AND condition": fighter.c
+max_ready, one rule: the fury gauge full, low life = the bar blinking red, meter.max_drive chunks; paid as the MAX; `on`
+false = off). The fury's objects end and the MAX plays from its first frame as any MAX: its own super flash is the
+freeze; from the cancel to that flash's end the stage is hidden behind the `backdrop` colour (black, over the flash's
+white / black) with MAX CANCEL in the big font (big_text.max_cancel) and `sound` (fighter.c fury_buy / may_cancel /
+fury_cancel, main.c max_cancel_fx / mc_who / mc_end). 0.10.143's freeze of its own (40 ticks before the MAX's first
+frame) showed a stale normal's frame (a jab: start_special sets no frame, the program's first P_ANIM does) and is gone.
+Proof: tools/brawler/maxcancel_proof.py (every fighter with a fury: the cancel's flash frames = the plain MAX's, no
+cancel at normal life or on D alone).
 
 `hit_sounds` (`ghitsnd_t`, ROM only; Bruno's impact-sound picks 2026-10-09, brawler-lab/impacts.html): songs.json sfx
 names. `light` / `strong`: the hit cycles: every A / B normal's hit (a hold's or a throw's that sounds as A / B too) plays
@@ -875,8 +885,10 @@ in place until its screen hides it: MAX CANCEL). `headline` -> `gbig_anim` (note
 every big message (main.c bt_draw): `slide_in` ticks in from the right, `blink` ticks of `blink_cycle` (a look a frame:
 shown / hidden / white = the font's palette all white; Savage Reign's round call measured in our emulator: its own
 palette and an all-white one on alternate frames while its letters fly), `hold` ticks shown, `slide_out` ticks out to the
-left, then gone (16 / 60 / 120 / 16: 1 s of blink, 2 s held). bigfont_proof.py `--anim RECIPE USE` checks it frame by
-frame. With `bonus_won`, CONGRATULATIONS! and BONUS move up to fix rows 10 / 12 and won_text[1] / [2] down
+left, then gone (16 / 30 / 120 / 16: half a second of blink, 2 s held; note 20261016-133635-e03d round 2). The font's
+palette is written in vblank with the tick's sprites (main.c bt_pal_next): written at once, mid-frame, the next tick
+put the colours back before a whole frame had shown white, so the white frame never really showed. bigfont_proof.py `--anim RECIPE USE` checks it frame by
+frame, and on the pictures that every white tick shows its letters white. With `bonus_won`, CONGRATULATIONS! and BONUS move up to fix rows 10 / 12 and won_text[1] / [2] down
 to rows 24 / 25. Every text a use can draw is checked against the font's characters (A-Z 0-9 space ! . - ' : ?) and
 the 304 px width at build time (levels.py checks a title edit the same way).
 
@@ -1238,6 +1250,11 @@ writes to REG_SOUND, with the stack) and QLOG (KOF98's sound ring $10D940), plus
   move's source animation (its step), the throw animation's record (its script row) else its captured voice, the
   captured hit / KO voices, the first intro line for `select`, the special's first captured voice at its frame (as
   played: frozen rows dropped). One voice per key (Kyo's 236A says two lines in KOF: the first is kept).
+- `roster[].voice_whole` = [special input, ...] (note 20261016-131850-e03d): that special's voice parts each play whole.
+  Its further voice (vmore [key, id, row]) becomes [key | VK_WAIT, id, frames] (`export_bm.voice_waits`): sent the
+  first voice's sample length (real frames, rounded up) after the first is sent, whatever the move's clock (retiming,
+  hit-stop) and after the move ended (fighter.c `vw_n`; dropped when the fighter is hit or starts another special).
+  Haohmaru's tornado (236AB, startup and recovery retimed 0.5x): $1A $90 (1023 ms) then $1A $91, 61 frames later.
 - Export (`export_bm.voice_data`): `bchar_t.voices` = [voice id, at] per key (VK_* in bm_chars.h: BA_*, VK_THROW +
   BT_*, VK_HIT, VK_KO, VK_SELECT, VK_SPEC + pool index), `nvoice`; build/voice_map.json = the ids each fighter maps.
 - Sound build (`build_snd.py voices`, songs.json `voices`): only the mapped voices' samples, copied from their game's

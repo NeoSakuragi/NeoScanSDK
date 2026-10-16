@@ -199,11 +199,17 @@ def anim(rid, use):
     b = H.Brawler(game=G); b.game = G; scenario.setup(b, R)
     S = b.syms; vram = (C.c_uint16 * (b.core.retro_get_memory_size(3) // 2)).from_address(b.core.retro_get_memory_data(3))
     keys = [(int(m), k) for m, k in (p.split(':') for p in R['do_keys'].split(','))] + [(4000, '-')]
-    rows, on = [], False
+    rows, on, pics = [], False, []
+    b._want_video = True                                             # (every frame's picture: the white frame as shown)
+    def whites():
+        data, w, h, pitch = b._video
+        y = b.r(S['bt_y'], 2); a = np.frombuffer(data, np.uint8).reshape(h, pitch // 4, 4)[max(0, y):y + 48, :w, :3]
+        return int((a.min(axis=2) >= 248).sum())
     for m, k in keys:
         for _ in range(m):
             b.run(1, p1=k)
             n = b.r(S['bt_n'], 1)
+            if on or n: pics.append(whites())
             if n: on = True
             if not on: continue
             if not n: rows.append(('gone', None)); break
@@ -217,7 +223,7 @@ def anim(rid, use):
     x0 = rows[a + 1][1] if len(rows) > a + 1 else None
     check(len(rows) > a + bl, f'{rid}: the message shows ({len(rows)} frames logged)')
     if len(rows) <= a + bl: return
-    if rows[0] == ('hidden', 0): rows = rows[1:]                     # (the frame bt_show ran, before its first bt_draw)
+    if rows[0] == ('hidden', 0): rows, pics = rows[1:], pics[1:]     # (the frame bt_show ran, before its first bt_draw)
     ok_in = rows[0][1] > x0 and all(r[0] == 'shown' and r[1] >= x0 for r in rows[:a])
     ok_bl = [r[0] for r in rows[a:a + bl]] == [cyc[i % len(cyc)] for i in range(bl)]
     ok_ho = all(r == ('shown', x0) for r in rows[a + bl:a + bl + ho])
@@ -229,6 +235,13 @@ def anim(rid, use):
     check(ok_bl, f'{rid}: blinks {bl} ticks, {"/".join(cyc)} a frame each')
     check(ok_ho, f'{rid}: held {ho} ticks in place')
     check(ok_out, f'{rid}: ' + (f'slides out to the left over {so} ticks, then gone' if exit_ else 'stays (exit false)'))
+    # the picture (note 20261016-133635-e03d round 2: "I'm not sure I see the all-white frame"): a frame the game means
+    # white (bt_white after its tick) shows its letters white on the next picture (the VRAM queue and the palette go
+    # out in the vblank after the tick); every other blink frame shows no white letters
+    pw = [pics[i + 1] for i in range(a, a + bl) if rows[i][0] == 'white' and i + 1 < len(pics)]
+    po = [pics[i + 1] for i in range(a, a + bl) if rows[i][0] != 'white' and i + 1 < len(pics)]
+    print('white px (picture after a white tick):', pw, ' other blink frames:', po)
+    check(pw and min(pw) > 1000 and min(pw) > 4 * max(po + [1]), f'{rid}: each white blink frame shows its letters all white on screen')
 
 
 if __name__ == '__main__':

@@ -135,10 +135,19 @@ static void hurt_land(fighter_t *f) { if (f->hv) { f->hv = 0; hurt_voice(f, HV_L
  * layout stands for the Lab packs): its voices are bchar_t.vmore entries under VK_XTHROW (export_bm xthrow_voices: its
  * source's sends on its animation, Final Fight's piledriver $0B); a fighter without any plays throw_c's (voice_throw) */
 #define VK_XTHROW 0xFE
+#define VK_WAIT 0x80               /* a vmore key | VK_WAIT: [key | VK_WAIT, voice id, frames]: that voice plays `frames`
+                                    real frames after the key's first voice is sent (game.json roster[].voice_whole: a
+                                    special's voice parts each played whole, note 20261016-131850-e03d; export_bm
+                                    voice_waits); keys stay below 0x7E (VK_XTHROW, the 0xFF end) */
 static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */
     const uint8_t *e = voice_tab[f->ch->id] + key * 2;
     if (mute || f->state == S_PROJ) return;
-    if (e[0] && e[1] >= from && e[1] <= to) voice_play(f->ch, f->team, key);
+    if (e[0] && e[1] >= from && e[1] <= to) {
+        voice_play(f->ch, f->team, key);
+        if (voice_tab[f->ch->id] == f->ch->voices)               /* its part waiting for this one's end (VK_WAIT) */
+            for (e = f->ch->vmore; *e != 0xFF; e += 3)
+                if (e[0] == (key | VK_WAIT)) { ((fighter_t *)f)->vw_id = e[1]; ((fighter_t *)f)->vw_n = e[2]; }
+    }
     if (voice_tab[f->ch->id] != f->ch->voices) return;           /* a pack's table: its own voices only */
     for (e = f->ch->vmore; *e != 0xFF; e += 3)                   /* the key's further voices (bchar_t.vmore) */
         if (e[0] == key && e[2] >= from && e[2] <= to) voice_id(f->ch, f->team, e[1]);
@@ -218,13 +227,13 @@ static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of
     return IN_A;
 }
 /* the special playing may be cancelled ("cancels" rules 2 / 3): a special (not a form's transition), or a player's fury
- * (not a MAX) when game.json max_cancel is on (gmaxcan.cost: note 20261016-133443-e03d, Bruno: "cancel the fury into the
+ * (not a MAX) when game.json max_cancel is on (gmaxcan.on: note 20261016-133443-e03d, Bruno: "cancel the fury into the
  * MAX fury now that we have four meters"; was never since 2026-10-08): its MAX on down + D is then its only target
  * (fury_buy; its C / Blitz presses are not buffered) */
 static uint8_t may_cancel(const fighter_t *f) {
     if (f->spec_id == BS_FORM || f->spec_id == BS_AIR || f->spec_id == BS_DOWNATK || f->spec_id == BS_THROW || f->sthr) return 0;   /* (a
                                                                     throw, its super: no cancel, revamp 3) */
-    return f->spec_id != BS_FURY || (gmaxcan.cost && !f->fmax && !f->team);
+    return f->spec_id != BS_FURY || (gmaxcan.on && !f->fmax && !f->team);
 }
 static uint8_t cancel_open(const fighter_t *f) {                 /* its cancel window is open: a hit landed (scancel), or */
     return f->scancel || (f->spec_id == BS_FURY && gmaxcan.any);   /* a fury with max_cancel.window 'any': from its start */
@@ -896,14 +905,13 @@ static uint8_t blitz_play(fighter_t *f, uint8_t slot, uint8_t how) {
  * its first gmeter.sflash frames (Bruno 2026-10-10: "it's costing energy"; the breaker keeps its white / red, the fury
  * its own signals). The life bar's red blink at low life is the HUD's (main.c hud). gmeter.infinite
  * (a test switch): nothing spent, both bars full. */
-enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM, PAY_MAXC };   /* PAY_MAXC: a fury cancelled into its MAX (gmaxcan.cost drive
-                                                                    chunks, nothing else: game.json max_cancel) */
+enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM };
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static void set_burn(fighter_t *f, uint8_t burn);
 static void burn_show(fighter_t *f);
 /* the bonus stages (main.c "bonus stages", game.json bonus; TODO T7): drive_chunks = the chunks a player's drive bar
- * holds now (gmeter.chunks at a new game, a gauge game's reward adds to it for the credit, up to 4); fury_lock = D's
+ * holds now (gmeter.chunks at a new game, a gauge game's reward adds to it for the credit, up to meter.max_chunks); fury_lock = D's
  * fury and MAX locked for the players (a new game with bonus.fury_lock, until a game that unlocks it is won; never the
  * attract demo or the Lab) */
 uint8_t drive_chunks, fury_lock;
@@ -926,11 +934,6 @@ static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whe
         if (gmeter.infinite) { f->drive = DRIVE_FULL; if (!dry) f->sfl = gmeter.sflash; return 1; }
         if (f->drive < cost) return 0;
         if (!dry) { f->drive -= cost; f->sfl = gmeter.sflash; }   /* paid: the blue flash (pal_overlay) */
-        return 1;
-    }
-    if (kind == PAY_MAXC) {                                      /* the MAX cancel: its drive only (note 20261016-133443-e03d) */
-        if (!gmaxcan.cost || !drive_has(f, gmaxcan.cost)) return 0;
-        if (!dry && !gmeter.infinite) f->drive -= (uint16_t)(gmaxcan.cost * gmeter.chunk);
         return 1;
     }
     if (kind == PAY_MAX) { if (!max_ready(f)) return 0; }
@@ -1915,7 +1918,9 @@ static uint8_t paired_update(fighter_t *f) {
 static uint8_t fury_buy(fighter_t *f, uint8_t down, uint8_t dry) {
     uint8_t k;
     if (f->state == S_SPECIAL && f->spec_id == BS_FURY)          /* a fury playing: down + D = the MAX cancel (max_cancel, */
-        return down && may_cancel(f) && pay(f, PAY_MAXC, dry) ? BS_FURY_MAX : 0xFF;   /* its drive alone), D alone nothing */
+        return down && may_cancel(f) && pay(f, PAY_MAX, dry) ? BS_FURY_MAX : 0xFF;   /* only when
+                                                                    the MAX itself could start: max_ready, paid as the MAX,
+                                                                    note 20261016-133443-e03d round 2), D alone nothing */
     k = spec_ix(f->ch, BS_FURY) == 0xFF ? 0xFF : down ? BS_FURY_MAX : BS_FURY;   /* (Bruno 2026-10-09: D = the fury, down+D = the MAX) */
     if (k == BS_FURY_MAX && !pay(f, PAY_MAX, 1)) k = BS_FURY;   /* down+D, the MAX not payable (its red state, its drive):
                                                                     the fury plays, with its own cost (Bruno 2026-10-11,
@@ -2951,7 +2956,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = f->vz = 0;   /* (vz: P_MOVE's
                                                                     depth, only P_HOME sets it) */
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0; f->vsigp = 0; f->vtdone = 0; f->phh = 0; f->mash = MASH_GAP; f->spmash = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = f->vw_n = 0; f->vlist = 0; f->vsigp = 0; f->vtdone = 0; f->phh = 0; f->mash = MASH_GAP; f->spmash = 0;
         if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
                                                                     one (the action routine runs in the frame the action
                                                                     is set; else every SS2 move ran a frame long, TODO
@@ -4311,6 +4316,7 @@ static void update(fighter_t *f, const intent_t *in) {
                                                                     the juggle window (rule 5) closes */
     if (f->burn && f->state != S_HITSTUN && f->state != S_KNOCKDOWN) set_burn(f, 0);   /* landed or recovered */
     else if (f->burn && !f->flash && f->burn_t != burn_step()) burn_show(f);   /* the flame cycle's next step */
+    if (f->vw_n && !--f->vw_n && !mute) voice_id(f->ch, f->team, f->vw_id);   /* a waiting voice part: real frames */
     if (f->freeze) {                                             /* hit-stop: nothing moves, nothing animates */
         if (!--f->freeze && f->state == S_SPECIAL && (f->ch->specials[f->spec_ix].sflags & SF_SREACT)) f->pstill = 1;   /* (a
                                                                     source reaction's game: Kizuna's attacker stands the
@@ -4771,7 +4777,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     rk = reaction == RK_HIGH ? R_LAUNCH | 16 : reaction;         /* (KOF's high launch, 299: kof_react) */
     reaction = reaction == RK_HIGH ? R_LAUNCH : reaction & 7;
     was = v->state;                                              /* (its launch: hurt_voice at the end) */
-    v->pvl_n = 0;                                                /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
+    v->pvl_n = v->vw_n = 0;                                              /* its voice to come: dropped (KOF $170D8 clears +$1B6) */
     if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr) && v->tb_by != a) { v->tb_by = a; v->hit_mask = 0; v->tb_fl = 0; v->tb_kind = TBK_SPECIAL; }   /* a
                                                                     throw special's victim: a thrown body (revamp 3) */
     if (v->state == S_THROWN) {                                  /* rule 5: hit in its throw's flight: the script ends */

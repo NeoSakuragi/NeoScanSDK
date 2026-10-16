@@ -78,7 +78,7 @@ def load_moves():
         specs = T[f'{n}_specials'][1]
         rs = roster.get(n, {})
         vmore = {}
-        for key, vid, at in f['voices'].get('more', []): vmore.setdefault(key - 62, []).append(vid)   # VK_SPEC = 62
+        for key, vid, at in f["voices"].get("more", []): vmore.setdefault((key & 0x7F) - 62, []).append(vid)   # VK_SPEC = 62
         for k, (pool, sp) in enumerate(zip(f['pool'], specs)):
             s = dict(zip(SP_F, pad(sp, len(SP_F))))
             inp = pool['input']

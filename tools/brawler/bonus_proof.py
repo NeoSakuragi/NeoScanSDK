@@ -28,6 +28,7 @@ BP_STAND = 2
 
 class Proof:
     def __init__(self, game, out):
+        self.maxc = json.load(open(os.path.join(game, 'game.json')))['meter'].get('max_chunks', 4)   # the bar's most chunks
         self.game, self.out = game, out; os.makedirs(out, exist_ok=True)
         self.b = H.Brawler(game=game); self.b.game = game
         self.names = scenario.roster(game); self.fails = 0; self.shots = []
@@ -109,7 +110,7 @@ class Proof:
             got, c1 = self.r('bn_grade'), self.r('drive_chunks')
             self.shot(f'tree_g{g}', f'tree grade {g}: result')
             pr = ki.get('pass_reward')                  # (notes 20261016-133045 / -135212-e03d: a pass's chunks by clear)
-            add = min(pr['chunks'][0] if win and pr else ki['chunks'][g], 4 - c0)
+            add = min(pr['chunks'][0] if win and pr else ki['chunks'][g], self.maxc - c0)
             self.check(k >= 0 and got == g and c1 == c0 + add, f'tree: pressed at power ~{want}: grade {got} (want {g}), drive chunks {c0} -> {c1} (want +{add})')
             if win and pr: self.pass_screen(pr['text'][add], 'the first pass')
             song = self.r('snd_song'); want_s = self.mus['BONUS_WIN' if win else 'BONUS_OVER']
@@ -135,18 +136,22 @@ class Proof:
                    f'tree {what}: only the big headline {text!r} ({b.r(S["bt_n"], 1)} glyph columns, use {use}); fix rows {rows}, the gauge bar row 9 {"cleared" if all(t in (0, 0x20) for t in tiles) else tiles}')
         self.shot('tree_pass_' + what.split()[1], f'tree {what}: {text}')
 
-    def second_pass(self):
-        """the same credit's second pass of the gauge game: pass_reward.chunks[1] (bn_clr = 1, as after a first pass)"""
+    def second_pass(self, start=None):
+        """the same credit's second pass of the gauge game: pass_reward.chunks[1] (bn_clr = 1, as after a first pass); start:
+        the bar's chunks before it (note 20261016-152232-e03d: at 4 the pass gives the 5th, meter.max_chunks; at 5 METER
+        ALREADY FULL)"""
         ki = next(x for x in self.G['games'] if x['kind'] == 'gauge'); pr = ki.get('pass_reward')
         if not pr or len(pr['chunks']) < 2: return
         self.setup(game=ki['id']); self.b.run(2)
         self.b.w(self.b.syms['bn_clr'] + self.G['games'].index(ki), 1, 1)   # (one pass of it already this credit)
+        if start: self.b.w(self.b.syms['drive_chunks'], 1, start)
         self.b.run(38); c0 = self.r('drive_chunks')
         self.until(lambda: self.r('bn_power') >= ki['grades'][-1] + 2, 400); self.b.run(1, p1='a')
         self.until(lambda: self.r('bonus_on') == BN['end'], 600); self.b.run(2)
-        add = min(pr['chunks'][1], 4 - c0)
+        add = min(pr['chunks'][1], self.maxc - c0)
         self.check(self.r('bn_grade') == 5 and self.r('drive_chunks') == c0 + add, f'tree, the second pass this credit: drive chunks {c0} -> {self.r("drive_chunks")} (want +{add}: pass_reward.chunks[1])')
-        self.pass_screen(pr['text'][add], 'the second pass')
+        self.pass_screen(pr['text'][add], 'the second pass' + (f' from {start}' if start else ''))
+        if start: self.shot(f'tree_hud_{c0 + add}', f'tree, the second pass from {start}: the HUD bar at {c0 + add} chunks')
 
     # ---- the posts: played with D (win) or A only (fail)
     def play_posts(self, fighter, key, shots=False, limit=None):
@@ -266,7 +271,7 @@ def main():
     a = [x for x in sys.argv[1:] if not x.startswith('--')]
     if len(a) != 2: sys.exit(__doc__)
     P = Proof(*a)
-    P.pick(); P.grades(); P.second_pass(); P.posts()
+    P.pick(); P.grades(); P.second_pass(); P.second_pass(P.maxc - 1); P.second_pass(P.maxc); P.posts()
     if '--sweep' in sys.argv: P.sweep()
     P.sheet()
     print('ALL OK' if not P.fails else f'{P.fails} FAIL'); sys.exit(1 if P.fails else 0)

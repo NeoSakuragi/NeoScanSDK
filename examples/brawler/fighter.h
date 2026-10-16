@@ -485,6 +485,9 @@ typedef struct fighter {
                                    * counted (kthud = 1 + the contacts so far: 3 = the second, main.c boss_ko_tick);
                                    * hv 1: launched (or thrown), its landing hurt voice still to come (fighter.c hurt_land,
                                    * game.json hit_sounds.hurt_voice) */
+    uint8_t  vw_id, vw_n;         /* a voice part waiting for the one before to end (bchar_t.vmore [key | VK_WAIT, id,
+                                   * frames]: game.json roster[].voice_whole): its id, the real frames left (0 = none;
+                                   * hit-stop and retiming included: the sample plays in real time; dropped when hit) */
     uint8_t  pvl_id, pvl_n;       /* a ROM special's voice sent later (P_VOICE b > 0, KOF +$1B4 / +$1B6; TODO #163): its id,
                                    * the frames left (0 = none; counted down by its program's frames, then by the
                                    * fighter's own once the move ended; dropped when it is hit) */
