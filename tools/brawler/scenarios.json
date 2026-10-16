@@ -5609,7 +5609,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then back + A (HANZO's back throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-back): on frame 30 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 36. On frame 36 Ryo is sent flying BACK (medium): the other way from before, back toward HANZO's side, no longer off the way HANZO faces at the release (the new launch direction 'back'), and HANZO plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-back): on frame 30 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 36. On frame 36 Ryo is sent flying AWAY (medium), as before 0.10.149 (the 'back' change was meant for the forward throw only), and HANZO plays his throw animation to its end.",
   "do_keys": "20:R,2:La,150:-",
   "proof": 64
  },

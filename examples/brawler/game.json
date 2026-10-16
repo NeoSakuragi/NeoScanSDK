@@ -473,8 +473,8 @@
      },
      "back": {
       "impacts": [{"frame": 30}],
-      "launch": {"frame": 36, "dir": "back"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 30, launch frame 36 AWAY; notes 20261016-140504-8a04 / 140505-8a05: away flew the way he faces, launch BACK (the other way)"
+      "launch": {"frame": 36, "dir": "away"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 30, launch frame 36 AWAY; notes 20261016-140504-8a04 / 140505-8a05: away flew the way he faces, launch BACK (the other way); back throw reset to AWAY: note 8a04 reply, the BACK was meant for the forward throw only"
      },
      "hold_b": {
       "impacts": [{"frame": 83}],
