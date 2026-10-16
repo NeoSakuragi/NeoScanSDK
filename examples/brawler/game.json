@@ -2,6 +2,7 @@
  "about": "The brawler as data (docs/brawler_data_model.md): roster (layer 1), enemies + AI presets (layer 2), stages (layer 3). tools/brawler/build_tables.py turns it into the tables the game reads (build/game_tables.c / .h, build/roster.json for the fighter export).",
  "schema": 1,
  "music": {"title": "TITLE", "select": "SELECT", "clear": "WIN", "clear_frames": 345, "clear_frames_about": "note 20261015-145350-e03d (tester: the win music is cut, some characters have no big portrait): the stage clear's next screen waits until the clear song has played this many frames (KOF95 $30: 302 ticks, 5.6 s, stops by itself; docs/kof95_songs.md) whatever screens are shown (main.c PH_CLEAR)", "continue": "CONTINUE", "gameover": "GAMEOVER"},
+ "credit": {"about": "MVS only (arcade BIOS; a console = AES has no credits, no timer): after a credit the title (PRESS START) waits at most `start_timeout_s` seconds, the seconds shown counting down beside PRESS START when `shown` (Bruno, note 20261016-174640-e03d: \"Just like KOF94 [...] you have only 30 seconds to press START before you're automatically sent into a new game\"), then the game starts as if P1 pressed START (a credit taken, the select). main.c title_tick", "start_timeout_s": 30, "shown": true, "mvs_only": true},
  "roster": [
   {
    "name": "terry",
@@ -794,6 +795,7 @@
   "screen": {"feet": 200, "margin": 40, "pitch": 90}
  },
  "select": {
+  "time_limit_s": 15, "time_limit_shown": false, "time_limit_mvs_only": true, "time_limit_about": "note 20261016-174702-e03d: the select runs a hidden clock (no timer drawn until it has its font): after `time_limit_s` seconds every joined player who has not picked gets the fighter under his cursor in its first colour set (as A); MVS only (console: no limit). main.c select_tick",
   "stick": "order",
   "auto": {"about": "the select screen's places laid out by the build for every unlocked count (note 20261015-135645-e03d: 'Characters are bunched up together... avoid overlap as much as possible'; build_tables.select_auto / select_cams): one line along the street in ladder order, facing the middle, feet y alternating `feet` (front / back), each fighter as close to the previous as its drawn pose allows with `gap` px between their pixels, never closer than an even pitch filling the TV minus `margin` each side (at most `pitch` px feet to feet), centred on the street; a group wider than the screen: the camera pans along it (never past its ends). The hand layout (select_layout, the Factory's Select screen editor) gives the poses; remove this block to place them by hand again (its consecutive places, centred).", "feet": [196, 204], "gap": 6, "pitch": 90, "margin": 16},
   "slots": [

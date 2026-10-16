@@ -34,6 +34,9 @@
 extern volatile uint8_t bios_demo_end, bios_start;
 void game_enter(uint8_t request);
 void SYS_return(void);
+/* the game starts players itself (a title's timeout): takes one credit from each player in `players` (bit 0 P1, bit 1
+ * P2) through the BIOS (CREDIT_CHECK + CREDIT_DOWN), USER_MODE 2; returns those it took (0: none had a credit) */
+uint8_t SYS_credit_take(uint8_t players);
 
 /* Input bit masks */
 #define INPUT_UP     (1 << 0)

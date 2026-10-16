@@ -5767,5 +5767,26 @@
   "expect": "With a cleared save the demo fights only ever show TERRY and ROBERT (the starters, the two on the select screen): never HAGGAR, HANZO, HAOHMARU or KIM. Once rungs are unlocked, the demo shows exactly the fighters the select screen shows (after the cheat: everyone on the ladder).",
   "do_keys": "",
   "proof": 3000
+ },
+ "20261016-174640-e03d": {
+  "title": "Arcade title after a coin: 30 seconds to press START, then the game starts by itself",
+  "setup": {
+   "mode": "title",
+   "pre": "4:o,60:-"
+  },
+  "do": "Arcade (MVS) mode: a coin is in and the title shows PRESS START. Don't touch anything and watch the number beside PRESS START. (Console mode: no coin, no number.)",
+  "expect": "The seconds count down from 30 beside PRESS START; at the end the game starts by itself on the character select, as if you had pressed START, and the credit count drops by one. On the console nothing counts and the title waits for you.",
+  "do_keys": "",
+  "proof": 1900
+ },
+ "20261016-174702-e03d": {
+  "title": "Arcade character select: 15 seconds, then the highlighted fighter is picked",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "Arcade (MVS) mode, on the character select: move the cursor onto any fighter if you like, then don't press any button for 15 seconds.",
+  "expect": "No timer is shown, but after 15 seconds the highlighted fighter is picked in his first colours (as if you had pressed A) and the fight starts. On the console the select waits for you forever.",
+  "do_keys": "",
+  "proof": 1200
  }
 }

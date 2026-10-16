@@ -137,6 +137,34 @@ SYS_return:
     andib   #0x7F, 0x10FD80     /* the BIOS handles vblank again */
     jmp     0xC00444            /* SYSTEM_RETURN */
 
+| SYS_credit_take (C: uint8_t SYS_credit_take(uint8_t players)): the game starts players itself (a title's timeout, as
+| KOF94): BIOS_CREDIT_DEC per player (bit 0 P1, bit 1 P2), CREDIT_CHECK (drops a player short of credits), CREDIT_DOWN
+| $C00456 takes them, USER_MODE = 2. Returns the players whose credit was taken (0: none, nothing changed).
+    .global SYS_credit_take
+SYS_credit_take:
+    movel   4(%sp), %d0
+    moveml  %d1-%d7/%a0-%a6, -(%sp)
+    andib   #3, %d0
+    moveb   %d0, 0x10FDB4       /* BIOS_START_FLAG: CREDIT_CHECK's input / output */
+    clrl    0x10FDB0            /* BIOS_CREDIT_DEC1-4 */
+    btst    #0, %d0
+    beq.s   1f
+    moveb   #1, 0x10FDB0
+1:  btst    #1, %d0
+    beq.s   2f
+    moveb   #1, 0x10FDB1
+2:  jsr     0xC00450            /* CREDIT_CHECK */
+    moveq   #0, %d0
+    moveb   0x10FDB4, %d0
+    beq.s   3f
+    movel   %d0, -(%sp)
+    jsr     0xC00456            /* CREDIT_DOWN: BIOS_CREDIT_DEC's counts off the players' credits */
+    movel   (%sp)+, %d0
+    moveb   #2, 0x10FDAF        /* USER_MODE = 2 (game) */
+3:  clrb    0x10FDB4
+    moveml  (%sp)+, %d1-%d7/%a0-%a6
+    rts
+
 | game_enter (C: void game_enter(uint8_t request)): called on USER request 2 (demo) and 3 (title) before the frame loop.
 | Weak default: game_init (the old behaviour: the game starts at once). A game with an attract / title defines its own.
     .weak   game_enter
