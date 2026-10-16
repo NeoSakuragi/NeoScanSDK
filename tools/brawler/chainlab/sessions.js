@@ -1,10 +1,12 @@
-/* Brawler Lab, Sessions tab (game.html #sessions; docs/feedback.md "Session recording", Player 0.0.41): every tester's
+/* Brawler Lab, Sessions tab (game.html #sessions; docs/feedback.md "Session recording", Player 0.0.41, keyframes 0.0.43): every tester's
  * recorded play sessions, one row each (player, build, date, length, ● LIVE when a chunk arrived in the last 15 s);
  * a tap opens the player: the session replayed in the wasm core (sessreplay.js on fbreplay.js, the build of that
  * session from feedback-api/rom/<sha> + the Lab's BIOS, as the Feedback tab), seek bar, play / pause, speed x1 / x2 / x4
- * (sound at x1). A live session starts at its newest chunk and plays the chunks as they arrive (polled every 2.5 s,
- * ~5-10 s behind). Where a chunk follows the one played, the replay's state is compared with the recorded one (the
- * line under the picture: "N chunk joins checked, all byte-identical"). Link: brawler-lab/game.html#sessions
+ * (sound at x1). A seek starts from the nearest keyframe (a chunk with the full state, every ~30 s) at or before the
+ * target and plays the inputs silently up to it. A live session starts at its latest keyframe, fast-forwards silently to
+ * its newest chunk and plays the chunks as they arrive (polled every 2.5 s, ~5-10 s behind). At every chunk boundary the
+ * replay's state SHA-256 is compared with the recorded one (the line under the picture: "N chunk boundaries checked:
+ * all identical"; a difference or a missing chunk is shown, the replay resyncs at the next keyframe). Link: brawler-lab/game.html#sessions
  * (#sess=<id> opens one). API: feedback-api/sessions, session/<id>[?after=], session/<id>/inputs[?from=],
  * session/<id>/state/<seq> (tools/feedback/server.py sessions_api). */
 (async function () {
@@ -93,8 +95,11 @@
       seek.max = S.total; if (!busy) seek.value = S.pos;
       const lag = live && S.chunks.length ? ` · ${((S.total - S.pos) / fps).toFixed(1)} s behind the last chunk` : '';
       pos.textContent = `${mmss(S.pos)} / ${mmss(S.total)}${live ? ' · LIVE' : ''}${lag}${waiting ? ' · waiting for the next chunk' : ''}`;
-      chk.textContent = S.checked ? (S.mismatches.length ? `${S.checked} chunk joins checked: ${S.mismatches.length} DIFFERENT from the recording (chunks ${S.mismatches.slice(0, 8).join(', ')})`
-        : `${S.checked} chunk joins checked: all byte-identical to the recording`) : '';
+      const ck = S.checked ? (S.mismatches.length ? `${S.checked} chunk boundaries checked (state SHA-256): DIFFERENT from the recording at chunk ${S.mismatches.slice(0, 8).join(', ')}`
+        : `${S.checked} chunk boundaries checked (state SHA-256): all identical to the recording`) : '';
+      const gp = S.gaps.length ? ` · missing chunks before ${S.gaps.slice(0, 8).join(', ')}` : '';
+      const rs = S.resyncs.length ? ` · resynced at keyframe ${S.resyncs.slice(0, 8).join(', ')}` : '';
+      chk.textContent = ck + gp + rs + (S.drift ? ' · drifting: resync at the next keyframe' : '');
     };
     const sound = a => {
       if (!a || !a.length || speed !== 1) return;
@@ -136,12 +141,16 @@
         if (!playing) draw();
       } catch (e) { /* the next poll */ }
     }
-    async function goLive() {                                // the newest chunk with a state, then play as they arrive
+    async function goLive() {                                // the latest keyframe, silently on to the newest chunk, then play as they arrive
       if (!S) return;
       await more();
-      let k = S.chunks.length - 1; while (k > 0 && !S.chunks[k].state) k--;
-      live = true; bLive.classList.add('on'); speed = 1; sp.forEach((b, i) => b.classList.toggle('on', i === 0));
-      await jump(S.cum[k]); play();
+      stop(); live = true; bLive.classList.add('on'); speed = 1; sp.forEach((b, i) => b.classList.toggle('on', i === 0));
+      await jump(S.cum[S.chunks.length - 1]);
+      for (let n = 0; n < 3 && S.chunks.length; n++) {      // chunks that arrived during the fast-forward: silently on to the newest
+        await more(); const g = S.cum[S.chunks.length - 1]; if (S.pos >= g) break;
+        busy = true; while (S.pos < g) { if (S.step() === null && !(await S.ready())) break; } busy = false;
+      }
+      play();
     }
     try {
       const [meta, inputs] = await Promise.all([json(API + 'session/' + r.id), get(API + 'session/' + r.id + '/inputs', 'inputs')]);
@@ -155,7 +164,7 @@
       S = new SessionReplay(R, async seq => get(API + 'session/' + r.id + '/state/' + seq, 'state ' + seq));
       S.addMeta(meta.chunks); S.addInputs(inputs);
       if (!S.chunks.length) throw new Error('no chunk yet');
-      st.textContent = `${S.chunks.length} chunks, ${mmss(S.total)} of play.` + (systype !== 'mvs' ? ' (A console session: the Lab has only the MVS BIOS, it may not replay.)' : '');
+      st.textContent = `${S.chunks.length} chunks (${S.keys} keyframes), ${mmss(S.total)} of play.` + (systype !== 'mvs' ? ' (A console session: the Lab has only the MVS BIOS, it may not replay.)' : '');
       bLive.disabled = !r.live;
       poll = setInterval(more, 2500);
       if (r.live) await goLive(); else { await jump(0); draw(); }

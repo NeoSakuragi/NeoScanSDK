@@ -110,8 +110,8 @@ size, saved_at} + r<rev>.json (each revision in full; the last SAVE_KEEP kept as
                         updated, deleted} (the Player: newest wins; the older one is sent with ?backup=1: stored as a
                         backup revision, the current one unchanged) -> {rev, updated, current}; files <= MAX_SAVE bytes
   DELETE saves/<game>   the current save goes (its revision file stays as a backup), state deleted = now -> {rev 0, deleted}
-Session recording (Player 0.0.41, docs/feedback.md "Session recording"): POST sessions/chunk = a ~5 s chunk of the
-play session (state + pads), files on the storage box SESSIONS/<session>/, the index in the sessions / session_chunks
+Session recording (Player 0.0.41, keyframes 0.0.43; docs/feedback.md "Session recording"): POST sessions/chunk = a ~5 s
+chunk of the play session (pads + the state's SHA-256; a keyframe chunk, every ~30 s, the state too), files on the storage box SESSIONS/<session>/, the index in the sessions / session_chunks
 tables; the Lab reads them through /api/sessions, /api/session/<id>[/inputs | /state/<seq>] (sessions_api).
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
@@ -230,7 +230,8 @@ def db_init():
         CREATE INDEX IF NOT EXISTS sessions_last ON sessions(last_at);
         CREATE TABLE IF NOT EXISTS session_chunks (
             session TEXT, seq INTEGER, start_frame INTEGER, frames INTEGER, state INTEGER, state_size INTEGER,
-            state_sha TEXT, bytes INTEGER, at REAL, paused INTEGER, inputs BLOB, PRIMARY KEY (session, seq));''')
+            state_sha TEXT, bytes INTEGER, at REAL, paused INTEGER, inputs BLOB, PRIMARY KEY (session, seq));
+        CREATE INDEX IF NOT EXISTS session_keys ON session_chunks(session, state, seq);''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
         for col in ('user', 'install_id', 'marked', 'title', 'todo', 'fix_commit', 'fix', 'rca'):   # 0.0.15: the account, its install, a scribble;
                                                                       # title: my one-liner; todo: the TODO item(s); fix_commit;
@@ -1161,9 +1162,11 @@ def save_delete(d):
 
 
 # ---- session recording (Player 0.0.41) ----------------------------------------------------------------------------
-# docs/feedback.md "Session recording": the Player sends its play session in ~5 s chunks (Session.kt): the state at the
-# chunk's start (gzip) + the pads of its frames (NSIN v1). Files on the storage box (the VPS root disk is near full):
-# SESSIONS/<session>/meta.json + <seq>.nsin + <seq>.state.gz; the index (+ the pads, zlib'd: ~200 bytes a chunk) in the
+# docs/feedback.md "Session recording": the Player sends its play session in ~5 s chunks (Session.kt): the pads of its
+# frames (NSIN v1) + the SHA-256 of the state at the chunk's start; a KEYFRAME chunk (every ~30 s since Player 0.0.43;
+# every chunk from 0.0.41 / 0.0.42) carries that state too (gzip). Files on the storage box (the VPS root disk is near
+# full): SESSIONS/<session>/meta.json + <seq>.nsin + <seq>.sha256 + <seq>.state.gz (keyframes); the index (state = 1: a
+# keyframe) (+ the pads, zlib'd: ~200 bytes a chunk) in the
 # tracker DB (sessions, session_chunks). Kept for good for now.
 SESSIONS = os.environ.get('FEEDBACK_SESSIONS', '/mnt/storagebox/brawler-sessions')
 SESSIONS_MOUNT = os.environ.get('FEEDBACK_SESSIONS_MOUNT', '/mnt/storagebox')   # must be mounted ('' = no check: proofs)
@@ -1202,6 +1205,7 @@ def parse_chunk(b):
         except zlib.error: raise ValueError('state: not gzip')
         if len(raw) > MAX_STATE or not d.eof: raise ValueError('state: too big or truncated')
         if len(raw) != meta.get('state_size') or hashlib.sha256(raw).hexdigest() != meta.get('state_sha256'): raise ValueError('state: size / sha256')
+    elif meta.get('state_sha256') is not None and not SHA.match(str(meta['state_sha256'])): raise ValueError('state_sha256')
     return meta, inputs, gz, raw
 
 
@@ -2132,13 +2136,15 @@ class H(http.server.BaseHTTPRequestHandler):
             os.makedirs(d, exist_ok=True)
             if new or not os.path.exists(os.path.join(d, 'meta.json')): write_json(os.path.join(d, 'meta.json'), dict(meta, user=user, received=now()))
             write_atomic(os.path.join(d, '%06d.nsin' % seq), inputs)
+            if meta.get('state_sha256'): write_atomic(os.path.join(d, '%06d.sha256' % seq), meta['state_sha256'].encode())   # (the Node replay's drift check)
             if gz: write_atomic(os.path.join(d, '%06d.state.gz' % seq), gz)
         except OSError as e:
             log('session chunk: write failed', sid, seq, e); return self.reply(503, {'error': 'storage write failed'})
         with lock, db() as c:
             old = c.execute('SELECT frames, bytes FROM session_chunks WHERE session=? AND seq=?', (sid, seq)).fetchone()   # a retry: replaced
             c.execute('INSERT OR REPLACE INTO session_chunks VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-                      (sid, seq, meta['start_frame'], meta['frames'], 1 if gz else 0, len(raw), meta.get('state_sha256') if gz else '',
+                      (sid, seq, meta['start_frame'], meta['frames'], 1 if gz else 0, meta.get('state_size') if isinstance(meta.get('state_size'), int) else len(raw),
+                       meta.get('state_sha256') or '',
                        len(body), t, 1 if meta.get('paused') else 0, zlib.compress(inputs[24:], 9)))
             c.execute('UPDATE sessions SET last_at=?, chunks=chunks+?, frames=frames+?, bytes=bytes+?, paused=? WHERE id=?',
                       (t, 0 if old else 1, meta['frames'] - (old['frames'] if old else 0), len(body) - (old['bytes'] if old else 0),
@@ -2151,7 +2157,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def sessions_api(self, parts, q):
         """the Lab's Sessions tab (feedback-api/, brawler admins): every player's sessions
           GET sessions[?limit=N]                    newest first, + the storage totals and the MB per hour
-          GET session/<id>[?after=SEQ]              its row + its chunks (seq > after)
+          GET session/<id>[?after=SEQ]              its row + its chunks (seq > after; state 1 = a keyframe) + its keyframes' seqs
           GET session/<id>/inputs[?from=SEQ]        the pads of its chunks from SEQ on: per chunk u32 seq + NSIN v1
           GET session/<id>/state/<seq>              that chunk's start state (gzip; Content-Encoding gzip)"""
         import struct, zlib
@@ -2171,7 +2177,8 @@ class H(http.server.BaseHTTPRequestHandler):
             if len(parts) == 2:
                 ch = [row_dict(x) for x in c.execute('SELECT seq, start_frame, frames, state, state_size, state_sha, bytes, at, paused '
                                                      'FROM session_chunks WHERE session=? AND seq>? ORDER BY seq', (parts[1], num('after', -1)))]
-                return self.reply(200, {'session': session_row(r, t), 'chunks': ch, 'now': t})
+                keys = [x[0] for x in c.execute('SELECT seq FROM session_chunks WHERE session=? AND state=1 ORDER BY seq', (parts[1],))]
+                return self.reply(200, {'session': session_row(r, t), 'chunks': ch, 'keys': keys, 'now': t})
             if len(parts) == 3 and parts[2] == 'inputs':
                 out = io.BytesIO()
                 for x in c.execute('SELECT seq, start_frame, frames, inputs FROM session_chunks WHERE session=? AND seq>=? ORDER BY seq', (parts[1], num('from', 0))):

@@ -18,11 +18,14 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPOutputStream
 
-/** SESSION RECORDING (Player 0.0.41, docs/feedback.md "Session recording"; both apps): while the game runs, every ~5 s a
- *  CHUNK of the play session goes to the feedback service (POST sessions/chunk), so the developers can replay a tester's
- *  whole session, or watch it live, in the Lab's Sessions tab (chainlab/sessions.js).
- *  - A chunk (player.c Native.sessionChunk) = the save state at its start + the pads of its ~300 frames, the same pads as
- *    inputs.bin (NSIN v1, bit 15 of port 0 = a soft reset before that frame). The state goes gzip'd (~1/7 of its size).
+/** SESSION RECORDING (Player 0.0.41, keyframes 0.0.43; docs/feedback.md "Session recording"; both apps): while the game
+ *  runs, every ~5 s a CHUNK of the play session goes to the feedback service (POST sessions/chunk), so the developers can
+ *  replay a tester's whole session, or watch it live, in the Lab's Sessions tab (chainlab/sessions.js).
+ *  - A chunk (player.c Native.sessionChunk) = the pads of its ~300 frames, the same pads as inputs.bin (NSIN v1, bit 15
+ *    of port 0 = a soft reset before that frame) + the SHA-256 of the save state at its start (the viewer's drift check
+ *    every 5 s). A KEYFRAME chunk also carries that state, gzip'd (~1/7 of its size): every [KEY_FRAMES] frames (~30 s),
+ *    the session's first chunk, after a jump in the frame count (a test state loaded, a chunk dropped before packing) and
+ *    after a chunk dropped or refused on the way out (the viewer resyncs at the next keyframe).
  *  - A session = one install + its start time ("<install 8>-<yyyyMMdd-HHmmss>"); a new one starts after a pause of more
  *    than [GAP_MS] (the next chunk comes later than that), another ROM / system (another EmuThread) or a new process.
  *  - Only the game build (RomFetch.romFile: brawler.neo), signed in; never the Character lab's shell.
@@ -30,11 +33,12 @@ import java.util.zip.GZIPOutputStream
  *    worker with a bounded queue, the uploads on another (bounded too, the oldest dropped when full); offline = retried
  *    with a growing wait, a refused chunk (4xx) dropped. Memory only: nothing is kept across a restart.
  *  Wire format (the POST body, little endian): "NSCK", u32 1, u32 n + n bytes of JSON meta, u32 n + inputs (NSIN v1:
- *  "NSIN", u32 1, u64 W, u64 P, (P - W) x (u16 port0, u16 port1)), u32 n + the gzip'd state (n = 0: no state). */
+ *  "NSIN", u32 1, u64 W, u64 P, (P - W) x (u16 port0, u16 port1)), u32 n + the gzip'd state (n = 0: no state: not a keyframe). */
 object Session {
     private const val TAG = "NeoScanPlayer"
     const val GAP_MS = 60_000L                                      // a pause longer than this ends the session
-    private const val MAX_QUEUE = 240                               // chunks waiting for the network (~20 min, ~8 MB)
+    private const val MAX_QUEUE = 240                               // chunks waiting for the network (~20 min, ~2 MB)
+    const val KEY_FRAMES = 1800L                                    // a keyframe (full state) every 1800 frames (~30 s)
     @Volatile private var app: Context? = null
     fun init(ctx: Context) { app = ctx.applicationContext; sender }
 
@@ -49,6 +53,9 @@ object Session {
     private var last = 0L
     private var started = 0L
     @Volatile var sent = 0L; @Volatile var dropped = 0L; @Volatile var bytes = 0L   // counters (the log)
+    // the keyframe pacing (the packer thread only; [forceKey]: a chunk lost on the way out, the next one carries its state)
+    private var kSid: String? = null; private var kEnd = -1L; private var kSince = 0L
+    @Volatile private var forceKey = false
 
     /** the emulation thread, before every frame (mode 1) and while paused (mode 2: the chunk so far is closed) */
     fun tick(e: EmuThread, mode: Int) {
@@ -72,14 +79,16 @@ object Session {
         val start = b.getLong(0); val frames = b.getInt(8); val ss = b.getInt(12)
         val inputs = ByteBuffer.allocate(24 + frames * 4).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("NSIN".toByteArray()); putInt(1); putLong(start); putLong(start + frames); put(raw, 16, frames * 4) }.array()
-        val st = ByteArrayOutputStream(ss / 4)
-        GZIPOutputStream(st, 1 shl 16).use { it.write(raw, 16 + frames * 4, ss) }
-        val gz = st.toByteArray()
+        val key = forceKey || s != kSid || start != kEnd || kSince >= KEY_FRAMES
+        if (key) { forceKey = false; kSince = 0 }
+        kSid = s; kEnd = start + frames; kSince += frames
+        val gz = if (!key) ByteArray(0) else ByteArrayOutputStream(ss / 4).also { st ->
+            GZIPOutputStream(st, 1 shl 16).use { it.write(raw, 16 + frames * 4, ss) } }.toByteArray()
         val sha = MessageDigest.getInstance("SHA-256").apply { update(raw, 16 + frames * 4, ss) }.digest().joinToString("") { "%02x".format(it) }
         val p = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
         val meta = JSONObject().apply {
             put("session", s); put("seq", n); put("start_frame", start); put("frames", frames); put("paused", paused)
-            put("state", "gzip"); put("state_size", ss); put("state_sha256", sha)
+            put("key", key); put("state", if (key) "gzip" else "none"); put("state_size", ss); put("state_sha256", sha)
             put("started", t0); put("sent", System.currentTimeMillis())
             put("rom_sha256", Feedback.sha(rom)); put("rom_version", RomFetch.installed(ctx)); put("rom_build", RomFetch.loadedBuild(ctx))
             put("system", Native.systemType() + "-" + hw); put("hw", hw); put("system_type", Native.systemType()); put("memcard", if (hw == "aes") "on" else "off")
@@ -90,7 +99,7 @@ object Session {
         }.toString().toByteArray()
         val body = ByteBuffer.allocate(12 + meta.size + 4 + inputs.size + 4 + gz.size).order(ByteOrder.LITTLE_ENDIAN).apply {
             put("NSCK".toByteArray()); putInt(1); putInt(meta.size); put(meta); putInt(inputs.size); put(inputs); putInt(gz.size); put(gz) }.array()
-        while (outbox.size >= MAX_QUEUE) { outbox.pollFirst(); dropped++ }
+        while (outbox.size >= MAX_QUEUE) { outbox.pollFirst(); dropped++; forceKey = true }
         outbox.offerLast(Chunk(s, n, body))
     }
 
@@ -105,7 +114,7 @@ object Session {
             when {
                 code == 200 -> { sent++; bytes += c.body.size; wait = 5_000L
                     if (c.seq % 60 == 0) Log.i(TAG, "session: ${c.session} chunk ${c.seq} sent (${c.body.size} bytes; $sent sent, $dropped dropped, ${bytes / 1024} KB)") }
-                code in 400..499 && code != 401 && code != 408 && code != 429 -> { dropped++; Log.w(TAG, "session: ${c.session} chunk ${c.seq} refused (HTTP $code), dropped") }
+                code in 400..499 && code != 401 && code != 408 && code != 429 -> { dropped++; forceKey = true; Log.w(TAG, "session: ${c.session} chunk ${c.seq} refused (HTTP $code), dropped") }
                 else -> {                                           // offline / the server down / not signed in yet: later
                     outbox.offerFirst(c)
                     try { Thread.sleep(wait) } catch (x: InterruptedException) { return }
