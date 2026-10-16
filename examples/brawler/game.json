@@ -313,6 +313,22 @@
   },
   {
    "name": "haohmaru",
+   "throws": {
+    "timing": {
+     "back": {
+      "kind": "impact",
+      "damage_row": 17,
+      "glue_row": 17,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): IMPACT, damage frame 18, eject frame 18, glued until frame 18"
+     },
+     "forward": {
+      "kind": "slam",
+      "damage_row": 26,
+      "glue_row": 40,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 27, glued until frame 41; note: There is a weird transition of Ryo's position between frame 1 and frame 8. I'm not sure where this comes from. It is for sure not in the original game. It appears as though there is some kind of smoothing of the position between frames. We don't want smoothing of position in brawler. That's not good for 2D games, especially for throws. So let's not have smoothing of positions for throws. Neo Geo brawler game feedback, in English or French. Terms: Terry, Geese, Ryo, Ryuko Ranbu, Kim, Phoenix, Hanzo, Billy, fury, MAX, grab, throw, hold hits, Chain Lab, brawler, hitbox, combo, special, desperation."
+     }
+    }
+   },
    "music": "THEME_HAOHMARU",
    "bank": "samsho2:haohmaru",
    "run": {"speed": 6.3125, "about": "SS2 measured (note 20261014-141702-5d29, tools/samsho2/run_ss2.py): 6.3125 px a frame, its steps at their own ticks"},
@@ -425,6 +441,12 @@
       "damage_row": 30,
       "glue_row": 37,
       "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 31, glued until frame 38"
+     },
+     "back": {
+      "kind": "impact",
+      "damage_row": 30,
+      "glue_row": 30,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): IMPACT, damage frame 31, eject frame 31, glued until frame 31"
      }
     }
    }
@@ -450,7 +472,23 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
    "air_specials": {"ddA": "j.2B"},
    "fury": "6246A",
-   "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_d_close", "multi": ["fin"], "sound": {"hit": ["13"], "fin": ["15", "15"]}}},
+   "throws": {
+    "hold": {"hit": "atk_b_close", "fin": "atk_d_close", "multi": ["fin"], "sound": {"hit": ["13"], "fin": ["15", "15"]}},
+    "timing": {
+     "back": {
+      "kind": "slam",
+      "damage_row": 34,
+      "glue_row": 34,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 24, glued until frame 24; note: There seems to be a weird smoothing of Kim's position when starting the throw, I'm not sure if it's in the original game."
+     },
+     "forward": {
+      "kind": "slam",
+      "damage_row": 34,
+      "glue_row": 34,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 24, glued until frame 24"
+     }
+    }
+   },
    "voices": "kof",
    "unlock": "always"
   },
