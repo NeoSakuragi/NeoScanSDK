@@ -3201,22 +3201,23 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
  * tick). He is drawn as SS2 draws him (face 0); the window as SS2 shows it on his left (flipped) when he comes from the
  * right, mirrored when he comes from the left. Its rows: SS2's top, a middle row per line (SS2's two at least: its 16 px
  * font, our 8 px lines centred in theirs), its bottom. Sprites: behind 53-58 (a bonus game's shadows take 43-52, the
- * post's 55-58 are free at its end), in front the box viewer's 300..323: his shadow, him, the window. Palettes REF_PAL..
+ * post's 55-58 are free at its end), in front the box viewer's 300..323: his shadow (300-303), him (304-310), the window (311-323, REF_WIN_W). Palettes REF_PAL..
  * (fighter slots 6-7: a bonus game loads only its player's). ---- */
 #define REF_PAL     64
 #define REF_WIN_ROWS 16                          /* the window's columns: its rows, then blank ones to the 16th (a shrunk
                                                     sprite of 16 rows or fewer shows rows past its size: rows a sprite there
                                                     before left showed under the opening window, note 20261016-045652-e03d) */
-#define REF_TXT_MID  98                          /* the window's inside, its centre px from its left (SS2's graphic: the
-                                                    inner border at 18 / 178): the lines centred there, 18 letters at most
+#define REF_TXT_MID  (98 + 8 * (REF_WIN_W - 12))  /* the window's inside, its centre px from its left (SS2's graphic: the
+                                                    inner border at 18 / 178, + 16 a column referee_ss2.py adds): the lines
+                                                    centred there, 18 letters at most in SS2's 12 columns, 20 in our 13
                                                     (build_tables.py REF_LINE: 6 px each side, note 20261016-045652-e03d) */
 #define RF_BACK_SPR (SH_SPR + 10)
 #define RF_SH_SPR   BN_FRONT
 #define RF_SPR      (RF_SH_SPR + 4)
-#define RF_WIN_SPR  (RF_SPR + 8)
+#define RF_WIN_SPR  (RF_SPR + 7)                 /* (him: REF_MAXW_FRONT columns, 6; the window 311-323) */
 _Static_assert(REF_PAL >= 16 + 2 * MAX_PALS && REF_PAL + REF_NPAL <= 16 + NF * MAX_PALS, "the referee's palettes: fighter slots past the players'");
-_Static_assert(RF_BACK_SPR + REF_MAXW_BACK <= SPR_BASE && RF_BACK_SPR + REF_MAXW_FRONT <= SPR_BASE && REF_MAXW_FRONT <= 8 &&
-               RF_WIN_SPR + 12 <= BT_SPR, "the referee's sprites: 53-58 behind, 300-323 in front");
+_Static_assert(RF_BACK_SPR + REF_MAXW_BACK <= SPR_BASE && RF_BACK_SPR + REF_MAXW_FRONT <= SPR_BASE && REF_MAXW_FRONT <= 7 &&
+               RF_WIN_SPR + REF_WIN_W <= BT_SPR, "the referee's sprites: 53-58 behind, 300-323 in front");
 enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE, RF_WAIT, RF_FLY, RF_DOWN, RF_GETUP };
 enum { RQ_NONE, RQ_RUN, RQ_FURY, RQ_HIT };       /* rf.quirk: the D quirk (gref.hit): none, the fighter running at him,
                                                     his fury fired, the referee hit (his second speech: D ends it) */
@@ -3271,11 +3272,13 @@ static void rf_window(uint8_t tiles) {           /* SS2's window at rf.zoom (+$7
         if (!c) cmd_push(VRAM_SCB4 + RF_WIN_SPR, (uint16_t)(rf.wx & 0x1FF) << 7);
     }
 }
+#define RF_BLANK "                      "      /* the window's inside: a space a fix column */
+_Static_assert(sizeof RF_BLANK == 2 * (REF_WIN_W - 2) + 1, "the referee's blank line: the window's inside");
 static void rf_text(uint8_t clear) {             /* the lines typed so far (rf.line, rf.col), or the window's rows cleared */
     uint8_t k, n;
     for (k = 0; k < rf.nl; k++) {
         uint8_t row = (uint8_t)((rf.wy + 16 * (k + 1) + 4) >> 3);   /* (fix row r = sprite y 8 r: measured) */
-        if (clear) { FIX_print((uint8_t)((rf.wx + 16) >> 3), row, "                    ", 0); continue; }
+        if (clear) { FIX_print((uint8_t)((rf.wx + 16) >> 3), row, RF_BLANK, 0); continue; }
         if (k != rf.line) continue;
         n = 0; while (rf.text[k][n]) n++;
         { char ch[2] = { rf.text[k][rf.col], 0 };   /* centred on the box's inside (REF_TXT_MID) */
@@ -3322,7 +3325,7 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
     rf.t++;
     if (rf.quirk == RQ_FURY && rf_struck()) {    /* the fury into him: Kuroko's knockdown, away from the fighter */
         fighter_t *f = &fighters[bn_lead];
-        if (rf.ph >= RF_OPEN && rf.ph <= RF_CLOSE) { rf_text(1); bn_hide(RF_WIN_SPR, 12); }
+        if (rf.ph >= RF_OPEN && rf.ph <= RF_CLOSE) { rf_text(1); bn_hide(RF_WIN_SPR, REF_WIN_W); }
         rf.quirk = RQ_HIT; rf.ph = RF_FLY; rf.t = 0; rf_set(REF_FLY);
         rf.xs = (int32_t)rf.x << 8; rf.vx = (int32_t)gref.knock_vx << 8; if (INT(f->x) - cam_x > rf.x) rf.vx = -rf.vx;
         rf.vy = gref.knock_vy;
@@ -3375,7 +3378,7 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
         rf_anim_tick(); rf_draw();
         rf.zoom += REF_WIN_CLOSE;
         if (rf.zoom >= REF_WIN_ZOOM) {
-            bn_hide(RF_WIN_SPR, 12);
+            bn_hide(RF_WIN_SPR, REF_WIN_W);
             if (rf.quirk == RQ_RUN || rf.quirk == RQ_FURY) { rf.ph = RF_WAIT; rf.t = 0; return 1; }   /* (the fury coming) */
             rf.ph = RF_OFF; return 0;
         }

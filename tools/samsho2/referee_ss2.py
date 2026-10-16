@@ -176,6 +176,31 @@ def cells_of(t, anim, pal_add):
     return out
 
 
+WIN_EXTRA = 1   # the window's added middle columns (note: "HORRIBLE ATMOSPHERE." = 20 letters; SS2's 12 tiles fit 18)
+
+
+def widen_window(steps, extra=WIN_EXTRA):
+    """SS2's 12 x 4 window, `extra` plain middle columns repeated in (its corners, edges and pointer kept): on the side
+    of the pointer away from him (face 0, the window on his left: before it, the part's x 16 px a column further left;
+    mirrored, on his right: after it), so the pointer and the side over him stay where SS2 puts them"""
+    out = []
+    for ticks, end, faces in steps:
+        nf = []
+        for fi, parts in enumerate(faces):
+            assert len(parts) == 1, 'the window: one part'
+            dx, dy, cols = parts[0]
+            mid = list(range(1, len(cols) - 1))
+            tail = [i for i in mid if sum(cols[j] == cols[i] for j in mid) == 1]
+            assert len(tail) == 1, 'the window: one pointer column'
+            t = tail[0]; at = t if fi == 0 else t + 1
+            rep = t - 1 if fi == 0 else t + 1
+            assert rep in mid, 'the window: a plain column next to the pointer'
+            cols = cols[:at] + [list(cols[rep]) for _ in range(extra)] + cols[at:]
+            nf.append([(dx if fi else dx - 16 * extra, dy, cols)])
+        out.append((ticks, end, nf))
+    return out
+
+
 def build(outdir):
     D = decode(); cap = json.load(open(f'{DATA}/capture.json'))
     c1p, c2p = os.path.join(outdir, 'bm_c1.bin'), os.path.join(outdir, 'bm_c2.bin')
@@ -208,6 +233,7 @@ def build(outdir):
     names = []; maxw = {'walk': 0, 'front': 0}; nparts = 0
     for nm, t, a, pa, grp in anims:
         steps = cells_of(t, a, pa)
+        if nm == 'window': steps = widen_window(steps)
         srows = []
         for si, (ticks, end, faces) in enumerate(steps):
             fp = []
@@ -246,6 +272,7 @@ def build(outdir):
           f'#define REF_WIN_Y ({D["win_y"]} - {D["land_y"]})   /* its y - his landed feet */',
           f'#define REF_WIN_ZOOM 0x{D["win_zoom"]:02X}   /* +$7B at its start: SCB2 vertical shrink 0xFF - this */',
           f'#define REF_WIN_OPEN 0x{D["win_open"]:02X}   /* its step a frame opening */', f'#define REF_WIN_CLOSE 0x{D["win_close"]:02X}   /* closing */',
+          f'#define REF_WIN_W {12 + WIN_EXTRA}   /* the window\'s columns: SS2\'s 12 + {WIN_EXTRA} plain middle one(s) repeated */',
           f'#define REF_LETTER 2   /* frames a letter (MESSDISP, measured) */',
           f'#define REF_MAXW_BACK {maxw["walk"]}', f'#define REF_MAXW_FRONT {maxw["front"]}', '#endif']
     open(c1p, 'wb').write(bytes(c1)); open(c2p, 'wb').write(bytes(c2))

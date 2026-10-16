@@ -1259,7 +1259,7 @@ BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'mu
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
-REF_LINE = 18                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border)
+REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
 REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'knock_vx', 'knock_vy', 'down_ticks', 'hit_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
@@ -1337,7 +1337,7 @@ def bonus_check(g, songs_known, sfx_names=None):
                 assert isinstance(t, list) and len(t) <= 3 and all(isinstance(l, str) and len(l) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in t), \
                     f"bonus game {x['id']}: {k}: up to 3 lines, ASCII, 38 characters each"
             assert x.get('won_by', 'box') in ('box', 'referee'), f"bonus game {x['id']}: won_by box | referee"
-            if x.get('won_by') == 'referee':                 # (his window: 12 tiles, 16 px of frame each side = 20 letters)
+            if x.get('won_by') == 'referee':                 # (his window: 13 tiles, REF_LINE letters)
                 assert x.get('won_text') and all(len(l) <= REF_LINE for l in x['won_text']), \
                     f"bonus game {x['id']}: won_by referee: won_text = his 1-3 lines, {REF_LINE} characters each"
         assert isinstance(x.get('show_name', True), bool), f"bonus game {x['id']}: show_name true | false"
