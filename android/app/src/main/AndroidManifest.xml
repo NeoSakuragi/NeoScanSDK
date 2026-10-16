@@ -17,11 +17,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".LoginActivity" android:exported="false" android:label="Sign in"
+        <activity android:name=".LoginActivity" android:exported="false" android:label="@string/app_signin"
             android:theme="@android:style/Theme.DeviceDefault" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".FeedbackListActivity" android:exported="false" android:label="My feedback"
+        <activity android:name=".FeedbackListActivity" android:exported="false" android:label="@string/app_feedback"
             android:theme="@android:style/Theme.DeviceDefault" />
-        <activity android:name=".SettingsActivity" android:exported="false" android:label="Settings"
+        <activity android:name=".SettingsActivity" android:exported="false" android:label="@string/set_title"
             android:theme="@android:style/Theme.DeviceDefault" />
         <receiver android:name=".PlayerUpdate$Status" android:exported="false" />
         <receiver android:name=".PlayerUpdate$Restart" android:exported="false">

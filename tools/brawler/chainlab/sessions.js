@@ -4,10 +4,10 @@
  * session from feedback-api/rom/<sha> + the Lab's BIOS, as the Feedback tab), seek bar, play / pause, speed x1 / x2 / x4
  * (sound at x1). A seek starts from the nearest keyframe (a chunk with the full state, every ~30 s) at or before the
  * target and plays the inputs silently up to it. A live session starts at its latest keyframe, fast-forwards silently to
- * its newest chunk and plays the chunks as they arrive (polled every 2.5 s, ~5-10 s behind). At every chunk boundary the
+ * its newest chunk and plays the chunks as they arrive (polled every 1 s: ~2-3 s behind with the 2 s chunks of app 0.0.44, ~5-7 s with the older 5 s ones). At every chunk boundary the
  * replay's state SHA-256 is compared with the recorded one (the line under the picture: "N chunk boundaries checked:
  * all identical"; a difference or a missing chunk is shown, the replay resyncs at the next keyframe). Link: brawler-lab/game.html#sessions
- * (#sess=<id> opens one). API: feedback-api/sessions, session/<id>[?after=], session/<id>/inputs[?from=],
+ * (#sess=<id> opens one; ?user=NAME: that player's sessions only). API: feedback-api/sessions, session/<id>[?after=], session/<id>/inputs[?from=],
  * session/<id>/state/<seq> (tools/feedback/server.py sessions_api). */
 (async function () {
   'use strict';
@@ -53,13 +53,16 @@
   const pbox = h('div'), tbox = h('div');
   col.append(head, info, pbox, tbox);
   let rows = [], open = null, listTimer = 0;
+  // ?user=NAME (the Factory's Players tab links here): that player's sessions only
+  const UQ = new URLSearchParams(location.search).get('user');
+  if (UQ) head.append(h('a', { href: location.pathname + location.hash.replace(/^#sess=.*/, '#sessions') }, 'Show every player'));
 
   async function list() {
     let j;
-    try { j = await json(API + 'sessions'); } catch (e) { info.textContent = 'Sessions unavailable: ' + e.message; return; }
+    try { j = await json(API + 'sessions' + (UQ ? '?user=' + encodeURIComponent(UQ) : '')); } catch (e) { info.textContent = 'Sessions unavailable: ' + e.message; return; }
     rows = j.sessions;
     const st = j.storage;
-    info.textContent = `${rows.length} sessions, ${st.hours.toFixed(1)} h recorded, ${(st.bytes / 1e6).toFixed(1)} MB` +
+    info.textContent = (UQ ? UQ + ' only: ' : '') + `${rows.length} sessions, ${st.hours.toFixed(1)} h recorded, ${(st.bytes / 1e6).toFixed(1)} MB` +
       (st.mb_per_hour ? ` (${st.mb_per_hour} MB per hour of play)` : '') + '. Tap a row to watch it.';
     tbox.textContent = '';
     tbox.append(h('table', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Player'), h('th', {}, 'Build'), h('th', {}, 'Started'), h('th', {}, 'Length'), h('th', { class: 'dev' }, 'Device')),
@@ -166,7 +169,7 @@
       if (!S.chunks.length) throw new Error('no chunk yet');
       st.textContent = `${S.chunks.length} chunks (${S.keys} keyframes), ${mmss(S.total)} of play.` + (systype !== 'mvs' ? ' (A console session: the Lab has only the MVS BIOS, it may not replay.)' : '');
       bLive.disabled = !r.live;
-      poll = setInterval(more, 2500);
+      poll = setInterval(more, 1000);                      // 2 s chunks (app 0.0.44): ~2-3 s behind
       if (r.live) await goLive(); else { await jump(0); draw(); }
     } catch (e) { st.textContent = 'Session unavailable: ' + e.message; }
   }

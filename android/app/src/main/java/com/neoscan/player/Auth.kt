@@ -29,12 +29,16 @@ object Auth {
     private const val REFRESH_S = 7 * 24 * 3600L
 
     /** NO_ROLE: an Oros account without a brawler role; NOT_ADMIN: a tester signing in to Brawler Dev */
-    enum class Result { OK, BAD_CREDENTIALS, TOO_MANY, OFFLINE, NO_ROLE, NOT_ADMIN }
+    /** BANNED: blocked by an admin (0.0.44); SIGNED_OUT: signed out everywhere by an admin, the saved password no longer
+     *  renews; MUST_CHANGE: a temporary password, a new one first ([changePassword]); SIGNUP: refused, see [signupError] */
+    enum class Result { OK, BAD_CREDENTIALS, TOO_MANY, OFFLINE, NO_ROLE, NOT_ADMIN, BANNED, SIGNED_OUT, MUST_CHANGE, SIGNUP }
 
     /** the sign-in screen's line for a refused account */
     fun refusal(r: Result): String = when (r) {
-        Result.NO_ROLE -> "This account has no access to the brawler. Ask Bruno for a brawler tester role."
-        Result.NOT_ADMIN -> "Brawler Dev is for brawler admins. Use the Brawler app with this account."
+        Result.NO_ROLE -> tr(R.string.auth_no_role)
+        Result.NOT_ADMIN -> tr(R.string.auth_not_admin)
+        Result.BANNED -> tr(R.string.auth_banned)
+        Result.SIGNED_OUT -> tr(R.string.auth_signed_out)
         else -> ""
     }
 
@@ -77,7 +81,9 @@ object Auth {
     /** blocking: GET me now (the role + the Brawler app's update link); null when it cannot be asked */
     fun me(ctx: Context): JSONObject? {
         val tok = token(ctx) ?: return null
-        val (j, r) = fetchMe(tok)
+        var got = fetchMe(tok)
+        if (got.second == Result.BAD_CREDENTIALS && refresh(ctx) == Result.OK) memo?.let { t -> got = fetchMe(t) }   // revoked: renewed once
+        val (j, r) = got
         if (j != null) { meCache = j; prefs(ctx).edit().putString("brole", j.optString("role")).apply() }
         else if (r == Result.NO_ROLE) prefs(ctx).edit().putString("brole", "none").apply()
         return j
@@ -87,6 +93,7 @@ object Auth {
      *  (returned); offline = the last known role stands (the cached build still plays) */
     fun recheck(ctx: Context): Result {
         me(ctx)
+        if (!signedIn(ctx)) return Result.SIGNED_OUT                     // the renewal was refused (blocked, signed out everywhere)
         val r = allowed(role(ctx))
         if (r != Result.OK) { logout(ctx); prefs(ctx).edit().putString("refused", refusal(r)).commit() }
         return r
@@ -101,21 +108,65 @@ object Auth {
         return (p.getString("token", null) != null && p.getLong("exp", 0) > now()) || p.getString("pass", null) != null
     }
 
-    /** blocking (off the UI thread) */
-    fun login(ctx: Context, user: String, pass: String): Result {
+    /** blocking (off the UI thread): a typed sign-in, or a renewal with the saved password ([since] = the old token's
+     *  iat_ms: an Oros "sign out everywhere" since then = 401 signed_out, the saved password goes) */
+    fun login(ctx: Context, user: String, pass: String, since: Long = 0): Result {
+        val body = JSONObject().put("username", user).put("password", pass).apply { if (since > 0) put("since", since) }
+        val (code, j) = post(loginUrl(), body, null) ?: return Result.OFFLINE
+        when {
+            code == 401 && j?.optString("error") == "signed_out" -> return Result.SIGNED_OUT
+            code == 401 -> return Result.BAD_CREDENTIALS
+            code == 403 && j?.optString("error") == "banned" -> return Result.BANNED
+            code == 429 -> return Result.TOO_MANY
+            code != 200 || j == null -> { Log.w(TAG, "auth: login HTTP $code"); return Result.OFFLINE }
+        }
+        return finish(ctx, j!!, user, pass)
+    }
+
+    /** SIGN-UP (app 0.0.44, docs/feedback.md "Sign-up and the player admin"): POST <AUTH_URL>api/signup {code,
+     *  username, password, device} -> the same answer as api/login (then signed in as by [login]); refused = Result.SIGNUP
+     *  with [signupError] = the server's error code (name_taken, code_used_up ... : the screen's own words for it) */
+    @Volatile var signupError = ""
+    fun signup(ctx: Context, code: String, user: String, pass: String): Result {
+        val dev = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE}"
+        val body = JSONObject().put("code", code).put("username", user).put("password", pass).put("device", dev)
+        val (c, j) = post(URL(URL(BuildConfig.AUTH_URL), "api/signup"), body, null) ?: return Result.OFFLINE
+        if (c != 200 || j == null || !j.has("token")) { signupError = j?.optString("error") ?: "http_$c"; Log.w(TAG, "auth: signup refused: $signupError"); return Result.SIGNUP }
+        Log.i(TAG, "auth: account $user created")
+        return finish(ctx, j, user, pass)
+    }
+
+    /** A TEMPORARY PASSWORD (an admin's reset): the sign-in answered must_change; the new password replaces it
+     *  (POST api/password with that sign-in's token), then the sign-in goes on with the new one. Result.SIGNUP + [signupError]
+     *  = refused (password_short, password_same, wrong_password) */
+    @Volatile private var pending: Triple<String, String, String>? = null   // user, temporary password, its token
+    fun changePassword(ctx: Context, newPass: String): Result {
+        val (user, old, tok) = pending ?: return Result.BAD_CREDENTIALS
+        val (c, j) = post(URL(URL(BuildConfig.AUTH_URL), "api/password"), JSONObject().put("old_password", old).put("new_password", newPass), tok) ?: return Result.OFFLINE
+        if (c != 200 || j == null) { signupError = j?.optString("error") ?: "http_$c"; return if (c == 401) Result.BAD_CREDENTIALS else Result.SIGNUP }
+        pending = null
+        return login(ctx, user, newPass)
+    }
+
+    /** POST json -> (HTTP code, the JSON answer or null); null = no answer at all (offline) */
+    private fun post(u: URL, body: JSONObject, tok: String?): Pair<Int, JSONObject?>? {
         val c = try {
-            (loginUrl().openConnection() as HttpURLConnection).apply {
+            (u.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 8000; readTimeout = 15000; requestMethod = "POST"; doOutput = true
-                setRequestProperty("Content-Type", "application/json")
-                outputStream.use { it.write(JSONObject().put("username", user).put("password", pass).toString().toByteArray()) }
+                setRequestProperty("Content-Type", "application/json"); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
+                if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
+                outputStream.use { it.write(body.toString().toByteArray()) }
             }
-        } catch (x: Exception) { Log.w(TAG, "auth: ${x.message}"); return Result.OFFLINE }
-        val code = try { c.responseCode } catch (x: Exception) { Log.w(TAG, "auth: ${x.message}"); return Result.OFFLINE }
-        if (code == 401) return Result.BAD_CREDENTIALS
-        if (code == 429) return Result.TOO_MANY
-        if (code != 200) { Log.w(TAG, "auth: login HTTP $code"); return Result.OFFLINE }
-        val j = try { JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }) } catch (x: Exception) { return Result.OFFLINE }
+        } catch (x: Exception) { Log.w(TAG, "auth: ${x.message}"); return null }
+        val code = try { c.responseCode } catch (x: Exception) { Log.w(TAG, "auth: ${x.message}"); return null }
+        val t = try { (if (code in 200..299) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } } catch (x: Exception) { null }
+        return code to (t?.let { try { JSONObject(it) } catch (x: Exception) { null } })
+    }
+
+    /** a sign-in's answer (login or sign-up): the brawler role asked (this app may refuse it), then stored */
+    private fun finish(ctx: Context, j: JSONObject, user: String, pass: String): Result {
         val tok = j.getString("token")
+        if (j.optBoolean("must_change")) { pending = Triple(j.optString("username", user), pass, tok); return Result.MUST_CHANGE }
         val (me, mr) = fetchMe(tok)                                     // the brawler role: this app may refuse the account
         if (me == null && mr != Result.OFFLINE) return if (mr == Result.NO_ROLE) Result.NO_ROLE else Result.OFFLINE
         val brole = me?.optString("role") ?: prefs(ctx).getString("brole", "")!!   // offline: the last known role
@@ -150,15 +201,21 @@ object Auth {
         val p = prefs(ctx)
         val user = p.getString("user", null); val pass = p.getString("pass", null)?.let { decrypt(it) }
         if (user == null || pass.isNullOrEmpty()) { if (user != null && p.getLong("exp", 0) <= now()) signedOut(ctx); return Result.BAD_CREDENTIALS }
-        val r = login(ctx, user, pass)
-        if (r == Result.NO_ROLE || r == Result.NOT_ADMIN) prefs(ctx).edit().putString("refused", refusal(r)).commit()
-        if (r == Result.BAD_CREDENTIALS || r == Result.NO_ROLE || r == Result.NOT_ADMIN) signedOut(ctx)
+        val r = login(ctx, user, pass, (memo ?: p.getString("token", null)?.let { decrypt(it) })?.let { issuedMs(it) } ?: 0)
+        if (r == Result.NO_ROLE || r == Result.NOT_ADMIN || r == Result.BANNED || r == Result.SIGNED_OUT) prefs(ctx).edit().putString("refused", refusal(r)).commit()
+        if (r != Result.OK) Log.w(TAG, "auth: renewal refused: $r")
+        if (r == Result.MUST_CHANGE) prefs(ctx).edit().putString("refused", tr(R.string.auth_reset)).commit()
+        if (r == Result.BAD_CREDENTIALS) prefs(ctx).edit().putString("refused", tr(R.string.auth_signed_out)).commit()   // the password changed (a reset)
+        if (r == Result.BAD_CREDENTIALS || r == Result.NO_ROLE || r == Result.NOT_ADMIN || r == Result.BANNED || r == Result.SIGNED_OUT || r == Result.MUST_CHANGE) signedOut(ctx)
         return r
     }
 
-    private fun signedOut(ctx: Context) {
+    @Synchronized private fun signedOut(ctx: Context) {
+        val p = prefs(ctx)
+        val had = p.contains("token") || p.contains("pass")             // once: several threads may find it refused
+        p.edit().remove("token").remove("pass").remove("exp").commit(); memo = null
+        if (!had) return
         Log.w(TAG, "auth: the saved sign-in was refused")
-        prefs(ctx).edit().remove("token").remove("pass").remove("exp").commit(); memo = null
         onSignedOut?.invoke()
     }
 
@@ -187,6 +244,11 @@ object Auth {
     fun HttpURLConnection.bearer(tok: String?): HttpURLConnection { if (tok != null) setRequestProperty("Authorization", "Bearer $tok"); return this }
 
     private fun now() = System.currentTimeMillis() / 1000
+
+    /** the JWT's iat_ms (Oros 2026-10-16: when it was issued, ms; the revocation check), 0 = an older token without it */
+    private fun issuedMs(tok: String): Long = try {
+        JSONObject(String(Base64.decode(tok.split(".")[1], Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP))).optLong("iat_ms")
+    } catch (x: Exception) { 0 }
 
     /** the JWT's exp claim (seconds), 0 when unreadable */
     private fun expiry(tok: String): Long = try {

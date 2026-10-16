@@ -58,11 +58,11 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
     private fun show() {
         val n = note; verdict = false; state = null
         emu()?.paused = true
-        banner(n, "Loading the test state...")
+        banner(n, tr(R.string.tm_loading))
         Thread {
             val r = Feedback.scenarioState(act, n.optString("id"), sha, key)
             act.runOnUiThread {
-                r.onFailure { status.text = "${it.message} (v$running, ${key}). Press Next or ✕."; expand(true) }
+                r.onFailure { status.text = tr(R.string.tm_fail, it.message, running, key); expand(true) }
                 r.onSuccess { f -> state = f; load(false) }
             }
         }.start()
@@ -75,10 +75,10 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         e.paused = true
         e.stateReq = f to { code -> e.stepOne = true
             act.runOnUiThread {
-                if (code != 0) { status.text = "This state does not load here (code $code): another core build. Press Next."; expand(true); return@runOnUiThread }
+                if (code != 0) { status.text = tr(R.string.tm_bad_state, code); expand(true); return@runOnUiThread }
                 t0 = android.os.SystemClock.uptimeMillis()
-                if (play) { e.paused = false; status.text = "Playing: do it, then tap i for Fixed / Still broken"; playBtn.text = "\u275A\u275A Pause"; expand(false) }
-                else { status.text = "Paused: read, then \u25B6 Play"; playBtn.text = "\u25B6 Play" }
+                if (play) { e.paused = false; status.text = tr(R.string.tm_playing); playBtn.text = tr(R.string.tm_pause); expand(false) }
+                else { status.text = tr(R.string.tm_paused_read); playBtn.text = tr(R.string.tm_play) }
             } }
     }
 
@@ -103,7 +103,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         expanded = on
         b.visibility = if (on) View.VISIBLE else View.GONE
         dot?.visibility = if (on) View.GONE else View.VISIBLE
-        if (on) emu()?.let { e -> if (!e.paused && state != null) { e.paused = true; playBtn.text = "\u25B6 Play"; status.text = "Paused" } }
+        if (on) emu()?.let { e -> if (!e.paused && state != null) { e.paused = true; playBtn.text = tr(R.string.tm_play); status.text = tr(R.string.tm_paused) } }
     }
 
     /** the banner inside the picture (portrait: the top of the screen; landscape: between the pad's sides), at its top;
@@ -140,7 +140,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
     /** the [i]: collapsed it is all that shows; expanded it heads the banner (a tap collapses) */
     private fun infoButton() = TextView(act).apply {
         text = "i"; textSize = 18f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-        setTypeface(Typeface.SERIF, Typeface.BOLD); contentDescription = "Test info: show / hide"
+        setTypeface(Typeface.SERIF, Typeface.BOLD); contentDescription = tr(R.string.tm_info_cd)
         background = shape(Color.argb(170, 0, 0, 0), Color.WHITE, 6f); isClickable = true }
 
     private fun banner(n: JSONObject, st: String) {
@@ -154,15 +154,15 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
             setShadowLayer(3f, 0f, 0f, Color.BLACK); if (bold) setTypeface(typeface, Typeface.BOLD) }
         val head = LinearLayout(act).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(infoButton().apply { setOnClickListener { expand(false) } }, LinearLayout.LayoutParams(iSize, iSize))
-        head.addView(tv("TEST ${i + 1}/${queue.size}: $title", 16f, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        head.addView(tv(tr(R.string.tm_head, i + 1, queue.size, title), 16f, true).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             setPadding(pad * 2, 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
         b.addView(head, LinearLayout.LayoutParams(-1, -2))
         details = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(pad, pad, pad, 0) }
-        details.addView(tv("Do: " + sc.optString("do"), 15f))
-        details.addView(tv("Expect: " + sc.optString("expect"), 15f))
+        details.addView(tv(tr(R.string.tm_do, sc.optString("do")), 15f))
+        details.addView(tv(tr(R.string.tm_expect, sc.optString("expect")), 15f))
         status = tv(st, 14f, true)
         details.addView(status)
-        details.addView(tv("Fixed = it works now. Still broken = hold it and say what is wrong. Tap i to hide this.", 12f).apply { alpha = 0.8f })
+        details.addView(tv(tr(R.string.tm_help), 12f).apply { alpha = 0.8f })
         val scroll = object : android.widget.ScrollView(act) {     // the Do / Expect texts scroll: a long recipe must not
             override fun onMeasure(w: Int, h: Int) {               // push the buttons off the screen (Bruno 2026-10-11)
                 val cap = (root.height * 0.38f).toInt().coerceAtLeast((120 * dp).toInt())
@@ -171,14 +171,14 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         scroll.addView(details, android.widget.FrameLayout.LayoutParams(-1, -2))
         b.addView(scroll, LinearLayout.LayoutParams(-1, -2))
         val nav = Color.argb(210, 40, 40, 48)
-        playBtn = bigButton("\u25B6 Play", "Play / pause", nav).apply { setOnClickListener { val e = emu() ?: return@setOnClickListener
+        playBtn = bigButton(tr(R.string.tm_play), tr(R.string.tm_play_cd), nav).apply { setOnClickListener { val e = emu() ?: return@setOnClickListener
             if (state == null) return@setOnClickListener
-            if (e.paused) { e.paused = false; text = "\u275A\u275A Pause"; status.text = "Playing: do it, then tap i for Fixed / Still broken"; expand(false) }
-            else { e.paused = true; text = "\u25B6 Play"; status.text = "Paused" } } }
-        val restart = bigButton("\u27F2 Restart", "Restart", nav).apply { setOnClickListener { load(true) } }
-        val nextB = bigButton(if (i + 1 < queue.size) "Next \u25B8" else "Done", "Next test", nav).apply { setOnClickListener { next() } }
-        val leave = bigButton("\u2715 Leave", "Leave the tests", nav).apply { setOnClickListener { end() } }
-        val fixed = bigButton("\uD83D\uDC4D Fixed", "Fixed", Color.rgb(20, 105, 45)).apply { setOnClickListener { up() } }
+            if (e.paused) { e.paused = false; text = tr(R.string.tm_pause); status.text = tr(R.string.tm_playing); expand(false) }
+            else { e.paused = true; text = tr(R.string.tm_play); status.text = tr(R.string.tm_paused) } } }
+        val restart = bigButton(tr(R.string.tm_restart), tr(R.string.tm_restart_cd), nav).apply { setOnClickListener { load(true) } }
+        val nextB = bigButton(tr(if (i + 1 < queue.size) R.string.tm_next else R.string.tm_done), tr(R.string.tm_next_cd), nav).apply { setOnClickListener { next() } }
+        val leave = bigButton(tr(R.string.tm_leave), tr(R.string.tm_leave_cd), nav).apply { setOnClickListener { end() } }
+        val fixed = bigButton(tr(R.string.act_fixed), tr(R.string.tm_fixed_cd), Color.rgb(20, 105, 45)).apply { setOnClickListener { up() } }
         controls = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL }
         controls.addView(buttonRow(48, 8, playBtn, restart, nextB, leave), LinearLayout.LayoutParams(-1, -2).apply { topMargin = (10 * dp).toInt() })
         controls.addView(buttonRow(64, 24, fixed, broken()), LinearLayout.LayoutParams(-1, -2).apply { topMargin = (16 * dp).toInt() })
@@ -195,18 +195,18 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
 
     /** 👍: the reply (status verified) and the attempt */
     private fun up() {
-        if (state == null) { toast("Nothing loaded to judge"); return }
+        if (state == null) { toast(tr(R.string.tm_nothing)); return }
         emu()?.paused = true
         if (verdict) return
         val id = note.optString("id"); val t = base("up")
-        verdict = true; status.text = "Sending 👍..."
+        verdict = true; status.text = tr(R.string.tm_sending_up)
         Thread {
             val r = Feedback.reply(act, id, "up", "")
             r.onSuccess { t.put("reply_id", latestReply(it)) }
             val p = Feedback.postTest(act, t, null)
             act.runOnUiThread {
-                if (r.isSuccess) { act.judged(id, "verified"); toast("Marked verified fixed" + if (p.isFailure) " (attempt not logged: ${p.exceptionOrNull()?.message})" else ""); next() }
-                else { verdict = false; status.text = "Not sent: ${r.exceptionOrNull()?.message}"; expand(true) }
+                if (r.isSuccess) { act.judged(id, "verified"); toast(tr(R.string.marked_verified) + if (p.isFailure) " " + tr(R.string.tm_attempt_not_logged, p.exceptionOrNull()?.message) else ""); next() }
+                else { verdict = false; status.text = tr(R.string.not_sent, r.exceptionOrNull()?.message); expand(true) }
             }
         }.start()
     }
@@ -215,8 +215,8 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
 
     /** 👎 Broken: hold = the attempt captured (states + inputs since the scenario state) and the voice recorded */
     private fun broken(): Button {
-        val label = "\uD83D\uDC4E Still broken\n(hold and talk)"
-        val b = bigButton(label, "Still broken (hold and talk)", Color.rgb(140, 25, 25))
+        val label = tr(R.string.tm_broken)
+        val b = bigButton(label, tr(R.string.tm_broken_cd), Color.rgb(140, 25, 25))
         b.setOnTouchListener { v, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -224,10 +224,10 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
                     val granted = act.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED
                     emu()?.paused = true
                     feedback.start(granted || Feedback.testAudio(act) != null)
-                    b.text = "\u25CF Recording\n(release to finish)"; status.text = "Recording: say what is still wrong, release to finish"
+                    b.text = tr(R.string.tm_recording_btn); status.text = tr(R.string.tm_recording)
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (feedback.recording) { val voice = feedback.stop() >= Feedback.MIN_MS; b.text = label; status.text = "Paused: correct the text, then Send"; composer(voice) }
+                    if (feedback.recording) { val voice = feedback.stop() >= Feedback.MIN_MS; b.text = label; status.text = tr(R.string.tm_paused_correct); composer(voice) }
                     v.performClick()
                 }
             }
@@ -243,15 +243,15 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         var raw = ""; var tx = ""
         val c = LinearLayout(act).apply { orientation = LinearLayout.VERTICAL; setPadding(0, (10 * dp).toInt(), 0, 0) }
         val info = TextView(act).apply { textSize = 14f; setTextColor(Color.WHITE); setTypeface(typeface, Typeface.BOLD)
-            text = if (voice) "Transcribing..." else "Type what is still wrong (optional)" }
-        val edit = EditText(act).apply { minLines = 2; maxLines = 4; setTextColor(Color.WHITE); hint = "What is still wrong"; setHintTextColor(Color.GRAY)
+            text = tr(if (voice) R.string.transcribing else R.string.tm_type_wrong) }
+        val edit = EditText(act).apply { minLines = 2; maxLines = 4; setTextColor(Color.WHITE); hint = tr(R.string.tm_wrong_hint); setHintTextColor(Color.GRAY)
             setBackgroundColor(Color.rgb(60, 60, 70)); val m = (6 * dp).toInt(); setPadding(m, m, m, m)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES }
         fun close() { banner?.removeView(c); box = null; controls.visibility = View.VISIBLE }
-        val cancel = bigButton("Cancel", "Cancel the note", Color.argb(210, 40, 40, 48)).apply { setOnClickListener { feedback.cancel(); close(); status.text = "Paused" } }
-        val send = bigButton("\uD83D\uDC4E Send: still broken", "Send: still broken", Color.rgb(140, 25, 25))
+        val cancel = bigButton(tr(R.string.cancel), tr(R.string.tm_cancel_cd), Color.argb(210, 40, 40, 48)).apply { setOnClickListener { feedback.cancel(); close(); status.text = tr(R.string.tm_paused) } }
+        val send = bigButton("\uD83D\uDC4E " + tr(R.string.send_still_broken), tr(R.string.send_still_broken), Color.rgb(140, 25, 25))
         send.setOnClickListener { send.apply {
-            isEnabled = false; info.text = "Sending..."; verdict = true
+            isEnabled = false; info.text = tr(R.string.sending); verdict = true
             val text = edit.text.toString().trim()
             val dir = feedback.takeAttempt(text, raw)
             val audio = dir?.listFiles()?.firstOrNull { it.name.startsWith("audio.") }
@@ -263,8 +263,8 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
                 dir?.deleteRecursively()
                 act.runOnUiThread {
                     if (r.isSuccess) { act.judged(id, "reopened"); close()
-                        toast("Reopened: still broken" + if (p.isFailure) " (replay not sent: ${p.exceptionOrNull()?.message})" else ", with your attempt's replay"); next() }
-                    else { verdict = false; isEnabled = true; info.text = "Not sent: ${r.exceptionOrNull()?.message}" }
+                        toast(tr(R.string.reopened_broken) + if (p.isFailure) " " + tr(R.string.tm_replay_not_sent, p.exceptionOrNull()?.message) else tr(R.string.tm_with_replay)); next() }
+                    else { verdict = false; isEnabled = true; info.text = tr(R.string.not_sent, r.exceptionOrNull()?.message) }
                 }
             }.start()
         } }
@@ -274,7 +274,7 @@ class TestMode(private val act: MainActivity, private val root: FrameLayout, pri
         banner?.addView(c); box = c; expand(true)
         if (voice) Thread {
             val r = feedback.transcribe()
-            act.runOnUiThread { if (r != null) { raw = r.first; edit.setText(r.first); info.text = "Correct it, then Send" } else info.text = "Transcription unavailable: your voice goes along" }
+            act.runOnUiThread { if (r != null) { raw = r.first; edit.setText(r.first); info.text = tr(R.string.tm_correct_send) } else info.text = tr(R.string.tm_tx_unavail) }
         }.start()
     }
 

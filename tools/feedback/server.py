@@ -110,7 +110,14 @@ size, saved_at} + r<rev>.json (each revision in full; the last SAVE_KEEP kept as
                         updated, deleted} (the Player: newest wins; the older one is sent with ?backup=1: stored as a
                         backup revision, the current one unchanged) -> {rev, updated, current}; files <= MAX_SAVE bytes
   DELETE saves/<game>   the current save goes (its revision file stays as a backup), state deleted = now -> {rev 0, deleted}
-Session recording (Player 0.0.41, keyframes 0.0.43; docs/feedback.md "Session recording"): POST sessions/chunk = a ~5 s
+Settings (app 0.0.44, docs/feedback.md "Sign-up and the player admin"): GET / PUT settings {settings {language, ...},
+updated (ms)}: the signed-in account's app settings, newest wins (DATA/settings/<user>.json).
+Player admin (the Factory's Players tab, brawler admins; the accounts themselves are Oros's /api/brawler/...):
+  GET  /api/players                          every account's play data + who is LIVE + this side's audit (admin_audit)
+  POST /api/players/reset_save {user, game?} the account's cloud save(s) deleted (audited)
+  GET  /api/sessions?user=X                  one player's sessions
+Nightly (Oros tag brawler_nightly): share/latest.json and me give the newest published build, not the assignment.
+Session recording (Player 0.0.41, keyframes 0.0.43, 2 s chunks 0.0.44; docs/feedback.md "Session recording"): POST sessions/chunk = a ~2 s
 chunk of the play session (pads + the state's SHA-256; a keyframe chunk, every ~30 s, the state too), files on the storage box SESSIONS/<session>/, the index in the sessions / session_chunks
 tables; the Lab reads them through /api/sessions, /api/session/<id>[/inputs | /state/<seq>] (sessions_api).
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
@@ -231,7 +238,9 @@ def db_init():
         CREATE TABLE IF NOT EXISTS session_chunks (
             session TEXT, seq INTEGER, start_frame INTEGER, frames INTEGER, state INTEGER, state_size INTEGER,
             state_sha TEXT, bytes INTEGER, at REAL, paused INTEGER, inputs BLOB, PRIMARY KEY (session, seq));
-        CREATE INDEX IF NOT EXISTS session_keys ON session_chunks(session, state, seq);''')
+        CREATE INDEX IF NOT EXISTS session_keys ON session_chunks(session, state, seq);
+        CREATE TABLE IF NOT EXISTS admin_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, by TEXT, action TEXT, target TEXT, detail TEXT DEFAULT '');''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
         for col in ('user', 'install_id', 'marked', 'title', 'todo', 'fix_commit', 'fix', 'rca'):   # 0.0.15: the account, its install, a scribble;
                                                                       # title: my one-liner; todo: the TODO item(s); fix_commit;
@@ -465,19 +474,26 @@ def brawler_role(tags):
 
 def account_role(headers):
     """(user, brawler role 'admin' | 'tester' | 'none') behind the token / cookie; (None, None) = nobody signed in"""
+    return account_full(headers)[:2]
+
+
+def account_full(headers):
+    """(user, brawler role, Oros tags) behind the token / cookie, checked with /api/whoami (cached 1 min; a revoked
+    token, an Oros "sign out everywhere", = 401 there = nobody); (None, None, []) = nobody signed in"""
     auth = headers.get('Authorization', '')
     key, hdr = (auth, {'Authorization': auth}) if auth.startswith('Bearer ') else (headers.get('Cookie', ''), {'Cookie': headers.get('Cookie', '')})
-    if not key: return None, None
+    if not key: return None, None, []
     hit = ACCOUNTS.get(key)
-    if hit and hit[2] > time.time(): return hit[0], hit[1]
+    if hit and hit[3] > time.time(): return hit[0], hit[1], hit[2]
     try:
         with urllib.request.urlopen(urllib.request.Request(WHOAMI, headers=hdr), timeout=5) as r:
-            j = json.load(r); name, role = j.get('username') or None, brawler_role(j.get('tags'))
-    except Exception: name, role = None, None
+            j = json.load(r); name, tags = j.get('username') or None, list(j.get('tags') or [])
+            role = brawler_role(tags)
+    except Exception: name, role, tags = None, None, []
     if name:
         if len(ACCOUNTS) > 1000: ACCOUNTS.clear()
-        ACCOUNTS[key] = (name, role, time.time() + 60)
-    return name, (role if name else None)
+        ACCOUNTS[key] = (name, role, tags, time.time() + 60)
+    return name, (role if name else None), (tags if name else [])
 
 
 def claim(user, install):
@@ -896,14 +912,19 @@ share_lock = threading.Lock()
 share_sha = {}                                              # path -> (size, mtime, sha256)
 
 
-def brawler_accounts():
-    """{Oros username: 'admin' | 'tester'} of every account with a brawler tag (the Oros DB, read only); {} on error"""
+def brawler_tags():
+    """{Oros username: [tags]} of every account with a brawler tag (the Oros DB, read only); {} on error"""
     try:
         c = sqlite3.connect('file:%s?mode=ro' % OROS_DB, uri=True, timeout=5)
         try: rows = c.execute("SELECT username, COALESCE(tags, '') FROM users WHERE tags LIKE '%brawler_%'").fetchall()
         finally: c.close()
     except sqlite3.Error as e: log('oros accounts:', e); return {}
-    out = {n: brawler_role(t.split(',')) for n, t in rows}
+    return {n: [x for x in t.split(',') if x] for n, t in rows}
+
+
+def brawler_accounts():
+    """{Oros username: 'admin' | 'tester'} of every account with a brawler role (the Oros DB, read only); {} on error"""
+    out = {n: brawler_role(t) for n, t in brawler_tags().items()}
     return {n: r for n, r in out.items() if r != 'none'}
 
 
@@ -954,10 +975,21 @@ def share_builds():
     return out
 
 
-def share_build_for(name, role='tester'):
+def published_newest():
+    """the newest build `make publish-vps` uploaded (BUILDS), or None"""
+    vs = [m.group(1) for n in (os.listdir(BUILDS) if os.path.isdir(BUILDS) else []) for m in [BUILD_FILE.match(n)]
+          if m and not os.path.islink(os.path.join(BUILDS, n))]
+    return max(vs, key=vkey) if vs else None
+
+
+def share_build_for(name, role='tester', nightly=False):
     """(VERSION, path) the account plays in the Brawler app: the newest build up to its assignment; nothing assigned =
-    (None, None) for a tester, the newest build for an admin"""
+    (None, None) for a tester, the newest build for an admin. NIGHTLY (Oros tag brawler_nightly, Bruno 2026-10-16:
+    "bleeding edge"): the newest published build, whatever the assignment"""
     have = share_builds()
+    if nightly:
+        v = published_newest()
+        if v and v in have: return v, have[v]
     a = (section_load('players').get('draft') or {}).get('assign') or {}
     want = vkey(a.get('*') if role == 'tester' else a.get(name))   # (Bruno 2026-10-15: every tester gets the same build, '*')
     if not want and role == 'admin' and have: want = max(vkey(v) for v in have)
@@ -1003,8 +1035,9 @@ def players_state():
     d = section_load('players')
     try: seen = json.load(open(SHARE_SEEN))
     except (OSError, ValueError): seen = {}
-    ba = brawler_accounts()
-    accs = [{'name': n, 'role': ba[n], 'gets': share_build_for(n, ba[n])[0], 'seen': seen.get(n)} for n in sorted(ba, key=str.lower)]
+    bt = brawler_tags(); ba = {n: brawler_role(t) for n, t in bt.items()}; ba = {n: r for n, r in ba.items() if r != 'none'}
+    accs = [{'name': n, 'role': ba[n], 'nightly': 'brawler_nightly' in bt[n], 'gets': share_build_for(n, ba[n], 'brawler_nightly' in bt[n])[0],
+             'seen': seen.get(n)} for n in sorted(ba, key=str.lower)]
     return dict(d, accounts=accs, builds=sorted(share_builds(), key=vkey, reverse=True))
 
 
@@ -1193,6 +1226,63 @@ def save_delete(d):
         return st
 
 
+SETTINGS = os.path.join(DATA, 'settings')                     # <user>.json: the app's settings per account (0.0.44)
+
+
+def settings_file(user):
+    return os.path.join(SETTINGS, os.path.basename(os.path.dirname(save_dir(user, 'x'))) + '.json')
+
+
+def admin_audit(by, action, target, detail=''):
+    """the feedback side of the player admin's audit log (the Oros side: brawler_audit); the Players tab merges both"""
+    with lock, db() as c:
+        c.execute('INSERT INTO admin_audit (at, by, action, target, detail) VALUES (?,?,?,?,?)', (int(time.time()), by, action, target, detail))
+    log('admin', by, action, target, detail)
+
+
+def admin_players():
+    """the Factory's Players tab (GET api/players, brawler admins): every account's play data, by Oros username:
+    sessions (count, play seconds, first / last, the live one), devices, app versions, IPs (sessions, notes, replies,
+    transcriptions), notes (all, open), last seen (share/latest.json), cloud saves, the app settings' language; + who
+    is LIVE now (a chunk in the last LIVE_S seconds) and this side's audit log. The accounts themselves are Oros's
+    (/oros/api/brawler/players)"""
+    t = time.time(); out = {}
+    def u(n): return out.setdefault(n, {'sessions': 0, 'seconds': 0.0, 'first': None, 'last': None, 'live': None, 'devices': [], 'apps': [],
+                                         'ips': [], 'notes': 0, 'open': 0, 'seen': None, 'saves': [], 'language': ''})
+    def add(lst, v):
+        if v and v not in lst: lst.append(v)
+    live = []
+    with db() as c:
+        for r in c.execute('SELECT user, COUNT(*) n, SUM(frames) f, MIN(first_at) a, MAX(last_at) b FROM sessions GROUP BY user'):
+            d = u(r['user']); d.update(sessions=r['n'], seconds=round((r['f'] or 0) / FPS), first=r['a'], last=r['b'])
+        for r in c.execute('SELECT * FROM sessions ORDER BY last_at DESC'):
+            d = u(r['user']); add(d['devices'], r['device']); add(d['apps'], r['app_version']); add(d['ips'], r['ip'])
+            if r['last_at'] and t - r['last_at'] < LIVE_S:
+                live.append(session_row(r, t))
+                if not d['live']: d['live'] = r['id']
+        for r in c.execute("SELECT user, COUNT(*) n, SUM(CASE WHEN status IN ('new', 'read', 'in_progress', 'reopened') THEN 1 ELSE 0 END) o FROM feedback GROUP BY user"):
+            if r['user']: u(r['user']).update(notes=r['n'], open=r['o'] or 0)
+        for tbl in ('feedback', 'replies', 'transcriptions'):
+            for r in c.execute(f'SELECT DISTINCT user, ip FROM {tbl} WHERE ip IS NOT NULL AND user IS NOT NULL'):
+                if r['user'] and r['user'] != 'legacy': add(u(r['user'])['ips'], r['ip'])
+            for r in c.execute(f"SELECT DISTINCT user, device FROM {tbl} WHERE device IS NOT NULL AND device != ''") if tbl != 'transcriptions' else []:
+                if r['user'] and r['user'] != 'legacy': add(u(r['user'])['devices'], r['device'])
+        aud = [row_dict(r) for r in c.execute('SELECT at, by, action, target, detail FROM admin_audit ORDER BY id DESC LIMIT 300')]
+    try: seen = json.load(open(SHARE_SEEN))
+    except (OSError, ValueError): seen = {}
+    for n, s in seen.items():
+        d = u(n); d['seen'] = s; add(d['apps'], s.get('app')); add(d['devices'], s.get('device'))
+    for n in os.listdir(SAVES) if os.path.isdir(SAVES) else []:
+        for g in os.listdir(os.path.join(SAVES, n)):
+            st = save_state(os.path.join(SAVES, n, g))
+            if st.get('rev'): u(n)['saves'].append({'game': g, 'size': st.get('size') or 0, 'rev': st['rev'], 'saved_at': st.get('saved_at')})
+    for f in os.listdir(SETTINGS) if os.path.isdir(SETTINGS) else []:
+        if f.endswith('.json'):
+            try: u(f[:-5])['language'] = str((json.load(open(os.path.join(SETTINGS, f))).get('settings') or {}).get('language') or '')
+            except (OSError, ValueError): pass
+    return {'players': out, 'live': live, 'live_s': LIVE_S, 'now': t, 'audit': aud}
+
+
 # ---- session recording (Player 0.0.41) ----------------------------------------------------------------------------
 # docs/feedback.md "Session recording": the Player sends its play session in ~5 s chunks (Session.kt): the pads of its
 # frames (NSIN v1) + the SHA-256 of the state at the chunk's start; a KEYFRAME chunk (every ~30 s since Player 0.0.43;
@@ -1281,6 +1371,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if u.path == '/dlauth': return self.dlauth()
         if u.path == '/me': return self.me()
         if u.path.startswith('/saves/'): return self.saves('GET')
+        if u.path == '/settings': return self.settings('GET')
         if u.path.startswith('/share/'): return self.share_get(u.path.split('/')[2:])
         if u.path.startswith('/app/'): return self.app_get(u.path.split('/')[2], q)
         lab = self.lab_route()
@@ -1288,6 +1379,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
         if parts and parts[0] in ('sessions', 'session'): return self.sessions_api(parts, q)
+        if parts == ['players']: return self.reply(200, admin_players())
         if len(parts) == 2 and parts[0] == 'decisions' and re.match(r'^[a-z0-9_-]{1,40}$', parts[1]):
             p = os.path.join(DATA, 'decisions', parts[1] + '.json')
             return self.reply(200, json.load(open(p)) if os.path.exists(p) else {})
@@ -1483,14 +1575,14 @@ class H(http.server.BaseHTTPRequestHandler):
     def me(self):
         """GET me: {user, role admin | tester, build (the VERSION the Brawler app plays), app {version, code, url, size,
         sha256} (the newest Brawler APK, its link with a 24 h ticket; the app downloads and checks it, PlayerUpdate.kt)}; 401 no sign-in, 403 an Oros account without a brawler role"""
-        user, role = account_role(self.headers)
+        user, role, tags = account_full(self.headers)
         if not user: return self.reply(401, {'error': 'sign in with your Oros account'})
         if role == 'none': return self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno', 'user': user, 'role': 'none'})
         a = app_latest()
         f = os.path.join(SHARE_APP, a[2]) if a else None
         app = {'version': a[0], 'code': a[1], 'url': 'app/%s?t=%s' % (a[2], app_ticket(user, a[2])),
                'size': os.path.getsize(f), 'sha256': sha_of(f)} if a else None
-        self.reply(200, {'user': user, 'role': role, 'build': share_build_for(user, role)[0], 'app': app})
+        self.reply(200, {'user': user, 'role': role, 'nightly': 'brawler_nightly' in tags, 'build': share_build_for(user, role, 'brawler_nightly' in tags)[0], 'app': app})
 
     def app_get(self, f, q):
         """GET app/<file>?t=<ticket>: the Brawler APK, for the phone's browser (no token there: the ticket from GET me)"""
@@ -1509,10 +1601,10 @@ class H(http.server.BaseHTTPRequestHandler):
     def share_get(self, parts):
         """the Brawler app's builds: GET share/latest.json: the account's build {version, build, file, size, sha256}
         (RomFetch's latest.json); GET share/build/brawler-<V>.neo: that build only (another version = 404)"""
-        user, role = account_role(self.headers)
+        user, role, tags = account_full(self.headers)
         if not user: return self.reply(401, {'error': 'sign in with your Oros account'})
         if role not in ('admin', 'tester'): return self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno'})
-        v, path = share_build_for(user, role)
+        v, path = share_build_for(user, role, 'brawler_nightly' in tags)
         if parts == ['latest.json']:
             h = self.headers
             with share_lock:
@@ -1778,12 +1870,52 @@ class H(http.server.BaseHTTPRequestHandler):
         log('save', user, game, 'rev', st['last'], 'backup' if backup else 'current', st.get('size'))
         self.reply(200, {'rev': st['last'], 'updated': updated, 'current': not backup})
 
+    def settings(self, method):
+        """GET / PUT settings (app 0.0.44): the signed-in account's app settings {settings {language, scanlines, ...},
+        updated (ms)}, restored after a sign-in on any device. PUT {settings, updated}: newest wins (an older one = 409
+        with the stored one)"""
+        user = self.player()
+        if not user: return
+        p = settings_file(user)
+        try: cur = json.load(open(p))
+        except (OSError, ValueError): cur = None
+        if method == 'GET':
+            return self.reply(200, cur) if cur else self.reply(404, {'error': 'no settings saved', 'updated': 0})
+        raw = self.body(8192)
+        if raw is None: return self.reply(413, {'error': 'empty or too big'})
+        try:
+            req = json.loads(raw); st = req['settings']; upd = int(req.get('updated') or time.time() * 1000)
+            if not (isinstance(st, dict) and len(st) <= 40 and all(re.match(r'^[a-z][a-z0-9_]{0,31}$', k) and (
+                    isinstance(v, (bool, int, float)) or (isinstance(v, str) and len(v) <= 64)) for k, v in st.items())): raise ValueError('settings')
+        except (ValueError, KeyError, TypeError) as e: return self.reply(400, {'error': 'bad settings: %s' % e})
+        if cur and int(cur.get('updated') or 0) > upd: return self.reply(409, cur)
+        rec = {'settings': st, 'updated': upd, 'saved_at': now()}
+        os.makedirs(os.path.dirname(p), exist_ok=True); write_json(p, rec)
+        log('settings', user, st.get('language', ''))
+        self.reply(200, rec)
+
+    def reset_save(self):
+        """POST api/players/reset_save {user, game?} (the Factory's Players tab, a brawler admin): the account's cloud
+        save(s) deleted as the Player's Reset game save does (the revision files stay as backups); audited"""
+        req = self.json_body(4096)
+        if req is None: return
+        user = str(req.get('user') or ''); game = str(req.get('game') or '')
+        base = os.path.dirname(save_dir(user, 'x')) if user else ''
+        if not user or not os.path.isdir(base): return self.reply(404, {'error': 'no cloud save for ' + user})
+        games = [game] if game else sorted(n for n in os.listdir(base) if SAVE_GAME.match(n))
+        done = []
+        for g in games:
+            if SAVE_GAME.match(g) and save_state(os.path.join(base, g)).get('rev'): save_delete(os.path.join(base, g)); done.append(g)
+        admin_audit(account(self.headers) or 'ssh', 'reset_save', user, ', '.join(done) or 'nothing to reset')
+        self.reply(200, dict(admin_players(), reset=done))
+
     def do_DELETE(self):
         if self.path.startswith('/saves/'): return self.saves('DELETE')
         self.reply(404, {'error': 'not found'})
 
     def do_PUT(self):
         if self.path.startswith('/saves/'): return self.saves('PUT')
+        if self.path == '/settings': return self.settings('PUT')
         parts = self.lab_route()
         if parts is None: return self.reply(404, {'error': 'not found'})
         self.lab_write(parts)
@@ -1811,6 +1943,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/api/review_delete': return self.delete_review()
         if self.path == '/api/transcribe': return self.lab_transcribe()
         if self.path == '/api/decision': return self.save_decision()
+        if self.path == '/api/players/reset_save': return self.reset_save()
         self.reply(404, {'error': 'not found'})
 
     def lab_transcribe(self):
@@ -2197,7 +2330,9 @@ class H(http.server.BaseHTTPRequestHandler):
         num = lambda k, dflt: int(q[k][0]) if q.get(k) and q[k][0].lstrip('-').isdigit() else dflt
         with db() as c:
             if parts == ['sessions']:
-                rows = [session_row(r, t) for r in c.execute('SELECT * FROM sessions ORDER BY last_at DESC LIMIT ?', (num('limit', 300),))]
+                uq = (q.get('user') or [''])[0]                       # ?user=: one player's (the Factory's Players tab links here)
+                rows = [session_row(r, t) for r in (c.execute('SELECT * FROM sessions WHERE user=? ORDER BY last_at DESC LIMIT ?', (uq, num('limit', 300))) if uq else
+                                                    c.execute('SELECT * FROM sessions ORDER BY last_at DESC LIMIT ?', (num('limit', 300),)))]
                 tot = c.execute('SELECT COUNT(*) n, COALESCE(SUM(bytes), 0) b, COALESCE(SUM(frames), 0) f FROM session_chunks').fetchone()
                 hours = tot['f'] / FPS / 3600
                 return self.reply(200, {'sessions': rows, 'now': t, 'live_s': LIVE_S, 'fps': FPS,

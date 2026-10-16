@@ -231,7 +231,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             c.drawCircle(mic.x, mic.y, mic.r * 1.3f, paint); paint.style = Paint.Style.FILL; postInvalidateDelayed(BLINK_MS / 2)
         }
         label.textSize = maxOf(11f * resources.displayMetrics.scaledDensity, mic.r * 0.42f)
-        c.drawText("Feedback", mic.x, mic.y + mic.r * (if (hint) 1.5f else 1f) + label.textSize * 1.05f, label)
+        c.drawText(context.getString(R.string.pad_feedback), mic.x, mic.y + mic.r * (if (hint) 1.5f else 1f) + label.textSize * 1.05f, label)
     }
 
     override fun onTouchEvent(e: MotionEvent): Boolean {

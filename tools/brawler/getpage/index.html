@@ -4,12 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Brawler for Android</title>
+<!-- brawler27.duckdns.org (and canneji /brawler/get/): the download page, filled by tools/brawler/publish_app.sh (@NAME@,
+     @SIZE@). English and French (app 0.0.44): two flags at the top; the default follows the browser's language, the
+     choice is remembered in this browser (localStorage, optional). Every text has both versions below (data-en / T). -->
 <style>
   :root { --bg:#fff; --ink:#000; --soft:#444; --line:#000; }
   @media (prefers-color-scheme: dark) { :root { --bg:#111; --ink:#f2f2f2; --soft:#bbb; --line:#f2f2f2; } }
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.5 system-ui, sans-serif; }
-  main { max-width:520px; margin:0 auto; padding:28px 16px 40px; }
+  main { max-width:520px; margin:0 auto; padding:16px 16px 40px; }
+  .langs { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; }
+  .langs button { display:flex; flex-direction:column; align-items:center; gap:3px; background:none; color:var(--ink);
+                  border:2px solid transparent; border-radius:8px; padding:5px 7px; font:inherit; font-size:13px; cursor:pointer; }
+  .langs button[aria-pressed="true"] { border-color:var(--line); font-weight:700; }
+  .langs svg { width:42px; height:28px; display:block; outline:1px solid var(--line); }
   h1 { margin:0; font-size:34px; letter-spacing:.05em; }
   .sub { margin:2px 0 22px; color:var(--soft); }
   a.dl { display:block; padding:18px 14px; border:3px solid var(--line); border-radius:10px; text-align:center;
@@ -22,20 +30,63 @@
 </head>
 <body>
 <main>
+  <div class="langs" role="group" aria-label="Language / Langue">
+    <button type="button" data-lang="en" aria-pressed="true">
+      <svg viewBox="0 0 60 40" aria-hidden="true"><rect width="60" height="40" fill="#012169"/><path d="M0,0 60,40 M60,0 0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 60,40 M60,0 0,40" stroke="#C8102E" stroke-width="3"/><path d="M30,0V40M0,20H60" stroke="#fff" stroke-width="13"/><path d="M30,0V40M0,20H60" stroke="#C8102E" stroke-width="7"/></svg>
+      English</button>
+    <button type="button" data-lang="fr" aria-pressed="false">
+      <svg viewBox="0 0 60 40" aria-hidden="true"><rect width="20" height="40" fill="#002395"/><rect x="20" width="20" height="40" fill="#fff"/><rect x="40" width="20" height="40" fill="#ED2939"/></svg>
+      Français</button>
+  </div>
   <h1>BRAWLER</h1>
-  <p class="sub">Neo Geo beat 'em up, Android beta.</p>
-  <a class="dl" href="brawler-@NAME@.apk" download>Download the app</a>
-  <p class="meta">brawler-@NAME@.apk · @SIZE@ MB · Android 8 or newer</p>
-  <h2>Install</h2>
+  <p class="sub" data-t="sub">Neo Geo beat 'em up, Android beta.</p>
+  <a class="dl" href="brawler-@NAME@.apk" download data-t="dl">Download the app</a>
+  <p class="meta">brawler-@NAME@.apk · @SIZE@ MB · <span data-t="android">Android 8 or newer</span></p>
+  <h2 data-t="install">Install</h2>
   <ol>
-    <li>Tap <b>Download the app</b>, then open the downloaded file.</li>
-    <li>If Android asks, allow your browser to install apps, then tap <b>Install</b>.</li>
-    <li>Open <b>Brawler</b> and sign in with the tester account Bruno gave you.</li>
-    <li>The game downloads itself on the first start (about 50 MB, Wi-Fi recommended).</li>
+    <li data-t="s1">Tap <b>Download the app</b>, then open the downloaded file.</li>
+    <li data-t="s2">If Android asks, allow your browser to install apps, then tap <b>Install</b>.</li>
+    <li data-t="s3">Open <b>Brawler</b>, choose your language, then tap <b>I have an invite code</b>: type the code you were given, choose a login and a password. Already have an account? Tap <b>I already have an account</b>.</li>
+    <li data-t="s4">The game downloads itself on the first start (about 50 MB, Wi-Fi recommended).</li>
   </ol>
-  <h2>Updates</h2>
-  <p>New versions of the game arrive by themselves. When a new version of the app exists, the app offers it on its start screen and installs it for you.</p>
-  <div class="box">Found a bug or have an idea? Hold the <b>Feedback</b> button in the game and talk: your note goes straight to the developer with a replay of what just happened.</div>
+  <h2 data-t="updates">Updates</h2>
+  <p data-t="upd">New versions of the game arrive by themselves. When a new version of the app exists, the app offers it on its start screen and installs it for you.</p>
+  <div class="box" data-t="fb">Found a bug or have an idea? Hold the <b>Feedback</b> button in the game and talk: your note goes straight to the developer with a replay of what just happened.</div>
+  <p class="meta" data-t="rec">Your play sessions, IP address and device are recorded for this beta.</p>
 </main>
+<script>
+(function () {
+  var FR = {
+    sub: "Beat 'em up Neo Geo, bêta Android.",
+    dl: "Télécharger l'appli",
+    android: "Android 8 ou plus récent",
+    install: "Installation",
+    s1: "Touchez <b>Télécharger l'appli</b>, puis ouvrez le fichier téléchargé.",
+    s2: "Si Android le demande, autorisez votre navigateur à installer des applis, puis touchez <b>Installer</b>.",
+    s3: "Ouvrez <b>Brawler</b>, choisissez votre langue, puis touchez <b>J'ai un code d'invitation</b> : saisissez le code reçu, choisissez un identifiant et un mot de passe. Vous avez déjà un compte ? Touchez <b>J'ai déjà un compte</b>.",
+    s4: "Le jeu se télécharge tout seul au premier lancement (environ 50 Mo, Wi-Fi conseillé).",
+    updates: "Mises à jour",
+    upd: "Les nouvelles versions du jeu arrivent toutes seules. Quand une nouvelle version de l'appli existe, l'appli la propose sur son écran de lancement et l'installe pour vous.",
+    fb: "Un bug ou une idée ? Maintenez le bouton <b>Avis</b> dans le jeu et parlez : votre note part directement au développeur avec un replay de ce qui vient de se passer.",
+    rec: "Vos sessions de jeu, votre adresse IP et votre appareil sont enregistrés pour cette bêta."
+  };
+  var EN = {};
+  var els = document.querySelectorAll('[data-t]');
+  els.forEach(function (e) { EN[e.getAttribute('data-t')] = e.innerHTML; });
+  function set(l) {
+    var T = l === 'fr' ? FR : EN;
+    els.forEach(function (e) { e.innerHTML = T[e.getAttribute('data-t')]; });
+    document.documentElement.lang = l;
+    document.title = l === 'fr' ? 'Brawler pour Android' : 'Brawler for Android';
+    document.querySelectorAll('.langs button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === l)); });
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('brawler_lang'); } catch (e) {}
+  set(saved === 'fr' || saved === 'en' ? saved : ((navigator.language || '').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en'));
+  document.querySelectorAll('.langs button').forEach(function (b) {
+    b.addEventListener('click', function () { var l = b.getAttribute('data-lang'); set(l); try { localStorage.setItem('brawler_lang', l); } catch (e) {} });
+  });
+})();
+</script>
 </body>
 </html>

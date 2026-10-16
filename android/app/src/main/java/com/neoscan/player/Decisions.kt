@@ -53,7 +53,7 @@ object Decisions {
             val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
             if (code == 200) Result.success(JSONObject(txt).getJSONObject("review"))
             else Result.failure(Exception(try { JSONObject(txt).optString("error") } catch (x: Exception) { "HTTP $code" }))
-        } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+        } catch (x: Exception) { Result.failure(Exception(tr(R.string.no_connection, x.message))) }
     }
 
     /** an image of a decision (GET ../feedback/mine/review/<id>/<file>), decoded in full (blocking); null = failed */
@@ -145,13 +145,13 @@ object Decisions {
         fun show() { cap.text = "${i + 1} / ${labels.size}   ${labels[i]}"; zoom.bitmap = bitmaps[i]() }
         val bar = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(Color.BLACK) }
         fun btn(t: String, f: () -> Unit) = Button(ctx).apply { text = t; textSize = 18f; isAllCaps = false; setOnClickListener { f() } }
-        if (labels.size > 1) bar.addView(btn("◀ Previous") { i = (i - 1 + labels.size) % labels.size; show() }, LinearLayout.LayoutParams(0, -2, 1f))
-        bar.addView(btn("✕ Close") { d.dismiss() }, LinearLayout.LayoutParams(0, -2, 1f))
-        if (labels.size > 1) bar.addView(btn("Next ▶") { i = (i + 1) % labels.size; show() }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (labels.size > 1) bar.addView(btn(tr(R.string.dv_prev)) { i = (i - 1 + labels.size) % labels.size; show() }, LinearLayout.LayoutParams(0, -2, 1f))
+        bar.addView(btn(tr(R.string.dv_close)) { d.dismiss() }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (labels.size > 1) bar.addView(btn(tr(R.string.dv_next)) { i = (i + 1) % labels.size; show() }, LinearLayout.LayoutParams(0, -2, 1f))
         val col = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
         col.addView(cap, LinearLayout.LayoutParams(-1, -2))
         col.addView(zoom, LinearLayout.LayoutParams(-1, 0, 1f))
-        col.addView(TextView(ctx).apply { text = "Pinch to zoom, drag to move, double tap = fit / 4x"; textSize = 12f; setTextColor(Color.WHITE); gravity = Gravity.CENTER })
+        col.addView(TextView(ctx).apply { text = tr(R.string.dv_help); textSize = 12f; setTextColor(Color.WHITE); gravity = Gravity.CENTER })
         col.addView(bar, LinearLayout.LayoutParams(-1, -2))
         d.setContentView(FrameLayout(ctx).apply { addView(col, FrameLayout.LayoutParams(-1, -1)) })
         show(); d.show()
