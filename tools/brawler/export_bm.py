@@ -950,6 +950,16 @@ def proj_react(n, sp):
     if e.get('juggle_reset'): out['jreset'] = True
     return out
 
+def hit_react(n, sp):
+    """its body hits' launch (note 20261016-155607-e03d, Robert's EX 646D: "no juggle possible after this special"):
+    game.json roster[].hit_react {special input: {react}} -> the R_* (R_NAMES) its ROM program's hits that launch or knock
+    down (packed nibbles R_KNOCKDOWN / R_LAUNCH) take instead, or None: "lift" = straight up (fighter.c KOF_REACT[R_LIFT],
+    vx 0), the victim staying over the attacker's reach"""
+    e = ((roster().get(n) or {}).get('hit_react') or {}).get(sp.get('input'))
+    if not e: return None
+    assert e.get('react') in R_NAMES, f'{n}: hit_react.{sp["input"]}.react {e.get("react")!r} ({", ".join(R_NAMES)})'
+    return R_NAMES[e['react']]
+
 FRAME_COLS = {}                                         # per fighter: each exported frame's hardware sprites (bframe_t ncols)
 def projectile_c(n, k, pjs, game, sp):
     """C tables of a special's projectiles (export96.projectile_entry, in spawn order): per projectile its flight
@@ -1149,7 +1159,11 @@ def rom_c(n, k, sp, game, vres=None):
     def bb(b): return '{0, 0, 0, 0}' if b is None else f'{{{b[0]}, {b[1]}, {b[2]}, {b[3]}}}'
     live = None
     jug = any(same_special(w, sp['input']) for w in roster().get(n, {}).get('juggle', ()))   # game.json roster[].juggle:
+    hr = hit_react(n, sp)                              # game.json roster[].hit_react: its launches' reaction by name
     def hy(v):                                         # its hits leave the victim hittable (each packed nibble's R_* | 8,
+        if hr and not r.get('sreact'):                 # (a nibble launching or knocking down: R_KNOCKDOWN / R_LAUNCH,
+            v = sum(((x & 8) | hr if (x & 7) in (R_KNOCKDOWN, R_LAUNCH) else x) << k   # not the high launch RK_HIGH)
+                    for k, x in ((0, v & 15), (4, v >> 4 & 15)))
         if not jug or r.get('sreact'): return v        # KOF's hurt-kept bit: fighter.c kof_react KM_HURT), the juggle
         return v | (8 if v & 7 else 0) | (0x80 if v & 0x70 else 0)   # cap still counting (Bruno 2026-10-11, Kyo's 623A)
     kof = kof_prog(sp, game)                           # KOF96 / 98 / 99: a step's hurt box counts only with its $0200 flag

@@ -5729,5 +5729,33 @@
   "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=terry-back): on frame 34 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Terry's grip until frame 49. On frame 49 Ryo pops straight up (a little away from him) (medium), and Terry plays his throw animation to its end.",
   "do_keys": "20:R,2:La,150:-",
   "proof": 77
+ },
+ "20261016-155607-e03d": {
+  "title": "Robert: after forward + C (the kick barrage), his follow-ups juggle the launched enemy",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Press forward + C on Ryo. When the last kick sends him up and Robert is back on his feet, press C (the rising dragon kick) while Ryo is still in the air.",
+  "expect": "The last kick sends Ryo straight up above Robert (no longer flying far away out of reach); the C rises into him and hits him in the air twice (a juggle). His juggle count starts from 0 after the forward + C, so the usual 5 air hits remain.",
+  "do_keys": "2:R,3:Rc,140:-,2:c",
+  "proof": 90
+ },
+ "20261016-162209-e03d": {
+  "title": "Stage 1 wave 2: nobody walks into the wall, even after a fury",
+  "setup": {
+   "mode": "stage",
+   "fighter": "hanzo_ss2",
+   "stage": 0,
+   "wave": 1,
+   "cam": 440,
+   "fury": "full"
+  },
+  "do": "Press D (the fury), then hold up to walk toward the wall, and watch the enemies walking in.",
+  "expect": "Hanzo stops at the depth where he stood in your note (feet on the road just below the wall's curb), and no enemy goes further back either. Before, after a fury (or any super flash) the limit vanished for the rest of the stage and everyone could walk up into the wall.",
+  "do_keys": "3:d,150:-,60:U,120:-",
+  "proof": 60
  }
 }

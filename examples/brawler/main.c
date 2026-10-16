@@ -320,12 +320,17 @@ static void vblank_flush(void) {
     if (bt_pal_next) { PAL_setPalette(250, bt_pal_next); bt_pal_next = 0; }   /* (BT_PAL) */
 }
 static void land_off(void);
-static void stage_hide(void) {                              /* title, select: no stage (nor the select's Neo Geo Land) */
+static void stage_off(void) {                               /* the stage's sprites hidden, the stage kept (a screen
+                                                                effect's backdrop: its floor edge stays, note
+                                                                20261016-162209-e03d: a super flash dropped it) */
     uint8_t i;
+    for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
+}
+static void stage_hide(void) {                              /* title, select: no stage (nor the select's Neo Geo Land) */
     bd_on = 0;
     land_off();
     zback = 0;                                                      /* (no stage: no floor edge) */
-    for (i = 0; i < BG_N; i++) cmd_push(VRAM_SCB3 + BG_SPR + i, 0);
+    stage_off();
 }
 static void stage_show(void) {
     uint8_t s;
@@ -995,10 +1000,10 @@ static void screen_fx(void) {
     if (mc_who && !sf_who && (mc_who->state != S_SPECIAL || !mc_who->fmax)) mc_end();   /* (its MAX gone before a flash) */
     if (mc_who) {                                            /* the MAX cancel: the stage hidden, its backdrop (over every
                                                                 other screen effect, the MAX's flash included) */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        if (!bd_on) { stage_off(); bd_on = 1; bd_t = 0; }
         bd_set(gmaxcan.backdrop);
     } else if (bighit_red) {                                 /* SS2's big hit (fighter.c big_hit): red, no stage */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        if (!bd_on) { stage_off(); bd_on = 1; bd_t = 0; }
         bd_set(bighit_col); bighit_red--;
     } else if (hitflash) {                                   /* Double Dragon's super hit (fighter.c hit_spark, TODO #215;
                                                                 DD $3A8A: every 2 frames the stage's palettes and the
@@ -1009,13 +1014,13 @@ static void screen_fx(void) {
                                                                 are back */
         uint8_t k = HITFLASH - hitflash--;
         if (k == 1 || k == 5) bd_set(BIGHIT_COL);
-        else if (k == 2 || k == 6) { stage_hide(); bd_on = 1; }
+        else if (k == 2 || k == 6) { stage_off(); bd_on = 1; }
         else if (k == 4 || k == 8) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }
     } else if (sf_who) {                                     /* the super flash: the stage hidden, white then black (the */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }       /* colour of the frame shown: sf_tick counts after) */
+        if (!bd_on) { stage_off(); bd_on = 1; bd_t = 0; }       /* colour of the frame shown: sf_tick counts after) */
         bd_set((uint8_t)(sf_flash_t + 1) <= gflash.white ? gflash.white_col : gflash.dark_col);
     } else if (sp) {                                         /* Kizuna's strobe, bd_col[0] first (measured) */
-        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        if (!bd_on) { stage_off(); bd_on = 1; bd_t = 0; }
         bd_set(mode == 2 ? sp->bd_col[0] : sp->bd_col[bd_t++ & 1]);
     } else if (bd_on) { stage_show(); bd_set(stg->backdrop); bd_on = 0; }   /* after: the stage and its backdrop back */
 }
