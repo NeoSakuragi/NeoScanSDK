@@ -1798,6 +1798,12 @@ def tables(g, build):
          f'#define SEL_NPAL {sel_palbases(g, build)[1]}             /* the select screen\'s actors\' palettes from 16 (sel_palbase) */',
          f'#define GAME_MUS_TITLE MUS_{g["music"].get("title", g["music"]["select"])}',
          f'#define GAME_MUS_SELECT MUS_{g["music"]["select"]}', f'#define GAME_MUS_CLEAR MUS_{g["music"]["clear"]}', f'#define GAME_MUS_CLEAR_FRAMES {int(g["music"].get("clear_frames", 0))}   /* the clear song\'s length: PH_CLEAR\'s next screen waits for it */',
+         f'#define GAME_CREDIT_START_TICKS {int(round(float((g.get("credit") or {}).get("start_timeout_s", 0)) * 60))}   /* game.json credit.start_timeout_s: the title after a credit starts the game by itself (0 = never; main.c title_tick) */',
+         f'#define GAME_CREDIT_START_SHOWN {1 if (g.get("credit") or {}).get("shown", True) else 0}   /* credit.shown: the seconds counting down beside PRESS START */',
+         f'#define GAME_CREDIT_MVS_ONLY {1 if (g.get("credit") or {}).get("mvs_only", True) else 0}',
+         f'#define GAME_SEL_TIME_TICKS {int(round(float(g["select"].get("time_limit_s", 0)) * 60))}   /* game.json select.time_limit_s: the select picks for the players by itself (0 = never; main.c select_tick) */',
+         f'#define GAME_SEL_TIME_SHOWN {1 if g["select"].get("time_limit_shown") else 0}   /* select.time_limit_shown (not drawn yet: no timer font) */',
+         f'#define GAME_SEL_TIME_MVS_ONLY {1 if g["select"].get("time_limit_mvs_only", True) else 0}',
          f'#define GAME_MUS_CONTINUE MUS_{g["music"].get("continue", g["music"]["clear"])}',
          (f'#define GAME_MUS_OVER 0   /* GAME OVER: no song, the continue song fades out ($0A + speed, KOF98) */\n#define GAME_OVER_FADE 0x2C'
           if g['music'].get('gameover') == 'FADE' else f'#define GAME_MUS_OVER MUS_{g["music"].get("gameover", g["music"]["clear"])}\n#define GAME_OVER_FADE 0'),

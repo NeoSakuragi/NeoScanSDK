@@ -2059,6 +2059,7 @@ static uint8_t title_sel;                        /* the menu line */
 static uint8_t title_paid;                       /* the START that opened the title already took the credit */
 enum { TI_NEW, TI_OPT };
 static uint8_t title_item[2], title_n;           /* the menu's lines */
+static uint16_t title_go;                        /* MVS: ticks of the credit's countdown (title_go_tick) */
 static uint8_t title_clr;                        /* MVS: ticks since SAVE DATA CLEARED (then SYSTEM_RETURN commits it) */
 static uint8_t opt_on;                           /* the OPTIONS screen is up (a part of the title, mode 2) */
 static void select_start(void);
@@ -2097,7 +2098,7 @@ static void title_start(void) {
     snd_music(GAME_MUS_TITLE);                               /* a credit is in: KOF94's coin song (game.json music.title;
                                                              voice note 20261011-114853-5d29) */
     save_load();
-    title_sel = 0; title_hold = 0; title_paid = 0; title_clr = 0;
+    title_sel = 0; title_hold = 0; title_paid = 0; title_clr = 0; title_go = 0;
     title_menu();
 }
 
@@ -2186,6 +2187,36 @@ static void options_tick(void) {
     }
 }
 
+/* the credit's countdown (note 20261016-174640-e03d, "just like KOF94"; game.json credit): on an arcade (MVS) the title
+ * with a credit in waits at most GAME_CREDIT_START_TICKS, the seconds left shown steady beside the blinking PRESS START
+ * (credit.shown), then the game starts as if P1 pressed START: the credit taken (SYS_credit_take: P1's, else P2's coin
+ * slot on SNK's BIOS; none when the START that opened the title took it, title_paid), the select. Console (AES): no
+ * credits, no timer (credit.mvs_only). Counted in title_go (title_start zeroes it), held while the save is being
+ * cleared (title_clr). */
+static uint8_t title_go_s, title_go_f;           /* the seconds left (shown), the ticks into this second */
+static uint8_t title_go_on(void) {
+    return GAME_CREDIT_START_TICKS && (BIOS_MVS_FLAG || !GAME_CREDIT_MVS_ONLY) && !title_clr && !lab.active;
+}
+static void title_go_show(void) {
+    char t[3];
+    uint8_t s = title_go_s, d = 0;
+    while (s >= 10) { s -= 10; d++; }                    /* (no divide: no libgcc) */
+    t[0] = d ? '0' + d : ' '; t[1] = '0' + s; t[2] = 0;
+    FIX_print(28, 18, t, 0);
+}
+static uint8_t title_go_tick(void) {
+    if (!title_go_on()) return 0;
+    if (!title_go) { title_go_s = (GAME_CREDIT_START_TICKS + 59) / 60; title_go_f = (GAME_CREDIT_START_TICKS - 1) % 60 + 1;
+                     if (GAME_CREDIT_START_SHOWN) title_go_show(); }   /* (constants: folded) */
+    if (++title_go >= GAME_CREDIT_START_TICKS) {
+        if (!title_paid && !SYS_credit_take(CREDITS_P1 ? 1 : 2)) { title_go = 0; return 0; }   /* no credit after all: wait */
+        if (GAME_CREDIT_START_SHOWN) FIX_print(28, 18, "  ", 0);
+        bios_start = 0; title_paid = 0; camp_from = 0;
+        banner_hide(); select_start(); snd_ssg(SSG_CONFIRM); return 1;
+    }
+    if (!--title_go_f) { title_go_s--; title_go_f = 60; if (GAME_CREDIT_START_SHOWN) title_go_show(); }
+    return 0;
+}
 static void attract_logo_tick(void);
 static void title_tick(void) {
     uint16_t pr, h;
@@ -2210,6 +2241,7 @@ static void title_tick(void) {
     if (!BIOS_MVS_FLAG && (pr & JOY_SELECT)) {         /* console only, no credit involved: SELECT = OPTIONS */
         snd_ssg(SSG_CONFIRM); options_start(); return;
     }
+    if (title_go_tick()) return;                       /* MVS: the credit's countdown ran out: the game starts */
     if (bios_start || (title_paid && (pr & (JOY_START | JOY_A)))) {   /* START with a credit (PLAYER_START), or START / A
                                                              when the credit was taken by the START that opened it */
         bios_start = 0; title_paid = 0; camp_from = 0;   /* (every new game: stage 1) */
@@ -4795,6 +4827,21 @@ static void ladder_tick(void) {
     if ((lad_t >= LAD_MIN && btn) || lad_t >= LAD_TIME) { bt_hide(); lad_hide(); SYS_return(); }   /* back to the BIOS: it commits the
                                                              MVS save, shows the title (credits left) or the attract demo */
 }
+/* the select's time limit (note 20261016-174702-e03d; game.json select.time_limit_s): on an arcade (MVS) after
+ * GAME_SEL_TIME_TICKS of the choice (sel_t) every joined player who has not picked takes the fighter under his cursor in
+ * colour set A (sel_pick, as the button); on the other's pick: the first other selectable fighter. Hidden for now (no
+ * timer font: select.time_limit_shown). Console (AES): none (select.time_limit_mvs_only). */
+static uint8_t sel_time_on(void) {
+    return GAME_SEL_TIME_TICKS && (BIOS_MVS_FLAG || !GAME_SEL_TIME_MVS_ONLY) && !lab.active;
+}
+static void sel_pick(uint8_t p, uint8_t set) {           /* player p takes his cursor's fighter in colour set `set` */
+    pick_set[p] = set;
+    slot_show(cursor[p], pick_set[p]);
+    fighter_play(actor(slot_act[cursor[p]]), BA_WIN);
+    voice_play(actor(slot_act[cursor[p]])->ch, 0, VK_SELECT);   /* its select voice (KOF's intro line) */
+    actor(slot_act[cursor[p]])->team = 0;               /* the line guard keeps the picked ones first */
+    picked[p] = 1; snd_ssg(SSG_CONFIRM);
+}
 static void select_tick(void) {
     uint8_t a, p, s;
     sel_t++;
@@ -4835,15 +4882,21 @@ static void select_tick(void) {
                 fighter_pals(actor(slot_act[s]), 1);
                 select_name();
             }
-            if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p])) {
-                pick_set[p] = (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3;
-                slot_show(cursor[p], pick_set[p]);
-                fighter_play(actor(slot_act[cursor[p]]), BA_WIN);
-                voice_play(actor(slot_act[cursor[p]])->ch, 0, VK_SELECT);   /* its select voice (KOF's intro line) */
-                actor(slot_act[cursor[p]])->team = 0;       /* the line guard keeps the picked ones first */
-                picked[p] = 1; snd_ssg(SSG_CONFIRM);
-            }
+            if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p]))
+                sel_pick(p, (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3);
         }
+        if (sel_time_on() && sel_t >= GAME_SEL_TIME_TICKS)  /* the time limit: the highlighted fighters, colour set A */
+            for (p = 0; p < 2; p++) {
+                if (cursor[p] == 0xFF || picked[p]) continue;
+                if (picked[p ^ 1] && cursor[p ^ 1] == cursor[p]) {   /* on the other's pick: the first other selectable one */
+                    uint8_t was = cursor[p];
+                    for (s = 0; s < SEL_NSLOT && (!selectable(s) || s == cursor[p ^ 1]); s++) ;
+                    if (s == SEL_NSLOT) continue;
+                    cursor[p] = s; fighter_pals(actor(slot_act[was]), slot_look(was)); fighter_pals(actor(slot_act[s]), 1);
+                    select_name();
+                }
+                sel_pick(p, 0);
+            }
         if (picked[0] && (cursor[1] == 0xFF || picked[1])) { sel_phase = SEL_LEAVE; sel_t = 0; }
     } else if (sel_phase == SEL_LEAVE) {                     /* the others walk off the screen, outward */
         uint8_t left = 0;
