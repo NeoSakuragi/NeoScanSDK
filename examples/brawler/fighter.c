@@ -1592,6 +1592,13 @@ static void release(fighter_t *a) {                              /* both free wh
     if (v) { v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
 static void throw_due(fighter_t *v);
+static uint8_t dmg_out(const fighter_t *a, uint8_t d) {        /* the damage a fighter deals: an enemy's genemy_t damage_out
+                                                                    (fighter_t.dout: (8 - dout) / 8 of it, at least 1; note
+                                                                    20261016-180551-e03d: every boss's hits halved) */
+    if (!a || !a->dout || !d) return d;
+    d = (uint8_t)(((uint16_t)d * (uint8_t)(8 - a->dout)) >> 3);
+    return d ? d : 1;
+}
 static void victim_end(fighter_t *v) {                           /* its script over: it lies where it landed */
     const bthrow_t *th = v->thr;
     if (th && th->stun && IS_THROW(v->throw_id)) {              /* a stun strike (bthrow_t.stun, TODO #212: Double */
@@ -1770,6 +1777,7 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
                 if (j == hold_last(th)) { hit |= 4; continue; }  /* last impact; an earlier one reels it in place */
                 dmg = by ? NODE(by, TREE(by)->hold)->damage / hold_nimp(th) : 0;   /* (its share, hold_nimp) */
             }
+            dmg = dmg_out(by, dmg);
             v->hp -= dmg; v->grab_hits = 0;                      /* a hit: the escape count starts again */
             if (by) gauge_add(by, dmg * gmeter.fury_dealt);      /* (the fury gauge, "the meter") */
             gauge_add(v, dmg * gmeter.fury_taken);
@@ -2082,7 +2090,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     v->srow = 0; v->speed = th->speed; v->hit_mask = 0; v->grab_hits = 0; v->throw_dealt = 0; v->thr_skip = 0;
     v->tb_fl = 0; v->tb_kind = t < BT_COUNT ? t : t == BT_XTHROW ? TBK_XTHROW : 0xFF;   /* (its thrown body's rule) */
     f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;              /* (a press before it: not for its cancel) */
-    v->thr_dmg = THROW_DAMAGE;                                   /* (the super throw: its tier, super_throw) */
+    v->thr_dmg = dmg_out(f, THROW_DAMAGE);                                   /* (the super throw: its tier, super_throw) */
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
                                                                     throw, as the chain's back throw was) */
     v->slam = IS_THROW(t) ? slam_row(th) : 0xFFFF;               /* its damage at its ground impact (slam_row) */
@@ -2152,7 +2160,7 @@ static uint8_t max_chain(fighter_t *f, fighter_t *v) {         /* the chain's ne
     t = m->kind[i];
     pend_jdx = 0; pend_thsc = m->hsc[i];
     throw_start(f, t == 2 ? BT_XTHROW : t == 1 ? BT_THROW_D : BT_THROW_C, t == 2 ? TD_ASIS : t == 1 ? TD_BACK : TD_FWD);
-    v->thr_dmg = m->dmg[i];
+    v->thr_dmg = dmg_out(f, m->dmg[i]);
     f->node = 0; f->chain_t = 0; f->buffered = 0;
     return 1;
 }
@@ -3804,7 +3812,7 @@ static uint8_t fury_throw(fighter_t *f) {
     grab(f, v);
     v->x = x; v->y = y;
     pend_jdx = 0; throw_start(f, BT_XTHROW, TD_ASIS);
-    v->thr_dmg = d;
+    v->thr_dmg = dmg_out(f, d);
     f->node = 0; f->chain_t = 0; f->buffered = 0;
     return 1;
 }
@@ -4993,10 +5001,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         uint32_t d = (uint32_t)(uint16_t)damage * (uint16_t)a->dsc + o->dacc;
         damage = (uint8_t)(d >> 8); o->dacc = (uint8_t)d;
     }
-    v->hp -= damage + (a->owner ? a->owner : a)->power;
     {   fighter_t *o = a->owner ? a->owner : a;                  /* the hidden fury gauge ("the meter"): the damage dealt (not
                                                                     a fury's own) and taken */
-        uint8_t d = damage + o->power;
+        uint8_t d = dmg_out(o, damage + o->power);               /* (its owner's damage_out: a boss's hits halved) */
+        v->hp -= d;
         if (o->team != v->team && !(o->state == S_SPECIAL && o->spec_id == BS_FURY)) gauge_add(o, (uint16_t)d * gmeter.fury_dealt);
         gauge_add(v, (uint16_t)d * gmeter.fury_taken);
     }
@@ -5027,6 +5035,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     {   const fighter_t *from = a->pdef && (a->pdef->ppad & 1) && a->owner ? a->owner : a;   /* (an object whose victims fly
                                                                     away from its thrower: bproj_t.ppad 1, TODO #193) */
         away = INT(v->x) >= INT(from->x) ? 1 : -1;
+        if (a->pdef && (a->pdef->ppad & 4)) away = v->facing;   /* an object whose victims fly the way they face (bproj_t.ppad
+                                                                    bit 2, game.json roster[].proj_react dir "facing": Robert's
+                                                                    Ryuugeki Ken, note 20261016-180258-e03d) */
         if (a->state == S_SPECIAL && !held && a->spec_atk) {     /* a special's body hit on a free victim: sent the way */
             uint8_t ob = BANK_set(CH_BANK(a->ch));               /* its attack box reaches out from the attacker's body, */
             int8_t bx = a->spec_atk->x;                          /* not by where the two stand (note 20261011-201729-5d29: */
@@ -5316,7 +5327,7 @@ static void block(fighter_t *a, fighter_t *v, uint8_t dmg, int16_t sx, int16_t s
     fighter_t *o = a->owner ? a->owner : a;
     uint8_t chip = 0;
     if ((a->state == S_SPECIAL || a->state == S_PROJ) && gguard.chip && dmg) {
-        chip = (uint8_t)(((uint16_t)dmg * gguard.chip) >> 8);
+        chip = dmg_out(o, (uint8_t)(((uint16_t)dmg * gguard.chip) >> 8));
         if (!chip) chip = 1;
         if (chip >= v->hp) chip = v->hp > 1 ? v->hp - 1 : 0;    /* (never the last point) */
     }
@@ -5642,7 +5653,7 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
             if (!boxes_meet(v, &BODY_BOX, o, hb)) continue;
             dir = v->vx > 0 ? 1 : v->vx < 0 ? -1 : (INT(o->x) >= INT(v->x) ? 1 : -1);   /* the throw's way */
             v->hit_mask |= 1 << o->idx;
-            o->hp -= p->dmg; o->freeze = p->stop;
+            o->hp -= dmg_out(by, p->dmg); o->freeze = p->stop;
             by->target = o;                                      /* (the HUD's life; no chain credit, but */
             if (by->tkeep) {                                     /* throw_keeps_chain: his chain stays one link in) */
                 if (by->state == S_THROW) by->tkeep |= 0x80;

@@ -2485,6 +2485,7 @@ static void enemy_init(uint8_t slot, uint8_t c, uint8_t set, int16_t x, int16_t 
     if (en->tint != GE_SPAWN) tint = en->tint;
     fighter_init(e, &bm_chars[c], mod8(set, bm_chars[c].nsets), 16 + slot * MAX_PALS, 1, x, z);
     e->idx = slot; e->power = power + en->power + (attract ? 0 : ai_rank_power()); e->tint = tint;   /* (+ the rank's) */
+    e->dout = (en->flags & GE_DOUT) >> GE_DOUT_SH;            /* (its damage_out: every hit, throw, chip and thrown body) */
     e->name = en->flags & GE_FIGHTER_NAME ? 0 : en->name; e->cpal = en->pal; e->tree = (const rt_head_t *)en->moves;
     if (!attract) e->hp = e->hp_max = life(en->life);     /* the campaign's difficulty (the demo: as it was) */
     if (tint || e->cpal) pal_pend |= 1 << slot;             /* (its colours: pal_pend_tick, before it can show) */
@@ -3446,6 +3447,8 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
     rf.t++;
     switch (rf.ph) {
     case RF_WALK:                                /* $E5D0: moved, then compared */
+        if (rf.t <= gref.delay) { rf_draw(); return 1; }   /* (off screen, still: game.json referee.delay ticks first,
+                                                    note 20261016-180759-e03d) */
         rf_anim_tick(); rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
         if (rf.x == rf.tx) rf.ph = RF_STAND;
         rf_draw(); return 1;

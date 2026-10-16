@@ -5788,5 +5788,64 @@
   "expect": "No timer is shown, but after 15 seconds the highlighted fighter is picked in his first colours (as if you had pressed A) and the fight starts. On the console the select waits for you forever.",
   "do_keys": "",
   "proof": 1200
+ },
+ "20261016-180759-e03d": {
+  "title": "Posts bonus: the referee waits 2 seconds before walking in",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "robert",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Break the 4 posts. When the last one splinters, count until the referee appears at the screen edge.",
+  "expect": "After the last post breaks nothing moves for about 2 seconds, then the referee sidesteps in from the screen edge, jumps to the front and writes his message as before.",
+  "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
+  "proof": 150
+ },
+ "20261016-180707-e03d": {
+  "title": "Robert's coin win poses: KOF98's coin sounds",
+  "setup": {
+   "mode": "stage",
+   "fighter": "robert",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Beat the stage 1 boss (one hit left: press A at him) and listen to Robert's win pose; clear it again until you get the two poses where he flips a coin.",
+  "expect": "In both coin poses the flick plays as the coin leaves his thumb (KOF98's sound $1AFA, pose frame 44). The pose where he catches it: the catch click ($1A18) as it lands in his hand (frame 81). The other one: the coin's ring ($1AA4) as it comes down (frame 91). His two talking poses keep their lines. KOF98 sends no voice in the coin poses (measured in our emulator: tools/kof98/capture/winsnd98.py).",
+  "do_keys": "4:a,700:-",
+  "proof": 60
+ },
+ "20261016-180551-e03d": {
+  "title": "Bosses deal half damage",
+  "setup": {
+   "mode": "stage",
+   "fighter": "robert",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "gap": 50
+  },
+  "do": "Stage 1, the boss (Mr. Big) alone in front of you. Let him hit you with his strikes, specials and a throw, and watch your life bar. Then play a wave and let a minion hit you.",
+  "expect": "Every boss hit takes half the life it took before (his strikes, specials, projectiles, throws). The minions hurt as before.",
+  "do_keys": "",
+  "proof": 600
+ },
+ "20261016-180258-e03d": {
+  "title": "Robert: down + C = slow Ryuugeki Ken, the victim bounces the way it faces; up + C = the dance",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 120
+  },
+  "do": "Press down + C at Ryo and watch the fireball and his reaction. Then press up + C.",
+  "expect": "Down + C throws the fireball with KOF98's own startup; it flies slowly (3 px a frame, like Terry's Power Wave and Hanzo's Bakuen Ryuu). On impact Ryo bounces up and the way he was facing: facing Robert (left), he flies left, toward Robert (a victim facing right flies right). Up + C plays the dance (KOF98's close 426B, formerly on down + C).",
+  "do_keys": "2:D,2:Dc,2:-,120:-,2:U,2:Uc",
+  "proof": 150
  }
 }

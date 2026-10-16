@@ -285,6 +285,27 @@ def prog_sends(rname, game, m, cid):
             out.append((('MAX ' if sdm else '') + inp, H.voice_sends(m, cid, prog)))
     return out
 
+WINSND = {'kof98': 'wins', 'kof96': 'wins_kof96', 'kof99': 'wins_kof99'}   # tools/kof98/capture/<dir>/winsnd.json
+def win_sounds(m, game, cid, inv):
+    """the sounds a fighter's win poses send in its game (note 20261016-180707-e03d, Robert's coin pose: the coin's flick,
+    catch and ring, all prefix $1A effects the static scan drops as common): tools/kof98/capture/winsnd98.py's capture
+    (P1 or an object he owns, while he plays a pose) -> [(word, index, use)], use = his animation's step as the $FC
+    records count it (P1's raw step then + 1: a step's sound goes out on the frame before it shows; an object's at the
+    next step of the pose, KOF's coin 4 frames earlier)"""
+    p = os.path.join(TOOLS, 'kof98', 'capture', WINSND.get(game, '-'), 'winsnd.json')
+    if not os.path.exists(p): return []
+    out = []
+    for b, rows in json.load(open(p)).get(str(cid), {}).items():
+        for f, w, ix, a4, st, raw in rows:
+            slot = rom96.state_slot(m, cid, st) if game != 'kof96' else rom96.shared_map(m)[st]
+            a, n = m.u32(m.u32(m.g['anims'] + cid * 4) + slot * 4), 0
+            for i in range(raw + 1):                     # the steps up to its raw record (FC / FA records are not steps)
+                b0 = m.u8(a + 6 * i)
+                if b0 in (0xFF, 0xFE): break
+                if b0 < 0x80: n += 1
+            out.append((int(w, 16), int(ix, 16), {'kind': 'anim', 'slot': slot, 'states': inv.get(slot, [])[:6], 'step': n}))
+    return out
+
 def build_list(names=None):
     old = json.load(open(JSON)) if os.path.exists(JSON) else {}
     res = {'about': __doc__.split('\n\n')[0], 'rate': RATE, 'fighters': dict(old.get('fighters', {}))}
@@ -301,7 +322,7 @@ def build_list(names=None):
             try: recs = fc_records(m, c)
             except Exception: continue
             for slot, step, ix in recs: users.setdefault(word(m, ix), set()).add(c)
-        per = {}
+        per, win_fx = {}, {}                             # win_fx: the words its win poses send (kept whatever the cast does)
         for rname, name, cid in fs:
             uses = []                                    # (word, index, use)
             inv = slot_states(m, cid)
@@ -320,6 +341,8 @@ def build_list(names=None):
                     if via == 'step': u.update(state=det[0], step=det[1])
                     elif via == 'later': u['later'] = det
                     uses.append((w, ix, u))
+            for w, ix, u in win_sounds(m, game, cid, inv):   # its win poses' sounds as KOF plays them (winsnd98.py)
+                uses.append((w, ix, u)); win_fx.setdefault(rname, set()).add(w)
             evp = os.path.join(cap_dir(game), f'{cid}_events.txt')
             if os.path.exists(evp):
                 W = wlog(evp + '.wlog')
@@ -332,7 +355,7 @@ def build_list(names=None):
         # a fighter's own effects (TODO #168): the $1A words its ROM specials' code sends (Goenitz's wind $1AD1 with
         # each Yonokaze tornado), listed as voices of channel 'fx' (played on the other voice slot: fighter.c voice_id)
         own_fx = {rname: {w for w, ix, u in us if w >> 8 == FX_PREFIX and u['kind'] == 'prog' and u['via'] in ('code', 'later')}
-                  for rname, (cid, us) in per.items()}
+                         | win_fx.get(rname, set()) for rname, (cid, us) in per.items()}
         words = {w for rname, (cid, us) in per.items() for w, ix, u in us if w >> 8 != 0 and (w >> 8 != FX_PREFIX or w in own_fx[rname])}
         print(game, len(words), 'driver words to probe', flush=True)
         hits = probe(game, words)
@@ -346,7 +369,7 @@ def build_list(names=None):
             voices = {}
             for w, ix, u in uses:
                 if w >> 8 == 0 or (w >> 8 == FX_PREFIX and w not in own_fx[rname]) or not hits.get(w): continue
-                if len(users.get(w, set())) >= 3 or len(sent.get(w, ())) >= 3 or w in COMMON.get(game, ()): continue
+                if w not in win_fx.get(rname, ()) and (len(users.get(w, set())) >= 3 or len(sent.get(w, ())) >= 3 or w in COMMON.get(game, ())): continue
                 h = hits[w]; key = tuple(map(tuple, h['segments']))
                 vo = voices.setdefault(key, {'cmd': f'{w:04X}', 'cmds': [], 'indices': [], 'segments': h['segments'],
                                              'level': h['level'], 'uses': []})

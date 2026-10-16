@@ -32,7 +32,7 @@ CHANCE_MASKS = {'follow_ups': 'follow_mask', 'rev_chance': 'rev_mask', 'bspec_ch
 MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 25                                           # main.c NA (an actor per slot): (381 - SEL_SPR 57 - the barriers 21) / SEL_COLS 12
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
-GE_FIGHTER_NAME, GE_SPAWN = 1, 0xFF                      # gamedata.h genemy_t
+GE_FIGHTER_NAME, GE_SPAWN, GE_DOUT_SH = 1, 0xFF, 1        # gamedata.h genemy_t
 GD_VERSION, GD_MAX = 7, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
                                                          # 6: 6 roles per fighter, route trees version 3; 7: route trees version 4)
 TW = {'camera_x': 1, 'wave_clear': 2, 'time': 3}         # gamedata.h TW_*, TA_*
@@ -793,7 +793,7 @@ def model(g, build):
         n = e['name']
         name = e.get('hud', n)
         assert name == 'fighter' or re.fullmatch(r'[A-Z0-9_ .!-]{1,10}', name), f'enemy {n}: HUD name 1-10 characters (A-Z 0-9 _ . ! -)'
-        for k in e: assert k in ('name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud', 'boss_ai'), f'enemy {n}: unknown field {k}'
+        for k in e: assert k in ('name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud', 'boss_ai', 'damage_out', 'damage_about'), f'enemy {n}: unknown field {k}'
         if e['base'] == 'pool':
             pl = [idx[x] for x in e['pool']]
             assert pl == sorted(pl), f'enemy {n}: list the pool in roster order'
@@ -808,9 +808,13 @@ def model(g, build):
         assert ti is None or ti in tint_idx, f'enemy {n}: no tint {ti}'
         assert st == GE_SPAWN or 0 <= st < 255, f'enemy {n}: palette set {st}'
         assert 1 <= e['life'] <= 32767 and 0 <= e.get('power', 0) <= 255, f'enemy {n}: life 1-32767, power 0-255'
+        do = e.get('damage_out', 1)                    # its outgoing damage (note 20261016-180551-e03d: bosses x 0.5), in eighths
+        assert isinstance(do, (int, float)) and 1 <= round(do * 8) <= 8 and abs(do * 8 - round(do * 8)) < 1e-9, \
+            f'enemy {n}: damage_out 0.125-1 in eighths (x its every hit, throw, chip, thrown body)'
+        dout = 8 - round(do * 8)                       # (genemy_t flags GE_DOUT: 0 = whole)
         M['enemies'].append({'name': n, 'base': base, 'pool': pl, 'ai': row(n, e['ai'], over),
                              'attract_ai': row(n, e.get('attract_ai', e['ai']), over), 'power': e.get('power', 0),
-                             'set': st, 'tint': GE_SPAWN if ti is None else tint_idx[ti], 'flags': GE_FIGHTER_NAME if name == 'fighter' else 0,
+                             'set': st, 'tint': GE_SPAWN if ti is None else tint_idx[ti], 'flags': (GE_FIGHTER_NAME if name == 'fighter' else 0) | dout << GE_DOUT_SH,
                              'life': e['life'], 'hud': None if name == 'fighter' else name.replace('_', ' '), 'pal': cu, 'moves': enemy_tree(e, g, build, idx)})
     assert len(M['ai']) <= 255, 'at most 255 AI rows'
     def spawn(d, where, lock):
@@ -1488,7 +1492,7 @@ GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 GB_PASS_N = 4                                           # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
-REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about', 'jump_sound', 'land_sound', 'sound_about')
+REF_KEYS = ('about', 'delay', 'delay_about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about', 'jump_sound', 'land_sound', 'sound_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
@@ -1626,9 +1630,9 @@ def bonus_tables(g, songs_known, sfx_names):
              f".games = {{ {', '.join(rows)} }} }};")
     r = g.get('referee') or {}
     for k in r: assert k in REF_KEYS, f'referee: unknown field {k}'
-    rv = {'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'life': 999,
-          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text', 'fighter', 'jump_sound', 'land_sound', 'sound_about')}}
-    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold / fury_dx / life: integers'
+    rv = {'delay': 0, 'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'life': 999,
+          **{k: v for k, v in r.items() if k not in ('about', 'delay_about', 'hit_about', 'hit_text', 'fighter', 'jump_sound', 'land_sound', 'sound_about')}}
+    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: delay / mark / from / hold / fury_dx / life: integers'
     ht = r.get('hit_text', [])
     assert isinstance(ht, list) and len(ht) <= 3 and all(isinstance(l, str) and 0 < len(l) <= REF_LINE and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in ht), \
         f'referee: hit_text = his 1-3 lines after the fury hits him ([]: no D quirk), {REF_LINE} characters each'
@@ -1638,10 +1642,11 @@ def bonus_tables(g, songs_known, sfx_names):
         "referee: fury_dx 24-160 px, life 200-30000 (never KO'd by a fury)"
     assert 40 <= rv['mark'] <= 160 and 32 <= rv['from'] <= 120 and 30 <= rv['hold'] <= 1200, \
         'referee: mark 40-160 px from his edge, from 32-120 px outside it, hold 30-1200 ticks'
+    assert 0 <= rv['delay'] <= 600, 'referee: delay 0-600 ticks before he starts walking in'
     c.append('static const char *const gref_hit_text[3] = { ' + ', '.join(c_str(l) for l in (ht + ['', '', ''])[:3]) + ' };')
     c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']}, .fury_dx = {rv['fury_dx']}, "
              f".fighter = {'BC_' + body.upper() if ht else 0}, .life = {rv['life']}, "
-             f".hit = {1 if ht else 0}, .hit_text = gref_hit_text, "
+             f".hit = {1 if ht else 0}, .hit_text = gref_hit_text, .delay = {rv['delay']}, "
              f".jump_sound = 0x{code(r.get('jump_sound')):02X}, .land_sound = 0x{code(r.get('land_sound')):02X} }};   /* game.json referee */")
     return c
 

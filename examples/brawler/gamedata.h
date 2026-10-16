@@ -252,7 +252,8 @@ extern const ghitsnd_t ghitsnd;
 typedef struct { uint8_t mix, mul, shift; int8_t add[3]; } gtint_t;
 
 /* ---- layer 2: enemies. base = a roster fighter (bm_chars index) or 0xFF: one of the pool, picked per spawn ---- */
-enum { GE_FIGHTER_NAME = 1 };     /* the HUD shows its fighter's name (today's minions and bosses), not the enemy's */
+enum { GE_FIGHTER_NAME = 1,       /* the HUD shows its fighter's name (today's minions and bosses), not the enemy's */
+       GE_DOUT_SH = 1, GE_DOUT = 7 << 1 };   /* bits 1-3: its damage_out as 8 - eighths (0 = whole; 4 = half: fighter_t.dout) */
 #define GE_SPAWN 0xFF             /* set / tint: the spawn's (gspawn_t) */
 typedef struct {
     uint8_t base, ai, attract_ai; /* AI rows (ai_tab: the presets, then the enemies' own rows with their overrides merged);
@@ -458,6 +459,7 @@ typedef struct {
     const char *const *hit_text;  /* [3] his lines after it ("" = none) */
     uint8_t jump_sound, land_sound;   /* songs.json sfx codes (0 none) at his jump and his landing (note 20261016-101200-e03d
                                      reused: SS2's own, its driver's $DA as he jumps ($E668) and his landing voice $1A $73) */
+    uint16_t delay;               /* ticks after the speech starts before he starts walking in (note 20261016-180759-e03d) */
 } gref_t;
 extern const gref_t gref;
 #endif
