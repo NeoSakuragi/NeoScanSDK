@@ -30,7 +30,8 @@ frame (1 = its first frame, as the page numbers them):
           one always, an earlier one with its damage %), on no other frame
   launch  the victim leaves the thrower's script on frame `launch.frame` (not before), and goes its `dir` over the next
           LAUNCH_WATCH frames: up = it rises (dy >= LAUNCH_MIN px, more than it moves sideways), away = it moves away from
-          the thrower (dx >= LAUNCH_MIN px, more than it rises), none = it does not rise (dy <= 1)
+          the thrower (dx >= LAUNCH_MIN px, more than it rises), back = the other way (-dx >= LAUNCH_MIN px, more than
+          it rises; notes 20261016-140504-8a04 / 140505-8a05), none = it does not rise (dy <= 1)
   held    the victim is held (fighter_t.held) up to frame `held` (default the launch); from there to the launch it does
           not move (its place and height kept)
 --events FILE: the events of an answers file instead (set "throws2"'s format: tools/brawler/throw_answers.py pull2 /
@@ -176,7 +177,8 @@ def play(R, tk, pattern, fw, bk, pre, thrower=0, victim=2, drive=None):
         r = {'t': t, 'keys': keys, 'th': s0, 'srow': b.fget(thrower, 'srow'), 'tid': b.fget(thrower, 'throw_id'), 'v': sv,
              'vsrow': b.fget(victim, 'srow'), 'hp_drop': drop, 'slam': b.fget(victim, 'slam'), 'eject': b.fget(victim, 'eject'),
              'spec': b.fget(thrower, 'spec_id') if s0 == 'SPECIAL' else None, 'ty': b.fget(thrower, 'y'),
-             'vx': b.fget(victim, 'x'), 'vyp': b.fget(victim, 'y'), 'vheld': 1 if b.fget(victim, 'held') else 0, 'tx': b.fget(thrower, 'x'), **fx}
+             'vx': b.fget(victim, 'x'), 'vyp': b.fget(victim, 'y'), 'vheld': 1 if b.fget(victim, 'held') else 0, 'tx': b.fget(thrower, 'x'),
+             'tf': b.fget(thrower, 'facing'), **fx}
         prev_hp = hp; prev_td = td if started is not None else 0
         if started is None:
             if t > 30: raise RuntimeError('no throw: ' + b.brief((0, 2)))
@@ -291,8 +293,11 @@ def events_check(rec, ev, special=False):
         a, z = rec[left - 1], rec[left - 1 + LAUNCH_WATCH]
         away = 1 if a['vx'] >= a['tx'] else -1
         dx = (z['vx'] - a['vx']) * away; dy = z['vyp'] - a['vyp']
-        how = 'up' if dy >= LAUNCH_MIN and abs(dx) <= dy else 'away' if dx >= LAUNCH_MIN and dx > dy else 'none' if dy <= 1 else 'other'
-        did.append(f'then {how} (dx {dx:+.0f}, dy {dy:+.0f} px in {LAUNCH_WATCH} frames)')
+        how = 'up' if dy >= LAUNCH_MIN and abs(dx) <= dy else 'away' if dx >= LAUNCH_MIN and dx > dy else \
+              'back' if -dx >= LAUNCH_MIN and -dx > dy else 'none' if dy <= 1 else 'other'
+        tf = a.get('tf', 0); tf = 1 if 0 < tf < 128 else -1   # (the thrower's facing at the launch: 1 right, -1 left)
+        side = 'his front' if (z['vx'] - a['vx']) * tf > 0 else 'his back' if (z['vx'] - a['vx']) * tf < 0 else 'straight'
+        did.append(f'then {how} (dx {dx:+.0f}, dy {dy:+.0f} px in {LAUNCH_WATCH} frames, toward {side})')
         if how != d: bad.append(f"launch direction: {how} (dx {dx:+.0f}, dy {dy:+.0f} px), his {d}")
     return ', '.join(did), bad
 

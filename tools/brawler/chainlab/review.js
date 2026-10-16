@@ -248,13 +248,13 @@
   // Pre-filled from his round-1 answer (set "throws": damage frame -> impact, eject / glue frame -> launch; IMPACT -> AWAY,
   // SLAM -> UP), marked "proposed" until saved: "Confirm proposed" saves it in one tap. Saved to the decisions store, set
   // Up to 3 impacts a throw ("Add impact here": Kyo's blow, then his slam; the damage by default all on the last).
-  // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N (one per impact), launch-N, dir-up | dir-away | dir-none,
+  // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N (one per impact), launch-N, dir-up | dir-away | dir-back | dir-none,
   // size-small | size-medium | size-big, held-N); tools/brawler/throw_answers.py v2 turns them into game.json
   // roster[].throws.events. ----
   async function throwReview2() {
-    const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['none', 'NONE ·']];
+    const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·']];
     const SIZES = ['small', 'medium', 'big'];
-    const ARROW = { up: '↑', away: '→', none: '·' };
+    const ARROW = { up: '↑', away: '→', back: '←', none: '·' };
     thrCss();
     root.classList.add('thr');
     let IX;
@@ -435,7 +435,7 @@
           (r.kind === 'special' ? 'A grab special (Mozu Otoshi): the same three events on its frames.' : '') }),
         h('div', { class: 'ctl', role: 'group', 'aria-label': 'Which capture' }, wb),
         cv, fline, slider, h('div', { class: 'ctl' }, step(-10), step(-1), bPlay, step(1), step(10), bSlow), jumps, strip,
-        h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, · none), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
+        h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, ← back, · none), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
         h('p', { class: 'legend', text: oldTxt(r) }),
         h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the damage (Add impact here: a 2nd / 3rd one, the damage on the last). Launch: the frame the victim is sent (its direction below). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
         propBox, picks,
@@ -462,7 +462,7 @@
       return li;
     }));
     root.replaceChildren(h('h1', { text: 'Throw review, round 2' }),
-      h('p', { class: 'sub', text: `Each throw as three events: IMPACT (spark, sound, shake, damage), LAUNCH (when the victim is sent: up, away or none) and HELD (until when the thrower holds it; default the launch). Pre-filled from your round-1 answers: tap a throw, check, confirm.` }),
+      h('p', { class: 'sub', text: `Each throw as three events: IMPACT (spark, sound, shake, damage), LAUNCH (when the victim is sent: up, away, back or none) and HELD (until when the thrower holds it; default the launch). Pre-filled from your round-1 answers: tap a throw, check, confirm.` }),
       h('p', { class: 'sub' }, h('a', { href: 'review.html?q=throws' , text: 'Round 1 page (your old answers)' })),
       status, list);
     count();

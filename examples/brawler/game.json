@@ -321,9 +321,9 @@
     "events": {
      "forward": {
       "impacts": [{"frame": 27}],
-      "held": 41,
-      "launch": {"frame": 41, "dir": "up", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 27, launch frame 41 AWAY medium, held until frame 41; ticket 8a08: launch UP"
+      "held": 39,
+      "launch": {"frame": 39, "dir": "up", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 27, launch frame 41 AWAY medium, held until frame 41; ticket 8a08: launch UP; note 20261016-140508-8a08: release 2 frames earlier, 41 -> 39"
      },
      "back": {
       "impacts": [{"frame": 18}],
@@ -468,13 +468,13 @@
      "forward": {
       "impacts": [{"frame": 31}],
       "held": 38,
-      "launch": {"frame": 38, "dir": "away", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 31, launch frame 38 UP small, held until frame 38; tickets 8a04/8a05: launch AWAY"
+      "launch": {"frame": 38, "dir": "back", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 31, launch frame 38 UP small, held until frame 38; tickets 8a04/8a05: launch AWAY; notes 20261016-140504-8a04 / 140505-8a05: away flew the way he faces / moves, launch BACK (the other way)"
      },
      "back": {
       "impacts": [{"frame": 30}],
-      "launch": {"frame": 36, "dir": "away"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 30, launch frame 36 AWAY"
+      "launch": {"frame": 36, "dir": "back"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 30, launch frame 36 AWAY; notes 20261016-140504-8a04 / 140505-8a05: away flew the way he faces, launch BACK (the other way)"
      },
      "hold_b": {
       "impacts": [{"frame": 83}],
@@ -613,14 +613,14 @@
     "events": {
      "forward": {
       "impacts": [{"frame": 21}],
-      "held": 36,
-      "launch": {"frame": 36, "dir": "up", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium, held until frame 36; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16)"
+      "held": 32,
+      "launch": {"frame": 32, "dir": "up", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium, held until frame 36; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16); note 20261016-140502-8a02: release 4 frames earlier, 36 -> 32"
      },
      "back": {
       "impacts": [{"frame": 21}],
-      "launch": {"frame": 36, "dir": "up", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16)"
+      "launch": {"frame": 32, "dir": "up", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16); note 20261016-140501-8a01: release 4 frames earlier, 36 -> 32"
      },
      "hold_b": {
       "impacts": [{"frame": 60}],

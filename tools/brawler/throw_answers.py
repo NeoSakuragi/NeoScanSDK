@@ -21,7 +21,7 @@ SLAM: glue_row, else the throw_handoff rule). A throw with no answer keeps the 0
 
 ROUND 2 (review.html?q=throws2, Bruno 2026-10-16 after 0.10.142: "define WHEN THE IMPACT occurs (the visual + the
 sound), and separately WHEN THE ACTUAL LAUNCH occurs [...] Separate these concerns"): set "throws2", one answer per
-throw: choice 0 = these events / 1 = "None of these" (the note says), flags impact-N, launch-N, dir-up | dir-away |
+throw: choice 0 = these events / 1 = "None of these" (the note says), flags impact-N, launch-N, dir-up | dir-away | dir-back |
 dir-none, size-small | size-medium | size-big (optional), held-N (optional), N = the throw's frame as the page shows it
 (1 = its first frame: the engine's throw frame clock, no row mapping). -> game.json roster[].throws.events.<forward |
 back | hold_b> = {impact, launch: {frame, dir, size?}, held?, from} (build_tables throw_events: the data model); the
