@@ -983,7 +983,10 @@ static void screen_fx(void) {
     uint8_t i;
     const bspec_t *sp = 0;
     uint8_t mode = 1;
-    for (i = 0; i < nf && !sp; i++) {
+    for (i = 0; i < nf && i < NF && !sp; i++) {      /* (nf counts the projectiles too, NE = 16 in a fight: fighters[]
+                                                    is NF = 8; past it, RAM read as a fighter: a garbage ch, its
+                                                    specials pointer odd = an address error on a real 68000, found
+                                                    by hw_strict_proof.py on the AES run, 2026-10-16) */
         fighter_t *f = &fighters[i];
         if (f->state == S_SPECIAL && f->srow) {
             const bspec_t *s = &f->ch->specials[f->spec_ix];
@@ -3366,6 +3369,12 @@ static struct {
     uint16_t t, key;                             /* ticks in the phase; the step drawn last (its tiles written) */
     const char *const *text;
 } rf;
+/* the integer part of an 8.8 long in memory. NOT (int16_t)(v >> 8) on a long in RAM: GCC 15's combine pass (m68k,
+   -mstrict-align or not) folds that into a WORD read of the long's bytes 1-2, i.e. at an ODD address: a real 68000
+   takes an address error there (0.10.153 on the FPGA / MVS: the SNK BIOS reset the game as the referee walked in,
+   rf_draw read rf.y + 1). The empty asm keeps the long whole in a register; odd_static_lint.py (the build) catches
+   any other site. */
+static inline int16_t fx8_int(int32_t v) { __asm__("" : "+d"(v)); return (int16_t)(v >> 8); }
 static void rf_set(uint8_t a) { if (a != rf.anim) { rf.anim = a; rf.step = 0; rf.tick = 0; } }
 static uint8_t rf_anim_tick(void) {              /* a tick of his animation: a step shows ticks + 1 ticks (SS2's object
                                                     clock, measured); 1 when a non-looping one has shown its last */
@@ -3383,7 +3392,7 @@ static void rf_draw(void) {                      /* him (behind or in front) as 
     if (tiles && rf.key != 0xFFFF && (rf.key >> 7 & 1) != rf.front) { bn_hide(rf.front ? RF_BACK_SPR : RF_SPR, rf.w); rf.w = 0; }
     for (i = 0; i < s->n; i++) {
         const ref_part_t *p = &s->p[0][i];
-        bn_put(base + c, p, rf.x + p->x, (int16_t)(rf.y >> 8) + p->y, 0, 0xF, 0xFF, tiles);
+        bn_put(base + c, p, rf.x + p->x, fx8_int(rf.y) + p->y, 0, 0xF, 0xFF, tiles);
         c += p->w;
     }
     if (c < rf.w) bn_hide(base + c, rf.w - c);

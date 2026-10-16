@@ -49,14 +49,20 @@ tools/brawler/publish_vps.sh) and the info page canneji.duckdns.org/brawler/ sho
 The secret is in the APK: it keeps casual visitors out, it is not real protection.
 
 **Release gates** (every publish; the ship worker, tools/brawler/labcfg.py, runs them in this order): `bank_proof.py`
-ALL OK, `odd_access_proof.py` ALL OK, `regress.py --bleed-only` True / True, `throw_regress.py` ALL OK (throws shipped),
-`scenario.py lint`. `odd_access_proof.py` (2026-10-16, ~40 s): power on + 3 attract loops + a short campaign on BOTH
-BIOS (SNK MVS, UniBIOS as AES) on the address-error core (`tools/brawler/aerr_core.sh`: our Geolith with Musashi's
-address-error emulation; harness `BRAWLER_AERR=1`), zero word / long accesses at odd addresses. A real 68000 takes an
-ADDRESS ERROR there (UniBIOS: its ADDRESS ERROR screen; SNK's BIOS: garbage, then a reset) and our stock core does
-not: 0.10.152 crashed on Ismael's FPGA cart ~24 s after power-on (route trees emitted as byte arrays at odd addresses,
-read as rnode_t; export_bm.py now aligns them). Data read as words / structs is never a plain `uint8_t[]` without
-`__attribute__((aligned(2)))`. Whole-game check with the real exception: `fpga_playthrough.py --aerr 2`.
+ALL OK, `hw_strict_proof.py` ALL OK, `regress.py --bleed-only` True / True, `throw_regress.py` ALL OK (throws shipped),
+`scenario.py lint`. `hw_strict_proof.py` (2026-10-16, ~1 min; `odd_access_proof.py` runs it): the static lint
+(`odd_static_lint.py`, also run by every link: no word / long access at an odd address anywhere in the code), then the
+WHOLE game on BOTH BIOS (SNK MVS, UniBIOS as AES) on the address-error core (`tools/brawler/aerr_core.sh`: our Geolith
+with Musashi's address-error emulation + a CPU exception log + watchdog stats; harness `BRAWLER_AERR=1`): power on, 3
+attract loops, every stage, the posts bonus WON with SS2's referee's speech and the D quirk on him, the Ki training,
+the ending, the title. ALL OK = no odd-address access, no CPU exception, no watchdog reset (and every kick < 4
+frames apart), no reset, 1 KB+ of stack left, and every one of those screens reached. A real 68000 takes an ADDRESS
+ERROR at an odd address (UniBIOS: its ADDRESS ERROR screen; SNK's BIOS: garbage, a green screen, then the title = a
+reset) and our stock core does not: 0.10.152 crashed on Ismael's FPGA cart ~24 s after power-on (route trees emitted
+as byte arrays at odd addresses, read as rnode_t; export_bm.py now aligns them); 0.10.153 reset the moment the posts
+bonus was won (rf_draw's `(int16_t)(rf.y >> 8)`: GCC 15 reads that as a word at rf.y + 1; `fx8_int` keeps the long in
+a register). Data read as words / structs is never a plain `uint8_t[]` without `__attribute__((aligned(2)))`, and an
+8.8 long's integer part goes through `fx8_int`. One run by hand: `fpga_playthrough.py --aerr 2` (the real exception).
 
 ## Character select
 A group photo (2026-10-05, TODO #51): the whole roster on screen at once in three rows, like a school photo. Front

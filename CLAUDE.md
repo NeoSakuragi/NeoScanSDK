@@ -63,4 +63,7 @@ REG_SOUND is at 0x320000 (NOT 0x320001). SNK sound drivers need cmd 0x07 to unlo
 - MAME green screen after 10 seconds = boot loop, ROM data is broken.
 - No word / long access at an odd address: a real 68000 (and the FPGA cart's MVS) takes an ADDRESS ERROR, our stock
   Geolith core silently does not. Byte arrays read as words / structs need `__attribute__((aligned(2)))`. The
-  address-error core: `tools/brawler/aerr_core.sh` (harness `BRAWLER_AERR=1`); brawler gate `tools/brawler/odd_access_proof.py`.
+  address-error core: `tools/brawler/aerr_core.sh` (harness `BRAWLER_AERR=1`; also logs CPU exceptions, the watchdog,
+  resets). GCC 15 compiles `(int16_t)(long_in_memory >> 8)` into a word read at the long's address + 1 (odd!): use a
+  register copy (brawler main.c `fx8_int`). Every brawler link runs `tools/brawler/odd_static_lint.py`; the brawler
+  release gate is `tools/brawler/hw_strict_proof.py` (the whole game, bonus games won, both BIOS, ~1 min).

@@ -1,7 +1,7 @@
 diff -ruN a/libretro/libretro.c b/libretro/libretro.c
 --- a/libretro/libretro.c	2026-10-10 01:58:04.000000000 +0200
-+++ b/libretro/libretro.c	2026-10-16 21:42:47.139569744 +0200
-@@ -1546,3 +1546,17 @@
++++ b/libretro/libretro.c	2026-10-16 23:49:52.216246942 +0200
+@@ -1546,3 +1546,24 @@
      (void)enabled;
      (void)code;
  }
@@ -17,11 +17,18 @@ diff -ruN a/libretro/libretro.c b/libretro/libretro.c
 +uint32_t *retro_neoscan_pstat(int k) { return k == 0 ? neoscan_pmax : k == 1 ? neoscan_pthr : k == 2 ? neoscan_phits : neoscan_plast; }
 +extern uint32_t neoscan_bwn, neoscan_bw_buf[];
 +uint32_t retro_neoscan_bw(uint32_t **b) { *b = neoscan_bw_buf; return neoscan_bwn; }
-+void retro_neoscan_aerr_clear(void) { unsigned i; neoscan_aerr_n = 0; neoscan_bwn = 0; for (i = 0; i < 16; i++) { neoscan_pmax[i] = 0; neoscan_phits[i] = 0; neoscan_plast[i] = 0; } }
++extern unsigned neoscan_exc_n, neoscan_exc_buf[];
++unsigned retro_neoscan_exc(unsigned **buf) { *buf = neoscan_exc_buf; return neoscan_exc_n; }
++/* the watchdog: [0] the longest stretch without a kick (master cycles), [1] its limit (8 frames), [2] the resets it
++   fired, [3] the last one's PPC */
++extern uint32_t neoscan_wd_max, neoscan_wd_resets, neoscan_wd_pc; extern uint32_t neoscan_wd_limit(void);
++void retro_neoscan_wd(uint32_t *o) { o[0] = neoscan_wd_max; o[1] = neoscan_wd_limit(); o[2] = neoscan_wd_resets; o[3] = neoscan_wd_pc; }
++void retro_neoscan_wd_clear(void) { neoscan_wd_max = 0; }   /* (after the BIOS's boot: the game's own stretches) */
++void retro_neoscan_aerr_clear(void) { unsigned i; neoscan_aerr_n = 0; neoscan_bwn = 0; neoscan_exc_n = 0; neoscan_wd_max = 0; neoscan_wd_resets = 0; for (i = 0; i < 16; i++) { neoscan_pmax[i] = 0; neoscan_phits[i] = 0; neoscan_plast[i] = 0; } }
 +#endif
 diff -ruN a/libretro/Makefile b/libretro/Makefile
 --- a/libretro/Makefile	2026-10-02 21:14:07.000000000 +0200
-+++ b/libretro/Makefile	2026-10-16 21:42:47.139773324 +0200
++++ b/libretro/Makefile	2026-10-16 23:42:27.442025951 +0200
 @@ -695,6 +695,9 @@
  endif
  
@@ -32,9 +39,50 @@ diff -ruN a/libretro/Makefile b/libretro/Makefile
  
  CFLAGS += $(FLAGS)
  
+diff -ruN a/src/geo.c b/src/geo.c
+--- a/src/geo.c	2026-10-06 15:26:54.000000000 +0200
++++ b/src/geo.c	2026-10-16 23:42:44.106087418 +0200
+@@ -44,6 +44,9 @@
+ #include "geo_vfs.h"
+ #include "geo_ymfm.h"
+ #include "geo_z80.h"
++#ifdef NEOSCAN_AERR
++#include "m68k/m68k.h"
++#endif
+ 
+ #define DIV_M68K 2
+ #define DIV_Z80 6
+@@ -726,6 +729,12 @@
+     return NULL;
+ }
+ 
++#ifdef NEOSCAN_AERR
++/* NeoScanSDK (tools/brawler/aerr_core.sh): the watchdog (8 frames, WATCHDOG_MCYCS, as MAME and the MVS / AES boards):
++   the longest stretch without a kick ($300001 write) in master cycles, the resets it fired and the last one's PPC */
++uint32_t neoscan_wd_max, neoscan_wd_resets, neoscan_wd_pc;
++uint32_t neoscan_wd_limit(void) { return watchdog_cycs; }
++#endif
+ // Increment the watchdog counter
+ static inline void geo_watchdog_increment(unsigned cycs) {
+     /* If 8 frames have passed since the Watchdog was kicked, assume a bug or
+@@ -735,8 +744,14 @@
+         return;
+ 
+     ngsys.watchdog += cycs;
++#ifdef NEOSCAN_AERR
++    if (ngsys.watchdog > neoscan_wd_max) neoscan_wd_max = ngsys.watchdog;
++#endif
+     if (ngsys.watchdog >= watchdog_cycs) {
+         geo_log(GEO_LOG_WRN, "Watchdog reset\n");
++#ifdef NEOSCAN_AERR
++        neoscan_wd_pc = m68k_get_reg(NULL, M68K_REG_PPC); neoscan_wd_resets++;
++#endif
+         geo_reset(0);
+     }
+ }
 diff -ruN a/src/geo_m68k.c b/src/geo_m68k.c
 --- a/src/geo_m68k.c	2026-10-06 15:25:36.000000000 +0200
-+++ b/src/geo_m68k.c	2026-10-16 21:42:47.139204434 +0200
++++ b/src/geo_m68k.c	2026-10-16 23:42:27.442198601 +0200
 @@ -72,6 +72,18 @@
  static uint16_t cartreg[2] = { 0, 0 };
  static uint32_t protreg = 0x00000000;
@@ -82,7 +130,7 @@ diff -ruN a/src/geo_m68k.c b/src/geo_m68k.c
      else
 diff -ruN a/src/m68k/m68kconf.h b/src/m68k/m68kconf.h
 --- a/src/m68k/m68kconf.h	2026-10-02 21:14:07.000000000 +0200
-+++ b/src/m68k/m68kconf.h	2026-10-16 21:42:47.137304995 +0200
++++ b/src/m68k/m68kconf.h	2026-10-16 23:42:27.442391041 +0200
 @@ -174,7 +174,11 @@
   * access a word or longword at an odd address.
   * NOTE: This is only emulated properly for 68000 mode.
@@ -97,8 +145,8 @@ diff -ruN a/src/m68k/m68kconf.h b/src/m68k/m68kconf.h
  /* Turn ON to enable logging of illegal instruction calls.
 diff -ruN a/src/m68k/m68kcpu.c b/src/m68k/m68kcpu.c
 --- a/src/m68k/m68kcpu.c	2026-10-02 21:14:07.000000000 +0200
-+++ b/src/m68k/m68kcpu.c	2026-10-16 21:42:47.137886714 +0200
-@@ -1218,3 +1218,14 @@
++++ b/src/m68k/m68kcpu.c	2026-10-16 23:42:56.427776065 +0200
+@@ -1218,3 +1218,22 @@
  /* ======================================================================== */
  /* ============================== END OF FILE ============================= */
  /* ======================================================================== */
@@ -112,10 +160,18 @@ diff -ruN a/src/m68k/m68kcpu.c b/src/m68k/m68kcpu.c
 +    unsigned i = neoscan_aerr_n++ & 4095;
 +    neoscan_aerr_buf[i * 4] = addr; neoscan_aerr_buf[i * 4 + 1] = wm; neoscan_aerr_buf[i * 4 + 2] = fc; neoscan_aerr_buf[i * 4 + 3] = REG_PPC;
 +}
++/* every exception the CPU takes through m68ki_jump_vector (bus / address error, illegal, zero divide, CHK, TRAPV,
++   privilege, trace, line A / F, format, TRAP #n; interrupts and the reset are not logged): a count and the last 256
++   as [vector, PPC, A7] */
++unsigned neoscan_exc_n; unsigned neoscan_exc_buf[256 * 3];
++void neoscan_exc_log(unsigned vector) {
++    unsigned i = neoscan_exc_n++ & 255;
++    neoscan_exc_buf[i * 3] = vector; neoscan_exc_buf[i * 3 + 1] = REG_PPC; neoscan_exc_buf[i * 3 + 2] = REG_A[7];
++}
 +#endif
 diff -ruN a/src/m68k/m68kcpu.h b/src/m68k/m68kcpu.h
 --- a/src/m68k/m68kcpu.h	2026-10-02 21:14:07.000000000 +0200
-+++ b/src/m68k/m68kcpu.h	2026-10-16 21:42:47.137648564 +0200
++++ b/src/m68k/m68kcpu.h	2026-10-16 23:42:56.427546875 +0200
 @@ -584,6 +584,26 @@
  			} \
  		}
@@ -151,3 +207,18 @@ diff -ruN a/src/m68k/m68kcpu.h b/src/m68k/m68kcpu.h
  
  	#define m68ki_check_address_error_010_less(ADDR, WRITE_MODE, FC) \
  		if (CPU_TYPE_IS_010_LESS(CPU_TYPE)) \
+@@ -1404,8 +1425,14 @@
+ 	m68ki_pc_changed(REG_PC);
+ }
+ 
++#ifdef NEOSCAN_AERR
++extern void neoscan_exc_log(unsigned vector);   /* NeoScanSDK: every exception taken through a vector (not interrupts) */
++#endif
+ static inline void m68ki_jump_vector(unsigned vector)
+ {
++#ifdef NEOSCAN_AERR
++	neoscan_exc_log(vector);
++#endif
+ 	REG_PC = (vector<<2) + REG_VBR;
+ 	REG_PC = m68ki_read_data_32(REG_PC);
+ 	m68ki_pc_changed(REG_PC);

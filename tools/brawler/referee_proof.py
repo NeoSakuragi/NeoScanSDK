@@ -123,7 +123,8 @@ def main(game, out, fighter='terry', side='auto', quirk=''):
                    'dummy_hits': {k: v[0] for k, v in ref_hits.items()}, 'dummy_logs': {k: v[2] for k, v in ref_hits.items()}},
                   open(os.path.join(out, 'hits.json'), 'w'), indent=1)
     d = dict(seen)
-    P.check(d.get('WALK') == ref['from'] + ref['mark'], f"the walk in: {d.get('WALK')} ticks ({ref['from']} px outside to {ref['mark']} px inside at 1 px a tick, SS2's vx 256)")
+    dl = ref.get('delay', 0)                            # (0.10.152: referee.delay ticks off screen, still, first)
+    P.check(d.get('WALK') == dl + ref['from'] + ref['mark'], f"the walk in: {d.get('WALK')} ticks ({dl} still, then {ref['from']} px outside to {ref['mark']} px inside at 1 px a tick, SS2's vx 256)")
     P.check(d.get('STAND') == 1 and d.get('RISE') == 1, 'one tick standing, then the jump (SS2)')
     for k, v in SS2.items():
         if quirk and k == 'CLOSE': continue             # (the first close cut by the D)

@@ -141,8 +141,12 @@ $(BUILD)/draw.o: draw.s
 
 # --- Link ---
 ROM_OBJS = $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a   # (the link's objects after main.o: the OWNER build links the same)
-$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(ROM_OBJS)
-	$(LD) -T $(SDK)/boot/neoscan.ld $(SLOT_LDFLAGS) -o $@ $^
+# the link writes its map (rom.map: the code ranges) and odd_static_lint.py refuses any word / long access at an odd
+# address in the code (an address error on a real 68000: 0.10.153's reset on MVS / FPGA; our emulator ignores it)
+ODD_LINT = python3 $(TOOLS)/brawler/odd_static_lint.py
+$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(ROM_OBJS) $(TOOLS)/brawler/odd_static_lint.py
+	$(LD) -T $(SDK)/boot/neoscan.ld $(SLOT_LDFLAGS) -Map=$(BUILD)/rom.map -o $@ $(filter-out %.py,$^)
+	$(ODD_LINT) $@ || (rm -f $@; exit 1)
 	$(if $(SLOT),python3 $(TOOLS)/brawler/lab_pack.py seal $(CURDIR)/$(BUILD) || (rm -f $@; exit 1))   # the slot header + the shell's anchor (pack format)
 
 # --- Package ROM ---
@@ -174,8 +178,9 @@ $(OWNER_DIR)/owner.h: FORCE
 	python3 $(TOOLS)/brawler/watermark.py header $@
 $(OWNER_DIR)/main.o: $(BUILD)/main.o $(OWNER_DIR)/owner.h
 	$(CC) $(CFLAGS) -include $(OWNER_DIR)/owner.h -c main.c -o $@
-$(OWNER_DIR)/rom.elf: $(SDK)/lib/crt0.o $(OWNER_DIR)/main.o $(ROM_OBJS)
-	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
+$(OWNER_DIR)/rom.elf: $(SDK)/lib/crt0.o $(OWNER_DIR)/main.o $(ROM_OBJS) $(TOOLS)/brawler/odd_static_lint.py
+	$(LD) -T $(SDK)/boot/neoscan.ld -Map=$(OWNER_DIR)/rom.map -o $@ $(filter-out %.py,$^)
+	$(ODD_LINT) $@ || (rm -f $@; exit 1)
 $(OWNER_DIR)/$(ROM_NAME).zip: $(OWNER_DIR)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
 	printf 'c1=$(BUILD)/rom_c1.bin\nc2=$(BUILD)/rom_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(OWNER_DIR)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(OWNER_DIR)/manifest.txt --elf $(OWNER_DIR)/rom.elf --name $(ROM_NAME) -o $@

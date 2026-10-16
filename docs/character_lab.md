@@ -310,8 +310,8 @@ the first failure (`failed`: "<step>: <reason>", the checkout reset; nothing rea
 
 reset + `git fetch origin brawler` + `merge --ff-only` -> VERSION +1 -> `arb_compile.py <f>` (sheet -> game.json, build,
 every linked slot checked; "game.json roster changes: none" = `done` "nothing changed", no new version) -> `rm build/*.o`,
-`make -C sdk`, `make -j4` -> `bank_proof.py` ALL OK -> `odd_access_proof.py` ALL OK (no word / long access at an odd
-address on either BIOS: a real 68000's ADDRESS ERROR, 2026-10-16) -> `regress.py --bleed-only` (bleed True / True) -> `git
+`make -C sdk`, `make -j4` -> `bank_proof.py` ALL OK -> `hw_strict_proof.py` ALL OK (the whole game, bonus games won, no word / long access at an odd
+address, no CPU exception / watchdog / reset on either BIOS: a real MVS / AES, 2026-10-16) -> `regress.py --bleed-only` (bleed True / True) -> `git
 commit` (game.json, VERSION, docs/brawler_gold.md: "Brawler 0.10.N: <f> shipped from the Assembly (rev R)"; scenario.py
 finds the build by it) -> `make publish-vps` -> `scenario.py publish` -> `labpub.py all --if-changed` -> `git push origin
 HEAD:brawler` (a failure: the checkout reset to what it pulled, the local commit dropped) ->
