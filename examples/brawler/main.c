@@ -3151,6 +3151,8 @@ _Static_assert(BONUS_TREE == 0 && BONUS_POSTS == 1, "build_tables.py BONUS_SCENE
 #define BN_TREE_STOP 146                         /* the trunk's face: the blow never carries his feet past it
                                                     (a rush finisher, Kim's flip kick: he stops at the tree, results-1014) */
 #define BN_POSTS_X  90
+#define BN_POST_BIT 0x80                         /* the post's bit in a striker's hit_mask (fighter_t: one bit per fighter
+                                                    index; the bonus games run only the players 0 / 1: index 7 is free) */
 #define BN_END_T    300                          /* ticks of the result before the next stage */
 #define BN_FALL_LEAP 62                          /* the fall's tick the fighter leaps back (AOF2: Ryo at ~762, mark 700) */
 #define BN_FALL_RESULT 150                       /* a passed gauge game's result: the blow (12) + the fall to the crown's
@@ -3166,7 +3168,7 @@ static uint8_t bn_pass;                          /* the gauge game: the grade pa
 static uint16_t bn_fall_t;                       /* ticks since the blow while the tree falls (0: not falling) */
 static bar_t bn_bar;
 static uint8_t bn_left, bn_post, bn_img, bn_thud, bn_lesson;   /* the break game: posts left, the post's state BP_*, ... */
-static uint8_t bn_hp, bn_touch, bn_chip_t;       /* the break game: the post's hits left, a strike on it last tick, its
+static uint8_t bn_hp, bn_chip_t;                 /* the break game: the post's hits left, its
                                                     chip's ticks left (a hit that does not break it) */
 static uint16_t bn_hold, bn_skip;                /* the result: its ticks, a button ends it from bn_skip */
 static uint16_t bn_pt;                           /* ticks in the post's state */
@@ -3356,12 +3358,15 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
     case RF_STAND:                               /* $E64E: one tick */
         rf_set(REF_STAND); rf_draw(); rf.ph = RF_RISE; return 1;
     case RF_RISE:                                /* $E668: Kuroko's jump, the speed set and the move */
-        rf_set(REF_RISE); rf.vy = REF_JUMP_VY; rf.y += rf.vy; rf_draw(); rf.ph = RF_JUMP; return 1;
+        rf_set(REF_RISE); rf.vy = REF_JUMP_VY; rf.y += rf.vy; rf_draw(); rf.ph = RF_JUMP;
+        if (gref.jump_sound) snd_sfx(gref.jump_sound);   /* SS2's jump sound ($E668 sends $2B: driver $DA) */
+        return 1;
     case RF_JUMP:                                /* $E69E: the speed, the landing test, then the move */
         rf_anim_tick(); rf.vy += REF_GRAV;
         if (rf.vy >= 0) { rf.front = 1; rf_set(REF_FALL); }
         if (rf.front && (rf.y >> 8) >= rf.g + REF_LAND_DY) {
             rf.y = (int32_t)(rf.g + REF_LAND_DY) << 8; rf_set(REF_LAND); rf.ph = RF_LAND;
+            if (gref.land_sound) snd_sfx(gref.land_sound);   /* his landing voice ($278B8[char]: driver $1A $73) */
             bn_put(RF_SH_SPR, &ref_shadow_s[0].p[0][0], rf.x + ref_shadow_s[0].p[0][0].x, rf.g + REF_LAND_DY + ref_shadow_s[0].p[0][0].y, 0, 0xF, 0xFF, 1);
         } else rf.y += rf.vy;
         rf_draw(); return 1;
@@ -3713,7 +3718,7 @@ static void bn_break_flow(fighter_t *f) {
     switch (bn_post) {
     case BP_NONE:                                /* the next post drops in */
         if (bn_left && bn_pt >= (bn_t < 100 ? 60 : 24)) {
-            bn_post = BP_DROP; bn_pt = 0; bn_hp = bn_g->hp; bn_touch = 1; bn_img = 0;
+            bn_post = BP_DROP; bn_pt = 0; bn_hp = bn_g->hp; bn_img = 0;
             bn_px = INT(f->x) - cam_x < 160 ? bonus_post[0].x : 320 - 64 - bonus_post[0].x + 16;   /* (AOF2's 241, mirrored: 31) */
         }
         break;
@@ -3723,14 +3728,20 @@ static void bn_break_flow(fighter_t *f) {
         break;
     case BP_STAND:
         if (bn_thud) { bn_thud--; bn_post_show(bn_img, (bn_thud & 2) ? 2 : -2, 0, 0); if (!bn_thud) bn_post_show(bn_img, 0, 0, 0); }
-        for (i = 0, k = 0; i < nf; i++) {        /* the fighter and his objects: what strikes the post now */
+        for (i = 0; i < nf; i++) {               /* the fighter and his objects: what strikes the post now */
             int16_t x0, x1, y0, y1;
             uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1);
             if (!cls || order[i]->team || x1 <= px0 || x0 >= px1 || y1 <= py0 || y0 >= py1) continue;
             if (bn_g->breaks == BB_ANY) {        /* any strike (note bonus-pillars-normals): a hit each time one starts
-                                                    touching it (a strike held on it counts once), bn_hp hits break it */
-                k = 1;
-                if (bn_touch) break;
+                                                    touching it (a strike held on it counts once), bn_hp hits break it.
+                                                    Note 20261016-111341-e03d (Terry's two-hit link 4, anim 13: "why only
+                                                    one hit on the trunk and not two?"): its second hit's step touched the
+                                                    post without a gap, so the touch rule counted the move once. Now the
+                                                    post is a target like a fighter: each HIT of a move counts once (its
+                                                    hit_mask bit BN_POST_BIT, cleared by the move's next hit window:
+                                                    fighter.c's multi-hit steps, a new move) */
+                if (order[i]->hit_mask & BN_POST_BIT) continue;
+                order[i]->hit_mask |= BN_POST_BIT;
                 spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 16, 0, f->facing);
                 fighter_prop_hit(order[i], bn_hp > 1);   /* a hit for the chain as on a fighter (note 20261014-231537-5d29:
                                                     its hit-stop, chain credit, cancel windows, its hit sound) */
@@ -3758,7 +3769,6 @@ static void bn_break_flow(fighter_t *f) {
             }
             if (!bn_thud) { bn_thud = 16; fighter_guard_sound(); if (!bn_lesson) bn_lesson_show(1); bn_pt = 0; }
         }
-        bn_touch = k;
         if (bn_lesson && bn_t > 150 && bn_pt > 120 && !bn_thud) bn_lesson_show(0);
         break;
     case BP_HIT:                                 /* AOF2's burnt post, its three pictures by turns */

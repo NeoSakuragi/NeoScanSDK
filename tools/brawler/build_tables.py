@@ -1332,7 +1332,7 @@ BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge ga
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
-REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about')
+REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about', 'jump_sound', 'land_sound', 'sound_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
@@ -1459,7 +1459,7 @@ def bonus_tables(g, songs_known, sfx_names):
     r = g.get('referee') or {}
     for k in r: assert k in REF_KEYS, f'referee: unknown field {k}'
     rv = {'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'life': 999,
-          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text', 'fighter')}}
+          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text', 'fighter', 'jump_sound', 'land_sound', 'sound_about')}}
     assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold / fury_dx / life: integers'
     ht = r.get('hit_text', [])
     assert isinstance(ht, list) and len(ht) <= 3 and all(isinstance(l, str) and 0 < len(l) <= REF_LINE and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in ht), \
@@ -1473,7 +1473,8 @@ def bonus_tables(g, songs_known, sfx_names):
     c.append('static const char *const gref_hit_text[3] = { ' + ', '.join(c_str(l) for l in (ht + ['', '', ''])[:3]) + ' };')
     c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']}, .fury_dx = {rv['fury_dx']}, "
              f".fighter = {'BC_' + body.upper() if ht else 0}, .life = {rv['life']}, "
-             f".hit = {1 if ht else 0}, .hit_text = gref_hit_text }};   /* game.json referee */")
+             f".hit = {1 if ht else 0}, .hit_text = gref_hit_text, "
+             f".jump_sound = 0x{code(r.get('jump_sound')):02X}, .land_sound = 0x{code(r.get('land_sound')):02X} }};   /* game.json referee */")
     return c
 
 

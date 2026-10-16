@@ -1709,6 +1709,12 @@ static void slam_bounce(fighter_t *v, fighter_t *by, int16_t bvy, int16_t bvx) {
     v->y = 0; v->vy = (int32_t)bvy << 8; v->vx = dir_mul(away, (int32_t)bvx << 8);   /* (8.8 -> 16.16) */
     v->kfloor = 0; v->kslam = 0; v->kmode = 0; v->kvfr = 0; v->kdelay = 0;
     v->frame_ovr = 0xFFFF; play(v, BA_BLOWBACK_N);               /* (BA_KNOCKDOWN_FLIGHT on its way down) */
+    v->tb_by = 0; v->tb_fl = 0x80;                               /* the group impact at the slam (note 20261016-111144-e03d: */
+    v->tb_slam = by && by != v ? 1 : 0;                          /* "victim slammed -> at that moment the group impact on */
+    v->tb_sby = by;                                              /* nearby enemies -> then the bounce, with no impact on
+                                                                    others"): this frame only (tb_slam, combat "thrown
+                                                                    bodies"), its landing after the bounce none (tb_fl
+                                                                    bit 7 set, no frames), its flight no body (tb_by 0) */
     if (by && by != v && !by->team) by->tbnc = 1;            /* (a player thrower: AI throws play out) */
 }
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
@@ -3768,6 +3774,7 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     if (slam && f->ch->id < BC_COUNT && gsgt_bounce[f->ch->id][0]) {   /* the special's slam (special_grab_timing): */
         f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;       /* let go there, bouncing (slam_bounce) */
         t->frame_ovr = 0xFFFF; t->zfront = 0; t->vfly = 0;
+        t->tb_kind = TBK_SPECIAL; t->hit_mask = 0;               /* (its group impact: a throw special's body rule) */
         slam_bounce(t, f, gsgt_bounce[f->ch->id][0], gsgt_bounce[f->ch->id][1]);
         return;
     }
@@ -5331,8 +5338,10 @@ void combat(fighter_t **fs, uint8_t n, const fighter_t *only) {
         fighter_t *by;                                           /* throw_body.players), each once, falling the throw's */
         uint16_t row;                                            /* way: a paired throw's victim from its release row */
         uint8_t hit = 0;                                         /* to its landing row, a throw special's (revamp 3, */
-        if (only || v->freeze || v->tb_kind == 0xFF) continue;   /* tb_by) while it falls; then, on the floor, its */
-        if (v->state == S_THROWN && !v->tb_by) {                 /* impact: throw_body.floor frames (tb_fl, from */
+        if (v->tb_slam && !only && v->state == S_KNOCKDOWN) {    /* a slam's group impact: the slam frame (its hit-stop */
+            v->tb_slam--; by = v->tb_sby;                        /* not waited for), then never again (slam_bounce) */
+        } else if (only || v->freeze || v->tb_kind == 0xFF) continue;   /* tb_by) while it falls; then, on the floor, its */
+        else if (v->state == S_THROWN && !v->tb_by) {            /* impact: throw_body.floor frames (tb_fl, from */
             if (!th || th->rel == 0xFFFF) continue;              /* thrown_land or its first floor frame). FF measured: */
             row = v->srow ? v->srow - 1 : 0;                     /* the whole flight and the floor impact; a finisher's */
             if (row < th->rel) continue;                         /* / the 3rd knee's knockdown none (tb_kind 0xFF) */

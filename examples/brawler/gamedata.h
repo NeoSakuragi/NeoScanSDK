@@ -418,6 +418,8 @@ typedef struct {
     uint16_t life;                /* ... then up again: his window with hit_text */
     uint8_t hit;                  /* hit_text given: the quirk on */
     const char *const *hit_text;  /* [3] his lines after it ("" = none) */
+    uint8_t jump_sound, land_sound;   /* songs.json sfx codes (0 none) at his jump and his landing (note 20261016-101200-e03d
+                                     reused: SS2's own, its driver's $DA as he jumps ($E668) and his landing voice $1A $73) */
 } gref_t;
 extern const gref_t gref;
 #endif

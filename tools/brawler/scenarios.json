@@ -5143,17 +5143,17 @@
   "proof": 220
  },
  "20261016-095622-e03d": {
-  "title": "Slam throws: the victim bounces off the floor, juggle him",
+  "title": "Slam throws: the victim bounces off the floor away from the thrower, juggle him",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
    "dummy": "ryo",
    "gap": 34
   },
-  "do": "As Haggar walk into Ryo to grab him, then back + A (the backdrop). The moment Ryo hits the floor behind you, walk back to him and press A.",
-  "expect": "Ryo bounces up a little off the floor at the slam instead of just lying there, and Haggar can move again at once: your jab hits Ryo in the air before he lands. The same on every slam throw (Terry and Robert back, Haggar forward / back / hold + B, Hanzo forward and his Mozu Otoshi, Haohmaru forward, Kim both ways); impact throws are unchanged.",
-  "do_keys": "20:R,2:La,4:-,14:L,2:a,8:-,2:a",
-  "proof": 120
+  "do": "As Haggar walk into Ryo to grab him, then back + A (the backdrop). The moment Ryo hits the floor behind you, press A (or walk / dash after him and press A).",
+  "expect": "Ryo bounces up a little off the floor at the slam, AWAY from Haggar (the way the throw sent him, no longer back toward him), and Haggar can move again at once: a jab right at the slam hits Ryo in the air. The same on every slam throw (Terry and Robert back, Haggar forward / back / hold + B, Hanzo forward and both Mozu Otoshi, Haohmaru forward: there dash in or use a special, the jab is too short; Kim both ways); impact throws are unchanged.",
+  "do_keys": "20:R,2:La,21:-,2:a,10:-",
+  "proof": 60
  },
  "20261016-100931-e03d": {
   "title": "Hanzo (SS2) grab stance: the victim faces him at the usual distance",
@@ -5179,20 +5179,20 @@
   "proof": 120
  },
  "20261016-101200-e03d": {
-  "title": "Super Death Blow bonus: the posts break after 10 hits (were 12)",
+  "title": "Posts bonus: the referee jumps in with SS2's own jump sound and landing voice",
   "setup": {
    "mode": "bonus",
    "fighter": "terry",
    "game": "posts",
    "after": 1
   },
-  "do": "Walk up to the first post and hit it, counting your hits, until it splinters. Do the same on the next posts.",
-  "expect": "Each post splinters on the 10th hit (it took 12). Its cracks still grow as it is hit: a small one after 3 hits, a bigger one after 5, right across the trunk after 8.",
-  "do_keys": "70:-,110:R,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-",
+  "do": "Break the 4 posts (10 hits each). Listen as the referee walks in, jumps to the front and lands.",
+  "expect": "As the referee leaves the ground you hear Samurai Shodown II's own jump sound (the whoosh SS2 plays at that moment), and as he lands in front, his landing voice, as in SS2 (55 frames apart). The posts still break on the 10th hit.",
+  "do_keys": "70:-,110:R,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-",
   "proof": 120
  },
  "20261016-100735-e03d": {
-  "title": "Hanzo (SS2): run into an opponent with a drive chunk = the Mozu Otoshi out of a run, by itself",
+  "title": "Hanzo (SS2): run into an opponent with a drive chunk = the run Mozu Otoshi, gone into the air at once",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
@@ -5202,8 +5202,39 @@
    "drive": "full"
   },
   "do": "Hanzo stands far from Ryo with a full drive bar. Tap forward twice and hold it: Hanzo runs all the way into Ryo (over half a second). Then run into him again with an empty drive bar, and once with a short run (start running right next to him).",
-  "expect": "After a long run (30 frames or more) the grab turns at once into SS2's other Mozu Otoshi: Hanzo flashes blue, one drive chunk is gone, and he vanishes straight up with Ryo (no crouch first), far off the top of the screen, drifting back as he rises; they come down head first, the slam with the fire columns, Ryo bounces off the floor (juggle him). Ryo faces Hanzo in the grab and the lift. With no chunk left, or after a short run, he just holds Ryo as usual.",
+  "expect": "After a long run (30 frames or more) the grab turns at once into SS2's other Mozu Otoshi: Hanzo flashes blue, one drive chunk is gone, and with no pause (no freeze, no reaching pose) he crouches for two frames and shoots straight up with Ryo, out of the top of the screen in about 11 frames, as in Samurai Shodown II (airborne 4 frames after the grab; SS2: 3 after its catch). He drifts back as he rises; they come down head first about 100 frames after the grab, the slam with the fire columns, Ryo bounces off the floor away from Hanzo (juggle him). Ryo faces Hanzo in the grab and the lift. With no chunk left, or after a short run, he just holds Ryo as usual.",
   "do_keys": "1:R,1:-,40:R",
   "proof": 200
+ },
+ "20261016-111144-e03d": {
+  "title": "Slam throws: the bystanders fall at the slam itself, the bouncing victim hits nobody",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34,
+   "extra": [
+    75,
+    110,
+    150
+   ]
+  },
+  "do": "As Haggar walk into Ryo to grab him, then forward + A (his slam forward), with the other Ryos standing in front of you. Watch the moment Ryo hits the floor.",
+  "expect": "The Ryos standing near the slam are knocked down on the very frame Ryo is slammed into the floor (the group impact), then Ryo bounces away from Haggar; while he bounces and when he lands again he pushes or hits nobody. The same on every slam throw and on Hanzo's Mozu Otoshi.",
+  "do_keys": "20:R,2:Ra,60:-",
+  "proof": 60
+ },
+ "20261016-111341-e03d": {
+  "title": "Posts bonus: every hit of a two-hit attack counts on the post",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Walk up to the post and press A four times in rhythm (Terry's chain: the fourth link is his two-hit punch). Watch the post's hits.",
+  "expect": "The fourth link hits the post twice (two sparks, two chips, two hits off the post's 10), like it hits an enemy twice; each other attack counts once per hit it makes.",
+  "do_keys": "70:-,110:R,2:a,10:-,2:a,10:-,2:a,10:-,2:a,40:-",
+  "proof": 60
  }
 }

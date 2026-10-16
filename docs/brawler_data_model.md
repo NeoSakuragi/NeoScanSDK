@@ -356,6 +356,13 @@ each), scenario.py lint 0.
   hold, for `cost` drive chunks, with the paid special's blue flash; short of the drive: the hold (build_tables
   `run_grab` -> `grun_grab[fighter]` {pool index, frames, cost}; fighter.c run_grab, fighter_t rgrab: started by the
   hold's next update). Its slam: `special_grab_timing` under the special's input (`run 623CD`).
+- `referee.jump_sound` / `land_sound` (songs.json sfx names; note 20261016-101200-e03d reused): played as the referee
+  leaves the ground and as he lands (main.c rf_tick, gref_t). SS2's own: sfx E8 = samsho2 `00DA` (his jump, $E668's sound
+  $2B), E9 = samsho2 `1A73` (his landing voice); build_snd reads SS2's prefix $1A as slot 1.
+- `slam_bounce.vx` is away from the thrower (note 20261016-095622-e03d reopen: +1.5); the slam's group impact (throw_body)
+  lands on the slam frame and the bouncing victim touches nobody after it (note 20261016-111144-e03d, fighter_t.tb_slam).
+- Posts bonus (BB_ANY): each hit of a move counts once on the post (the striker's hit_mask bit 7, cleared by its next hit
+  window), so a two-hit move hits it twice (note 20261016-111341-e03d; was: one count per continuous touch).
 - fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before
   combat), so a buffered press no longer cancels a multi-hit link on the frame its last hit starts ($96's third).
 

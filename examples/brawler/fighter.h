@@ -576,6 +576,7 @@ typedef struct fighter {
      * special that caught this fighter: falling from it, it is a thrown body (spawn.body) until it lands */
     uint8_t  sthr, xix, thr_dmg, xwait;   /* xwait: a paired super throw's flash frames left in the hold (xix: its BT_*) */
     struct fighter *tb_by;
+    struct fighter *tb_sby;       /* the thrower of a slam's group impact (tb_slam) */
     /* the new system (Bruno 2026-10-08, docs/brawler_gold.md; fighter.c "the meter", "Blitz", "jumps"): sinv = the special
      * playing was bought with drive (a C special: untouchable to its end); brkr = the breaker was paid in life (it blinks red,
      * not white); blz_buf = a Blitz press during a normal (its slot + 1: fires when the normal lands, or as it ends); jt = the
@@ -634,8 +635,11 @@ typedef struct fighter {
                                      script's landing (thrown_release), TK_SLAM hands it over there (on the floor: thrown_land) */
     int16_t  sbvy, sbvx;          /* a SLAM's victim: its ground bounce at the slam (8.8 px a frame up / away from the thrower;
                                      game.json slam_bounce, fighter.c slam_bounce; sbvy 0: none) */
-    uint8_t  tbnc, tbpad;         /* a thrower whose slam bounced its victim: any press / stick cuts the rest of his throw / grab
-                                     special (fighter.c slam_bounce; any new state clears it) */
+    uint8_t  tbnc, tb_slam;       /* tbnc: a thrower whose slam bounced its victim: any press / stick cuts the rest of his throw /
+                                     grab special (fighter.c slam_bounce; any new state clears it). tb_slam: a slammed victim's
+                                     group impact (note 20261016-111144-e03d): frames it still knocks the others down at the
+                                     slam itself, before its bounce touches anyone (fighter.c slam_bounce, combat "thrown
+                                     bodies"; its thrower tb_sby) */
     uint8_t  tb_fl, tb_kind;      /* a thrown body's floor impact (note 20261014-132326-5d29, fighter.c "thrown bodies",
                                      game.json throw_body.floor): bit 7 = it touched the floor, bits 0-6 = frames it still
                                      knocks others down there (0: none, or not landed yet); tb_kind = which throw made

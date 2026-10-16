@@ -165,8 +165,10 @@ def native_samples(m1, cmd):
 MAKOTO = {'kof94': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2}, recs=[0x3E73, 0x4973, 0x5473]),
           'kof95': dict(pre={0x18: 0, 0x1A: 1, 0x1C: 2, 0x1E: 3, 0x1B: 4}, recs=[0x425B, 0x4D5B, 0x5850, 0x6350, 0x6B90], onebyte=0x73F4),
           # Samurai Shodown II (voice note 20261011-055133-5d29, its impacts): one-byte commands $C0-$FF = slot 0 codes
-          # $6D8A[cmd - $C0] ($045B), records $3EED / $49ED / $54ED / $5FE2 ($0466-$04A2); its prefixes not read: none
-          'samsho2': dict(pre={}, recs=[0x3EED, 0x49ED, 0x54ED, 0x5FE2], onebyte=0x6D8A),
+          # $6D8A[cmd - $C0] ($045B), records $3EED / $49ED / $54ED / $5FE2 ($0466-$04A2); prefix $1A = slot 1 (note
+          # 20261016-101200-e03d, the referee's landing voice $1A $73: record $49ED + 11 x $73 = the pages 10569-10577 and
+          # level $D5 its own driver keys on, tools/brawler/voices.probe in the tap core; the other prefixes not read)
+          'samsho2': dict(pre={0x1A: 1}, recs=[0x3EED, 0x49ED, 0x54ED, 0x5FE2], onebyte=0x6D8A),
           # Art of Fighting 2 (notes 20261014-085447 / -085507-5d29: the bonus games' announcer and gong): KOF94's code,
           # its tables $B00 apart from slot 0's $4190 (makoto3/games.py smp_fixed); records found by the sample addresses
           # its driver keys on for $1C $CD ($605F = $5790 + 11 x $CD) and $1A $20 ($4DF0 = $4C90 + 11 x $20) in the tap core

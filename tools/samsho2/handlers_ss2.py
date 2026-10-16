@@ -41,7 +41,7 @@ import ss2, neo2 as N
 P = {'anim': 1, 'set': 2, 'mul': 3, 'move': 4, 'fricmove': 5, 'fall': 6, 'nudge': 7, 'dec': 8, 'br': 9, 'resume': 10,
      'resume_at': 11, 'jmp': 12, 'spawn': 13, 'fxoff': 14, 'end': 15, 'adv': 16, 'check': 17, 'part': 18, 'evclr': 19,
      'onhit': 20, 'put': 21, 'hitclr': 22, 'hold': 23, 'unhold': 24, 'sigclr': 25, 'hitoff': 26, 'add': 27, 'form': 28,
-     'voice': 29, 'vsig': 30, 'turn': 31, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
+     'voice': 29, 'vsig': 30, 'turn': 31, 'cine': 35, 'lanim': 36, 'warp': 37}        # bm_chars.h P_*
 REG = {'vx': 0, 'vy': 1, 'g': 2, 'fric': 3, 'cnt': 4, 'h': 5}
 PC = {'end': 0, 'event': 1, 'land': 2, 'fall': 3, 'cnt': 4, 'hit': 5, 'off': 6, 'always': 7, 'stepev': 8, 'window': 9,
       'link': 10, 'hitany': 11, 'sig7c': 13, 'passed': 20, 'caught': 21}
@@ -651,13 +651,23 @@ def han_623k_run(v):
     1 / 2.9 / 3 px a frame BACKWARD, his facing's opposite: the -Satsu- leap that carries the victim back), the vy,
     the hold and the second leap as standing; and with vx set, $8AD4 (a camera / effect level) is left alone. The rest
     = han_623k: the fire on the slam (mozufire), the victim lists. A plain piece (the brawler has no "came from a run"
-    state: it is that version of the move)"""
+    state: it is that version of the move).
+    [meas] (note 20261016-100735-e03d reopen, "in SS2 the character disappears into the air almost instantly": P1 Hanzo
+    running (7 px a frame) into P2, then 2 3 + C+D, our emulator, /data/tmp/runmozu_c): the catch on frame 0 (anim 296,
+    one frame), anim 58 frames 1-2, airborne from frame 3 (+28 px), the pair's feet past the top of the screen at
+    frame 13, apex frame 52 (682 px), back down at frame 101, x -3 px a frame all along (-297 px). The brawler's run
+    grab already holds its victim: no catch box, no catch hit-stop (the box catch froze both 7 frames and reached 3 more
+    before the crouch: airborne 14 frames after the grab) -> the grab's own frame stands for SS2's catch frame (anim 296),
+    entry 0 shows anim 58 and catches its held target at once (P_CATCH, list 1: the grabbed pose 490), the leap's entry
+    3 from the next frame (entry 2's crouch test is SS2's run branch: nothing to wait for): measured (harness) anim 58
+    from the frame after the grab, airborne 4 frames after it (SS2: 3 after its catch; the brawler's special starts the
+    frame after the grab), the rise 27.3 / 26.8 px a frame as SS2's 28 / 27"""
     tab = N.u32(0x36F46 + 4 * v)
     vx = N.s16(tab)
     ents, objs, vl = han_623k(v)
     ents = list(ents)
-    ents[2] = E(58, [('set', 'vx', 0)], [('now', 'next')])
     e3 = dict(ents[3]); e3['init'] = [('set', 'vx', bx(vx))] + list(e3['init']); ents[3] = e3
+    ents[0] = E(58, [('set', 'vx', 0), ('catch_now', 3, 1)], [('now', 'next')])
     return ents, objs, vl
 
 SD_FRAMES = 300                                   # $2C47A: the timer once the puff has played
@@ -805,6 +815,8 @@ def compile_prog(ents):
             elif o[0] == 'face':                          # turned to face its target ($56A26): P_TURN when the target is
                 ops += [('br', 'passed', 0, ('FC', i), -1), ('turn',), ('label', ('FC', i))]   # behind (PC_PASSED v -1)
             elif o[0] == 'warp': ops.append(('warp', o[1], o[2], o[3]))   # P_WARP a = mode (1 screen, 0 target), b dx, v
+            elif o[0] == 'catch_now': ops.append(('cine', ('I', o[1]), 0, o[2]))   # P_CATCH: its target caught now (no box,
+                                                  # no hit-stop), the routine (entry o[1]) from the next frame, list o[2]
             else: raise ValueError(o)
         ops += [('resume_at', ('LP', i)), ('jmp', ('R', i)), ('label', ('LP', i))]
         for k, cnd in landc: ops.append(('br', 'land', 1, ('S', i, k)))
@@ -850,6 +862,7 @@ def assemble(ops):
     for o in out:
         if o[0] == 'br': res.append(('br', o[1], o[2], -1 if o[3] == 'yield' else lab[o[3]]) + tuple(o[4:]))
         elif o[0] in ('jmp', 'resume_at', 'onhit'): res.append((o[0], lab[o[1]]))
+        elif o[0] == 'cine': res.append((o[0], lab[o[1]], o[2], o[3]))
         else: res.append(o)
     return res
 
@@ -868,6 +881,7 @@ def encode(o):
     if n == 'check': return (P['check'], o[1], 0, 0)
     if n == 'nudge': return (P['nudge'], 0, o[1], 0)
     if n == 'warp': return (P['warp'], o[1], o[2], o[3])
+    if n == 'cine': return (P['cine'], o[2], o[1], o[3])   # P_CATCH a = dead frames, b = the routine, v = its victim list
     return (P[n], 0, 0, 0)
 
 # ---- the brawler's player, ported from fighter.c (prog_update, pan_*), for check() and the hit counts ----------------
