@@ -1173,7 +1173,8 @@ def rom_c(n, k, sp, game, vres=None):
         hk = r['hit_kind'] if 0 < r['hit_kind'] <= 32 else 1   # variant table, P_ADD / P_FORM): as given, P_ANIM's
         fx = move_fx(n, sp, hk)                      # hit effect filled in
         assert len(r['prims']) < 0x7FFF, (n, sp['input'])
-        out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {b}, {c}, {fx if d is None else (d | fx) if a == P_OPS["lanim"] else d}}}' for a, b, c, d in r['prims']) + '};')
+        vb = lambda a, b: (vres(b) if vres else 0) if a == P_OPS['vsend'] else b   # P_VOICE: a = the driver word
+        out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {vb(a, b)}, {c}, {fx if d is None else (d | fx) if a == P_OPS["lanim"] else d}}}' for a, b, c, d in r['prims']) + '};')
         vt = r.get('vtable') or {}
         if vt.get('nvar'):
             out.append(f'static const int32_t {n}_sp{k}_vars[] = {{' + ', '.join(str(v) for row in vt['rows'] for v in row) + '};')
@@ -2149,12 +2150,18 @@ def prog_voices(n, game, sp):
     """the voice ids a KOF ROM special's program sends, the first it sends first: its code's sends now, its steps'
     $FC records (anim order), its code's sends later"""
     vi = voice_of_index(n, game); r = sp['rom']
-    ops = r.get('ops') or []                                       # (a program written by its exporter: no ops, its
-    now = [vi(op[1]) for op in ops if op[0] == 'vsend' and not op[2]]   # sends are its steps': WHP's, TODO #181)
+    vs = vsends(r)                                                 # (a program written by its exporter: its steps'
+    now = [vi(w) for w, d in vs if not d]                          # sends (WHP's, TODO #181), its P_VOICE prims)
     steps = [vi(ix) for st in r['states'] for s in r['anims'][st]['steps'] for ix in s.get('voices', [])]
-    later = [vi(op[1]) for op in ops if op[0] == 'vsend' and op[2]]
+    later = [vi(w) for w, d in vs if d]
     ids = [i for i in now + steps + later if i]                    # its own effects (channel 'fx', TODO #168) after
     return [i for i in ids if not V.fx_bit(n, i)] + [i for i in ids if V.fx_bit(n, i)]   # its voices: the key's suggestion is a voice
+
+def vsends(r):
+    """a ROM special's code sends [(sound index / driver word, frames later)]: its ops' 'vsend' (KOF), or the P_VOICE
+    prims of a program written by its exporter (handlers_ss2 'vsend': a = the driver word)"""
+    return [(op[1], op[2]) for op in r.get('ops') or [] if op[0] == 'vsend'] + \
+           [(b, c) for a, b, c, d in r.get('prims') or [] if a == P_OPS['vsend']]
 
 def prog_voice_res(n, game, inp, sug, mp):
     """a KOF ROM special's send -> the voice id it plays (fx bit included; 0: silent): the roster keeps the key's
@@ -2573,7 +2580,7 @@ def write_c(chars, outdir):
                     'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
                     'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game) or step_voiced(sp)
                                     for res in [prog_voice_res(n, game, q['input'], vsug, vmp)]
-                                    for ix in [op[1] for op in sp['rom'].get('ops') or [] if op[0] == 'vsend'] +
+                                    for ix in [w for w, d in vsends(sp['rom'])] +
                                               [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}
         c.append(f'static const uint8_t {n}_voices[] = {{' + ', '.join(map(str, vtab)) + '};   /* voices.py table */')
         c.append(f'static const uint8_t {n}_vmore[] = {{' + ''.join(f'{a}, {b}, {d}, ' for a, b, d in vmore) + '0xFF};   /* voices.py extras */')

@@ -75,7 +75,8 @@ def by(v): return -(v << 8)                       # 8.8 down -> 16.16 up
 # targets: an entry index, 'next', 'end' (neutral), 'now:N' (entry N in the same frame: the routine sets +$66 itself);
 # phys: 'ground' (x += vx), 'grav' (+$EE 1), 'air' (+$EE < 0, nothing added), ('custom', ax, ay) (+$EE < 0, the
 # routine adds +$D0 / +$D2), ('decel', dv) (the routine's $46C64 on vx); init: ('set', reg, v), ('spawn', k),
-# ('nudge', px), ('part',).
+# ('nudge', px), ('part',), ('vsend', id, n) (sound id `id`'s word reaching the Z80 n frames after the entry starts:
+# P_VOICE b = n; export_bm resolves the word to the fighter's voice).
 def E(anim=None, init=(), conds=(), phys='ground', flags=None, part=None, react=None, catch=None, grab=None, voice=(), hits=None):
     """catch: the entry index of the catch routine: this entry's attack steps are catch boxes (no damage, the victim
     held: fighter.c's catch, KOF +$19C), the routine starts after the hit-stop and the victim follows the move's victim
@@ -667,8 +668,18 @@ def han_623k_run(v):
     ents, objs, vl = han_623k(v)
     ents = list(ents)
     e3 = dict(ents[3]); e3['init'] = [('set', 'vx', bx(vx))] + list(e3['init']); ents[3] = e3
-    ents[0] = E(58, [('set', 'vx', 0), ('catch_now', 3, 1)], [('now', 'next')])
+    ents[0] = E(58, [('set', 'vx', 0), ('catch_now', 3, 1), ('vsend', *RUN_WHISTLE)], [('now', 'next')])
     return ents, objs, vl
+# the run version's whistle (note 20261016-100735-e03d round 2, Bruno: "it misses the special startup sound this throw
+# makes in SS2, a whistling-in-the-air sound made for that specific run throw") [code + meas, mozu_ss2.py RUN /
+# whistle]: out of a run the 6 2 3 input brakes him first (2: class 0 action 41, anim 72) and the catch comes out of the
+# brake; anim 72 step 0 sends sound $157 = $1C $4E (his voice slot: a steady ~450 Hz tone, 0.41 s; driver pages
+# 22334-22348) the frame before the catch, behind the brake's seven prefix-$15 words (its action entry's voice list,
+# silent in the driver): one byte a frame, the Z80 gets $4E 13 frames after the catch, as he shoots up. From a stand
+# (CD) no word of the kind: the only sound the run version adds (plus the run's own start, $1C $4E $1A $7B, the run's).
+# The brawler's program starts the frame after the grab (= SS2's catch); P_VOICE b = 11: sent then, sound.c's ring puts
+# its prefix on the latch at grab + 12 and the code at grab + 13 = SS2's (measured: mozu_run_proof.py, key-on at + 13)
+RUN_WHISTLE = (0x157, 11)
 
 SD_FRAMES = 300                                   # $2C47A: the timer once the puff has played
 def han_sd(v):
@@ -815,6 +826,8 @@ def compile_prog(ents):
             elif o[0] == 'face':                          # turned to face its target ($56A26): P_TURN when the target is
                 ops += [('br', 'passed', 0, ('FC', i), -1), ('turn',), ('label', ('FC', i))]   # behind (PC_PASSED v -1)
             elif o[0] == 'warp': ops.append(('warp', o[1], o[2], o[3]))   # P_WARP a = mode (1 screen, 0 target), b dx, v
+            elif o[0] == 'vsend': ops.append(('vsend', N.u16(0x5FD2 + 2 * o[1]), o[2]))   # P_VOICE: a = the driver word
+                                                  # (export_bm rom_c: -> its voice id), b = frames later
             elif o[0] == 'catch_now': ops.append(('cine', ('I', o[1]), 0, o[2]))   # P_CATCH: its target caught now (no box,
                                                   # no hit-stop), the routine (entry o[1]) from the next frame, list o[2]
             else: raise ValueError(o)
@@ -882,6 +895,7 @@ def encode(o):
     if n == 'nudge': return (P['nudge'], 0, o[1], 0)
     if n == 'warp': return (P['warp'], o[1], o[2], o[3])
     if n == 'cine': return (P['cine'], o[2], o[1], o[3])   # P_CATCH a = dead frames, b = the routine, v = its victim list
+    if n == 'vsend': return (P['voice'], o[1], o[2], 0)
     return (P[n], 0, 0, 0)
 
 # ---- the brawler's player, ported from fighter.c (prog_update, pan_*), for check() and the hit counts ----------------
