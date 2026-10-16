@@ -27,13 +27,15 @@ AI_FLAGS = {'token': 1, 'grab': 2, 'projectile': 4, 'reversal': 8, 'specials': 1
 AI_FIELDS = ['rest_shift', 'rest_random', 'rest_add', 'rest_start', 'rest_attack', 'rest_special', 'rest_throw', 'grab_plan',
              'attack_dx', 'hover_dx', 'hover_go_dx', 'hover_go_dz', 'range_min', 'range_max', 'range_dz', 'spec_min',
              'spec_max', 'spec_dz', 'press_gap', 'hold_gap', 'rev_dx', 'rev_dz', 'rest_rev', 'bspec_min', 'bspec_max',
-             'bspec_dz', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx', 'hop_dx', 'hop_chance']
+             'bspec_dz', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx', 'hop_dx', 'hop_chance',
+             'aa_dx', 'aa_dz', 'aa_chance', 'aa_react', 'punish_chance', 'punish_react', 'rush_min', 'rush_max', 'rush_chance']
+AI_MOVES = {'roles': 1, 'flank': 2}                       # gamedata.h AIM_* (a preset's "moves": the situations it reads)
 CHANCE_MASKS = {'follow_ups': 'follow_mask', 'rev_chance': 'rev_mask', 'bspec_chance': 'bspec_mask'}   # "1 in N" -> mask N-1
 MAX_ENEMIES = 6                                          # main.c NF - 2
 MAX_SLOTS = 25                                           # main.c NA (an actor per slot): (381 - SEL_SPR 57 - the barriers 21) / SEL_COLS 12
 SP_WALK_IN, SP_LEFT, SP_NOT_BOSS = 1, 2, 4               # gamedata.h gspawn_t.flags; rank in bits 4-7
 GE_FIGHTER_NAME, GE_SPAWN, GE_DOUT_SH = 1, 0xFF, 1        # gamedata.h genemy_t
-GD_VERSION, GD_MAX = 7, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
+GD_VERSION, GD_MAX = 8, 4096                             # gamedata.h data pack (2: + the roster section, 3: + voices, 4: + triggers, 5: + AI hop_*,
                                                          # 6: 6 roles per fighter, route trees version 3; 7: route trees version 4)
 TW = {'camera_x': 1, 'wave_clear': 2, 'time': 3}         # gamedata.h TW_*, TA_*
 TA = {'spawn': 1, 'lock': 2, 'music': 3, 'drama': 4, 'end_stage': 5}
@@ -723,6 +725,9 @@ def ai_row(n, p):
     for f in p.get('flags', []): fl |= AI_FLAGS[f]
     v = {'flags': fl}
     for k in AI_FIELDS: v[k] = p.get(k, 0)
+    mv = 0
+    for f in p.get('moves', []): assert f in AI_MOVES, f'AI {n}: moves {f} ({list(AI_MOVES)})'; mv |= AI_MOVES[f]
+    v['moves'] = mv
     for k, m in CHANCE_MASKS.items():
         ch = p.get(k, 1 if k == 'follow_ups' else 0)
         if k == 'follow_ups': v[m] = (1 << ch.bit_length()) - 1 if ch else 0   # follow-up presses: 0..N (N = 2^k - 1)
@@ -734,6 +739,45 @@ def ai_row(n, p):
     v['proj_mask'], v['proj_mask2'] = min(pc, 256) - 1, max(pc >> 8, 1) - 1
     for k, x in v.items(): assert 0 <= x <= 255, f'AI {n}: {k} = {x} (0-255)'
     return v
+
+
+AI_ROLES = ['projectile', 'anti_air', 'rush']                # gamedata.h AR_* (ai_roles[fighter][AR_*] = a special slot BS_*)
+
+
+def ai_roles(g, lab):
+    """ai_roles[BC_COUNT][AR_COUNT]: per roster fighter (bm_chars order) the special slot (BS_D .. BS_UF_D: neutral, f, d,
+    u, df, uf + C) the enemy AI plays as its projectile / anti-air / rush (ai.c "situations", Bruno 2026-10-16: the
+    enemies' wide range of moves), 0xFF none. Read from the export (build/chainlab.json fighters[].pool: each slot's
+    special's travel, height, first hit, projectile): projectile = a slot whose special throws one (a travelling one
+    first, then an eruption); anti-air = a rising special (height >= 35 px, travel <= 140 px, its first hit by frame 12,
+    no travelling projectile), the highest and quickest; rush = a forward one (travel >= 80 px, height <= 50 px, first
+    hit by frame 24, no projectile), the longest and quickest. roster[].ai_roles {"projectile": "dD", ...: a slot key,
+    or null = none} overrides the pick"""
+    fl = {f['name']: f for f in lab['fighters']}
+    out = []
+    for r in g['roster']:
+        f = fl.get(r['name']); row = [0xFF] * len(AI_ROLES)
+        if f:
+            pool = {p['input']: p for p in f['pool']}
+            sl = []
+            for k, key in enumerate(SPECIAL_KEYS):
+                v = (f.get('specials') or {}).get(key)
+                if isinstance(v, list): v = v[0]
+                if v in pool: sl.append((k, pool[v]))
+            first = lambda p: p['first'] if p['first'] is not None else 99
+            row[0] = min(((p['proj']['kind'] != 1, k) for k, p in sl if p['proj']), default=(0, 0xFF))[1]
+            row[1] = min(((p['travel'] / 2 + 4 * first(p) - p['height'], k) for k, p in sl
+                          if p['height'] >= 35 and p['travel'] <= 140 and first(p) <= 12 and not (p['proj'] and p['proj']['kind'] == 1)),
+                         default=(0, 0xFF))[1]
+            row[2] = min(((2 * p['height'] + 2 * first(p) - p['travel'], k) for k, p in sl
+                          if p['travel'] >= 80 and p['height'] <= 50 and first(p) <= 24 and not p['proj']), default=(0, 0xFF))[1]
+        for k, v in (r.get('ai_roles') or {}).items():
+            if k == 'about': continue
+            assert k in AI_ROLES, f"roster {r['name']}: ai_roles.{k} ({AI_ROLES})"
+            assert v is None or v in SPECIAL_KEYS, f"roster {r['name']}: ai_roles.{k} = {v!r} (a slot {SPECIAL_KEYS} or null)"
+            row[AI_ROLES.index(k)] = 0xFF if v is None else SPECIAL_KEYS.index(v)
+        out.append((r['name'], row))
+    return out
 
 
 def enemy_tree(e, g, build, idx):
@@ -803,7 +847,7 @@ def model(g, build):
             assert b in idx, f'enemy {n}: neither {e["base"]} nor its stand-in is in the roster'
             base, pl = idx[b], []
         over = e.get('ai_over') or {}
-        for k in over: assert k in AI_FIELDS or k in CHANCE_MASKS or k in ('flags', 'proj_chance'), f'enemy {n}: ai_over {k}'
+        for k in over: assert k in AI_FIELDS or k in CHANCE_MASKS or k in ('flags', 'proj_chance', 'moves'), f'enemy {n}: ai_over {k}'
         st, ti, cu = palette(e, n)
         assert ti is None or ti in tint_idx, f'enemy {n}: no tint {ti}'
         assert st == GE_SPAWN or 0 <= st < 255, f'enemy {n}: palette set {st}'
@@ -944,7 +988,8 @@ AI_ORDER = ['flags', 'rest_shift', 'rest_random', 'rest_add', 'rest_start', 'res
             'attack_dx', 'hover_dx', 'hover_go_dx', 'hover_go_dz', 'range_min', 'range_max', 'range_dz', 'spec_min', 'spec_max', 'spec_dz',
             'follow_mask', 'press_gap', 'hold_gap', 'rev_dx', 'rev_dz', 'rev_mask', 'rest_rev', 'bspec_min', 'bspec_max', 'bspec_dz',
             'bspec_mask', 'rush_dx', 'rest_bspec', 'jump_min', 'jump_max', 'jump_dz', 'jump_chance', 'rest_jump', 'air_b_dx',
-            'hop_dx', 'hop_chance', 'proj_mask', 'proj_mask2']
+            'hop_dx', 'hop_chance', 'proj_mask', 'proj_mask2', 'moves', 'aa_dx', 'aa_dz', 'aa_chance', 'aa_react',
+            'punish_chance', 'punish_react', 'rush_min', 'rush_max', 'rush_chance']
 EN_LAYOUT = [('base', 0, 'B'), ('ai', 1, 'B'), ('attract_ai', 2, 'B'), ('power', 3, 'B'), ('npool', 4, 'B'), ('set', 5, 'B'),
              ('tint', 6, 'B'), ('flags', 7, 'B'), ('life', 8, 'h'), ('pool', 10, 'I'), ('name', 14, 'I'), ('pal', 18, 'I'), ('moves', 22, 'I')]
 EN_SIZE = 26
@@ -1824,6 +1869,7 @@ def tables(g, build):
          'extern const uint16_t *const dtier_rom[BC_COUNT];   /* the damage tiers (fighter.c "damage tiers"): per fighter, 8.8 scales: [special index], [nspec] the fury, [nspec + 1] the MAX */',
          'extern uint8_t dtier_off;                         /* (fighter.c) 1: every scale 1 (a test switch) */',
          'extern const uint8_t ai_ready[BC_COUNT][2];',
+         'extern const uint8_t ai_roles[BC_COUNT][AR_COUNT];   /* the special slot (BS_*) each fighter plays as an enemy\'s projectile / anti-air / rush (AR_*; 0xFF none; build_tables ai_roles) */',
          'extern const uint8_t gblitz_rom[BC_COUNT][4];   /* per fighter its Blitz slots (BZ_FF .. BZ_UU): a special\'s pool index, BZ_DASH its dash entry, BZ_NORMAL its blitz entry, BZ_NONE */',
          'extern const uint8_t gfury_wait[BC_COUNT];   /* 1: the fury (D) holds its first frame through the super flash\'s freeze, its move after (roster[].fury_flash, default wait for a sequence fury: fighter.c flash_pose) */',
          'extern const uint8_t gfury_area[BC_COUNT][3];  /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
@@ -1861,6 +1907,10 @@ def tables(g, build):
     c.append('const ai_preset_t ai_presets_rom[AI_COUNT] = {\n' + '\n'.join(
         '    { ' + ', '.join(f'.{k} = {x}' for k, x in v.items()) + ' },   /* ' + n + ' */' for n, v in M['ai']) + '\n};')
     c += ai_rules(g)                                     # the enemies' shared rules (revamp 1B, gamedata.h gairules_t)
+    lab_p = os.path.join(build, 'chainlab.json')         # the enemy AI's specials by situation (ai_roles; the export's)
+    rl = ai_roles(g, json.load(open(lab_p)) if os.path.exists(lab_p) else {'fighters': []})
+    c.append('const uint8_t ai_roles[BC_COUNT][AR_COUNT] = { ' + ', '.join('{ ' + ', '.join(f'0x{x:02X}' for x in row) + ' }' for _, row in rl) +
+             ' };   /* projectile, anti-air, rush slots (BS_*; 0xFF none): ' + ' '.join(n for n, _ in rl) + ' */')
     c += boss_tables(g)                                  # the guard's rules + the bosses' own layer (T9)
     m = g['meter']                                       # the drive meter + the hidden fury gauge (Bruno's redesign
     for k in m: assert k in METER_KEYS, f'meter: unknown field {k}'   # 2026-10-08, gamedata.h gmeter_t)
@@ -2352,7 +2402,7 @@ def lab_enemies(g):
     files = {e['moves']: json.load(open(os.path.join(REPO, e['moves']))) for e in g['enemies'] if str(e.get('moves', '')).endswith('.json')}
     return {'enemies': g['enemies'], 'presets': g['ai']['presets'], 'tints': g['tints'], 'roster': roster_names(g),
             'unlock': [r['unlock']['boss_of_stage'] if isinstance(r.get('unlock'), dict) else 0 for r in g['roster']],
-            'route_files': files, 'ai_flags': AI_FLAGS, 'ai_fields': AI_FIELDS, 'chance_masks': CHANCE_MASKS, 'ai_order': AI_ORDER,
+            'route_files': files, 'ai_flags': AI_FLAGS, 'ai_fields': AI_FIELDS, 'chance_masks': CHANCE_MASKS, 'ai_order': AI_ORDER, 'ai_moves': AI_MOVES,
             'move_presets': ['own'] + __import__('routes').ENEMY_PRESETS, 'max_name': 10}
 
 

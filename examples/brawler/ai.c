@@ -38,7 +38,8 @@ uint8_t ai_rank, ai_tokens;
 
 enum { AM_FREE, AM_APPROACH, AM_READY, AM_ACT };                  /* ai_t.mode: no token; the three with one */
 enum { K_PUNCH, K_GRAB, K_PROJ, K_JUMP, K_BSPEC, K_REV,          /* ai_t.kind: the attack it is making; */
-       K_COMBO, K_FURY };                                          /* a boss's combo, its red period's fury (T9) */
+       K_COMBO, K_FURY,                                            /* a boss's combo, its red period's fury (T9); */
+       K_AA, K_RUSH };                                             /* the situations': its anti-air, its rush */
 typedef struct {
     uint8_t mode, kind;           /* (first: the proofs read them) */
     uint8_t cooldown;             /* frames before it may take a token again */
@@ -67,6 +68,7 @@ typedef struct {
     uint8_t gtm, grest, gnear, red, rcount, running, runroll, ctm;
     uint16_t rtm;
     uint16_t tsig, tst;
+    uint8_t aseen, pseen;         /* the situations: his jump / his attack seen (its roll made: once each) */
 } ai_t;
 
 static ai_t AI[MAX_F];
@@ -156,7 +158,7 @@ void ai_init(uint16_t seed, uint8_t preset) {
         ai_t *a = &AI[i];
         a->b = 0;
         a->p = &ai_tab[preset]; a->mode = AM_FREE; a->jumping = 0; a->posed = 0; a->wound = 0; rest(a, a->p->rest_start);
-        a->presses = 0; a->press_t = 0; a->moving = 0; a->slot = i & 7; a->tm = 0; a->target = 0xFF;
+        a->presses = 0; a->press_t = 0; a->moving = 0; a->slot = i & 7; a->tm = 0; a->target = 0xFF; a->aseen = a->pseen = 0;
     }
 }
 
@@ -165,6 +167,7 @@ void ai_set(uint8_t i, uint8_t preset) {
     a->b = 0;
     a->p = &ai_tab[preset]; a->mode = AM_FREE; a->jumping = 0; a->posed = 0; a->wound = 0; a->presses = 0;
     a->target = 0xFF;                             /* (until its first think: nobody, ai_update) */
+    a->aseen = a->pseen = 0;
     rest(a, a->p->rest_start);
 }
 
@@ -297,8 +300,40 @@ static uint8_t still_in_range(const ai_t *a, int16_t adx, int16_t adz) {
     case K_GRAB:  return adz <= P->range_dz + 4 && adx <= P->range_max + 8;
     case K_PROJ:  return adz <= P->spec_dz + 4 && adx + 8 >= P->spec_min && adx <= P->spec_max + 8;
     case K_JUMP:  return adz <= P->jump_dz + 4 && adx + 8 >= P->jump_min && adx <= P->jump_max + 8;
+    case K_RUSH:  return adz <= 10 && adx + 8 >= P->rush_min && adx <= P->rush_max + 8;
     default:      return adz <= P->bspec_dz + 4 && adx + 8 >= P->bspec_min && adx <= P->bspec_max + 8;
     }
+}
+
+/* ---- the situations (Bruno 2026-10-16, Wael's run on 0.10.150: "the enemies are too boring - give them a WIDE RANGE OF
+ * MOVES"; gamedata.h ai_preset_t "situations", every chance 0 = never): what it plays depends on him, not on one
+ * pattern. Each fighter's specials by role come from the export (game_tables ai_roles[fighter][AR_*]: the slot of its
+ * projectile, its anti-air, its rush; build_tables.py ai_roles):
+ *  ANTI-AIR  him in the air within aa_dx / aa_dz, aa_react frames after his take-off (an air attack at once): its anti-air
+ *            special, aa_chance of 256, rolled once a jump; no wind-up hold (the jump is his, the reaction floor is the
+ *            tell), rest_rev after it.
+ *  PUNISH    his attack (not a fury) punish_react frames in without a hit, or his hold on one of them (Final Fight: the
+ *            others come in while he holds one), within its punch reach: its string (a combo layer's string) after the
+ *            shortest ready wait; farther, within rush_min-rush_max: its rush. punish_chance of 256, rolled once each.
+ *  RUSH      approaching, him rush_min-rush_max px away on its line: its rush special (rush_chance of 256 a think) after
+ *            the usual ready wait and wind-up (a special's).
+ *  PROJECTILE (AIM_ROLES) its projectile is the fighter's projectile special (else none), not its neutral C.
+ *  FLANK     (AIM_FLANK) a token holder farther from him than another one already on him from one side approaches from
+ *            the other side, around him (not through him).
+ * The rest of its range is data that was there: jump-ins and back-hops (AIF_JUMP_IN), grabs (AIF_GRAB, a combo's
+ * "grab"), and any enemy with a layer (game.json enemies[].boss_ai, below: wave enemies too since 2026-10-16) guards,
+ * runs in and plays its strings ("A A A dA": the chain's down finisher, its sweep; "A fC", "run A", "jump A A"). */
+static void slot_press(intent_t *o, uint8_t s, int16_t dx) {    /* C on special slot s (BS_*): its stick, forward = to him */
+    static const int8_t SX[BS_COUNT] = { 0, 1, 0, 0, 1, 1 }, SZ[BS_COUNT] = { 0, 0, 1, -1, 1, -1 };
+    o->press = IN_C; o->dx = SX[s] * sgn(dx); o->dz = SZ[s];
+}
+static uint8_t role_slot(const fighter_t *e, uint8_t r) {        /* its special for role AR_* (0xFF: none) */
+    uint8_t s = ai_roles[e->ch->id][r];
+    return s < BS_COUNT && spec_ix(e->ch, s) != 0xFF ? s : 0xFF;
+}
+static uint8_t proj_slot(const fighter_t *e, const ai_preset_t *P) {   /* the special it fires as its projectile */
+    if (P->moves & AIM_ROLES) return role_slot(e, AR_PROJ);
+    return spec_ix(e->ch, BS_D) != 0xFF ? BS_D : 0xFF;
 }
 
 /* ---- the boss layer (T9, Bruno 2026-10-15: "the bosses more challenging than today, even at level 4") -----------------
@@ -419,8 +454,10 @@ static void execute(fighter_t *e, ai_t *a, intent_t *o, int16_t dx) {   /* READY
         rest(a, P->rest_attack); break;
     case K_GRAB:                                                 /* walk into him: contact grabs (fighter.c) */
         a->tm = 0; o->dx = sgn(dx); o->grab = 1; rest(a, P->rest_attack); a->plan_grab = 1; break;
-    case K_PROJ:
-        o->press = IN_C; rest(a, P->rest_special); break;       /* C: the projectile (o->face turns it to him) */
+    case K_PROJ:                                                 /* its projectile's slot (o->face turns it to him) */
+        slot_press(o, proj_slot(e, P), dx); rest(a, P->rest_special); break;
+    case K_RUSH:                                                 /* its rush (the situations) */
+        slot_press(o, role_slot(e, AR_RUSH), dx); rest(a, P->rest_special); break;
     case K_JUMP:                                                 /* a full forward jump: B held to the take-off */
         o->press = IN_B; o->hold = IN_B; o->dx = sgn(dx); a->jumping = 1; rest(a, P->rest_jump); break;
     case K_COMBO: {                                              /* a boss's string (the boss layer): its first press */
@@ -509,7 +546,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (e->state == S_OFF) continue;
         /* the wind-up: an attack starting now has its first frame held */
         if ((e->state == S_ATTACK || e->state == S_SPECIAL) && e->state_t == 0) {
-            if (!a->wound && !e->freeze && !(a->mode == AM_ACT && (a->kind == K_FURY || (a->kind == K_COMBO && a->cpressed &&
+            if (!a->wound && !e->freeze && !(a->mode == AM_ACT && (a->kind == K_FURY || a->kind == K_AA || (a->kind == K_COMBO && a->cpressed &&
                 (a->cnode != 0xFF || a->csid != 0xFF))))) e->freeze = windup_hold(e);   /* (a boss's string: its first move
                                                                     only, the links / cancels come at once; its fury: the
                                                                     super flash is its tell) */
@@ -593,7 +630,12 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         }
         if (a->jumping) {                                        /* jump-in: hold B to the take-off (the full jump), */
             if (e->state == S_PREJUMP) { o->hold = IN_B; continue; }   /* down+A (air B; air_cd: up+A, the air C+D) once close on the way down */
-            if (e->state == S_AIR) { if (e->vy < 0 && adx <= P->air_b_dx) { o->press = IN_A; o->dz = (P->flags & AIF_AIR_CD) ? -1 : 1; a->jumping = 0; } continue; }
+            if (e->state == S_AIR) {                             /* coming down: past the one jump's apex (its table; vy
+                                                                    stays 0 there, so the old vy < 0 test never fired: the
+                                                                    jump-ins had no air attack since the one jump) */
+                if ((e->vy < 0 || e->jt > gjump.apex + 1) && adx <= P->air_b_dx) { o->press = IN_A; o->dz = (P->flags & AIF_AIR_CD) ? -1 : 1; a->jumping = 0; }
+                continue;
+            }
             a->jumping = 0;
         }
         if (!able(e)) continue;                                  /* a special, a throw, a landing...: its own course */
@@ -614,6 +656,34 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (a->mode == AM_ACT) {                                 /* able again: the attack is over (a grab: still walking in) */
             if (a->kind == K_GRAB && a->tm < 45 && adx + 4 >= P->range_min) { a->tm++; o->dx = sgn(dx); o->grab = 1; continue; }
             release(e, a);
+        }
+        if (P->aa_chance || P->punish_chance) {                  /* the situations (above): his jump, his whiff */
+            fighter_t *t = &fs[a->target];
+            uint8_t s;
+            if (t->state != S_AIR && t->state != S_AIR_ATTACK) a->aseen = 0;
+            else if (P->aa_chance && !a->aseen && (t->state != S_AIR || t->state_t >= P->aa_react) && adx <= P->aa_dx &&
+                     adz <= P->aa_dz && e->facing == sgn(dx)) {
+                a->aseen = 1;
+                if ((s = role_slot(e, AR_AA)) != 0xFF && (a->mode != AM_FREE || may_take(fs, nf, np, i)) && rnd() < P->aa_chance) {
+                    unpose(e, a); slot_press(o, s, dx); a->mode = AM_ACT; a->kind = K_AA; rest(a, P->rest_rev); continue;
+                }
+            }
+            if (!attacking(t) && t->state != S_GRAB) a->pseen = 0;
+            else if (P->punish_chance && !a->pseen && (t->state == S_GRAB || !t->landed) && t->state_t >= P->punish_react && adz <= P->range_dz + 2 &&
+                     e->facing == sgn(dx)) {
+                uint8_t k = adx <= P->range_max + 8 && adx + 4 >= P->range_min ? K_PUNCH :
+                            P->rush_max && adx >= P->rush_min && adx <= P->rush_max && role_slot(e, AR_RUSH) != 0xFF ? K_RUSH : 0xFF;
+                if (k != 0xFF) {
+                    a->pseen = 1;
+                    if ((a->mode != AM_FREE || may_take(fs, nf, np, i)) && rnd() < P->punish_chance) {
+                        if (k == K_PUNCH && a->b && a->b->ncombo) {  /* (a layer: one of its strings) */
+                            if (a->cix == 0xFF) { a->cix = combo_pick(a); a->cgo = 0; }
+                            if (a->cix != 0xFF) k = K_COMBO;
+                        }
+                        unpose(e, a); ready(e, a, k); a->wait = 1; continue;
+                    }
+                }
+            }
         }
         if ((P->flags & AIF_REVERSAL) && a->cooldown == 0 && (a->mode != AM_FREE || may_take(fs, nf, np, i))) {   /* boss: */
             fighter_t *t = &fs[a->target];                       /* an attack this close: down + C, the rising reversal */
@@ -639,7 +709,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             }
         }
         if (a->mode != AM_READY && (P->flags & AIF_PROJECTILE) && a->cooldown == 0 && adz <= P->spec_dz && adx >= P->spec_min &&
-            adx <= P->spec_max && spec_ix(e->ch, BS_D) != 0xFF && !(rnd() & halve(P->proj_mask, dbl && P->proj_mask)) &&
+            adx <= P->spec_max && proj_slot(e, P) != 0xFF && !(rnd() & halve(P->proj_mask, dbl && P->proj_mask)) &&
             (rnd() & halve(P->proj_mask2, dbl && !P->proj_mask)) == halve(P->proj_mask2, dbl && !P->proj_mask) &&
             (a->mode != AM_FREE || may_take(fs, nf, np, i))) {   /* mid range, any enemy: the projectile, 1 in (proj_mask + 1) (proj_mask2 + 1) a frame */
             ready(e, a, K_PROJ); continue;
@@ -664,6 +734,8 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
             }
             if ((P->flags & AIF_SPECIALS) && adz <= P->bspec_dz && adx >= P->bspec_min && adx <= P->bspec_max &&
                 (rnd() & halve(P->bspec_mask, dbl)) == 0) { ready(e, a, K_BSPEC); continue; }   /* boss: a special on his line */
+            if (P->rush_chance && adz <= 6 && adx >= P->rush_min && adx <= P->rush_max && e->facing == sgn(dx) &&
+                role_slot(e, AR_RUSH) != 0xFF && rnd() < twice(P->rush_chance, dbl)) { ready(e, a, K_RUSH); continue; }   /* its rush */
             if ((P->flags & AIF_JUMP_IN) && adz <= P->jump_dz && adx >= P->jump_min && adx <= P->jump_max &&
                 rnd() < twice(P->jump_chance, dbl) && e->facing == sgn(dx)) { ready(e, a, K_JUMP); continue; }   /* the jump-in */
             if (adz <= P->range_dz && adx <= P->range_max) {
@@ -678,7 +750,23 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
                     if (adx >= P->range_min) { if (e->facing == sgn(dx)) ready(e, a, K_PUNCH); continue; }   /* (turned first) */
                 }
             }
+            if (P->moves & AIM_FLANK) {                          /* one nearer him on one side: the other side, around him */
+                const fighter_t *f2 = fs + np;
+                const ai_t *a2 = AI + np;
+                uint8_t j;
+                int16_t me = iabs(ex - tx), ox;
+                for (j = np; j < nf; j++, f2++, a2++) {
+                    if (j == i || a2->mode == AM_FREE || a2->target != a->target || f2->state == S_OFF || hurt(f2)) continue;
+                    ox = INT(f2->x) - tx;
+                    if (iabs(ox) < me && iabs(ox) < 100) { side = ox > 0 ? -1 : 1; break; }
+                }
+            }
             gx = side > 0 ? tx + P->attack_dx : tx - P->attack_dx; gz = tz;
+            if ((P->moves & AIM_FLANK) && (ex > tx ? 1 : -1) != side && iabs(ex - tx) < P->attack_dx + 16) {   /* (crossing) */
+                gz = ez <= tz ? tz - 24 : tz + 24;
+                if (gz < z_back(ex)) gz = tz + 24;
+                if (gz > Z_DEPTH) gz = tz - 24;
+            }
             walk_to(o, a, gx, gz, ex, ez, 6, 3);
             continue;
         }

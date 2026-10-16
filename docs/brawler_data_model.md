@@ -46,7 +46,7 @@ a lab writes a replacement table into RAM and changes the pointer (or, for the A
 
 | table | type (gamedata.h) | size | in | live-swappable |
 |---|---|---|---|---|
-| AI rows | `ai_preset_t ai_presets[AI_COUNT]` via `ai_tab` | 42 bytes each | RAM (copied at boot) | yes: write the bytes (next decision), or a data pack (next spawn) |
+| AI rows | `ai_preset_t ai_presets[AI_COUNT]` via `ai_tab` | 52 bytes each | RAM (copied at boot) | yes: write the bytes (next decision), or a data pack (next spawn) |
 | enemies | `genemy_t genemies_rom[]` via `genemies` | 26 bytes each | ROM, pointer in RAM | yes, a data pack; read at each spawn |
 | stages, waves, spawns | `gstage_t`, `gwave_t`, `gspawn_t` via `gstages` | 24 / 6 / 8 bytes | ROM, pointer in RAM | yes, a data pack; `gs` re-read at the safe point, its waves and spawns as they come |
 | tints | `gtint_t gtints[]` | 6 bytes each | ROM | not yet (a pointer when the lab needs it) |
@@ -725,7 +725,7 @@ voice `scream_delay` frames later (120; main.c `boss_ko_tick`; a minion fall due
 waits for then).
 
 `ai.rules`: the enemies' shared rules (section "Enemy rules" below; replaced `ai.tokens`). `ai.presets` (today minion,
-minion_attract, boss), all fields bytes, `ai_preset_t` (42 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
+minion_attract, the wave tiers wave_t3 .. wave_t6, boss), all fields bytes, `ai_preset_t` (52 bytes) in this order (build_tables.py AI_ORDER; game_tables.c
 asserts every offset), then one row per enemy with `ai_over`:
 
 | field | minion | boss | meaning |
@@ -744,6 +744,45 @@ asserts every offset), then one row per enemy with `ai_over`:
 | `jump_min`, `jump_max`, `jump_dz`, `jump_chance`, `rest_jump`, `air_b_dx` | - | 24, 140, 8, 64, 140, 56 | jump-in, any enemy with `jump_in`: the token holder (or a `token` enemy) after its rest, from jump_min to jump_max on the depth line +- jump_dz, jump_chance of 256 a frame: a full forward jump, its air attack (down+A = air B, or up+A = air C+D with `air_cd`) on the way down this close |
 | `hop_dx`, `hop_chance` | - | - | with `jump_in`: the token holder resting closer than hop_dx hops back (hop_chance of 256 a frame, 0 = never), out to the jump-in range |
 | `proj_chance` (json) -> `proj_mask`, `proj_mask2` | 512 | 512 | the projectile, 1 in N a frame in range: (random & proj_mask) == 0, then (random & proj_mask2) == proj_mask2 (512 = 255, 1: the 0.0.34 rule, the same random draws) |
+| `moves` (json: a list) | - | - | the situations' switches (2026-10-16, gamedata.h AIM_*): `roles` = its projectile is the fighter's projectile special (`ai_roles`, below; none: never), not its neutral C; `flank` = a token holder farther from its player than another one already on him from one side approaches from the other side, around him |
+| `aa_dx`, `aa_dz`, `aa_chance`, `aa_react` | - | - | the anti-air: its player in the air within aa_dx / aa_dz, aa_react frames after his take-off (an air attack: at once): the fighter's anti-air special (`ai_roles`), aa_chance of 256, rolled once a jump; no wind-up hold (the reaction floor is the tell); rest_rev after it |
+| `punish_chance`, `punish_react` | - | - | his attack (not a fury) punish_react frames in without a hit, or his hold on a teammate, within its punch reach: its string (its layer's) after a one-frame ready wait; farther, within rush_min-rush_max: its rush; punish_chance of 256, once each |
+| `rush_min`, `rush_max`, `rush_chance` | - | - | approaching, its player rush_min-rush_max px away on its line (+-6): the fighter's rush special (`ai_roles`), rush_chance of 256 a think, after the ready wait and the special's wind-up |
+
+Every new field is 0 in the presets that were there (minion, minion_attract, boss): those play exactly as before (no
+random draw is added for them).
+
+**Specials by situation** (`ai_roles`, 2026-10-16): game_tables `ai_roles[BC_COUNT][AR_COUNT]` = per fighter the special
+slot (BS_D .. BS_UF_D: neutral, f, d, u, df, uf + C) it plays as an enemy's projectile / anti-air / rush (0xFF none),
+picked by build_tables.py `ai_roles` from the export (build/chainlab.json pools: each slot's special's travel, height,
+first hit, projectile): projectile = a slot whose special throws one (a travelling one first); anti-air = rising
+(height >= 35 px, travel <= 140 px, first hit by frame 12, no travelling projectile), the highest and quickest; rush =
+forward (travel >= 80 px, height <= 50 px, first hit by frame 24, no projectile), the longest and quickest.
+`roster[].ai_roles {"projectile" | "anti_air" | "rush": slot key or null}` overrides a pick (none set). The Lab shell's
+slot fighter reads the shell build's row.
+
+**The wave tiers** (Bruno 2026-10-16, after tester Wael's 0.10.150 run: stage 1's five waves cleared in 2 min 40 s
+with 0 deaths, then 4 deaths on the boss: "the enemies are too boring - give them a WIDE RANGE OF MOVES"; "more
+difficulty but fewer of them"): each wave's enemies are one tier (enemies, all on MINION's pool, HUD "fighter",
+attract_ai minion_attract, life at NORMAL):
+
+| enemy | AI preset | layer (`boss_ai`) | life | waves |
+|---|---|---|---|---|
+| MINION | minion | - | 60 | stage 1 wave 1 (the intro); the bosses' minions |
+| THUG | minion | - | 78 | stage 1 wave 2, GARAGE wave 1 |
+| BRAWLER | wave_t3 | guard 24 / max 1, run 48, 7 strings | 78 | stage 1 wave 3, GARAGE 2, STAGE 2 1 |
+| VETERAN | wave_t4 | guard 40 / max 1, run 64, 8 strings | 84 | stage 1 wave 4, GARAGE 3, STAGE 2 2, STAGE 3 1 |
+| ELITE | wave_t5 | guard 56 / max 2, run 96, ready_shift 1, 10 strings | 84 | stage 1 wave 5, GARAGE 4-5, STAGE 2 3-4, STAGE 3 2-3, STAGE 4 1-2 |
+| CHAMPION | wave_t6 | guard 64 / max 2, run 112, ready_shift 1, 10 strings | 90 | STAGE 2 wave 5, STAGE 3 4-5, STAGE 4 3-5 |
+
+Enemies per wave, before -> after: STAGE 1 2 3 4 5 6 -> 2 2 3 3 3; GARAGE 3 4 5 6 6 -> 2 3 3 4 4; STAGE 2 4 5 6 6 6 ->
+3 3 4 4 4; STAGE 3 5 6 6 6 6 -> 3 4 4 4 4; STAGE 4 6 6 6 6 6 -> 4 4 4 4 4 (the first spawns of each wave kept). The
+tiers' presets (wave_t3 .. t6): grab + projectile + jump_in, moves roles + flank, shorter rests by tier, anti-air 64 ->
+150 of 256 (react 12 -> 8 frames), punish 64 -> 144, rush 3 -> 6 a think, projectile 1 in 256 -> 64 a frame, jump-in
+3 -> 6 with back-hops. Fair: every attack keeps its wind-up (the anti-air's reaction floor instead), a guard breaks on
+its 1st / 2nd extra hit, the chain core's player stun / untouchable window still stops a pair from sandwiching him. The
+bosses (their presets, layers, damage_out 0.5) are unchanged. Measured by tools/brawler/variety.py (a Terry bot with
+Wael's moves, every wave of a stage from its start).
 
 Spec's names for the overrides: aggression = `token` + the rests, rest = `rest_*`, preferred range / depth =
 `attack_dx`, `hover_dx`, `range_*`, special / jump-in / grab chance = `proj_chance` and `bspec_chance`, `jump_chance`,
@@ -802,7 +841,9 @@ Proofs (our emulator's core, harness; scripts and outputs in /data/tmp/rv1b, too
 ### The boss layer (TODO T9, Bruno 2026-10-15: tougher bosses, even at LEVEL-4)
 
 A boss enemy may carry `enemies[].boss_ai` (build_tables.py `boss_ai` -> game_tables `gbossai_rom[enemy]`, gamedata.h
-`gbossai_t`; ai.c "the boss layer"), played on top of its preset (made more aggressive per boss with `ai_over`: shorter
+`gbossai_t`; ai.c "the boss layer"), played on top of its preset (since 2026-10-16 any enemy: a wave's spawns and a
+trigger's spawns with one play it too, main.c spawns_ai; the wave tiers above use guard, run and strings, no grab
+immunity, no red period) (made more aggressive per boss with `ai_over`: shorter
 rests, fewer blind specials / jump-ins). The beta's four (MR_BIG, KRAUSER, GEESE, RUGAL) have one, harder stage by stage.
 
 | field | what |
@@ -1132,6 +1173,9 @@ scene past DR_COUNT; 19: a trigger (kinds, actions, spawn count 1-6, enemy, tint
 
 Pack version 5 (TODO #58): AI rows grow to 42 bytes (`hop_dx`, `hop_chance`); `gd_check` 2 refuses any pack before 5
 (its AI rows are 40 bytes). The lab builds its pack from game.json each time, so no stored pack is lost.
+
+Pack version 8 (2026-10-16, the enemies' situations): AI rows grow to 52 bytes (`moves`, `aa_*`, `punish_*`,
+`rush_*`); only version 8 loads (check 2).
 
 Pack version 7 (TODO #71, one attack button): route trees version 4 (`TREE_VERSION`; links A, B = jump-cancel, ↓A,
 close A, →A, ←A, ↘A, slots 7-8 unused, then the six C specials, data keys AB .. ufAB); only version 7 loads (older packs' trees read the old

@@ -42,6 +42,9 @@
     for (const f of p.flags || []) { if (!(f in X.ai_flags)) throw new Error(`AI ${n}: no flag ${f}`); fl |= X.ai_flags[f]; }
     const v = { flags: fl };
     for (const k of X.ai_fields) v[k] = p[k] === undefined ? 0 : p[k];
+    let mv = 0;
+    for (const f of p.moves || []) { if (!(f in (X.ai_moves || {}))) throw new Error(`AI ${n}: no moves ${f}`); mv |= X.ai_moves[f]; }
+    v.moves = mv;
     for (const [k, m] of Object.entries(X.chance_masks)) {
       const ch = p[k] === undefined ? (k === 'follow_ups' ? 1 : 0) : p[k];
       if (k === 'follow_ups') v[m] = ch ? (1 << (32 - Math.clz32(ch))) - 1 : 0;
@@ -130,7 +133,7 @@
           base = idx.get(b); pl = [];
         }
         const over = e.ai_over || {};
-        for (const k of Object.keys(over)) if (!X.ai_fields.includes(k) && !(k in X.chance_masks) && k !== 'flags' && k !== 'proj_chance') throw new Error(`ai_over ${k}`);
+        for (const k of Object.keys(over)) if (!X.ai_fields.includes(k) && !(k in X.chance_masks) && k !== 'flags' && k !== 'proj_chance' && k !== 'moves') throw new Error(`ai_over ${k}`);
         const pal = e.palette || {};
         for (const k of Object.keys(pal)) if (!['set', 'tint', 'custom'].includes(k)) throw new Error(`palette ${k}`);
         let cu = pal.custom === undefined || pal.custom === null ? null : pal.custom.map(num);

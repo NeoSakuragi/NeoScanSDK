@@ -5847,5 +5847,18 @@
   "expect": "Down + C throws the fireball with KOF98's own startup; it flies slowly (3 px a frame, like Terry's Power Wave and Hanzo's Bakuen Ryuu). On impact Ryo bounces up and the way he was facing: facing Robert (left), he flies left, toward Robert (a victim facing right flies right). Up + C plays the dance (KOF98's close 426B, formerly on down + C).",
   "do_keys": "2:D,2:Dc,2:-,120:-,2:U,2:Uc",
   "proof": 150
+ },
+ "enemy-variety-20261016": {
+  "title": "Stage 1 wave 3: fewer, tougher enemies with a wide range of moves",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 2
+  },
+  "do": "Fight wave 3 of stage 1. Jump at one of them, whiff a jab just in front of one, then fight on as usual.",
+  "expect": "Three enemies (four before), each tougher (78 life, 60 before). They no longer only walk up and jab: they run in (and dash-attack), jump in with an air attack, back-hop, guard some of your attacks (one hit at most, the next one breaks it), fire their projectile, rush in with their forward special from mid range, answer a jump with their anti-air, punish a whiffed attack, and a second one coming at you takes your other side. Every attack still shows its wind-up first (readable).",
+  "do_keys": "",
+  "proof": 600
  }
 }
