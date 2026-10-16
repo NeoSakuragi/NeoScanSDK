@@ -337,4 +337,11 @@
     <string name="voice_play">▶ Voix</string>
     <string name="with_voice">(avec votre voix)</string>
     <string name="your_note">Votre note : %1$s</string>
+    <string name="menu_touch">Commandes tactiles : %1$s</string>
+    <string name="touch_title">Commandes tactiles</string>
+    <string name="touch_auto">Auto</string>
+    <string name="touch_auto_long">Auto (masquées quand une manette est branchée)</string>
+    <string name="touch_show">Toujours affichées</string>
+    <string name="touch_hide">Masquées</string>
+    <string name="pad_controller">Manette branchée : commandes tactiles masquées.\nSELECT + START = menu, SELECT + A (maintenu) = Avis</string>
 </resources>

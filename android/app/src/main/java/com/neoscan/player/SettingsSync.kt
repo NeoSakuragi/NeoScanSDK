@@ -15,7 +15,7 @@ import java.net.URL
 object SettingsSync {
     private const val TAG = "NeoScanPlayer"
     private val KEYS = setOf("language", "orientation", "filter", "aspect", "scale", "scanlines", "opacity", "size", "vibrate",
-                             "autoUpdate", "system", "frameStats")
+                             "autoUpdate", "system", "frameStats", "touch")
 
     private fun meta(ctx: Context) = ctx.getSharedPreferences("settings_meta", 0)
     fun touched(ctx: Context) { meta(ctx).edit().putLong("updated", System.currentTimeMillis()).commit(); if (Auth.user(ctx) != null) push(ctx) }
