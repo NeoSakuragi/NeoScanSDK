@@ -675,12 +675,20 @@ def han_sd(v):
     room: a 9th / 10th palette for the fighter, or the SD sprite recoloured into his 8)"""
     return [E((82, 0, 0), [('set', 'vx', 0), ('set', 'cnt', SD_FRAMES - 1)], [('cnt', 'end')])], []
 
+def vturn(a, k):
+    """a held entry's facing (VE_TURN: the attacker's way): SS2 sets its victim to its catcher's facing ($370B4) and a
+    step whose flags bit 15 is set draws its picture MIRRORED (490 / 492: the grab and the lift, the victim facing
+    Hanzo; 494, head down: not). The brawler's posture frames are drawn by their facing, so a mirrored step faces him
+    (turn 0), an unmirrored one his way (turn 1). Before (every entry turned) the grabbed victim showed its back to him
+    (note 20261016-100931-e03d: "the victim is reversed ... I want the victim facing Hanzo") [code: ss2.parse_anim]"""
+    return 0 if ss2.parse_anim(0, a, 400)[k]['flags'] & 0x8000 else 1
+
 def mozu_lists(v):
     """the victim of Mozu Otoshi (VL; handlers_ss2.voff: Haohmaru's offsets, every character's victim animations): at his
     place facing his way; lists: 490 (his 58), 492 (his 60), 494 (his 62, step by step), the slam (a blow, his held pose),
     the release (460 burning: the flight $371D8[b], 8.8 vy down)"""
     rv = N.u32(0x371D8 + 4 * v)
-    t = lambda a, k, fl=0: vcentre(a, k) + ('%d.%d' % (a, k), fl, 1)   # (held: the pictures' centres, VL centre)
+    t = lambda a, k, fl=0: vcentre(a, k) + ('%d.%d' % (a, k), fl, vturn(a, k))   # (held: the pictures' centres, VL centre)
     return [VL([t(490, 0), t(490, 1)], centre=True), VL([t(492, 0)], centre=True), VL([t(494, k) for k in range(4)], centre=True),
             VL([t(494, 0, 1)], centre=True), VL([(0, 0, '460.0', 64, 1)], rel=(N.s16(rv), N.s16(rv + 2)))]
 

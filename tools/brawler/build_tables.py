@@ -491,6 +491,31 @@ def blitz_rows(g, build):
     return out
 
 
+def run_grab(g, build):
+    """grun_grab: per roster fighter (bm_chars order) its run grab (note 20261016-100735-e03d, SS2 Hanzo's Mozu Otoshi out of
+    a run: "performed AUTOMATICALLY if Hanzo is running into an opponent for at least 30 frames; at the moment of the grab,
+    if there is at least 1 meter, this special Mozu Otoshi, with the blue special tint"): roster[].throws.run {special: a
+    grab special of its bank (export_bm throw_specials puts it in the pool), frames: the run's frames at least (1-255), cost:
+    drive chunks (1-4)} -> (its pool index, frames, cost); none: (0xFF, 0, 0). fighter.c try_grab: a player whose run
+    (S_RUN, not a dash) has lasted `frames` grabs with that special instead of the hold when its drive holds `cost`
+    chunks (paid, the special's blue flash); short of them, the hold as before"""
+    fl = json.load(open(os.path.join(build, 'chainlab.json')))['fighters']
+    pools = {f['name']: [p['input'] for p in f['pool']] for f in fl}
+    out = []
+    for r in g['roster']:
+        e = (r.get('throws') or {}).get('run')
+        if not e: out.append((r['name'], (0xFF, 0, 0))); continue
+        w = f"roster {r['name']}: throws.run"
+        for k in e: assert k in ('special', 'frames', 'cost', 'about'), f'{w}: unknown field {k}'
+        assert e.get('special') in pools[r['name']], f"{w}.special {e.get('special')}: not in its pool ({' '.join(map(str, pools[r['name']]))})"
+        assert isinstance(e.get('frames'), int) and 1 <= e['frames'] <= 255, f'{w}.frames: 1-255 run frames'
+        assert isinstance(e.get('cost', 1), int) and 1 <= e.get('cost', 1) <= 4, f'{w}.cost: 1-4 drive chunks'
+        ix = pools[r['name']].index(e['special'])
+        assert ix < 0xFF, f'{w}: pool index {ix}'
+        out.append((r['name'], (ix, e['frames'], e.get('cost', 1))))
+    return out
+
+
 def blitz_cancels(g):
     """gblitz_can: per roster fighter (bm_chars order) per Blitz slot (BZ_FF .. BZ_UU) the slots it may cancel into on hit,
     bit k = slot k (roster[].blitz_cancel {from: [to, ...]}; Bruno 2026-10-09, note 20261009-114542-5d29: Terry's quirk
@@ -1609,6 +1634,7 @@ def tables(g, build):
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
+         'extern const uint8_t grun_grab[BC_COUNT][3];   /* the run grab (game.json roster[].throws.run, note 20261016-100735-e03d; fighter.c try_grab): [its grab special\'s pool index (0xFF none), run frames before it, drive chunks it costs] */',
          'extern const int16_t gsgt_bounce[BC_COUNT][2];   /* a grab special\'s slam bounce (vy, vx 8.8 px a frame; game.json slam_bounce, special_grab_timing.bounce; fighter.c slam_bounce) */',
          'extern const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT];   /* a throw\'s damage row and hand-off row as Bruno judged it (game.json roster[].throws.timing; gamedata.h gthrtm_t, fighter.c throw_start; 0xFFFF: the rule) */',
          'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
@@ -1738,6 +1764,8 @@ def tables(g, build):
     c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
     c.append('const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(
         '{ ' + ', '.join('{ %s, %s, %s, 0, %d, %d }' % t for t in throw_timing(r, g)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
+    c.append('const uint8_t grun_grab[BC_COUNT][3] = {\n    ' + ',\n    '.join(
+        '{ %d, %d, %d }' % t + f'   /* {n} */' for n, t in run_grab(g, build)) + '\n};')
     sb = []                                              # a grab special's slam bounce (special_grab_timing, slam_bounce)
     for r in g['roster']:
         bv = {slam_bounce(e, g.get('slam_bounce'), f"roster {r['name']}: special_grab_timing.{inp}")

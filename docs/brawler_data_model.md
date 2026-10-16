@@ -348,6 +348,14 @@ each), scenario.py lint 0.
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;
   fighter.c victim_rows / paired_update, hold_nimp / hold_last). Kim's $6E: 5 held + 5 knockdown (was 10 at the first).
+- `roster[].throws.hold.victim_dx` (px, exact) / `victim_face` ("holder") (note 20261016-100931-e03d, SS2 Hanzo): the
+  held victim's place in the hold instead of its forward throw's row 0 (export_bm hold_rows): Hanzo's throw starts with
+  SS2's victim 15 px into him, turned away; his hold now 34 px in front, facing him.
+- `roster[].throws.run` {special, frames, cost} (note 20261016-100735-e03d, SS2 Hanzo's Mozu Otoshi out of a run): a
+  player's run (not a dash) of `frames` frames or more that grabs plays that grab special of its bank instead of the
+  hold, for `cost` drive chunks, with the paid special's blue flash; short of the drive: the hold (build_tables
+  `run_grab` -> `grun_grab[fighter]` {pool index, frames, cost}; fighter.c run_grab, fighter_t rgrab: started by the
+  hold's next update). Its slam: `special_grab_timing` under the special's input (`run 623CD`).
 - fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before
   combat), so a buffered press no longer cancels a multi-hit link on the frame its last hit starts ($96's third).
 

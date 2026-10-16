@@ -583,6 +583,8 @@ typedef struct fighter {
      * attack so far (gjump.active_min); wspd = its walk (16.16, gwalk_rom), wrate = its walk / run animation's rate (8.8:
      * wspd / its KOF walk, the feet don't slide) */
     uint8_t  sinv, brkr, blz_buf, jt, aact, jrun;   /* jrun: the jump started from a run (gjump.run_dx) */
+    uint8_t  rgrab;               /* the run grab pending (fighter.c run_grab): its special's pool index + 1, played by
+                                     the hold's next update (hold_update), 0 none */
     uint8_t  hcyc[2];             /* the hit cycles (fighter.c btn_sound, game.json hit_sounds): the next entry of the light / strong list */
     uint16_t wrate;
     int32_t  wspd;

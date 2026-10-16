@@ -5154,5 +5154,56 @@
   "expect": "Ryo bounces up a little off the floor at the slam instead of just lying there, and Haggar can move again at once: your jab hits Ryo in the air before he lands. The same on every slam throw (Terry and Robert back, Haggar forward / back / hold + B, Hanzo forward and his Mozu Otoshi, Haohmaru forward, Kim both ways); impact throws are unchanged.",
   "do_keys": "20:R,2:La,4:-,14:L,2:a,8:-,2:a",
   "proof": 120
+ },
+ "20261016-100931-e03d": {
+  "title": "Hanzo (SS2) grab stance: the victim faces him at the usual distance",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "billy",
+   "gap": 34
+  },
+  "do": "As Hanzo walk into Billy to grab him and keep holding him (no button). Then press B (the Mozu Otoshi) and watch Billy while Hanzo crouches and leaps.",
+  "expect": "In the hold Billy stands in front of Hanzo facing him, about a body's width away (as Terry, Haohmaru or Billy Lee hold their victims), no longer turned away and sunk into Hanzo. In the Mozu Otoshi's grab and lift Billy still faces Hanzo; the head-down fall and the slam are unchanged.",
+  "do_keys": "20:R,40:-,1:b",
+  "proof": 120
+ },
+ "20261016-100558-e03d": {
+  "title": "Select screen cheat: also the full meter and the fury unlocked in every game",
+  "setup": {
+   "mode": "select"
+  },
+  "do": "On the select screen hold down for 2 seconds, then up for 2 seconds (the confirm sound). Pick a fighter and play: look at the drive bar under your life bar, then press D.",
+  "expect": "The drive bar has its 4 chunks, all full, and your fighter blinks (the fury gauge full); D plays the fury at once, without the posts bonus game first. Every new game starts like that (it is kept in the save with the unlocked fighters); the Player's Reset game save turns it off again.",
+  "do_keys": "120:D,120:U,60:-,3:a,600:-",
+  "proof": 120
+ },
+ "20261016-101200-e03d": {
+  "title": "Super Death Blow bonus: the posts break after 10 hits (were 12)",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Walk up to the first post and hit it, counting your hits, until it splinters. Do the same on the next posts.",
+  "expect": "Each post splinters on the 10th hit (it took 12). Its cracks still grow as it is hit: a small one after 3 hits, a bigger one after 5, right across the trunk after 8.",
+  "do_keys": "70:-,110:R,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-,4:a,16:-",
+  "proof": 120
+ },
+ "20261016-100735-e03d": {
+  "title": "Hanzo (SS2): run into an opponent with a drive chunk = the Mozu Otoshi out of a run, by itself",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "x": 20,
+   "gap": 280,
+   "drive": "full"
+  },
+  "do": "Hanzo stands far from Ryo with a full drive bar. Tap forward twice and hold it: Hanzo runs all the way into Ryo (over half a second). Then run into him again with an empty drive bar, and once with a short run (start running right next to him).",
+  "expect": "After a long run (30 frames or more) the grab turns at once into SS2's other Mozu Otoshi: Hanzo flashes blue, one drive chunk is gone, and he vanishes straight up with Ryo (no crouch first), far off the top of the screen, drifting back as he rises; they come down head first, the slam with the fire columns, Ryo bounces off the floor (juggle him). Ryo faces Hanzo in the grab and the lift. With no chunk left, or after a short run, he just holds Ryo as usual.",
+  "do_keys": "1:R,1:-,40:R",
+  "proof": 200
  }
 }

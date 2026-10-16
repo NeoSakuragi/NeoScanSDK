@@ -1903,7 +1903,10 @@ typedef struct {
     uint8_t  difficulty;                         /* format 2: AES OPTIONS difficulty 0-3 (format 1: 0, a spare) */
     uint8_t  rungs;                              /* the unlock ladder's rungs unlocked (game.json unlocks: one a game clear;
                                                     a spare 0 before 2026-10-15: same format, nothing unlocked) */
-    uint8_t  pad[4];
+    uint8_t  cheat;                              /* bit 0: the select screen's cheat entered (note 20261016-100558-e03d: every
+                                                    game then starts with the meter at its maximum and the fury unlocked;
+                                                    a spare 0 before: same format) */
+    uint8_t  pad[3];
     uint16_t sum;
 } save_t;
 NEO_BACKUP save_t save;
@@ -1932,8 +1935,8 @@ static void save_write(void) {
 static void save_reset(void) {
     uint8_t i;
     for (i = 0; i < 4; i++) save.magic[i] = SAVE_MAGIC[i];
-    save.furthest = 0; save.unlocked = 0; save.difficulty = 1; save.rungs = 0;
-    for (i = 0; i < 4; i++) save.pad[i] = 0;
+    save.furthest = 0; save.unlocked = 0; save.difficulty = 1; save.rungs = 0; save.cheat = 0;
+    for (i = 0; i < 3; i++) save.pad[i] = 0;
     save.sum = save_sum(&save);
 }
 static void save_load(void) {
@@ -1954,6 +1957,11 @@ static void save_load(void) {
  * backup block, which the BIOS keeps in battery RAM from the next return to it, as the stage clears' rungs) */
 #define CHEAT_HOLD 120
 static uint8_t cheat_flags;
+/* the cheat's game (note 20261016-100558-e03d, "once activated, I also want the player to automatically have maximum
+ * meter and the fury unlocked"): saved with the ladder (save.cheat), every new game then has the drive bar at its most
+ * chunks (MAX_CHUNKS, as the gauge games' rewards at their cap), both bars full at each stage's start and the fury never
+ * locked (fury_lock off, as after the posts); never the attract demo; the player app's Reset game save clears it */
+#define CHEAT_GAME (!attract && (save.cheat & 1))
 static uint16_t cheat_t[2];
 static uint8_t rungs_now(void) { return save.rungs; }
 static uint8_t char_locked(uint8_t c) {          /* 0xFF: never picked (a form link's target; with the unlock ladder,
@@ -2955,6 +2963,7 @@ static void intro_walk_start(void) {
         fighter_init(f, &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, cam_x + in_mark(i), gi->mark_z[i]);   /* (its
                                                              depth checked at the mark) */
         f->idx = i; f->facing = gi->side ? -1 : 1;
+        if (CHEAT_GAME) fighter_meter_fill(f);               /* (the cheat: both bars full, as stage_begin) */
         in_x[i] = FIX(cam_x + (gi->side ? 320 + gi->from : -(int16_t)gi->from)); f->x = in_x[i]; in_at[i] = 0;
     }
     hud_reset();                                             /* the HUD back, with the players */
@@ -3018,12 +3027,14 @@ static void stage_begin(uint8_t s, uint8_t first) {
     lock_x = lock_at(gs->waves[0].lock);
     power = gs->power;
     if (first) { ai_rank_reset(); fighter_game_reset(); }    /* a new game: the hidden rank from rank_start (revamp 1B), fighter.c's statics */
+    if (first && CHEAT_GAME) drive_chunks = MAX_CHUNKS;      /* the cheat: the bar at its most chunks (see CHEAT_GAME) */
     for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
     for (i = 0; i < 2; i++) {
         if (!pl_on[i]) { fighters[i].state = S_OFF; if (first) { lives[i] = 0; cont_t[i] = 0; } continue; }   /* out: its
                                                              continue countdown (if any) goes on */
         fighter_init(&fighters[i], &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, i ? 40 : 60, i ? 10 : 40);
         fighters[i].idx = i;
+        if (CHEAT_GAME) fighter_meter_fill(&fighters[i]);    /* the cheat: both bars full at each stage's start */
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
     gi = &gintro[s]; in_ph = IN_OFF; in_t = 0;
@@ -3041,7 +3052,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
 static void bonus_off(void);
 static void fight_start(void) {                  /* from the select screen (pl_* set): a new game at camp_from */
     bonus_off();                                 /* (a bonus cut short by the BIOS: its sprites given back) */
-    fury_lock = !attract && gbonus.fury_lock;        /* a new credit: the fury locked until the posts are won (the
+    fury_lock = !attract && gbonus.fury_lock && !(save.cheat & 1);   /* (the cheat: never locked) a new credit: the fury locked until the posts are won (the
                                                         attract demo never: its bot plays as before) */
     bn_won = 0; bonus_on = BN_OFF;
     stage_begin(attract ? 0 : camp_from, 1);
@@ -3940,6 +3951,7 @@ static void p2_join(void) {                      /* P2 joins mid-fight: START wi
         for (c = 0; c < BC_COUNT && (char_locked(c) || &bm_chars[c] == fighters[0].ch); c++) ;
     fighter_init(&fighters[1], &bm_chars[c < BC_COUNT ? c : 1], 1, 16 + MAX_PALS, 0, cam_x + 40, 20);
     fighters[1].idx = 1; fighter_revive(&fighters[1]); lives[1] = 2; BIOS_PLAYER_MOD[1] = 1;
+    if (CHEAT_GAME) fighter_meter_fill(&fighters[1]);        /* (the cheat: as P1, both bars full) */
     bios_start &= ~2;
 }
 #define DEATH_BLINK 60            /* frames a dead fighter blinks (players: with its death voice) before it goes */
@@ -4696,14 +4708,14 @@ static void select_tick(void) {
     uint8_t a, p, s;
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
-        if (LAD_N && save.rungs < LAD_RUNGS) {               /* the cheat: down held 2 s, up held 2 s */
+        if (LAD_N && (save.rungs < LAD_RUNGS || !(save.cheat & 1))) {   /* the cheat: down held 2 s, up held 2 s */
             uint16_t h = JOY_held(0) | JOY_held(1);
             uint8_t d = (h & JOY_DIR_MASK) == JOY_DOWN ? 0 : (h & JOY_DIR_MASK) == JOY_UP ? 1 : 2;
             if (d < 2) { if (++cheat_t[d] == CHEAT_HOLD) cheat_flags |= 1 << d; cheat_t[d ^ 1] = 0; }
             else cheat_t[0] = cheat_t[1] = 0;
             if (cheat_flags == 3) {                          /* the whole ladder, saved */
                 cheat_flags = 0; cheat_t[0] = cheat_t[1] = 0;
-                save.rungs = LAD_RUNGS; save_write();
+                save.rungs = LAD_RUNGS; save.cheat |= 1; save_write();
                 snd_ssg(SSG_CONFIRM); select_start(); return;
             }
         }

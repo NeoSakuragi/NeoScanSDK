@@ -1553,7 +1553,7 @@ static uint8_t script_owned(const fighter_t *f) {
 }
 static void grab(fighter_t *a, fighter_t *v) {
     const bthrow_row_t *h = a->ch->holds[0].rows;                /* the victim's pose: the hold hit's first row */
-    enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0; a->xwait = 0;
+    enter(a, S_GRAB); a->held = v; a->target = v; a->grab_hits = 0; a->srow = 0; a->zfront = 1; a->buffered = 0; a->xwait = 0; a->rgrab = 0;
     a->spec_buf = a->fury_buf = 0; a->cnc_buf = 0;               /* (presses before the hold: not for it) */
     a->frame_ovr = grab_frame(a);                                /* silent: the throw's sound comes with its start (#166) */
     if (a->team) stat_grabs++;
@@ -1564,6 +1564,7 @@ static void grab(fighter_t *a, fighter_t *v) {
 }
 static void release(fighter_t *a) {                              /* both free where they stand */
     fighter_t *v = a->held;
+    a->rgrab = 0;                                                /* (a run grab's special not started: gone) */
     a->held = 0; a->frame_ovr = 0xFFFF; a->zfront = 0; a->y = 0; a->srow = 0; a->xwait = 0; to_neutral(a, 0);
     if (v) { v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
@@ -2482,6 +2483,13 @@ static void hold_walk(fighter_t *f, fighter_t *v, const intent_t *in) {
 }
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
+    if (f->rgrab) {                                              /* the run grab (run_grab, paid): its special now */
+        uint8_t e = f->rgrab - 1;
+        f->rgrab = 0;
+        hold_special(f, BS_THROW, 1, e);
+        f->sfl = gmeter.sflash;                                  /* (the special's blue flash: pal_overlay) */
+        return;
+    }
     if (f->srow && f->throw_id == BT_HOLD_FIN && !f->team) {     /* the finisher on its way: C / D are buffered */
     } else if ((in->press & IN_C) || (f->fury_buf & 0x80)) {     /* (fighter_update, "cancels" rule 4); else C: the hold
                                                                     ends, the special at once (Bruno 2026-10-05); D (its
@@ -5060,6 +5068,24 @@ static void block(fighter_t *a, fighter_t *v, uint8_t dmg, int16_t sx, int16_t s
  * the hold as ever; GR_IMMUNE nothing (it stands firm: the grabber walks on into it, its back throw out of a chain does
  * not take it either: throw_ok); GR_COUNTER the reversal: standing (idle, walking, guarding) it grabs the grabber
  * instead, turned to it (gctr: its AI throws at once). A reeling fighter is grabbed whatever its roll. */
+/* the run grab (note 20261016-100735-e03d, SS2 Hanzo's Mozu Otoshi out of a run, "performed AUTOMATICALLY if Hanzo is
+ * running into an opponent for at least 30 frames; at the moment of the grab, if there is at least 1 meter, this
+ * special Mozu Otoshi, with the blue special tint"; game.json roster[].throws.run -> grun_grab [pool index, frames,
+ * cost]): a player's run (S_RUN, not a dash) that has lasted `frames` grabs into that grab special (role BS_THROW, as
+ * hold + B's: the victim let go reeling, the special's catch takes it) for `cost` drive chunks, with a paid C special's
+ * blue flash (sfl); short of the drive: the hold, as before. The special starts at the hold's next update (rgrab,
+ * hold_update), as hold + B's from a press. -> 1 played */
+static uint8_t run_grab(fighter_t *a, fighter_t *v) {
+    const uint8_t *r;
+    if (a->team || a->state != S_RUN || fighter_dash(a) || a->ch->id >= BC_COUNT) return 0;
+    r = grun_grab[a->ch->id];
+    if (r[0] == 0xFF || r[0] >= a->ch->nspec || a->state_t < r[1] || !drive_has(a, r[2])) return 0;
+    grab(a, v);
+    if (gmeter.infinite) a->drive = DRIVE_FULL; else a->drive -= (uint16_t)(r[2] * gmeter.chunk);
+    a->rgrab = r[0] + 1;                                         /* (its special from the hold's next update: started
+                                                                    here, inside combat, its catch frame passed unseen) */
+    return 1;
+}
 static void try_grab(fighter_t *a, fighter_t *v) {
     if ((v->grsp & 0x7F) == GR_IMMUNE && v->state != S_HITSTUN) {   /* (counted once a roll: bit 7) */
         if (!(v->grsp & 0x80)) { stat_immune++; v->grsp |= 0x80; }
@@ -5072,6 +5098,7 @@ static void try_grab(fighter_t *a, fighter_t *v) {
         grab(v, a);
         return;
     }
+    if (run_grab(a, v)) return;
     grab(a, v);
 }
 static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {

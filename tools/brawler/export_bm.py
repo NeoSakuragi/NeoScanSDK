@@ -383,7 +383,8 @@ def build(specs, outdir):
                                                 'inputs': [w for w in (roster().get(rname(game, n), {}).get('specials') or []) +
                                                            [roster().get(rname(game, n), {}).get(k) for k in ('fury', 'max')] +
                                                            slot_inputs(roster().get(rname(game, n), {}).get('blitz')) +
-                                                           slot_inputs(roster().get(rname(game, n), {}).get('air_specials')) if w]}
+                                                           slot_inputs(roster().get(rname(game, n), {}).get('air_specials')) +
+                                                           [((roster().get(rname(game, n), {}).get('throws') or {}).get('run') or {}).get('special')] if w]}
                                             for n in names if n in roster()},   # (moves: its roster entry's, by its bank:
                                                                                 #  samsho2:hanzo is hanzo_ss2; inputs: its slots'
                                                                                 #  specials, a button version among them exported)
@@ -1422,10 +1423,12 @@ def throw_specials(ch, name):
     """revamp phase 3 (Bruno 2026-10-08, docs/brawler_feel.md 8h: no command-grab inputs; grab specials become throws): the
     specials of its bank its throws play, from the hold (game.json roster[].throws.extra {u, d}: hold + up / down + A) and
     the super throw (throws.super: hold + forward / back + C with the meter), each read from the ROM (its program catches
-    the held victim); 'throw_x' names the paired extra throw instead (THROW_X). In throws order: extra, then super"""
+    the held victim); 'throw_x' names the paired extra throw instead (THROW_X). In throws order: extra, then super, then
+    the run grab (throws.run.special, note 20261016-100735-e03d: a run into an opponent grabs with it, paid; build_tables
+    run_grab -> grun_grab)"""
     t = throw_cfg(name); out = []
-    for key, inp in list((t.get('extra') or {}).items()) + [('super', t.get('super'))]:
-        assert key in ('u', 'd', 'b', 'super'), f'{name}: throws.extra key {key!r} (u = hold + up + A, d = hold + down + A, b = hold + B)'
+    for key, inp in list((t.get('extra') or {}).items()) + [('super', t.get('super')), ('run', (t.get('run') or {}).get('special'))]:
+        assert key in ('u', 'd', 'b', 'super', 'run'), f'{name}: throws.extra key {key!r} (u = hold + up + A, d = hold + down + A, b = hold + B)'
         if not inp or inp == THROW_X: continue
         sp = next((sp for sp in ch.get('specials', []) if sp['input'] == inp), None)
         assert sp and rom_ok(sp), f'{name}: throw {inp}: no special read from the ROM in its bank'
@@ -1953,7 +1956,7 @@ def hold_move(ch, n, tdata, k):
     HOLD_LOG.setdefault(n, {'startups': {m: v for m, v in st.items() if v is not None}})[k] = {'move': want, 'why': how}
     return want
 
-def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False):
+def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False, victim=None):
     """a hold hit (k 'hit', or 'fin' the finisher) as a paired script: the fighter's own `move` (a normal, its frames),
     its startup squeezed to HOLD_STARTUP frames (the last poses before the active step, 1 + 2 frames), the active step
     (impact on its first frame) and what follows, at most HOLD_TAIL frames; the victim held in the throw's grab pose
@@ -1962,7 +1965,11 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False):
     the first row's victim is also the hold's own pose (fighter.c grab). multi (game.json roster[].throws.hold.multi
     [k, ...]): every hit of the move is an impact (each active step after the first: $0100 with an attack box, the
     normals' rule), the tail kept to the last one; the finisher's victim reels at each and is knocked down only at the
-    last (fighter.c victim_rows: Kim's $6E, two kicks, Bruno 20261009-011518-5d29)"""
+    last (fighter.c victim_rows: Kim's $6E, two kicks, Bruno 20261009-011518-5d29). victim (game.json roster[].throws.hold
+    victim_dx / victim_face, note 20261016-100931-e03d): (dx, face) the held victim's place instead of the throw's row 0:
+    dx px in front (exact, not capped), face 'holder' = it faces its holder (row flags bit 0 clear), None = row 0's way.
+    SS2 Hanzo's forward throw starts with its victim 15 px into him, turned away (SS2's picture); the hold copied it
+    ("I want the victim facing Hanzo at a regular distance, like other characters")"""
     dx = HOLD_DX if dx is None else dx
     su = HOLD_STARTUP if startup is None else startup   # game.json roster[].throws.hold.startup {k: frames} (Terry's hit: 2)
     a = source(ch, move); steps = a['steps']
@@ -1986,6 +1993,8 @@ def hold_rows(ch, n, game, k, move, pkeys, dx=None, startup=None, multi=False):
         if th.get('grab_frame') is not None:            # SS2's turned grab (TODO #188 a): the hold is its picture mirrored,
             held = (held[0], min(-r0[1], dx), r0[2], r0[3] ^ 1)   # the victim in front facing him (bthrow_t.gframe)
     else: held = (255, dx, 0, 0)
+    if victim and victim[0] is not None: held = (held[0], victim[0], held[2], held[3])
+    if victim and victim[1] == 'holder': held = (held[0], held[1], held[2], held[3] & ~1)
     rows = []
     for fr, d in pre:
         for _ in range(d): rows.append(f'{{{fr}, 0, 0, {held[0]}, {held[3]}, {held[1]}, {held[2]}}}')
@@ -2455,8 +2464,10 @@ def write_c(chars, outdir):
         hl = []
         for k in HOLDS:
             hd = tdata.get('hold') or {}
+            assert hd.get('victim_face') in (None, 'holder'), f"{n}: throws.hold.victim_face {hd.get('victim_face')!r} ('holder' or none)"
+            assert hd.get('victim_dx') is None or (isinstance(hd['victim_dx'], int) and 0 <= hd['victim_dx'] <= 80), f'{n}: throws.hold.victim_dx 0-80 px'
             out, (ha, hs) = hold_rows(ch, n, game, k, hold_move(ch, n, tdata, k), pkeys, hd.get('dx'), (hd.get('startup') or {}).get(k),
-                                     k in (hd.get('multi') or []))
+                                     k in (hd.get('multi') or []), (hd.get('victim_dx'), hd.get('victim_face')))
             c.append(f'static const bthrow_row_t {n}_hold_{k}[] = {{' + ', '.join(out) + '};')
             hsx = (hd.get('sfx') or {}).get(k)          # its hit sound as a normal button's (game.json hold.sfx {k: 'A'}): SX_* + 1
             hsx = 0 if hsx is None else ['A', 'B', 'C', 'D', 'CD'].index(hsx) + 1
