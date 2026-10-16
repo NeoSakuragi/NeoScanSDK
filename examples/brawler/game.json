@@ -416,7 +416,18 @@
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"},
    "variant": {"623K": "C", "6321S": "A"},
-   "throws": {"extra": {"b": "623K"}, "super": "623K"}
+   "throws": {
+    "extra": {"b": "623K"},
+    "super": "623K",
+    "timing": {
+     "forward": {
+      "kind": "slam",
+      "damage_row": 30,
+      "glue_row": 37,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 31, glued until frame 38"
+     }
+    }
+   }
   },
   {
    "name": "kim",
@@ -526,7 +537,30 @@
    "finishers": {"launcher": null, "down": null, "neutral": "atk_c_close", "forward": "atk_c_close"},
    "specials": {"D": "AJ", "fD": null, "dD": null, "uD": null, "dfD": null, "ufD": null},
    "air": {"forward": "atk_d_jump", "straight": "atk_c_jump", "down": "atk_a_jump"},
-   "throws": {"hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}}, "b": {"travel": 94}},
+   "throws": {
+    "hold": {"hit": "atk_d_close", "fin": "atk_d_close", "dx": 36, "sfx": {"hit": "B"}},
+    "b": {"travel": 94},
+    "timing": {
+     "back": {
+      "kind": "slam",
+      "damage_row": 21,
+      "glue_row": 21,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 22, glued until frame 22"
+     },
+     "forward": {
+      "kind": "slam",
+      "damage_row": 21,
+      "glue_row": 21,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 22, glued until frame 22"
+     },
+     "hold_b": {
+      "kind": "slam",
+      "damage_row": 59,
+      "glue_row": 59,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 60, glued until frame 60"
+     }
+    }
+   },
    "blitz_slide": {"ff": {"about": "note 20261014-192939-5d29 (Bruno: 'for the forward-forward A blitz, in addition to this move, add a small sliding forward motion'): his ff Blitz (run + A / ff + A = the dash entry, FF's finisher atk_c_close, which stands still) glides 20 px forward over its first 12 frames, starting at his run's speed (3.08 px a frame) and slowing to a stop (fighter.c blitz_slide)", "px": 20, "frames": 12}},
    "hold_walk": {"about": "Final Fight's walk in the hold (note 20261014-171133-5d29; tools/ffight/rec_ff.py grab_walk*): the stick moves him and the held victim at his walk's speed on both axes (speed = x his walk), the facing kept, his bank's hold_walk animation ($14434) played forward / backward with the way he goes; the hold's timer runs on; A / forward or back + A / B as in the standing hold", "speed": 1},
    "fury_damage_scale": 2,
