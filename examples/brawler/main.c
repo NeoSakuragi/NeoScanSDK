@@ -3813,7 +3813,10 @@ static void bonus_input(void) {                  /* this tick's intents: the gau
     if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
     if (bn_g->kind == BK_GAUGE) { *i = (intent_t){ 0 }; fighter_blow(&fighters[bn_lead], bn_g->blows[bn_grade]); return; }   /* the
                                                     press: the grade's blow at the tree (games[].blows: his jab, his forward finisher) */
-    i->dz = 0;
+    if (!(i->press & (IN_A | IN_C | IN_D)) || (i->press & IN_B)) i->dz = 0;   /* his lane: no depth walk or jump; a
+                                                    button's tick keeps the stick (note 20261016-044016-e03d: down + C
+                                                    is the slot pick, SS2 Hanzo's projectile; down + D the MAX, down +
+                                                    A the down finisher) */
 }
 static void bonus_flow(void) {                   /* the fight tick's flow() for a bonus game (after the fighters' update) */
     fighter_t *f = &fighters[bn_lead];

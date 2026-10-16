@@ -4920,5 +4920,18 @@
   "expect": "The MAX rushes and hits the Ryo in front; its final spinning dragon punch hits both Ryos: the one in front and the one behind Robert, each knocked away from him. The plain fury (D) and his other moves are unchanged.",
   "do_keys": "3:Dd",
   "proof": 400
+ },
+ "20261016-044016-e03d": {
+  "title": "Posts bonus: down + C fires the projectile as in a fight",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "hanzo_ss2",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "As Hanzo, hold down and press C. Then hold down and press B (jump).",
+  "expect": "Down + C throws his projectile toward the post, exactly as in a stage fight (before: plain C's smoke vanish came out instead). He stays on his line: down alone or down + B never moves him toward or away from the camera.",
+  "do_keys": "60:-,3:Dc,60:-,3:Db,60:-",
+  "proof": 200
  }
 }
