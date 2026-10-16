@@ -40,6 +40,14 @@ ssh -o BatchMode=yes "$HOST" "set -e; cd $DIR; mv brawler-$VER.neo.part brawler-
   mkdir -p /var/www/kanji/brawler
   printf '{\"version\": \"%s\", \"date\": \"%s\", \"size\": %s}\n' $VER \$(date -u +%Y-%m-%d) $SIZE > /var/www/kanji/brawler/info.json"
 fi
+# the build's RAM map for the Lab's Sessions page (chainlab/ramsyms.py: the character, screen, stage, wave, life and
+# drive read from each session's state): /data/brawler-lab/ramsyms/<sha256>.json, behind the Oros login with the Lab.
+# Needs the ROM's own build dir (build/rom.elf of the same make); a failure only warns (the page then reads the HUD).
+RS=$(mktemp -d /data/tmp/ramsyms.XXXXXX)
+if python3 "$(dirname "$0")/chainlab/ramsyms.py" "$RS" "$(dirname "$ROM")" "$ROM" && [ -f "$RS/$SHA.json" ]; then
+  ssh -o BatchMode=yes "$HOST" "mkdir -p /data/brawler-lab/ramsyms" && rsync -q --chmod=F644 "$RS/$SHA.json" "$HOST:/data/brawler-lab/ramsyms/" && echo "ramsyms/$SHA.json sent to the Lab"
+else echo "WARNING: no ramsyms for this build (the Sessions page shows only what the HUD shows)"; fi
+rm -rf "$RS"
 fi
 if [ -n "$APK" ]; then
   AAPT=$(ls -d "${ANDROID_HOME:-$HOME/Android/Sdk}"/build-tools/*/aapt2 | tail -1)

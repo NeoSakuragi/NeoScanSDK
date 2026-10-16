@@ -14,7 +14,7 @@
     const k = e.detail, g = $('gamecol');
     if (g) g.style.display = READING.includes(k) ? 'none' : '';
     if (LAZY[k] && !loaded[k]) { loaded[k] = true; const s = document.createElement('script'); s.src = LAZY[k]; document.body.append(s); }
-    if (NAMES.includes(k) && !/^#(fb|sess)=/.test(location.hash) && location.hash !== '#' + k) history.replaceState(null, '', location.pathname + location.search + '#' + k);
+    if (NAMES.includes(k) && !/^#(fb|sess)=|^#wall$/.test(location.hash) && location.hash !== '#' + k) history.replaceState(null, '', location.pathname + location.search + '#' + k);
   });
   $('tabImpacts').onclick = () => window.labTab('impacts');
   $('tabSounds').onclick = () => window.labTab('sounds');
@@ -22,7 +22,7 @@
   const route = () => {
     if (/^#(fb|sess)=/.test(location.hash)) return;                           // (feedback.js opens the replay)
     const k = location.hash.slice(1);
-    window.labTab(NAMES.includes(k) ? k : 'stages');
+    window.labTab(k === 'wall' ? 'sessions' : NAMES.includes(k) ? k : 'stages');   // #wall: the Sessions tab's live wall (wall.js)
   };
   window.addEventListener('hashchange', route);
   route();

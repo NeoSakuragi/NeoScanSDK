@@ -38,7 +38,8 @@
 #sesscol .ctl button.on { outline: 3px solid #000; font-weight: 700; }
 #sesscol input[type=range] { width: 100%; height: 32px; }
 #sesscol .mono { font-family: ui-monospace, monospace; font-size: 13px; }
-@media (max-width: 600px) { #sesscol td.dev, #sesscol th.dev { display: none; } }`;
+#sesscol h3.sect { font-size: 14px; letter-spacing: .08em; margin: 14px 0 4px; border-bottom: 3px solid #000; }
+@media (max-width: 600px) { #sesscol td.dev, #sesscol th.dev, #sesscol td.wide, #sesscol th.wide { display: none; } #sesscol td, #sesscol th { white-space: normal; } }`;
   document.head.append(css);
 
   const fps = 59.185606;
@@ -62,10 +63,25 @@
     info.textContent = `${rows.length} sessions, ${st.hours.toFixed(1)} h recorded, ${(st.bytes / 1e6).toFixed(1)} MB` +
       (st.mb_per_hour ? ` (${st.mb_per_hour} MB per hour of play)` : '') + '. Tap a row to watch it.';
     tbox.textContent = '';
-    tbox.append(h('table', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Player'), h('th', {}, 'Build'), h('th', {}, 'Started'), h('th', {}, 'Length'), h('th', { class: 'dev' }, 'Device')),
-      rows.map(r => h('tr', { class: 'srow' + (open && open.id === r.id ? ' on' : ''), onclick: () => watch(r) },
-        h('td', { class: 'slive' }, r.live ? '● LIVE' : r.paused && r.last_ago < 60 ? 'paused' : ''), h('td', {}, r.user), h('td', {}, r.rom_version + (r.system !== 'mvs-mvs' ? ' (' + r.system + ')' : '')),
-        h('td', {}, when(r.started)), h('td', {}, mmss(r.frames)), h('td', { class: 'dev' }, r.device)))));
+    // two sections (Bruno 2026-10-16): LIVE NOW, then the past sessions; the character / screen / stage / life / drive
+    // read from each session's latest keyframe (sessinfo.js; "(25 s)" = how old that keyframe is at the session's end)
+    const liveRows = rows.filter(r => r.live), past = rows.filter(r => !r.live);
+    const cells = r => {
+      const c = { chars: h('td', {}, '…'), where: h('td', { class: 'wide' }, '…'), vitals: h('td', { class: 'wide' }, '…') };
+      const put = v => { if (!window.SessInfo) return; const k = SessInfo.cols(v && v.info);
+        c.chars.textContent = k.chars; c.vitals.textContent = k.vitals;
+        c.where.textContent = k.where + (v && v.age !== null && k.where !== '—' ? ` (${v.age} s)` : ''); };
+      if (window.SessInfo) { const q = SessInfo.forRow(r, API); if (q.now) put(q.now); q.next.then(put, () => put(null)); }
+      return c;
+    };
+    const row = (r, isLive) => { const c = cells(r); return h('tr', { class: 'srow' + (open && open.id === r.id ? ' on' : ''), onclick: () => watch(r) },
+      isLive ? h('td', { class: 'slive' }, '● LIVE') : null, h('td', {}, r.user), h('td', { class: 'wide' }, r.rom_version + (r.system !== 'mvs-mvs' ? ' (' + r.system + ')' : '')),
+      c.chars, c.where, c.vitals, isLive ? null : h('td', {}, when(r.started) + (r.paused && r.last_ago < 60 ? ' (paused)' : '')), h('td', {}, mmss(r.frames)), h('td', { class: 'dev' }, r.device)); };
+    const th = isLive => h('tr', {}, isLive ? h('th', {}, '') : null, h('th', {}, 'Player'), h('th', { class: 'wide' }, 'Build'), h('th', {}, 'Character'), h('th', { class: 'wide' }, 'Screen'),
+      h('th', { class: 'wide' }, 'Life · drive'), isLive ? null : h('th', {}, 'Started'), h('th', {}, isLive ? 'So far' : 'Length'), h('th', { class: 'dev' }, 'Device'));
+    tbox.append(h('h3', { class: 'sect' }, `LIVE NOW (${liveRows.length})`),
+      liveRows.length ? h('table', {}, th(true), liveRows.map(r => row(r, true))) : h('p', { class: 'small' }, 'Nobody is playing right now.'),
+      h('h3', { class: 'sect' }, 'Past sessions'), h('table', {}, th(false), past.map(r => row(r, false))));
   }
 
   // ---- the player ---------------------------------------------------------------------------------------------------
@@ -77,7 +93,7 @@
     close(); open = r; list();
     const cv = h('canvas', { width: 304, height: 224 });
     const st = h('p', { class: 'mono' }, 'Loading the session and its build (12 MB the first time)…');
-    const chk = h('p', { class: 'mono' }, '');
+    const chk = h('p', { class: 'mono' }, ''), inf = h('p', { class: 'mono' }, '');   // inf: sessinfo.js, every frame from the core
     const pos = h('span', { class: 'mono' }, '');
     const seek = h('input', { type: 'range', min: 0, max: 0, value: 0, step: 1 });
     const bPlay = h('button', { onclick: () => toggle() }, '▶ Play');
@@ -86,7 +102,8 @@
     pbox.append(h('div', { class: 'box' },
       h('h2', {}, `${r.user} — ${r.rom_version} — ${when(r.started)}`, h('span', { style: 'flex:1' }), h('button', { onclick: close }, 'Close')),
       h('p', { class: 'small' }, `${r.device} · Android ${r.android} · app ${r.app_version} · ${r.system} · session ${r.id}`),
-      cv, seek, h('div', { class: 'ctl' }, bPlay, ...sp, bLive, pos), st, chk));
+      cv, inf, seek, h('div', { class: 'ctl' }, bPlay, ...sp, bLive, pos), st, chk));
+    if (window.SessInfo) SessInfo.syms(r.rom_sha);
     const ctx = cv.getContext('2d');
     const draw = () => {
       if (!S) return;
@@ -100,6 +117,7 @@
       const gp = S.gaps.length ? ` · missing chunks before ${S.gaps.slice(0, 8).join(', ')}` : '';
       const rs = S.resyncs.length ? ` · resynced at keyframe ${S.resyncs.slice(0, 8).join(', ')}` : '';
       chk.textContent = ck + gp + rs + (S.drift ? ' · drifting: resync at the next keyframe' : '');
+      if (window.SessInfo) inf.textContent = SessInfo.text(SessInfo.fromCore(S.R.core, SessInfo.symsNow.get(r.rom_sha) || null));
     };
     const sound = a => {
       if (!a || !a.length || speed !== 1) return;
@@ -171,6 +189,7 @@
     } catch (e) { st.textContent = 'Session unavailable: ' + e.message; }
   }
 
+  window.labSess = { watch: r => watch(r), close: () => close(), list: () => list(), API };   // the live wall (wall.js): a tile at full size
   const tab = $('tabSessions');
   if (tab) tab.onclick = () => window.labTab('sessions');
   window.addEventListener('labtab', e => {

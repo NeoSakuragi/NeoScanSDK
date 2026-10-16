@@ -102,7 +102,7 @@ json.dump(select_images.select_data(game, poses), open(os.path.join(out, 'select
 # sounds); howto.html the plain-words page. The old pages (anims, review, arbitrage, workshop, decide, impacts, sounds)
 # are redirects into them.
 PAGES = ('lab.html', 'fighterlab.js', 'howto.html', 'game.html', 'game.js', 'app.js', 'lab.js', 'gameplay.js', 'tryit.js', 'knobui.js',
-         'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'sessreplay.js', 'sessions.js',
+         'stagepack.js', 'stages.js', 'enemypack.js', 'enemies.js', 'characters.js', 'selectrender.js', 'selectscreen.js', 'fbreplay.js', 'sessreplay.js', 'sessions.js', 'sessinfo.js', 'wall.js', 'wall_worker.js',
          'feedback.js', 'quirks.js', 'expose.js', 'micnote.js', 'decide.js', 'decisions.json', 'review.js', 'anims.js', 'anims_core.js',
          'arbitrage.js', 'liveclips.js', 'liveclips_worker.js', 'liveclips_core.js', 'workshop.js', 'sounds.js', 'impacts.js', 'kim_size.png', 'krauser_size.png', 'kim_run_frames.png',
          'decide.html', 'review.html', 'anims.html', 'arbitrage.html', 'workshop.html', 'sounds.html', 'impacts.html')
