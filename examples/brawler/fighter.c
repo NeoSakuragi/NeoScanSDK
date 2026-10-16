@@ -2851,7 +2851,7 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
     if (f->ch->specials[f->spec_ix].prog) {                      /* a ROM special: its program from its first op */
         f->pres = 0; f->pflags = 0; f->pcnt = 0; f->pfric = 0; f->pg = 0; f->vx = f->vy = f->vz = 0;   /* (vz: P_MOVE's
                                                                     depth, only P_HOME sets it) */
-        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0; f->vsigp = 0; f->phh = 0; f->mash = MASH_GAP; f->spmash = 0;
+        f->phit = 0xFF; f->pcatch = 0; f->phold = 0; f->pdead = 0; f->pvl_n = 0; f->vlist = 0; f->vsigp = 0; f->vtdone = 0; f->phh = 0; f->mash = MASH_GAP; f->spmash = 0;
         if ((f->ch->specials[f->spec_ix].sflags & SF_NOW) && k != BS_FURY) {   /* SF_NOW (SS2): its first frame is this
                                                                     one (the action routine runs in the frame the action
                                                                     is set; else every SS2 move ran a frame long, TODO
@@ -3674,9 +3674,28 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
                                                                     20261011-224840-5d29, Iori's MAX: behind him) */
     if (!(l->flags & VL_FLY)) t->vx = t->vy = 0;
     t->kdelay = 0; t->state_t = 0; if (t->state == S_KNOCKDOWN) enter(t, S_HITSTUN);
-    if (f->vent == k) return;                                    /* (KOF: the flags act when the attacker's step changes) */
-    f->vent = k;
-    if (e->flags & VE_BLOW) {                                    /* the blow: the move's damage, its hit sound */
+    {                                                            /* the special's own timing (game.json roster[].
+                                                                    special_grab_timing, the end entry's g = blow frame
+                                                                    | glue frame << 8, program frames: Bruno's throw
+                                                                    review, SS2 Hanzo's Mozu Otoshi): one blow, on its
+                                                                    frame (the entries' blow flags ignored); a release
+                                                                    waits for the glue frame, the victim placed by it */
+        uint16_t tm = (uint16_t)vl_end(sp)->g;
+        uint8_t tb = (uint8_t)tm, tg = tm >> 8, blow;
+        if (tg && (e->flags & VE_REL) && f->srow < tg) return;   /* (glued: its entry not taken yet) */
+        if (tb) {
+            blow = !f->vtdone && f->srow >= tb;
+            if (f->vent == k && !blow) return;
+            f->vent = k;
+            if (blow) f->vtdone = 1;
+        } else {
+            if (f->vent == k) return;                            /* (KOF: the flags act when the attacker's step changes) */
+            f->vent = k;
+            blow = e->flags & VE_BLOW;
+        }
+        if (!blow) goto no_blow;
+    }
+    {                                                            /* the blow: the move's damage, its hit sound */
         int32_t hx = t->x, hy = t->y;
         fighter_hit(f, t, f->pdmg, R_HEAVY, 0);
         f->freeze = t->freeze = 0; t->vx = 0; t->kdelay = 0;
@@ -3706,7 +3725,8 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     }                                                            /* posture, as KOF's list sets it (react cleared it:
                                                                     note 20261011-210524-5d29, Iori's MAX on a floored
                                                                     victim showed one standing reel frame per strike) */
-    if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {          /* a release that leaves it standing (TODO #220, KOF98
+no_blow:
+    if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {         /* a release that leaves it standing (TODO #220, KOF98
                                                                     Yamazaki MAX 236236C: 329 until the strike's hold
                                                                     hit takes it): still held, reeling in place, until
                                                                     a hit by another box (phh) */

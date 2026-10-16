@@ -432,6 +432,7 @@
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"},
    "variant": {"623K": "C", "6321S": "A"},
+   "special_grab_timing": {"623K": {"kind": "slam", "damage_frame": 79, "glue_frame": 93, "from": "throw review 2026-10-16 (review.html?q=throws, row hanzo_ss2-holdb): SLAM, damage frame 86, glued until frame 100; program frames (fighter_t.srow) = page frame - 7 in that capture"}},
    "throws": {
     "extra": {"b": "623K"},
     "super": "623K",

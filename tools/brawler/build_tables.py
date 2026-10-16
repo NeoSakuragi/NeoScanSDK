@@ -619,7 +619,7 @@ def roster_export(g):
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
              **({'walk_phys': walk_phys(g, r)} if 'walk_rate' in r else {}),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'charge_from', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'proj_react', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'box_both_sides', 'run', 'slot_of', 'swing', 'win_fx_off') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'charge_from', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'source_flight', 'keeps_air_attack', 'proj_react', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'special_grab_timing', 'box_both_sides', 'run', 'slot_of', 'swing', 'win_fx_off') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -1669,6 +1669,14 @@ def tables(g, build):
             assert all(isinstance(e.get(k), int) and 1 <= e[k] <= 255 for k in ('front', 'back')) and isinstance(e.get('depth'), int) and 1 <= e['depth'] <= 127, \
                 f"roster {r['name']}: special_final_area.{inp}: front / back 1-255 px, depth 1-127 px"
             assert e.get('blows', 'last') in ('last', 'all'), f"roster {r['name']}: special_final_area.{inp}: blows 'last' or 'all'"
+    for r in g['roster']:                                # roster[].special_grab_timing {input: {kind, damage_frame, glue_frame}}
+        for inp, e in (r.get('special_grab_timing') or {}).items():   # (export_bm special_grab_timing, fighter.c vlist_place)
+            w = f"roster {r['name']}: special_grab_timing.{inp}"
+            for k in e: assert k in ('kind', 'damage_frame', 'glue_frame', 'from'), f"{w}: unknown field {k}"
+            assert e.get('kind') == 'slam', f"{w}: kind 'slam' (one damage, at the slam)"
+            for k in ('damage_frame', 'glue_frame'):
+                assert k not in e or (isinstance(e[k], int) and 1 <= e[k] <= 255), f"{w}.{k}: a program frame 1-255"
+            assert 'damage_frame' in e or 'glue_frame' in e, f"{w}: damage_frame and / or glue_frame"
     c.append('const uint8_t gfury_area[BC_COUNT][3] = { ' + ', '.join(fa) + ' };   /* [front, back, depth | 0x80 = every blow] px per fighter */')
     c.append('const int32_t gwalk_rom[BC_COUNT] = { ' + ', '.join(str(round(wk[r['archetype']] * 65536)) for r in g['roster']) +
              f' }};   /* 16.16 px a frame, by roster[].archetype */')

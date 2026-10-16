@@ -5128,5 +5128,18 @@
   "expect": "As you answered on the throw review: SLAM, damage frame 24, glued until frame 24. The whole damage lands in one go on that frame, never at the grab.",
   "do_keys": "20:R,2:La",
   "proof": 200
+ },
+ "20261016-140400-7e01": {
+  "title": "Hanzo's Mozu Otoshi (B in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Hanzo walk into Ryo to grab him, then B in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, the whole damage lands in one go on frame 86 (at the slam, never at the grab), and Ryo stays held to Hanzo until frame 100.",
+  "do_keys": "20:R,2:b",
+  "proof": 220
  }
 }

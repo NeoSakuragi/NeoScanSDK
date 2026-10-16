@@ -533,7 +533,8 @@ typedef struct fighter {
     uint8_t  spbuf, spage;        /* a ROM special's buffered link presses (P_CHECK b 3, handlers98 FOLLOW_READ, note
                                    * 20261014-142848-5d29): the links pressed since the special started and the frames
                                    * of its program since the last one (KOF's input path delay as a buffer) */
-    uint8_t  vsigp, vspad;        /* its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220) */
+    uint8_t  vsigp, vtdone;       /* its P_VSIG signals this frame, taken by vlist_apply after its placement (TODO #220); vtdone:
+                                   * its timed blow dealt (game.json roster[].special_grab_timing, fighter.c vlist_place) */
     /* the chain core (revamp 1A, fighter.c "chain core"): buf_age = frames since the buffered press (hit-stop frames not
      * counted: a press in the freeze is latched), the attack buffer's age; jug_n = air hits taken in this juggle (the cap,
      * gchain.juggle_cap: then untouchable until it lands); kfloor = 1 once its knockdown touched the floor (downed:

@@ -1055,7 +1055,19 @@ def special_area(n, sp):
     if not e: return (0, 0, 0)
     return (e['front'], e['back'], e['depth'] | (0x80 if e.get('blows') == 'all' else 0))
 
-def vlists_c(n, k, r, game, area=(0, 0, 0)):
+def special_grab_timing(n, sp):
+    """game.json roster[].special_grab_timing {special input: {kind "slam", damage_frame, glue_frame, from}} (Bruno's throw
+    review for a grab special, SS2 Hanzo's Mozu Otoshi 2026-10-16: no paired script, so throws.timing can't say it): the
+    frames are the special's program frames (fighter_t.srow when its victim list is placed, 1-based; the review page's
+    frames mapped through its capture). damage_frame: its victim lists' one blow lands on that frame (their entries' own
+    blow flags ignored: a SLAM, one damage); glue_frame: its victim stays held (placed by its lists) until that frame, a
+    release entry reached earlier waits for it -> the end entry's g = damage | glue << 8 (0: the lists' own). Checked by
+    build_tables.py"""
+    e = ((roster().get(n) or {}).get('special_grab_timing') or {}).get(sp.get('input'))
+    if not e: return 0
+    return e.get('damage_frame', 0) | e.get('glue_frame', 0) << 8
+
+def vlists_c(n, k, r, game, area=(0, 0, 0), tm=0):
     """a catch's victim script (vocabulary hold.victim_list, TODO #173): bvent_t / bvlist_t arrays, KOF's lists
     (handlers98) or SS2's (handlers_ss2.VL: their own flight / release velocities)"""
     out = []
@@ -1081,7 +1093,7 @@ def vlists_c(n, k, r, game, area=(0, 0, 0)):
         assert len(rs) <= 1, f'{n}: special {k}: two release sounds {rs}'
         out.append(f'static const bvlist_t {n}_sp{k}_vl[] = {{' + ', '.join(
             f'{{{len(e)}, {fl}, {n}_sp{k}_ve{j}, {vx}, {vy}, {g}}}' for j, (e, fl, vx, vy, g) in enumerate(map(vl_parts, r['vlists'])))
-            + f', {{0, {rs.pop() if rs else 0}, 0, {area[0] | area[1] << 8}, {area[2]}, 0}}}};')   # (n 0: the end)
+            + f', {{0, {rs.pop() if rs else 0}, 0, {area[0] | area[1] << 8}, {area[2]}, {tm}}}}};')   # (n 0: the end; g: special_grab_timing)
     return out
 
 def hspk_rows(k, r):
@@ -1165,7 +1177,7 @@ def rom_c(n, k, sp, game, vres=None):
         if vt.get('nvar'):
             out.append(f'static const int32_t {n}_sp{k}_vars[] = {{' + ', '.join(str(v) for row in vt['rows'] for v in row) + '};')
         if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game, sp))
-        out += vlists_c(n, k, vl_row(n, sp), game, special_area(n, sp))
+        out += vlists_c(n, k, vl_row(n, sp), game, special_area(n, sp), special_grab_timing(n, sp))
         # its steps' sounds and spawns (World Heroes Perfect's step commands 4 / 9, export_whp: TODO #147), each row's
         # animation its own entries: bchar_t.pvox / pfx as KOF's $FC / $FA records
         sp['_pvox'] = [(k, j, i, v) for j, st in enumerate(r['states']) for i, s_ in enumerate(r['anims'][st]['steps'])
@@ -1212,7 +1224,7 @@ def rom_c(n, k, sp, game, vres=None):
     assert len(ops) < 255 or r.get('lab'), (n, sp['input'])   # (the LAB special: 4 ops an animation, P_LANIM's 16-bit index)
     out.append(f'static const bprim_t {n}_sp{k}_prog[] = {{' + ', '.join(f'{{{a}, {b}, {c}, {d}}}' for a, b, c, d in ops) + '};')
     if r['objects']: out.append(projectile_c(n, f'{k}r', r['objects'], game, sp))
-    out += vlists_c(n, k, vl_row(n, sp), game, special_area(n, sp))
+    out += vlists_c(n, k, vl_row(n, sp), game, special_area(n, sp), special_grab_timing(n, sp))
     pv = [(j, i, vres(ix)) for j, st in enumerate(r['states']) for i, s in enumerate(r['anims'][st]['steps'])
           for ix in s.get('voices', [])] if vres else []
     sp['_pvox'] = [(k, j, i, v) for j, i, v in pv if v and j < 256]   # its steps' voices (KOF's $FC records): bchar_t.pvox
@@ -2327,7 +2339,7 @@ def write_c(chars, outdir):
          'typedef struct { uint16_t first, end; uint8_t next, pad; } bspart_t;   /* a special\'s part: script rows [first, end), the part played when it ends (0xFF: the move ends; fighter.c "follow-ups") */',
          'typedef struct { uint8_t from, to, trig, in, dir, at; uint16_t lo, hi; } bslink_t;   /* a follow-up: from part `from` to part `to`; trig 1 a hit landed (LK_HIT), 2 a press (LK_IN: buttons `in` IN_*, stick `dir` = a C role BS_* by d_input, 0xFE the role the move started with, 0xFF any) inside the window [lo, hi) (script rows); at 1 = switch at once (LK_NOW), 0 = when the part ends */',
          'typedef struct { int8_t dx, dy; uint8_t pose, flags; } bvent_t;   /* a caught victim\'s place for one attacker step (KOF98 $25372 lists, TODO #173): px from the attacker (its facing\'s way), height, posture VP_* (0xFF: its reel), flags VE_* */',
-         'typedef struct { uint8_t n, flags; const bvent_t *e; int16_t vx, vy, g; } bvlist_t;   /* THE END ENTRY (n 0) carries the special\'s release data in its unused fields (the pack format\'s struct unchanged; fighter.c vl_end): flags = the effect code ($1A + code) a release (VE_REL blow) plays instead of the hit kind\'s (KOF\'s victim routine sends its own: Iori 624D\'s explosion $4D; 0: the hit kind\'s), vx = its area hit front | back << 8 px, vy = depth | 0x80 every blow (game.json roster[].special_final_area, export_bm special_area; fighter.c fury_area: a fury takes gfury_area first; 0: none); one list: entry k for the attacker\'s step k (the last for later steps); n 0 ends the table; flags VL_FLY: placed at its first entry once, then the victim flies on its own (vx forward of the attacker, vy up, g its gravity: 8.8 px / frame), posture held (SS2\'s rage-move victims, handlers_ss2.VL); VL_VEL: its release entry sends the victim off at vx / vy (else KOF\'s blowback) */',
+         'typedef struct { uint8_t n, flags; const bvent_t *e; int16_t vx, vy, g; } bvlist_t;   /* THE END ENTRY (n 0) carries the special\'s release data in its unused fields (the pack format\'s struct unchanged; fighter.c vl_end): flags = the effect code ($1A + code) a release (VE_REL blow) plays instead of the hit kind\'s (KOF\'s victim routine sends its own: Iori 624D\'s explosion $4D; 0: the hit kind\'s), vx = its area hit front | back << 8 px, vy = depth | 0x80 every blow (game.json roster[].special_final_area, export_bm special_area; fighter.c fury_area: a fury takes gfury_area first; 0: none), g = its blow frame | glue frame << 8 (program frames, fighter_t.srow; game.json roster[].special_grab_timing, export_bm special_grab_timing, fighter.c vlist_place; 0: the lists\' own); one list: entry k for the attacker\'s step k (the last for later steps); n 0 ends the table; flags VL_FLY: placed at its first entry once, then the victim flies on its own (vx forward of the attacker, vy up, g its gravity: 8.8 px / frame), posture held (SS2\'s rage-move victims, handlers_ss2.VL); VL_VEL: its release entry sends the victim off at vx / vy (else KOF\'s blowback) */',
          'enum { VL_FLY = 1, VL_VEL = 2, VL_CATCH = 4, VL_FRAMES = 8, VL_SREACT = 16, VL_DOWN = 32, VL_STAND = 64 };   /* (bit 7 VL_CENTRE: fighter.c, the pack format\'s enum unchanged) VL_CENTRE (note 20261015-212217-e03d, SS2 Hanzo\'s Mozu Otoshi): its entries\' dx / dy are where the centre of the source\'s victim picture sits, the victim placed so its posture frame\'s centre (bm_vanch) is there (fighter.c vlist_place; none: at dx / dy); VL_STAND (TODO #220): its release entry leaves the victim standing in its reel, still held (PF_HOLD) until a hit lets it go (KOF98 Yamazaki MAX 236236C: state 329); VL_CATCH (TODO #216): a list P_CATCH starts (KOF98\'s engine throw on the held victim), never a catch routine\'s start; (TODO #213, Kizuna\'s command grabs: tools/kizuna/rosa_kz.py) VL_FRAMES: entry k for the k-th frame of the list (from the P_VPHASE VA_LIST that started it), not the attacker\'s step; VL_SREACT: its release sends the victim into source reaction vx (bm_sreact index + 1: Kizuna\'s thrown flight, hittable when its source\'s steps carry boxes); VL_DOWN: its release lays it down (S_DOWN, then it gets up: Kizuna\'s thrown victim lying at its animation\'s end) */',
          '#define HY_HOLD 0x80   /* bstep_t.hy of a ROM special: KOF\'s hold hit (attack box $36, TODO #220; handlers98.HOLD_BOX): its victim held in place by the attacker (PF_HOLD), reeling; a later hit by another box lets it go with that hit\'s reaction */',
          'enum { SF_NOPUSH = 1, SF_BIGHIT = 2, SF_NOW = 4, SF_SHARE = 8, SF_INV = 16, SF_SREACT = 32, SF_AIRATK = 64, SF_SEQ = 128 };   /* bspec_t.sflags (SF_SEQ: a piece of a SEQUENCE, not its last: specials[its index + 1] plays next, same role, at its end or in the air once its program waits for its landing (game.json roster[] blitz / air_specials value = a list of inputs, export_bm.sequences; Bruno 2026-10-11: Hanzo SS2\'s air shuriken A, B, A+B in turn), fighter.c seq_next; SF_AIRATK: a move that leaves the fighter airborne with his air attack: from the program part that waits for its landing, A plays the jump\'s attack (game.json roster[].keeps_air_attack, Bruno 2026-10-11: Hanzo SS2\'s air shuriken Blitz), fighter.c air_free; SF_SREACT (TODO #136, vocabulary reaction.source_motion): its anims\' bstep_t.hy are source reactions, bm_sreact index + 1 standing | airborne << 4 (fighter.c src_react: Kizuna\'s reaction animations\' motions); SF_INV: invincible from its first frame to its end, the fury\'s rule (INV_FURY): game.json roster[].invincible, Bruno\'s call per move (TODO #202: Kyo\'s EX 421D), fighter.c start_special; SF_SHARE: its body and a standing opponent ahead share the push, half each: Kizuna\'s j.2B dives on pushing its victim (TODO #200), on the ground too since TODO #136 (Kizuna\'s push for every program of Kim\'s: the Phoenix\'s rush at half speed), fighter.c combat; SF_BIGHIT: SS2\'s big hit on its connect, fighter.c big_hit; SF_NOW: its program runs from the special\'s start frame, SS2\'s action routine in the frame the action is set: fighter.c start_special, TODO #191) */',
