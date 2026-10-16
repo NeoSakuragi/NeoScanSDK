@@ -31,7 +31,8 @@ def session_block(d):
     rows = ''.join(f"<tr><td>{html.escape(NAMES.get(i, i))}</td><td class=k>{html.escape(k)} <small>({html.escape(i)})</small></td>"
                    f"<td class=n>{n}</td><td class=n>{bonus.get((k, i), 0) or ''}</td><td><span class=bar style='width:{n * 100 // mx}%'></span></td></tr>"
                    for (k, i), n in moves.most_common())
-    unused = [n for i, n in NAMES.items() if not any(ii == i for (_, ii) in list(moves) + list(bonus))]
+    used = {NAMES.get(ii, ii) for (_, ii) in list(moves) + list(bonus)}
+    unused = [n for n in set(NAMES.values()) if n not in used]
     trs = ''.join(f"<li>{html.escape(k)}: <b>{n}</b></li>" for k, n in throws.most_common())
     tline = ''.join(f"<li><span class=t>{mmss(f)}</span> {html.escape(s)}</li>" for f, s in sorted(tl))
     return f"""
