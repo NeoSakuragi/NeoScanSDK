@@ -26,7 +26,8 @@ Patterns (from the throw's first frame; "after" = 8 frames after the damage fram
 BRUNO'S EVENTS (THE THROW REVIEW round 2, review.html?q=throws2; game.json roster[].throws.events, build_tables
 throw_events): for every throw with events, every pattern without a follow-up, both facings, frame N = the throw's
 frame (1 = its first frame, as the page numbers them):
-  impact  the damage lands once, on frame `impact`
+  impacts the damage lands once on each impact's frame that takes a share (game.json throws.events.impacts: the last
+          one always, an earlier one with its damage %), on no other frame
   launch  the victim leaves the thrower's script on frame `launch.frame` (not before), and goes its `dir` over the next
           LAUNCH_WATCH frames: up = it rises (dy >= LAUNCH_MIN px, more than it moves sideways), away = it moves away from
           the thrower (dx >= LAUNCH_MIN px, more than it rises), none = it does not rise (dy <= 1)
@@ -123,11 +124,36 @@ def throw_case(R, n, kind, pattern, face, where='mid'):
     return play(R, tk, pattern, fw, bk, pre)
 
 
+class Fx:
+    """this frame's effects, read from the game's RAM: the sound queue's new bytes (sound.c q / qt: $1A + code = an
+    effect), the hit sparks spawned (main.c spk[]: a slot that just took a spark, frame 0), the screen shake started
+    (fighter.c shake_t raised)"""
+    def __init__(self, b):
+        self.b = b; S = b.syms
+        self.q, self.qt, self.spk, self.sh = S.get('q'), S.get('qt'), S.get('spk'), S.get('shake_t')
+        self.t0 = b.r(self.qt, 1) if self.qt else 0
+        self.sp0 = self.sparks(); self.sh0 = b.r(self.sh, 1) if self.sh else 0
+    def sparks(self): return [tuple(self.b.r(self.spk + 10 * i + k, 1) for k in range(4)) + (self.b.r(self.spk + 10 * i + 4, 2), self.b.r(self.spk + 10 * i + 6, 2)) for i in range(4)] if self.spk else []
+    def frame(self):
+        b = self.b; out = {'sfx': [], 'spark': 0, 'shake': 0}
+        if self.qt:
+            t = b.r(self.qt, 1); raw = []
+            while self.t0 != t: raw.append(b.r(self.q + self.t0, 1)); self.t0 = (self.t0 + 1) & 31
+            out['sfx'] = [raw[k + 1] for k in range(len(raw) - 1) if raw[k] == 0x1A]
+        sp = self.sparks()
+        out['spark'] = sum(1 for a, z in zip(self.sp0, sp) if z[0] and z[2] == 0 and z[3] <= 1 and a != z)   # (spawned this frame: its first tick drawn)
+        self.sp0 = sp
+        if self.sh:
+            h = b.r(self.sh, 1); out['shake'] = 1 if h > self.sh0 else 0; self.sh0 = h
+        return out
+
+
 def play(R, tk, pattern, fw, bk, pre, thrower=0, victim=2, drive=None):
     """the throw input (2 frames), then the pattern, every frame recorded until the thrower is out of its throw and
     the victim down (or MAXF)"""
     b = R.b
     rec = []; started = None; mode = None; dmg_at = None; prev_hp = b.fget(victim, 'hp'); prev_td = 0; out_at = None
+    FX = Fx(b)
     for t in range(MAXF):
         keys = tk if t < 2 else ''
         held_stick = {'fwd': fw, 'back': bk}.get(pattern, '')
@@ -140,6 +166,7 @@ def play(R, tk, pattern, fw, bk, pre, thrower=0, victim=2, drive=None):
         keys += pre
         if drive: drive(t)
         b.run(1, keys if thrower == 0 else '')
+        fx = FX.frame()
         s0, sv = R.st(thrower), R.st(victim)
         hp, td = b.fget(victim, 'hp'), b.fget(victim, 'throw_dealt')
         if started is None and s0 in ('THROW', 'SPECIAL'): started = t; mode = s0
@@ -149,7 +176,7 @@ def play(R, tk, pattern, fw, bk, pre, thrower=0, victim=2, drive=None):
         r = {'t': t, 'keys': keys, 'th': s0, 'srow': b.fget(thrower, 'srow'), 'tid': b.fget(thrower, 'throw_id'), 'v': sv,
              'vsrow': b.fget(victim, 'srow'), 'hp_drop': drop, 'slam': b.fget(victim, 'slam'), 'eject': b.fget(victim, 'eject'),
              'spec': b.fget(thrower, 'spec_id') if s0 == 'SPECIAL' else None, 'ty': b.fget(thrower, 'y'),
-             'vx': b.fget(victim, 'x'), 'vyp': b.fget(victim, 'y'), 'vheld': 1 if b.fget(victim, 'held') else 0, 'tx': b.fget(thrower, 'x')}
+             'vx': b.fget(victim, 'x'), 'vyp': b.fget(victim, 'y'), 'vheld': 1 if b.fget(victim, 'held') else 0, 'tx': b.fget(thrower, 'x'), **fx}
         prev_hp = hp; prev_td = td if started is not None else 0
         if started is None:
             if t > 30: raise RuntimeError('no throw: ' + b.brief((0, 2)))
@@ -175,17 +202,21 @@ def verdict(rec, special=False):
             'ground': bool(dmg) and dmg[0][0] + AFTER - 1 < len(rec) and rec[dmg[0][0] + AFTER - 1].get('ty', 0) <= 0}
 
 
-def check_case(R, n, kind, pattern, face, V, ref, special, bounce, script):
-    """-> list of failure reasons ([] = PASS)"""
+def check_case(R, n, kind, pattern, face, V, ref, special, bounce, script, ev=None):
+    """-> list of failure reasons ([] = PASS); ev: the throw's events (events_of): its impacts' count, the A follow-up
+    from its launch on (the first press AFTER frames after its first damage frame: after the launch frame = a
+    follow-up, the victim on its way; before = A pressed before the launch, the throw plays out)"""
     bad = []
+    if ev is not None: bounce = ev['dmg_frames'][0] + AFTER > ev['launch']['frame']
     # the A follow-up: on the floor after a bouncing slam (the jab), in the air in a throw that keeps its air attack
     # (game.json keeps_air_attack "throw_c" / "throw_d": the jump's A in its leap)
     slot = {0: 'throw_c', 1: 'throw_d'}.get(V['tid'])
     air = not special and slot in (next(r for r in R.G['roster'] if r['name'] == n).get('keeps_air_attack') or [])
     a_exit = 'ATTACK' if V['ground'] else 'AIR_ATTACK'
     cut_expected = pattern == 'Dafter' or (pattern == 'Aafter' and ((bounce and V['ground']) or (air and not V['ground'])))
-    if len(V['dmg']) != 1: bad.append(f"damage {len(V['dmg'])} times {V['dmg']}")
-    if not special:
+    nd = len(ev['dmg_frames']) if ev is not None else 1
+    if len(V['dmg']) != nd: bad.append(f"damage {len(V['dmg'])} times {V['dmg']} ({nd} declared)")
+    if not special and ev is None:
         tm = (next(r for r in R.G['roster'] if r['name'] == n).get('throws') or {}).get('timing', {}).get(TM_KEY[kind])
         want = tm['damage_row'] if tm else V['slam']
         if V['dmg'] and V['dmg'][0][1] != want: bad.append(f"damage on row {V['dmg'][0][1]}, declared {want}")
@@ -202,19 +233,23 @@ def check_case(R, n, kind, pattern, face, V, ref, special, bounce, script):
 
 
 def events_of(R, n, kind, override=None):
-    """Bruno's events for this throw: {impact, launch: {frame, dir, size?}, held?} or None (game.json throws.events, or
-    --events FILE: an answers file, set "throws2"'s format, by row id <fighter>-<fwd | back | holdb>)"""
+    """Bruno's events for this throw: {impacts: [{frame, damage, ...}], dmg_frames: [the frames that deal damage],
+    launch: {frame, dir, size?}, held?} or None (game.json throws.events, or --events FILE: an answers file, set
+    "throws2"'s format, by row id <fighter>-<fwd | back | holdb>)"""
+    import build_tables as BT
     if override is not None:
         a = override.get(f'{n}-{kind}')
-        if not a or a.get('choice') != 0: return None
+        if not a: return None
         import throw_answers
-        p = throw_answers.parse2(a)
-        if not all(k in p for k in ('impact', 'launch', 'dir')): return None
-        e = {'impact': p['impact'], 'launch': {'frame': p['launch'], 'dir': p['dir']}}
-        if p.get('held'): e['held'] = p['held']
-        return e
-    r = next(x for x in R.G['roster'] if x['name'] == n)
-    return ((r.get('throws') or {}).get('events') or {}).get(TM_KEY[kind])
+        e, _ = throw_answers.events_of_answer(a)
+        if e is None: return None
+    else:
+        r = next(x for x in R.G['roster'] if x['name'] == n)
+        e = ((r.get('throws') or {}).get('events') or {}).get(TM_KEY[kind])
+        if not e: return None
+    e = dict(e, impacts=BT.event_impacts(e, f'{n} {kind}'))
+    e['dmg_frames'] = [x['frame'] for k, x in enumerate(e['impacts']) if x['damage'] or k + 1 == len(e['impacts'])]
+    return e
 
 
 def events_check(rec, ev, special=False):
@@ -225,7 +260,23 @@ def events_check(rec, ev, special=False):
     left = next((k + 1 for k, r in enumerate(rec) if k > 0 and r['v'] not in inside), None)
     bad, did = [], []
     did.append(f"damage {'+'.join(map(str, dmg)) or 'none'}")
-    if dmg != [ev['impact']]: bad.append(f"impact: damage on frame(s) {dmg or 'none'}, his impact frame {ev['impact']}")
+    if dmg != ev['dmg_frames']: bad.append(f"impacts: damage on frame(s) {dmg or 'none'}, his impact frame(s) {ev['dmg_frames']}")
+    if 'impacts' in ev:                                  # each impact's spark, shake, sound: on its frame, nowhere else
+        upto = ev['launch']['frame'] + LAUNCH_WATCH      # (to the launch and its first frames; the follow-up / the
+        I = ev['impacts']                                # landing after it are not the throw's impacts)
+        seg = rec[:upto]
+        for what in ('spark', 'shake'):
+            want = [x['frame'] for x in I if x[what]]
+            got = [k + 1 for k, r in enumerate(seg) for _ in range(r.get(what, 0))]
+            did.append(f"{what} {'+'.join(map(str, got)) or 'none'}")
+            if got != want: bad.append(f"{what}: on frame(s) {got or 'none'}, his {want}")
+        snd = {x['frame']: set(seg[x['frame'] - 1]['sfx']) if x['frame'] <= len(seg) else set() for x in I if x['sound']}
+        hs = set().union(*snd.values()) if snd else set()
+        miss = [f for f, c in snd.items() if not c]
+        if miss: bad.append(f"sound: none on impact frame(s) {miss}")
+        again = [k + 1 for k, r in enumerate(seg) if k + 1 not in snd and hs & set(r['sfx'])]
+        did.append(f"sound {'+'.join(f'{f}:' + ','.join('%02X' % c for c in sorted(v)) for f, v in snd.items()) or 'none'}")
+        if again: bad.append(f"sound: the impact's sound again on frame(s) {again}")
     L = ev['launch']['frame']; d = ev['launch']['dir']; H = ev.get('held', L)
     did.append(f'let go {left}')
     if left != L: bad.append(f"launch: the victim leaves the throw on frame {left}, his launch frame {L}")
@@ -286,7 +337,7 @@ def main():
             for kind in throws_of(R, n):
                 ev = events_of(R, n, kind, EV)
                 if not ev: print(f'---- {n} {kind}: no events'); continue
-                his = f"impact {ev['impact']}, launch {ev['launch']['frame']} {ev['launch']['dir']}" + (f", held {ev['held']}" if ev.get('held') else '')
+                his = f"impact{'s' if len(ev['impacts']) > 1 else ''} {'+'.join(str(x['frame']) for x in ev['impacts'])}, launch {ev['launch']['frame']} {ev['launch']['dir']}" + (f", held {ev['held']}" if ev.get('held') else '')
                 for face in (1, -1):
                     rec = throw_case(R, n, kind, 'none', face)
                     did, bad = events_check(rec, ev, rec[0]['th'] == 'SPECIAL')
@@ -305,7 +356,7 @@ def main():
                     V = verdict(rec, special)
                     sname = {0: 'throw_c', 1: 'throw_d', 4: 'throw_x'}.get(V['tid'])
                     script = None if special else R.scripts[n].get(sname)
-                    bad = check_case(R, n, kind, pattern, face, V, ref, special, is_bounce(R, n, kind, special), script)
+                    bad = check_case(R, n, kind, pattern, face, V, ref, special, is_bounce(R, n, kind, special), script, ev)
                     if ev and pattern in NOCUT: bad += events_check(rec, ev, special)[1]   # (Bruno's events: every pattern without a follow-up)
                     if pattern == 'none': ref = V
                     refs[pattern] = V
@@ -319,7 +370,8 @@ def main():
                     rec = throw_case(R, n, kind, 'none', face, where)
                     special = rec[0]['th'] == 'SPECIAL'
                     V = verdict(rec, special)
-                    bad = [] if (V['tail'], V['last_srow'], len(V['dmg'])) == (R_ref['tail'], R_ref['last_srow'], 1) else \
+                    nd = len(ev['dmg_frames']) if ev else 1
+                    bad = [] if (V['tail'], V['last_srow'], len(V['dmg'])) == (R_ref['tail'], R_ref['last_srow'], nd) else \
                         [f"at {where}: end {V['tail']} / row {V['last_srow']}, damage x{len(V['dmg'])} (mid: {R_ref['tail']} / row {R_ref['last_srow']})"]
                     report(f"{n} {kind} {where} {'right' if face > 0 else 'left'}", bad, V)
     if not a.only or 'hanzo_ss2' in names:
@@ -432,10 +484,14 @@ def enemy_case(R, kind, pattern):
     if not rec: raise RuntimeError('enemy: no throw: ' + b.brief((0, 2)))
     V = verdict(rec)
     bad = []
-    if len(V['dmg']) != 1: bad.append(f"damage {len(V['dmg'])} times")
+    ev = events_of(R, 'terry', kind)
+    if len(V['dmg']) != (len(ev['dmg_frames']) if ev else 1): bad.append(f"damage {len(V['dmg'])} times")
     tm = (next(r for r in R.G['roster'] if r['name'] == 'terry').get('throws') or {}).get('timing', {}).get(TM_KEY[kind])
     want = tm['damage_row'] if tm else V['slam']
-    if V['dmg'] and V['dmg'][0][1] != want: bad.append(f"damage on row {V['dmg'][0][1]}, declared {want}")
+    if not ev and V['dmg'] and V['dmg'][0][1] != want: bad.append(f"damage on row {V['dmg'][0][1]}, declared {want}")
+    if ev:                                               # (Bruno's events, the enemy's throw too: frame = rec index + 1)
+        dmg = [k + 1 for k, r in enumerate(rec) if r['hp_drop']]
+        if dmg != ev['dmg_frames']: bad.append(f"impacts: damage on frame(s) {dmg}, his {ev['dmg_frames']}")
     sname = {0: 'throw_c', 1: 'throw_d', 4: 'throw_x'}.get(V['tid'])
     sc = R.scripts.get('terry', {}).get(sname)
     if sc and V['last_srow'] + 2 < sc['ret']: bad.append(f"cut at row {V['last_srow'] - 1} of {sc['ret']}")

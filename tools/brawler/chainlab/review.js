@@ -73,7 +73,8 @@
 #rev.thr .saved { font-size: 13px; min-height: 1em; }
 #rev.thr .legend { font-size: 13px; margin: 0; }
 #rev.thr .opts { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 14px; }
-#rev.thr .prop { border: 2px dashed #000; padding: 6px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }`;
+#rev.thr .prop { border: 2px dashed #000; padding: 6px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#rev.thr .prop[hidden] { display: none; }`;
       document.head.append(st);
     }
   }
@@ -246,7 +247,8 @@
   //   HELD    optional: the victim held to the thrower's grip until this frame (default: the launch frame)
   // Pre-filled from his round-1 answer (set "throws": damage frame -> impact, eject / glue frame -> launch; IMPACT -> AWAY,
   // SLAM -> UP), marked "proposed" until saved: "Confirm proposed" saves it in one tap. Saved to the decisions store, set
-  // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N, launch-N, dir-up | dir-away | dir-none,
+  // Up to 3 impacts a throw ("Add impact here": Kyo's blow, then his slam; the damage by default all on the last).
+  // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N (one per impact), launch-N, dir-up | dir-away | dir-none,
   // size-small | size-medium | size-big, held-N); tools/brawler/throw_answers.py v2 turns them into game.json
   // roster[].throws.events. ----
   async function throwReview2() {
@@ -265,15 +267,18 @@
       const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: SETT }, body)) });
       if (!r.ok) throw new Error('HTTP ' + r.status);
     };
-    const parse = a => { const o = {}; for (const f of (a && a.flags) || []) { let m = /^(impact|launch|held|dmg|eject|glue)-(\d+)$/.exec(f); if (m) o[m[1]] = +m[2]; m = /^(dir|size)-(\w+)$/.exec(f); if (m) o[m[1]] = m[2]; } return o; };
+    const MAXI = 3;                                            // impacts a throw at most (gamedata.h EV_IMPS)
+    const parse = a => { const o = { imps: [] }; for (const f of (a && a.flags) || []) { let m = /^impact-(\d+)$/.exec(f); if (m) { o.imps.push(+m[1]); continue; }
+      m = /^(launch|held|dmg|eject|glue)-(\d+)$/.exec(f); if (m) o[m[1]] = +m[2]; m = /^(dir|size)-(\w+)$/.exec(f); if (m) o[m[1]] = m[2]; }
+      o.imps = [...new Set(o.imps)].sort((x, y) => x - y); return o; };
     // round 1 -> the proposal: damage -> impact; launch = an IMPACT's eject (else its damage), a SLAM's glue (else its damage)
     const propose = a => {
       if (!a) return null;
       const p = parse(a); if (!p.dmg) return null;
       const impact = a.choice === 0;
-      return { impact: p.dmg, launch: impact ? (p.eject || p.dmg) : (p.glue || p.dmg), dir: impact ? 'away' : 'up' };
+      return { imps: [p.dmg], launch: impact ? (p.eject || p.dmg) : (p.glue || p.dmg), dir: impact ? 'away' : 'up' };
     };
-    const evTxt = e => e ? `I${e.impact || '-'} L${e.launch || '-'}${ARROW[e.dir] || ''}${e.size ? ' ' + e.size[0] : ''}${e.held ? ' H' + e.held : ''}` : '';
+    const evTxt = e => e ? `I${(e.imps && e.imps.length) ? e.imps.join('+') : '-'} L${e.launch || '-'}${ARROW[e.dir] || ''}${e.size ? ' ' + e.size[0] : ''}${e.held ? ' H' + e.held : ''}` : '';
     const status = h('p', { class: 'sub', role: 'status' });
     const count = () => { status.textContent = `${IX.rows.filter(r => ans[r.id] && ans[r.id].choice != null).length} of ${IX.rows.length} answered`; };
     const fN = k => k == null ? '-' : String(k + 1);
@@ -288,9 +293,9 @@
     function body(r, head) {
       const a = ans[r.id] || {};
       const saved0 = a.choice != null;
-      const E = saved0 ? parse(a) : Object.assign({}, propose(old[r.id]) || {});
+      const E = saved0 ? parse(a) : Object.assign({ imps: [] }, propose(old[r.id]) || {});
       let choice = saved0 ? a.choice : null;
-      let proposed = !saved0 && E.impact != null;
+      let proposed = !saved0 && E.imps.length > 0;
       const caps = { now: r, prev: r.prev || null };
       let which = 'now';
       const sheets = {};
@@ -304,17 +309,18 @@
       let k = 0, playing = false, speed = 1, acc = 0, last = 0, raf = 0;
       const held = () => E.held || E.launch;
       const evAt = j => { const n = j + 1, t = [];
-        if (E.impact === n) t.push('I');
+        if (E.imps.includes(n)) t.push(E.imps.length > 1 ? 'I' + (E.imps.indexOf(n) + 1) : 'I');
         if (E.launch === n) t.push('L' + (ARROW[E.dir] || ''));
         if (E.held && E.held === n) t.push('H');
         return t.join(' '); };
       const nowAt = j => { const c = cap(), t = [];
         if (c.now.damage.includes(j)) t.push('d'); if (c.now.handoff === j) t.push('g'); return t.join(''); };
       const words = j => { const n = j + 1, t = [];
-        if (E.impact === n) t.push((proposed ? 'PROPOSED ' : 'YOUR ') + 'IMPACT (spark, sound, shake, damage)');
+        if (E.imps.includes(n)) t.push((proposed ? 'PROPOSED ' : 'YOUR ') + (E.imps.length > 1 ? 'IMPACT ' + (E.imps.indexOf(n) + 1) + ' of ' + E.imps.length : 'IMPACT') +
+          (E.imps.length > 1 && n !== E.imps[E.imps.length - 1] ? ' (spark, sound, shake)' : ' (spark, sound, shake, damage)'));
         if (E.launch === n) t.push((proposed ? 'PROPOSED ' : 'YOUR ') + 'LAUNCH ' + (E.dir || '').toUpperCase() + (E.size ? ' ' + E.size : ''));
         if (E.held === n) t.push('YOUR HELD UNTIL');
-        if (E.launch && !E.held && n < E.launch && E.impact && n >= E.impact) t.push('held (until the launch)');
+        if (E.launch && !E.held && n < E.launch && E.imps.length && n >= E.imps[0]) t.push('held (until the launch)');
         const c = cap(); if (c.now.damage.includes(j)) t.push(c.game_version || IX.game_version, 'damage'); if (c.now.handoff === j) t.push('let go');
         return t; };
       const strip = h('div', { class: 'tstrip', 'aria-label': 'Every frame: tap one to see it' });
@@ -375,8 +381,8 @@
       // ---- the answer ----
       const saved = h('div', { class: 'saved', text: saved0 ? 'Saved' : '' });
       const ta = h('textarea', { 'aria-label': `Note for ${r.display}'s ${r.label}`, placeholder: 'Note (type or speak)' }); ta.value = a.note || '';
-      const flags = () => choice === 1 ? [] : [E.impact && 'impact-' + E.impact, E.launch && 'launch-' + E.launch, E.dir && 'dir-' + E.dir, E.size && 'size-' + E.size, E.held && 'held-' + E.held].filter(Boolean);
-      const label = () => choice === 1 ? 'None of these' : `impact frame ${E.impact || '-'}, launch frame ${E.launch || '-'} ${(E.dir || '-').toUpperCase()}` + (E.size ? ' ' + E.size : '') + (E.held ? ', held until frame ' + E.held : '');
+      const flags = () => choice === 1 ? [] : [...E.imps.map(n => 'impact-' + n), E.launch && 'launch-' + E.launch, E.dir && 'dir-' + E.dir, E.size && 'size-' + E.size, E.held && 'held-' + E.held].filter(Boolean);
+      const label = () => choice === 1 ? 'None of these' : `impact frame${E.imps.length > 1 ? 's' : ''} ${E.imps.join(' + ') || '-'}, launch frame ${E.launch || '-'} ${(E.dir || '-').toUpperCase()}` + (E.size ? ' ' + E.size : '') + (E.held ? ', held until frame ' + E.held : '');
       const question = `${r.display}, ${r.label}: impact frame, launch frame + direction, held until?`;
       const propBox = h('div', { class: 'prop' });
       const save = async extra => {
@@ -391,15 +397,20 @@
       };
       let tn; ta.addEventListener('input', () => { clearTimeout(tn); tn = setTimeout(() => save({ note: ta.value }), 700); });
       const val = { impact: h('b'), launch: h('b'), held: h('b') };
-      const setE = (x, v) => { if (v == null) delete E[x]; else E[x] = v; if (choice === 1) choice = 0; paint(); retag(); draw(); save(); };
-      const rowOf = (x, t, here, clear) => [h('span', {}, t + ': ', val[x]),
-        h('button', { type: 'button', 'data-set': x, text: here, onclick: () => setE(x, k + 1) }), h('button', { type: 'button', text: clear, onclick: () => setE(x, null) })];
+      const setE = (x, v) => { if (x === 'impact') E.imps = v == null ? [] : [v];       // "Impact here": this one impact
+        else if (x === 'addimpact') { if (!E.imps.includes(v) && E.imps.length < MAXI) E.imps = [...E.imps, v].sort((p, q) => p - q); }   // one more
+        else if (v == null) delete E[x]; else E[x] = v;
+        if (choice === 1) choice = 0; paint(); retag(); draw(); save(); };
+      const rowOf = (x, t, here, clear, more) => [h('span', {}, t + ': ', val[x]),
+        h('button', { type: 'button', 'data-set': x, text: here, onclick: () => setE(x, k + 1) }),
+        more ? h('button', { type: 'button', 'data-set': 'addimpact', text: more, onclick: () => setE('addimpact', k + 1) }) : null,
+        h('button', { type: 'button', text: clear, onclick: () => setE(x, null) })].filter(Boolean);
       const db = DIRS.map(([d, t]) => h('button', { type: 'button', 'aria-pressed': String(E.dir === d), 'data-dir': d, text: t, onclick: () => setE('dir', d) }));
       const sb = SIZES.map(z => h('button', { type: 'button', 'aria-pressed': String(E.size === z), 'data-size': z, text: z, onclick: () => setE('size', E.size === z ? null : z) }));
       const bNone = h('button', { type: 'button', 'aria-pressed': String(choice === 1), text: NONE, onclick: () => { choice = 1; paint(); retag(); draw(); save(); ta.focus(); } });
       const bConf = h('button', { type: 'button', text: 'Confirm proposed', onclick: () => { choice = 0; save(); } });
       function paint() {
-        val.impact.textContent = E.impact ? 'frame ' + E.impact : '-';
+        val.impact.textContent = E.imps.length ? (E.imps.length > 1 ? 'frames ' : 'frame ') + E.imps.join(' + ') : '-';
         val.launch.textContent = E.launch ? 'frame ' + E.launch : '-';
         val.held.textContent = E.held ? 'frame ' + E.held : (E.launch ? 'the launch (frame ' + E.launch + ')' : '-');
         db.forEach(b => b.setAttribute('aria-pressed', String(choice !== 1 && b.dataset.dir === E.dir)));
@@ -407,17 +418,17 @@
         bNone.setAttribute('aria-pressed', String(choice === 1));
         propBox.hidden = !proposed;
         propBox.replaceChildren(h('span', { text: `Proposed from your round-1 answer: ${evTxt(E)}. Not saved yet.` +
-          (E.dir === 'up' && E.launch === E.impact ? ` Launch UP on the impact frame is what ${IX.game_version} does now (the pop at the slam); for the slam first and the launch after, set the launch 4-6 frames later.` : '') }), bConf);
+          (E.dir === 'up' && E.imps.length === 1 && E.launch === E.imps[0] ? ` Launch UP on the impact frame is what ${IX.game_version} does now (the pop at the slam); for the slam first and the launch after, set the launch 4-6 frames later.` : '') }), bConf);
         fillJumps();
       }
       const picks = h('div', { class: 'picks' },
-        rowOf('impact', 'Impact', 'Impact here', 'Clear'),
+        rowOf('impact', 'Impact', 'Impact here', 'Clear', 'Add impact here'),
         rowOf('launch', 'Launch', 'Launch here', 'Clear'),
         rowOf('held', 'Held until', 'Held until here', 'Same as launch'));
       const jump = (t, n) => n ? h('button', { type: 'button', text: t + ' ' + n, onclick: () => { stop(); go(n - 1); } }) : null;
       const jumps = h('div', { class: 'ctl' });
-      const fillJumps = () => jumps.replaceChildren(h('span', { class: 'legend', text: 'Go to:' }), jump('impact', E.impact), jump('launch', E.launch),
-        r.now.damage.length ? jump(IX.game_version + ' damage', r.now.damage[0] + 1) : null);
+      const fillJumps = () => jumps.replaceChildren(...[h('span', { class: 'legend', text: 'Go to:' }), ...E.imps.map((n, j) => jump(E.imps.length > 1 ? 'impact ' + (j + 1) : 'impact', n)), jump('launch', E.launch),
+        r.now.damage.length ? jump(IX.game_version + ' damage', r.now.damage[0] + 1) : null].filter(Boolean));
       paint();
       const el = h('div', { class: 'tbody' },
         h('p', { class: 'legend', text: `${r.input}; the victim: ${IX.dummy.toUpperCase()}; every game frame (59.18 a second). ` +
@@ -426,7 +437,7 @@
         cv, fline, slider, h('div', { class: 'ctl' }, step(-10), step(-1), bPlay, step(1), step(10), bSlow), jumps, strip,
         h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, · none), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
         h('p', { class: 'legend', text: oldTxt(r) }),
-        h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the whole damage. Launch: the frame the victim is sent (its direction below). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
+        h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the damage (Add impact here: a 2nd / 3rd one, the damage on the last). Launch: the frame the victim is sent (its direction below). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
         propBox, picks,
         h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch direction' }, h('span', { text: 'Launch direction:' }), db),
         h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch height (optional)' }, h('span', { text: 'Height (optional):' }), sb),

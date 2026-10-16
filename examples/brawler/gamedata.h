@@ -173,6 +173,25 @@ extern const gthrow_t gthrow;
 typedef struct { uint16_t dmg, hand; uint8_t kind, pad; int16_t bvy, bvx; } gthrtm_t;
 enum { TM_FWD, TM_BACK, TM_HOLD_B, TM_COUNT };
 enum { TK_NONE, TK_IMPACT, TK_SLAM };
+/* ---- THE THROW EVENTS (THE THROW REVIEW round 2, Bruno 2026-10-16: "define WHEN THE IMPACT occurs (the visual + the
+ * sound), and separately WHEN THE ACTUAL LAUNCH occurs [...] Separate these concerns"): game.json
+ * roster[].throws.events.forward / back / hold_b / run (written by tools/brawler/throw_answers.py apply2 from
+ * review.html?q=throws2; docs/brawler_data_model.md) -> gthrow_ev[fighter][TM_*] (a paired throw) and
+ * gsg_ev[fighter][0 = hold + B, 1 = the run grab] (a grab special, ix = its pool index; 0xFF none). Four separate
+ * concerns: the GRAB MOTION (the throw's script / the special's lists: where thrower and victim are), the IMPACTS, HELD
+ * and the RELEASE with its trajectory. Frames on the throw's own clock (1 = its first frame, the thrower's frames:
+ * fighter_t.state_t + 1). n impacts (1..EV_IMPS; n 0: no events, the throw's old timing), each on frame ifr[k] with
+ * ish[k] % of the throw's damage (the last one: what is still due) and ifl[k] EVF_* (its spark, sound, screen shake:
+ * gthrow_shake); held: the victim in the thrower's grip until that frame, then still where it is, in its pose; lch: the
+ * engine takes the victim over and sends it, dir TE_* at vy / vx 8.8 px a frame up / away from the thrower (game.json
+ * throw_launch[dir][size]). fighter.c "THE THROW EVENTS": one path, throws.timing / slam_bounce / special_grab_timing
+ * do not apply to it */
+#define EV_IMPS 3
+enum { EVF_SPARK = 1, EVF_SOUND = 2, EVF_SHAKE = 4 };
+typedef struct { uint16_t held, lch; uint8_t dir, n; int16_t vy, vx; uint16_t ifr[EV_IMPS]; uint8_t ish[EV_IMPS], ifl[EV_IMPS]; } gthrev_t;
+enum { TE_UP, TE_AWAY, TE_NONE };
+typedef struct { uint8_t ix, pad; gthrev_t e; } gsgev_t;
+typedef struct { uint8_t frames, px; } gshake_t;   /* the screen shake (game.json throw_shake): frames, +-px */
 /* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown
  * body is a projectile, 8 damage + knockdown on every other enemy it touches, through its whole flight AND its floor
  * impact; a finisher's / the 3rd knee's knockdown is none; players are never hit): every paired throw's victim from its

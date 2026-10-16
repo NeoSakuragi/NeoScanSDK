@@ -30,9 +30,11 @@ throw's throws.timing entry (and for SS2 Hanzo's hold + B, special_grab_timing "
     python3 tools/brawler/throw_answers.py propose [OUT.json]           round 1 -> round 2's proposal (as the page
         pre-fills it: damage -> impact; an IMPACT's eject (else damage) / a SLAM's glue (else damage) -> launch; IMPACT
         -> away, SLAM -> up), in set "throws2"'s format (throw_regress.py --events reads it)
-    python3 tools/brawler/throw_answers.py apply2 GAME_DIR SITE_DIR [ANSWERS2.json] [--dry]
-        SITE_DIR: throw_review.py --set throws2's OUT (its index: the rows). Refused (only --dry) until the engine plays
-        the events (build_tables ENGINE_PLAYS_EVENTS)."""
+    python3 tools/brawler/throw_answers.py apply2 GAME_DIR [ANSWERS2.json] [--dry]
+        every answer of set "throws2" (pulled now, or ANSWERS2.json) into GAME_DIR/game.json: incremental and idempotent
+        (an answer already applied changes nothing; run it again after each new answer), then rebuild. Flags read:
+        impact-N (one per impact: 1-3), share-N-P (the impact on frame N takes P % of the damage; default all on the
+        last), launch-N, dir-*, size-*, held-N. A note that is only the mic's prompt text is dropped."""
 import datetime, difflib, json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -143,17 +145,31 @@ def apply(game, answers, site, dry=False):
 
 # ---- round 2: the events ----
 SET2 = 'throws2'
-SPECIAL_KEY = {'hanzo_ss2': '623K'}                 # a grab special on hold + B: its special_grab_timing entry (replaced)
+MIC_PROMPT = 'Neo Geo brawler game feedback, in English or French.'   # the mic's transcription prompt (micnote.js), not his
+                                                                     # words: a note that is only that is no note
 
 
 def parse2(a):
-    o = {}
+    """an answer's flags -> {impacts: [frames], shares: {frame: %}, launch, held?, dir, size?} (impact-N once per impact,
+    share-N-P: the impact on frame N takes P % of the throw's damage)"""
+    o = {'impacts': [], 'shares': {}}
     for f in a.get('flags') or []:
-        m = re.match(r'^(impact|launch|held)-(\d+)$', f)
-        if m: o[m.group(1)] = int(m.group(2))
+        m = re.match(r'^impact-(\d+)$', f)
+        if m: o['impacts'].append(int(m.group(1))); continue
+        m = re.match(r'^share-(\d+)-(\d+)$', f)
+        if m: o['shares'][int(m.group(1))] = int(m.group(2)); continue
+        m = re.match(r'^(launch|held)-(\d+)$', f)
+        if m: o[m.group(1)] = int(m.group(2)); continue
         m = re.match(r'^(dir|size)-(\w+)$', f)
         if m: o[m.group(1)] = m.group(2)
+    o['impacts'] = sorted(set(o['impacts']))
+    if o['impacts']: o['impact'] = o['impacts'][0]
     return o
+
+
+def note_of(a):
+    n = (a.get('note') or '').strip()
+    return '' if n.startswith(MIC_PROMPT) else n
 
 
 def propose(old):
@@ -169,48 +185,71 @@ def propose(old):
     return out
 
 
-def entries2(answers, site):
-    IX = json.load(open(os.path.join(site, 'review', SET2, 'index.json')))
-    rows = {r['id']: r for r in IX['rows']}
+def events_of_answer(a):
+    """one answer -> the throws.events entry (build_tables throw_events' data model), or (None, why not)"""
+    if a.get('choice') != 0: return None, f"{a.get('label') or 'no answer'}: not written" + (f" (note: {note_of(a)})" if note_of(a) else '')
+    p = parse2(a)
+    miss = [k for k, ok in (('impact', p['impacts']), ('launch', 'launch' in p), ('dir', 'dir' in p)) if not ok]
+    if miss: return None, f"no {' / '.join(miss)} yet"
+    imps = []
+    for k, fr in enumerate(p['impacts']):
+        x = {'frame': fr}
+        if fr in p['shares'] and k + 1 < len(p['impacts']): x['damage'] = p['shares'][fr]
+        imps.append(x)
+    e = {'impacts': imps}
+    if p.get('held'): e['held'] = p['held']
+    e['launch'] = dict({'frame': p['launch'], 'dir': p['dir']}, **({'size': p['size']} if p.get('size') else {}))
+    e['from'] = (f"throw review round 2 {a.get('at', '')[:10] or datetime.date.today()} (review.html?q=throws2): "
+                 + a.get('label', '') + (f"; note: {note_of(a)}" if note_of(a) else ''))
+    return e, None
+
+
+def row_of(g, rid):
+    """a page row id <fighter>-<fwd | back | holdb> -> (fighter, throws.events key, kind 'paired' | 'special'), or None"""
+    f, _, k = rid.rpartition('-')
+    r = next((x for x in g['roster'] if x['name'] == f), None)
+    if not r or k not in KEY: return None
+    key = KEY[k]
+    return f, key, 'special' if BT.event_special(r, key) else 'paired'
+
+
+def entries2(answers, g):
     out, skipped = [], []
     for rid, a in sorted(answers.items()):
-        r = rows.get(rid)
-        if not r: skipped.append((rid, 'not a row of this capture')); continue
-        if a.get('choice') != 0: skipped.append((rid, f"{a.get('label') or 'no answer'}: not written" + (f" (note: {a['note']})" if a.get('note') else ''))); continue
-        p = parse2(a)
-        miss = [k for k in ('impact', 'launch', 'dir') if k not in p]
-        if miss: skipped.append((rid, f"no {' / '.join(miss)} yet")); continue
-        e = {'impact': p['impact'], 'launch': dict({'frame': p['launch'], 'dir': p['dir']}, **({'size': p['size']} if p.get('size') else {}))}
-        if p.get('held'): e['held'] = p['held']
-        e['from'] = (f"throw review round 2 {a.get('at', '')[:10] or datetime.date.today()} (review.html?q=throws2, build {IX['game_version']}): "
-                     + a.get('label', '') + (f"; note: {a['note']}" if a.get('note') else ''))
-        out.append((r['fighter'], KEY[r['throw']], e, r['kind'], rid))
+        row = row_of(g, rid)
+        if not row: skipped.append((rid, 'not a throw of this game')); continue
+        e, why = events_of_answer(a)
+        if e is None: skipped.append((rid, why)); continue
+        out.append(row + (e, rid))
     return out, skipped
 
 
-def apply2(game, answers, site, dry=True):
-    if not dry and not BT.ENGINE_PLAYS_EVENTS:
-        raise SystemExit('apply2: the engine does not play throws.events yet (build_tables ENGINE_PLAYS_EVENTS): --dry only')
+def apply2(game, answers, dry=False):
+    """every answer present -> game.json (only the fighters' throws / special_grab_timing fields rewritten): incremental
+    and idempotent, an answer already applied changes nothing, a changed one replaces its entry; run it again on each
+    new answer. -> the diff (empty: nothing new)"""
     path = os.path.join(game, 'game.json')
     text = open(path).read(); g = json.loads(text)
-    es, skipped = entries2(answers, site)
+    es, skipped = entries2(answers, g)
     for rid, why in skipped: print(f'{rid}: skipped: {why}')
-    for f, k, e, kind, rid in es:
-        print(f"{rid}: {f} throws.events.{k} = {json.dumps({x: y for x, y in e.items() if x != 'from'})}")
     out = text
     for f in sorted({f for f, *_ in es}):
         r = next(x for x in g['roster'] if x['name'] == f)
         t = r.setdefault('throws', {})
         ev = t.setdefault('events', {})
-        for f2, k, e, kind, rid in es:
+        sgt = False
+        for f2, k, kind, e, rid in es:
             if f2 != f: continue
+            print(f"{rid}: {f} throws.events.{k} = {json.dumps({x: y for x, y in e.items() if x != 'from'})}" + ('' if ev.get(k) != e else '  (already applied)'))
             ev[k] = e
             (t.get('timing') or {}).pop(k, None)             # one path: the events replace the timing
-            if kind == 'special' and SPECIAL_KEY.get(f) and SPECIAL_KEY[f] in (r.get('special_grab_timing') or {}):
-                del r['special_grab_timing'][SPECIAL_KEY[f]]
-                if not r['special_grab_timing']: del r['special_grab_timing']
-                out = set_field(out, f, 'special_grab_timing', r.get('special_grab_timing'))
-        t['events'] = {k: ev[k] for k in BT.TIMING_KEYS if k in ev}
+            sp = BT.event_special(r, k)
+            if sp and sp in (r.get('special_grab_timing') or {}):
+                del r['special_grab_timing'][sp]; sgt = True
+        if sgt:
+            if not r['special_grab_timing']: del r['special_grab_timing']
+            out = set_field(out, f, 'special_grab_timing', r.get('special_grab_timing'))
+        t['events'] = {k: ev[k] for k in BT.EVENT_KEYS if k in ev}
         if 'timing' in t and not t['timing']: del t['timing']
         BT.throw_events(r, g)                                 # the data model's own checks
         out = set_field(out, f, 'throws', t)
@@ -234,8 +273,9 @@ if __name__ == '__main__':
         if len(a) > 1: open(a[1], 'w').write(s)
         else: print(s)
     elif a[0] == 'apply2':
-        ans = json.load(open(a[3])) if len(a) > 3 else pull(SET2)
-        print(apply2(a[1], ans, a[2], dry) or '(no change)')
+        rest = [x for x in a[2:] if not os.path.isdir(x)]   # (a SITE_DIR, as before: no longer needed)
+        ans = json.load(open(rest[0])) if rest else pull(SET2)
+        print(apply2(a[1], ans, dry) or '(no change: every answer already applied)')
     elif a[0] == 'apply':
         ans = json.load(open(a[3])) if len(a) > 3 else pull()
         print(apply(a[1], ans, a[2], dry) or '(no change)')
