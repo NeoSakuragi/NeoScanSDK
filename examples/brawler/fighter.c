@@ -1695,13 +1695,11 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
  * victim (a paired throw's throws.timing kind slam: its damage row is its hand-off then, throw_start; a grab special's
  * special_grab_timing: its blow, vlist_place) leaves the floor at once in a short low pop, bvy / bvx 8.8 px a frame up /
  * away from the thrower (game.json slam_bounce, gthrow_tm / gsgt_bounce): an ordinary airborne knockdown (S_KNOCKDOWN,
- * the juggle box, its air hits counted toward chain.juggle_cap), which falls, lands and lies as any. Its thrower may cut
- * the rest of his throw / special short from that frame with a fresh attack press, A, C or D (IN_STRIKE; tbnc, a player:
- * update's S_THROW / S_SPECIAL), to reach it and hit it again on the way down. Only a press made at or after the slam:
- * the stick (held from the throw's own forward / back) and the jump never cut it, so the throw's end pose plays whole
- * unless he follows up (note 20261016-131633-e03d: the stick still held from forward + A cut Haggar's suplex on the
- * slam frame, released it played whole). A MAX chain's throw with another to come does not bounce (chain_more) */
-#define IN_STRIKE (IN_A | IN_C | IN_D)
+ * the juggle box, its air hits counted toward chain.juggle_cap), which falls, lands and lies as any. Its thrower plays
+ * his throw / special on to its end; a deliberate follow-up may cut it to hit the victim again on the way down: the one
+ * rule, "THE THROW'S END" (throw_follow). A MAX chain's throw with another to come does not bounce (chain_more) */
+#define TB_ARMED  1                  /* fighter_t.tbnc: its slam bounced the victim (slam_bounce) */
+#define TB_MASHED 2                  /* fighter_t.tbnc: A pressed in this throw before the slam (throw_follow) */
 static void bounce_cancel(fighter_t *f) {                       /* the thrower's cut: neutral, facing its victim (the */
     const fighter_t *v = f->target;                              /* stick still turns him: update's neutral) */
     if (v && v != f && INT(v->x) != INT(f->x)) f->facing = v->x > f->x ? 1 : -1;
@@ -1719,7 +1717,7 @@ static void slam_bounce(fighter_t *v, fighter_t *by, int16_t bvy, int16_t bvx) {
                                                                     others"): this frame only (tb_slam, combat "thrown
                                                                     bodies"), its landing after the bounce none (tb_fl
                                                                     bit 7 set, no frames), its flight no body (tb_by 0) */
-    if (by && by != v && !by->team) by->tbnc = 1;            /* (a player thrower: AI throws play out) */
+    if (by && by != v && !by->team) by->tbnc |= TB_ARMED;    /* (a player thrower: AI throws play out) */
 }
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
  * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script), bit 2
@@ -1959,9 +1957,10 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
                                                                     throw, as the chain's back throw was) */
     v->slam = IS_THROW(t) ? slam_row(th) : 0xFFFF;               /* its damage at its ground impact (slam_row) */
     v->eject = 0xFFFF; v->sbvy = v->sbvx = 0;
+    f->tcut = IS_THROW(t) ? last_impact(th) : 0xFFFF;           /* its follow-up row (THE THROW'S END) */
     if (IS_THROW(t) && f->ch->id < BC_COUNT) {                   /* the throw's own timing, as Bruno judged it (game.json */
         const gthrtm_t *tm = &gthrow_tm[f->ch->id][t == BT_XTHROW ? TM_HOLD_B : dir == TD_BACK ? TM_BACK : TM_FWD];   /* roster[]. */
-        if (tm->dmg != 0xFFFF) v->slam = tm->dmg;                /* throws.timing, gamedata.h gthrtm_t): its damage row, */
+        if (tm->dmg != 0xFFFF) v->slam = f->tcut = tm->dmg;      /* throws.timing, gamedata.h gthrtm_t): its damage row, */
         v->eject = tm->hand; v->ejk = tm->kind;                  /* its hand-off row (an IMPACT's eject) */
         if (tm->kind == TK_SLAM && tm->bvy && !chain_more(f)) { /* the slam's bounce: from its damage row (no glue */
             v->sbvy = tm->bvy; v->sbvx = tm->bvx;                /* after it: the victim leaves the floor there) */
@@ -2677,17 +2676,56 @@ static void cancel_go(fighter_t *f, uint8_t k, const fighter_t *v) {   /* a thro
     if (v && v != f && INT(v->x) != INT(f->x)) f->facing = v->x > f->x ? 1 : -1;
     if (k == BS_FURY || k == BS_FURY_MAX) start_special(f, k); else cspecial(f, k);
 }
-static void throw_update(fighter_t *f, const intent_t *in) {
+/* THE THROW'S END (note 20261016-134631-e03d, Bruno: "sometimes Terry goes until the end of the animation, sometimes the
+ * animation is cut short"): one rule for every throw (S_THROW: a paired throw, the hold finisher's follow-through) and
+ * every grab special that slams (S_SPECIAL with a slam bounce), one code path (update's S_THROW / S_SPECIAL). The throw
+ * plays whole, its end pose included (the thrower's script to its control return, a grab special to its program's end),
+ * whatever the stick, B or a press that buys nothing do. Its only early exit is a DELIBERATE FOLLOW-UP, which cuts it on
+ * the frame the move it starts begins:
+ *   C / D from the throw's follow-up row on (tcut: its damage row as Bruno judged it, game.json throws.timing, else its
+ *     last impact; the hold finisher: its victim let go; a grab special: its slam), pressed then or up to CANCEL_BUF
+ *     frames before ("cancels" rule 4): the special / the fury it buys (cancel_pick); none payable: the press is
+ *     dropped and the throw plays on;
+ *   A once its slam bounced the victim (TB_ARMED, slam_bounce), the thrower on the floor: the jab from neutral, to
+ *     juggle it. Only a press made after the slam in a throw with no A pressed before it: A mashed through the throw
+ *     (or pressed on the slam frame itself) marks it TB_MASHED and the throw plays out. The same A in a throw's leap
+ *     (game.json keeps_air_attack, throw_air: the jump's air attack), with the same rule (update's S_THROW).
+ * 0.10.137-0.10.141 let ANY A / C / D press after the slam cut it to neutral: in Bruno's session e03d5593-20261016-114859
+ * (0.10.141, replayed) a D with no meter cut Terry's back throw 8 frames after the slam into nothing, and a mashed A
+ * cuts it into a jab the frame after the slam (throw_regress.py mashA / Dnometer). An enemy thrower never follows up.
+ * -> 0 plays on; 1 a special / fury started (f is out of its throw); 2 cut to neutral, this frame's A to play there (the
+ * caller goes to neutral) */
+static uint8_t throw_follow(fighter_t *f, const intent_t *in) {
+    uint8_t k, sp = f->state == S_SPECIAL, at;
+    fighter_t *jv;
+    if (f->team || !in) return 0;
+    if ((in->press & IN_A) && !(f->tbnc & TB_ARMED)) f->tbnc |= TB_MASHED;   /* (before its slam: not a follow-up) */
+    if (sp) {                                                    /* a grab special: from its slam, its own presses */
+        at = (f->tbnc & TB_ARMED) && !(f->pflags & PF_HOLD) && f->y <= 0;
+        if (at && (in->press & IN_C)) f->spec_buf = 0x80 | d_input(f, in);
+        if (at && (in->press & IN_D)) f->fury_buf = 0x80 | (in->dz > 0);
+    } else at = f->throw_id == BT_HOLD_FIN ? !f->held : IS_THROW(f->throw_id) && f->srow > f->tcut;   /* (srow: the row
+                                                                    shown + 1; its presses buffered by update) */
+    if (at && (f->fury_buf || f->spec_buf) && (k = cancel_pick(f)) != 0xFF) {
+        jv = f->held ? f->held : f->target;
+        juggle_open(f, jv);                                      /* rule 5: its follow-up may hit the victim in flight */
+        if (sp) { carry_drop(f); special_end(f); f->pflags = 0; } else throw_free(f, 0);
+        lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k, jv);
+        return 1;
+    }
+    if ((in->press & IN_A) && (f->tbnc & (TB_ARMED | TB_MASHED)) == TB_ARMED && f->y <= 0 && !f->held &&
+        !(sp && (f->pflags & PF_HOLD))) {
+        if (sp) { carry_drop(f); special_end(f); f->pflags = 0; } else throw_free(f, 0);
+        f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;
+        bounce_cancel(f);
+        return 2;
+    }
+    return 0;
+}
+static void throw_update(fighter_t *f, const intent_t *in) {    /* (its follow-up: throw_follow, just before) */
     uint8_t k;
     fighter_t *jv;
     (void)in;
-    if (!f->team && (f->fury_buf || f->spec_buf) &&               /* the impact shown (srow: the row shown + 1): */
-        (f->throw_id == BT_HOLD_FIN ? !f->held : IS_THROW(f->throw_id) && f->srow > last_impact(thr_of(f, f->throw_id))) &&
-        (k = cancel_pick(f)) != 0xFF) {                          /* a buffered C / D fires now */
-        jv = f->held ? f->held : f->target;
-        juggle_open(f, jv);                                      /* rule 5: its follow-up may hit the victim in flight */
-        throw_free(f, 0); lab_note(f, LE_SPECIAL, 0, LH_CANCEL, k); cancel_go(f, k, jv); return;
-    }
     if (paired_update(f)) return;
     jv = f->held ? f->held : f->target;
     if (f->mchn && max_chain(f, jv)) return;                     /* (the MAX chain: its next throw, no launch) */
@@ -3221,7 +3259,7 @@ static uint8_t special_for(const fighter_t *f, const intent_t *in) { return spec
  * normal's special cancel takes a press from the normal's startup until 8 (close C) / 9 (close B) frames after the
  * impact and fires at the end of the hit-stop. Air normals have no special cancel
  * (no special starts in the air). Players only: enemies keep their routes' special links, nothing more. ---- */
-#define CANCEL_BUF 24                 /* frames a C / D pressed before a throw's last impact stays buffered (rule 4) */
+#define CANCEL_BUF 24                 /* frames a C / D pressed before a throw's follow-up row stays buffered (rule 4) */
 static uint8_t cancel_pick(fighter_t *f) {                       /* a throw's buffered C / D: the role it cancels into,
                                                                     its meter spent (0xFF: none, or no meter: dropped) */
     uint8_t k = (f->fury_buf & 0x80) ? fury_buy(f, f->fury_buf & 1, 0) : 0xFF;
@@ -4221,8 +4259,8 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->state == S_GRAB && !(f->srow && f->throw_id == BT_HOLD_FIN) && (in->press & IN_D))   /* the hold: D for the */
         f->fury_buf = 0x80 | (in->dz > 0);                       /* fury (hold_update; presses in hit-stop count, TODO #208) */
     if ((f->state == S_THROW || (f->state == S_GRAB && f->srow && f->throw_id == BT_HOLD_FIN)) && !f->team) {   /* a throw /
-                                                                    the hold finisher: C / D buffered for its last
-                                                                    impact ("cancels" rule 4; presses in hit-stop count) */
+                                                                    the hold finisher: C / D buffered for its follow-up
+                                                                    row ("cancels" rule 4, throw_follow; hit-stop counts) */
         if (in->press & IN_C) { f->spec_buf = 0x80 | d_input(f, in); f->cnc_buf = CANCEL_BUF; }
         if (in->press & IN_D) { f->fury_buf = 0x80 | (in->dz > 0); f->cnc_buf = CANCEL_BUF; }
         if (!(in->press & (IN_C | IN_D)) && !f->freeze && f->cnc_buf && !--f->cnc_buf) f->spec_buf = f->fury_buf = 0;   /* too
@@ -4565,19 +4603,21 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     case S_GRAB: hold_update(f, in); break;
     case S_THROW:
-        if (in && (in->press & IN_A) && f->tbnc && f->y > 0 && f->target && INT(f->target->x) != INT(f->x))   /* (its */
-            f->facing = f->target->x > f->x ? 1 : -1;            /* slam bounced the victim: the air A turned to it) */
-        if (in && (in->press & IN_A) && throw_air(f)) goto air;   /* (its leap: the jump's A, game.json keeps_air_attack) */
-        if (f->tbnc && in && (in->press & IN_STRIKE) && !f->held && f->y <= 0) {   /* its slam bounced the */
-            throw_free(f, 0); f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;   /* victim: the rest of the throw cut */
-            bounce_cancel(f); goto neutral;                      /* short, the press plays from neutral (slam_bounce) */
+        if (in && (in->press & IN_A) && !(f->tbnc & TB_MASHED)) {   /* a follow-up A in its leap (game.json */
+            if ((f->tbnc & TB_ARMED) && f->y > 0 && f->target && INT(f->target->x) != INT(f->x))   /* keeps_air_attack, */
+                f->facing = f->target->x > f->x ? 1 : -1;        /* throw_air): the jump's A, turned to a bounced victim; */
+            if (throw_air(f)) goto air;                          /* never a mashed A (THE THROW'S END) */
+        }
+        {   uint8_t r = throw_follow(f, in);                     /* THE THROW'S END: its follow-up, else it plays on */
+            if (r == 2) goto neutral;
+            if (r) break;
         }
         throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
-        if (f->tbnc && in && (in->press & IN_STRIKE) && !(f->pflags & PF_HOLD) && f->y <= 0) {   /* a grab */
-            carry_drop(f); special_end(f); f->pflags = 0;       /* special's slam bounced its victim: the rest cut */
-            bounce_cancel(f); goto neutral;                      /* short (slam_bounce) */
+        {   uint8_t r = throw_follow(f, in);                     /* a grab special's slam: THE THROW'S END (no slam */
+            if (r == 2) goto neutral;                            /* bounce: nothing) */
+            if (r) break;
         }
         if (lab_cnode && in && !f->idx && !f->team && f->buffered) {   /* a Lab chain press (RF_LAB, lab_node): on a hit the */
             const rnode_t *c = NODE(f, lab_cnode);               /* next link, as a normal's cancel on hit */

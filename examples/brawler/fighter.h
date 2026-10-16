@@ -635,8 +635,11 @@ typedef struct fighter {
                                      script's landing (thrown_release), TK_SLAM hands it over there (on the floor: thrown_land) */
     int16_t  sbvy, sbvx;          /* a SLAM's victim: its ground bounce at the slam (8.8 px a frame up / away from the thrower;
                                      game.json slam_bounce, fighter.c slam_bounce; sbvy 0: none) */
-    uint8_t  tbnc, tb_slam;       /* tbnc: a thrower whose slam bounced its victim: any press / stick cuts the rest of his throw /
-                                     grab special (fighter.c slam_bounce; any new state clears it). tb_slam: a slammed victim's
+    uint16_t tcut;                /* a thrower's follow-up row (fighter.c "THE THROW'S END"): its throw's damage row (throws.timing),
+                                     else its last impact; from it a C / D that buys a move cancels the throw (throw_start) */
+    uint8_t  tbnc, tb_slam;       /* tbnc: a thrower's slam follow-up (fighter.c "THE THROW'S END", throw_follow): TB_ARMED its
+                                     slam bounced its victim, TB_MASHED A was pressed in the throw before it (no A follow-up);
+                                     any new state clears it. tb_slam: a slammed victim's
                                      group impact (note 20261016-111144-e03d): frames it still knocks the others down at the
                                      slam itself, before its bounce touches anyone (fighter.c slam_bounce, combat "thrown
                                      bodies"; its thrower tb_sby) */

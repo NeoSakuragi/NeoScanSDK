@@ -5266,7 +5266,7 @@
   "proof": 60
  },
  "20261016-131633-e03d": {
-  "title": "Haggar's slam throw: the suplex end pose always plays, unless A / C / D follows up",
+  "title": "Haggar's slam throw: the suplex end pose always plays, unless a real follow-up cuts it",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
@@ -5274,8 +5274,21 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him and throw him with forward + A, and KEEP HOLDING forward through the slam. Then the same releasing the stick, holding back, and once pressing A right as Ryo hits the floor.",
-  "expect": "Holding forward, holding back or letting go: the throw plays to its end every time, Haggar holding the suplex on the ground with Ryo smashed into it for its last frames (24 frames after the slam). Only a fresh A, C or D press at or after the slam cuts it to follow up on the bouncing Ryo. The same on every slam throw and on Hanzo's Mozu Otoshi.",
+  "expect": "Holding forward, holding back or letting go, mashing A through it or pressing a D that buys nothing: the throw plays to its end every time, Haggar holding the suplex on the ground with Ryo smashed into it for its last frames (24 frames after the slam). Only a real follow-up cuts it: a lone A pressed after the slam (no A before it in the throw), or a C / D that buys a special / the fury. The same on every slam throw and on Hanzo's Mozu Otoshi.",
   "do_keys": "20:R,2:Ra,70:R",
   "proof": 30
+ },
+ "20261016-134631-e03d": {
+  "title": "Terry's back throw plays to its end every time; only a real follow-up cuts it",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo and throw him with back + A, touching nothing until Terry stands again. Throw him again with back + A, this time mashing A through the whole throw. Again, pressing D once (empty bars) just after Ryo hits the floor. Again, holding the stick forward or back throughout. Then once pressing A ONLY after Ryo has hit the floor (no A before).",
+  "expect": "Every one of those back throws plays the whole end animation: Terry holds his finishing pose on the floor for about half a second (31 frames after the slam) before he can move, the same length every time, mashing or not, a useless D or not, the stick or not. Only the last one is cut: the lone A after the slam turns him into a jab at the bouncing Ryo at once. A D WITH the fury ready (or C with a drive chunk) after the slam also cuts it, into the fury / special. Ryo takes the throw's damage once, at the slam. The same for every throw of every fighter.",
+  "do_keys": "20:R,2:La,150:-,40:L,2:Ra,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,90:-",
+  "proof": 60
  }
 }
