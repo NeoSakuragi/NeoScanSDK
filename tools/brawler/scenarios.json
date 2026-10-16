@@ -4959,5 +4959,18 @@
   "expect": "The window opens clean both times: no pieces of other graphics under or beside it while it grows. His lines sit centred inside the box with a gap to its border on both sides: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D!, then HORRIBLE / ATMOSPHERE. on two lines.",
   "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
   "proof": 150
+ },
+ "20261016-140000-7a00": {
+  "title": "Terry's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Terry walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "IMPACT throw (your throw review answer): the damage lands in one go on the kick at frame 23, and Ryo is thrown away at that same moment; he stays held until then.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 160
  }
 }
