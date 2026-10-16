@@ -2252,14 +2252,15 @@ static uint8_t sel_lay, sel_base, sel_cnt;   /* the layout in use (build_tables.
                                             without it one layer, every slot (a locked boss: a silhouette) */
 static fighter_t sel_extra[NA - NE];     /* actors NE.. (the fight's entities are actors 0..NE-1) */
 static fighter_t *actor(uint8_t a) { return a < NF ? &fighters[a] : a < NE ? &projectiles[a - NF] : &sel_extra[a - NE]; }
-/* the unlocked fighters in CHARS order (the attract demo's players) */
+/* the unlocked fighters in CHARS order (the attract demo's players): the select screen's own set, char_locked (with the
+ * unlock ladder: the starters + the rungs save.rungs unlocked, the cheat's included; note 20261016-173135-e03d, "only
+ * show playable characters that have been unlocked — Haggar [...] must stay a surprise until unlocked in the ladder") */
 static uint8_t lu[BC_COUNT], lu_n;
 static uint8_t char_locked(uint8_t c);
 static void roster_build(void) {
     uint8_t c;
     lu_n = 0;
-    for (c = 0; c < BC_COUNT; c++) if (LAD_N ? roster_unlock[c] != 0xFF : !char_locked(c)) lu[lu_n++] = c;   /* (the
-                                                             unlock ladder: its every fighter, whatever the save) */
+    for (c = 0; c < BC_COUNT; c++) if (!char_locked(c)) lu[lu_n++] = c;
 }
 static void slots_build(void) {
     uint8_t s;
