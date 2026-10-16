@@ -344,6 +344,22 @@ each), scenario.py lint 0.
   victim to that row (on the floor there: the landing hand-off). `hold_b` = the extra paired throw (BT_XTHROW: Haggar's
   piledriver). build_tables `throw_timing` -> `gthrow_tm[fighter][TM_*]` {dmg, hand, kind} -> fighter.c throw_start
   (fighter_t slam / eject / ejk). No entry: the rule as before.
+- `roster[].throws.events` {`forward` | `back` | `hold_b`: {`impact`: N, `launch`: {`frame`: N, `dir` "up" | "away" |
+  "none", `size`? "small" | "medium" | "big"}, `held`?: N, `from`}} (THE THROW REVIEW round 2, Bruno 2026-10-16 after
+  0.10.142: "define WHEN THE IMPACT occurs (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs [...]
+  Separate these concerns"; brawler-lab/review.html?q=throws2, written by `tools/brawler/throw_answers.py apply2` from
+  set "throws2", never by hand). N = the throw's frame: 1 = its first frame, every game frame from its start, as the page
+  numbers them (no script rows). `impact`: the spark, the sound, the screen shake and the whole damage on that one frame
+  (the script's own impact rows no longer spark / sound). `launch`: the engine takes the victim over on that frame and
+  sends it: up (a pop), away (along the throw's way), none (where it is: lying stays down, in the air falls), strength
+  game.json `throw_launch[dir][size]` {vy, vx} (default medium). `held`: the victim follows the thrower's grip (the
+  script) until that frame, then stays where it is, in its pose, until the launch (default: the launch frame). The
+  thrower plays its whole animation (THE THROW'S END). Replaces `throws.timing`, `slam_bounce` and, for SS2 Hanzo's hold
+  + B, `special_grab_timing` "623K" for that throw (one path; build_tables `throw_events` refuses a throw with both).
+  Until fighter.c plays them (build_tables `ENGINE_PLAYS_EVENTS`), a game.json with events is refused by the build and
+  apply2 runs `--dry` only, so his answers are never silently ignored. `tools/brawler/throw_regress.py` checks each throw
+  with events (impact frame once, launch frame + direction, held), `--events FILE --events-only` measures a build
+  against answers not applied yet.
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;

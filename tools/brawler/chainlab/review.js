@@ -14,6 +14,7 @@
   const get = async (u, o) => { const r = await fetch(u, Object.assign({ cache: 'no-cache', credentials: 'same-origin' }, o)); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
 
   if (new URLSearchParams(location.search).get('q') === 'throws') { await throwReview(); return; }
+  if (new URLSearchParams(location.search).get('q') === 'throws2') { await throwReview2(); return; }
 
   let index;
   try { index = await get('review/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No review data (' + e.message + ').' })); return; }
@@ -38,9 +39,7 @@
   // the microphone. Saved to the decisions store, set "throws" (POST feedback-api/decision: choice, label, note, flags
   // "dmg-N" / "eject-N" / "glue-N", N = the frame number as shown, 1-based); tools/brawler/throw_answers.py turns them into
   // game.json roster[].throws.timing. ----
-  async function throwReview() {
-    const KINDS = ['IMPACT: the damage lands at the impact, which ejects the victim', 'SLAM: the damage lands at the one slam into the ground', NONE];
-    const SHORT = ['IMPACT', 'SLAM', 'None of these'];
+  function thrCss() {
     if (!document.getElementById('thr-css')) {
       const st = document.createElement('style'); st.id = 'thr-css';
       st.textContent = `
@@ -72,9 +71,16 @@
 #rev.thr .picks { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px 6px; align-items: center; font-size: 14px; }
 #rev.thr .picks b { font-family: ui-monospace, monospace; }
 #rev.thr .saved { font-size: 13px; min-height: 1em; }
-#rev.thr .legend { font-size: 13px; margin: 0; }`;
+#rev.thr .legend { font-size: 13px; margin: 0; }
+#rev.thr .opts { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 14px; }
+#rev.thr .prop { border: 2px dashed #000; padding: 6px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }`;
       document.head.append(st);
     }
+  }
+  async function throwReview() {
+    const KINDS = ['IMPACT: the damage lands at the impact, which ejects the victim', 'SLAM: the damage lands at the one slam into the ground', NONE];
+    const SHORT = ['IMPACT', 'SLAM', 'None of these'];
+    thrCss();
     root.classList.add('thr');
     let IX;
     try { IX = await get('review/throws/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No throw review data (' + e.message + ').' })); return; }
@@ -222,6 +228,231 @@
     }));
     root.replaceChildren(h('h1', { text: 'Throw review' }),
       h('p', { class: 'sub', text: `Every throw of the beta's fighters as build ${IX.game_version} plays it. Tap one: its frames, then IMPACT or SLAM and the frame where the damage lands.` }),
+      status, list);
+    count();
+    const want = new URLSearchParams(location.search).get('t');
+    if (want) { const li = document.getElementById('t-' + want); if (li) li.querySelector('.thead').click(); }
+    window.reviewReady = true;
+  }
+
+  // ---- THE THROW REVIEW v2 (review.html?q=throws2[&t=<row id>]; Bruno 2026-10-16 after 0.10.142, "Back to the drawing board
+  // for throws [...] define WHEN THE IMPACT occurs (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs
+  // (ejecting the victim up, or ejecting it sideways)"): per throw, the current build's frames and the 0.10.130 frames he
+  // judged in round 1 (one toggle: the frame numbers are the same on both up to the first change), and three events on
+  // the throw's frame clock (frame 1 = the throw's first frame, as shown):
+  //   IMPACT  one frame: the spark, the sound, the screen shake and the whole damage
+  //   LAUNCH  one frame + a direction UP / AWAY / NONE (+ an optional height small / medium / big): the engine takes the
+  //           victim over there and sends it
+  //   HELD    optional: the victim held to the thrower's grip until this frame (default: the launch frame)
+  // Pre-filled from his round-1 answer (set "throws": damage frame -> impact, eject / glue frame -> launch; IMPACT -> AWAY,
+  // SLAM -> UP), marked "proposed" until saved: "Confirm proposed" saves it in one tap. Saved to the decisions store, set
+  // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N, launch-N, dir-up | dir-away | dir-none,
+  // size-small | size-medium | size-big, held-N); tools/brawler/throw_answers.py v2 turns them into game.json
+  // roster[].throws.events. ----
+  async function throwReview2() {
+    const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['none', 'NONE ·']];
+    const SIZES = ['small', 'medium', 'big'];
+    const ARROW = { up: '↑', away: '→', none: '·' };
+    thrCss();
+    root.classList.add('thr');
+    let IX;
+    try { IX = await get('review/throws2/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No throw review data (' + e.message + ').' })); return; }
+    const SETT = IX.set || 'throws2';
+    let ans = {}, old = {};
+    try { ans = await get(API + 'decisions/' + SETT, { cache: 'no-store' }); } catch (e) { /* offline */ }
+    try { old = await get(API + 'decisions/throws', { cache: 'no-store' }); } catch (e) { /* offline */ }
+    const post = async body => {
+      const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: SETT }, body)) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    };
+    const parse = a => { const o = {}; for (const f of (a && a.flags) || []) { let m = /^(impact|launch|held|dmg|eject|glue)-(\d+)$/.exec(f); if (m) o[m[1]] = +m[2]; m = /^(dir|size)-(\w+)$/.exec(f); if (m) o[m[1]] = m[2]; } return o; };
+    // round 1 -> the proposal: damage -> impact; launch = an IMPACT's eject (else its damage), a SLAM's glue (else its damage)
+    const propose = a => {
+      if (!a) return null;
+      const p = parse(a); if (!p.dmg) return null;
+      const impact = a.choice === 0;
+      return { impact: p.dmg, launch: impact ? (p.eject || p.dmg) : (p.glue || p.dmg), dir: impact ? 'away' : 'up' };
+    };
+    const evTxt = e => e ? `I${e.impact || '-'} L${e.launch || '-'}${ARROW[e.dir] || ''}${e.size ? ' ' + e.size[0] : ''}${e.held ? ' H' + e.held : ''}` : '';
+    const status = h('p', { class: 'sub', role: 'status' });
+    const count = () => { status.textContent = `${IX.rows.filter(r => ans[r.id] && ans[r.id].choice != null).length} of ${IX.rows.length} answered`; };
+    const fN = k => k == null ? '-' : String(k + 1);
+    const mineTxt = r => { const a = ans[r.id];
+      if (a && a.choice === 1) return '✓ None of these';
+      if (a && a.choice === 0) return '✓ ' + evTxt(parse(a));
+      const p = propose(old[r.id]); return p ? 'proposed ' + evTxt(p) : '○ to answer'; };
+    const oldTxt = r => { const a = old[r.id]; if (!a) return 'Round 1: no answer.';
+      return 'Round 1 (on ' + ((r.prev && r.prev.game_version) || 'the old build') + '): ' + (a.label || (a.flags || []).join(', ')) + (a.note ? ' Note: ' + a.note : ''); };
+    let open = null;
+
+    function body(r, head) {
+      const a = ans[r.id] || {};
+      const saved0 = a.choice != null;
+      const E = saved0 ? parse(a) : Object.assign({}, propose(old[r.id]) || {});
+      let choice = saved0 ? a.choice : null;
+      let proposed = !saved0 && E.impact != null;
+      const caps = { now: r, prev: r.prev || null };
+      let which = 'now';
+      const sheets = {};
+      for (const [k, c] of Object.entries(caps)) if (c) { const im = new Image(); im.src = c.sheet; sheets[k] = im; }
+      const Dd = {};
+      const cap = () => caps[which];
+      const cv = h('canvas', { class: 'tframe', width: r.w, height: r.h, role: 'img', 'aria-label': `${r.display}, ${r.label}: frame by frame` });
+      const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const fline = h('div', { class: 'fline', 'aria-live': 'polite' });
+      const slider = h('input', { type: 'range', min: '1', max: String(r.frames), value: '1', 'aria-label': 'Frame' });
+      let k = 0, playing = false, speed = 1, acc = 0, last = 0, raf = 0;
+      const held = () => E.held || E.launch;
+      const evAt = j => { const n = j + 1, t = [];
+        if (E.impact === n) t.push('I');
+        if (E.launch === n) t.push('L' + (ARROW[E.dir] || ''));
+        if (E.held && E.held === n) t.push('H');
+        return t.join(' '); };
+      const nowAt = j => { const c = cap(), t = [];
+        if (c.now.damage.includes(j)) t.push('d'); if (c.now.handoff === j) t.push('g'); return t.join(''); };
+      const words = j => { const n = j + 1, t = [];
+        if (E.impact === n) t.push((proposed ? 'PROPOSED ' : 'YOUR ') + 'IMPACT (spark, sound, shake, damage)');
+        if (E.launch === n) t.push((proposed ? 'PROPOSED ' : 'YOUR ') + 'LAUNCH ' + (E.dir || '').toUpperCase() + (E.size ? ' ' + E.size : ''));
+        if (E.held === n) t.push('YOUR HELD UNTIL');
+        if (E.launch && !E.held && n < E.launch && E.impact && n >= E.impact) t.push('held (until the launch)');
+        const c = cap(); if (c.now.damage.includes(j)) t.push(c.game_version || IX.game_version, 'damage'); if (c.now.handoff === j) t.push('let go');
+        return t; };
+      const strip = h('div', { class: 'tstrip', 'aria-label': 'Every frame: tap one to see it' });
+      function draw() {
+        const c = cap(), sh = sheets[which];
+        const nf = c.frames;
+        if (k >= nf) k = nf - 1;
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, r.w, r.h);
+        if (sh && sh.complete && sh.naturalWidth) ctx.drawImage(sh, (k % c.cols) * c.w, Math.floor(k / c.cols) * c.h, c.w, c.h, 0, 0, r.w, r.h);
+        const ev = evAt(k);                                        // the events on the frame itself, in a box (e-ink: black on white)
+        if (ev) { ctx.font = 'bold 22px monospace'; const w = ctx.measureText(ev).width + 14;
+          ctx.fillStyle = '#fff'; ctx.fillRect(4, 4, w, 30); ctx.strokeStyle = '#000'; ctx.lineWidth = 3; ctx.strokeRect(4, 4, w, 30);
+          ctx.fillStyle = '#000'; ctx.fillText(ev, 11, 27); }
+        const dd = Dd[which], st = dd ? dd.states[k] : null;
+        fline.textContent = `${which === 'now' ? 'build ' + IX.game_version : 'judged ' + (c.game_version || '')} · frame ${k + 1} / ${nf}` +
+          (st ? ` · ${st[0].toLowerCase()} / ${st[1].toLowerCase()}` : '') + (words(k).length ? ' · ' + words(k).join(' · ') : '');
+        slider.max = String(nf); slider.value = String(k + 1);
+        strip.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-current', String(j === k)));
+        const cur = strip.children[k];
+        if (cur && !playing) strip.scrollLeft = Math.max(0, cur.offsetLeft - strip.offsetLeft - strip.clientWidth / 2 + cur.offsetWidth / 2);
+      }
+      for (const [kk, c] of Object.entries(caps)) if (c) get(c.data).then(x => { Dd[kk] = x; draw(); }, () => {});
+      Object.values(sheets).forEach(im => { im.onload = draw; });
+      const go = j => { k = Math.max(0, Math.min(cap().frames - 1, j)); draw(); };
+      slider.oninput = () => { stop(); go(+slider.value - 1); };
+      const bPlay = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Play' });
+      const tickp = now => {
+        if (!playing) return;
+        acc += Math.min(250, now - last) * speed; last = now;
+        const fms = 1000 / IX.fps; let n = 0;
+        while (acc >= fms) { acc -= fms; k = (k + 1) % cap().frames; n++; }
+        if (n) draw();
+        raf = requestAnimationFrame(tickp);
+      };
+      function stop() { playing = false; cancelAnimationFrame(raf); bPlay.textContent = 'Play'; bPlay.setAttribute('aria-pressed', 'false'); }
+      bPlay.onclick = () => { if (playing) { stop(); draw(); return; } playing = true; acc = 0; last = performance.now(); bPlay.textContent = 'Pause'; bPlay.setAttribute('aria-pressed', 'true'); raf = requestAnimationFrame(tickp); };
+      const bSlow = h('button', { type: 'button', 'aria-pressed': 'false', text: '¼ speed' });
+      bSlow.onclick = () => { speed = speed === 1 ? 0.25 : 1; bSlow.setAttribute('aria-pressed', String(speed !== 1)); };
+      const step = d => h('button', { type: 'button', text: d < 0 ? '◀ ' + -d : d + ' ▶', 'aria-label': (d < 0 ? 'Back ' : 'Forward ') + Math.abs(d) + ' frame' + (Math.abs(d) > 1 ? 's' : ''), onclick: () => { stop(); go(k + d); } });
+      function fillStrip() {
+        const c = cap(), sc = 76 / c.w;
+        strip.replaceChildren();
+        for (let j = 0; j < c.frames; j++) {
+          const th = h('span', { class: 'th' });
+          th.style.backgroundImage = `url(${c.sheet})`;
+          th.style.backgroundSize = `${c.cols * c.w * sc}px auto`;
+          th.style.backgroundPosition = `-${(j % c.cols) * c.w * sc}px -${Math.floor(j / c.cols) * c.h * sc}px`;
+          strip.append(h('button', { type: 'button', 'aria-label': 'Frame ' + (j + 1), onclick: () => { stop(); go(j); } }, th, h('small', { text: tagTxt(j) })));
+        }
+      }
+      const tagTxt = j => [String(j + 1), evAt(j), nowAt(j)].filter(Boolean).join(' ');
+      const retag = () => strip.querySelectorAll('small').forEach((s, j) => { s.textContent = tagTxt(j); });
+      const wb = Object.keys(caps).filter(x => caps[x]).map(x => h('button', { type: 'button', 'aria-pressed': String(x === which),
+        text: x === 'now' ? 'Build ' + IX.game_version + ' (now)' : (caps.prev.game_version || 'old') + ' (judged in round 1)',
+        onclick: () => { stop(); which = x; wb.forEach(b => b.setAttribute('aria-pressed', String(b === wbOf(x)))); fillStrip(); draw(); } }));
+      const wbOf = x => wb[Object.keys(caps).filter(y => caps[y]).indexOf(x)];
+      fillStrip();
+      // ---- the answer ----
+      const saved = h('div', { class: 'saved', text: saved0 ? 'Saved' : '' });
+      const ta = h('textarea', { 'aria-label': `Note for ${r.display}'s ${r.label}`, placeholder: 'Note (type or speak)' }); ta.value = a.note || '';
+      const flags = () => choice === 1 ? [] : [E.impact && 'impact-' + E.impact, E.launch && 'launch-' + E.launch, E.dir && 'dir-' + E.dir, E.size && 'size-' + E.size, E.held && 'held-' + E.held].filter(Boolean);
+      const label = () => choice === 1 ? 'None of these' : `impact frame ${E.impact || '-'}, launch frame ${E.launch || '-'} ${(E.dir || '-').toUpperCase()}` + (E.size ? ' ' + E.size : '') + (E.held ? ', held until frame ' + E.held : '');
+      const question = `${r.display}, ${r.label}: impact frame, launch frame + direction, held until?`;
+      const propBox = h('div', { class: 'prop' });
+      const save = async extra => {
+        if (choice == null) choice = 0;
+        proposed = false; paint();
+        const body = Object.assign({ id: r.id, question, flags: flags(), choice, label: label() }, extra || {});
+        ans[r.id] = Object.assign({}, ans[r.id], body); count();
+        head.querySelector('.mine').textContent = mineTxt(r);
+        saved.textContent = 'Saving…';
+        try { await post(body); saved.textContent = 'Saved'; }
+        catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
+      };
+      let tn; ta.addEventListener('input', () => { clearTimeout(tn); tn = setTimeout(() => save({ note: ta.value }), 700); });
+      const val = { impact: h('b'), launch: h('b'), held: h('b') };
+      const setE = (x, v) => { if (v == null) delete E[x]; else E[x] = v; if (choice === 1) choice = 0; paint(); retag(); draw(); save(); };
+      const rowOf = (x, t, here, clear) => [h('span', {}, t + ': ', val[x]),
+        h('button', { type: 'button', 'data-set': x, text: here, onclick: () => setE(x, k + 1) }), h('button', { type: 'button', text: clear, onclick: () => setE(x, null) })];
+      const db = DIRS.map(([d, t]) => h('button', { type: 'button', 'aria-pressed': String(E.dir === d), 'data-dir': d, text: t, onclick: () => setE('dir', d) }));
+      const sb = SIZES.map(z => h('button', { type: 'button', 'aria-pressed': String(E.size === z), 'data-size': z, text: z, onclick: () => setE('size', E.size === z ? null : z) }));
+      const bNone = h('button', { type: 'button', 'aria-pressed': String(choice === 1), text: NONE, onclick: () => { choice = 1; paint(); retag(); draw(); save(); ta.focus(); } });
+      const bConf = h('button', { type: 'button', text: 'Confirm proposed', onclick: () => { choice = 0; save(); } });
+      function paint() {
+        val.impact.textContent = E.impact ? 'frame ' + E.impact : '-';
+        val.launch.textContent = E.launch ? 'frame ' + E.launch : '-';
+        val.held.textContent = E.held ? 'frame ' + E.held : (E.launch ? 'the launch (frame ' + E.launch + ')' : '-');
+        db.forEach(b => b.setAttribute('aria-pressed', String(choice !== 1 && b.dataset.dir === E.dir)));
+        sb.forEach(b => b.setAttribute('aria-pressed', String(choice !== 1 && b.dataset.size === E.size)));
+        bNone.setAttribute('aria-pressed', String(choice === 1));
+        propBox.hidden = !proposed;
+        propBox.replaceChildren(h('span', { text: `Proposed from your round-1 answer: ${evTxt(E)}. Not saved yet.` +
+          (E.dir === 'up' && E.launch === E.impact ? ` Launch UP on the impact frame is what ${IX.game_version} does now (the pop at the slam); for the slam first and the launch after, set the launch 4-6 frames later.` : '') }), bConf);
+        fillJumps();
+      }
+      const picks = h('div', { class: 'picks' },
+        rowOf('impact', 'Impact', 'Impact here', 'Clear'),
+        rowOf('launch', 'Launch', 'Launch here', 'Clear'),
+        rowOf('held', 'Held until', 'Held until here', 'Same as launch'));
+      const jump = (t, n) => n ? h('button', { type: 'button', text: t + ' ' + n, onclick: () => { stop(); go(n - 1); } }) : null;
+      const jumps = h('div', { class: 'ctl' });
+      const fillJumps = () => jumps.replaceChildren(h('span', { class: 'legend', text: 'Go to:' }), jump('impact', E.impact), jump('launch', E.launch),
+        r.now.damage.length ? jump(IX.game_version + ' damage', r.now.damage[0] + 1) : null);
+      paint();
+      const el = h('div', { class: 'tbody' },
+        h('p', { class: 'legend', text: `${r.input}; the victim: ${IX.dummy.toUpperCase()}; every game frame (59.18 a second). ` +
+          (r.kind === 'special' ? 'A grab special (Mozu Otoshi): the same three events on its frames.' : '') }),
+        h('div', { class: 'ctl', role: 'group', 'aria-label': 'Which capture' }, wb),
+        cv, fline, slider, h('div', { class: 'ctl' }, step(-10), step(-1), bPlay, step(1), step(10), bSlow), jumps, strip,
+        h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, · none), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
+        h('p', { class: 'legend', text: oldTxt(r) }),
+        h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the whole damage. Launch: the frame the victim is sent (its direction below). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
+        propBox, picks,
+        h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch direction' }, h('span', { text: 'Launch direction:' }), db),
+        h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch height (optional)' }, h('span', { text: 'Height (optional):' }), sb),
+        h('div', { class: 'kinds' }, bNone),
+        h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
+      draw();
+      return { el, stop };
+    }
+    const list = h('ul', { class: 'trows' }, IX.rows.map(r => {
+      const li = h('li', { class: 'trow', id: 't-' + r.id });
+      const head = h('button', { type: 'button', class: 'thead', 'aria-expanded': 'false' },
+        h('b', { text: `${r.display} · ${r.label}` }), h('span', { class: 'mine', text: mineTxt(r) }),
+        h('span', { class: 'now', text: `${IX.game_version}: damage ${r.now.damage.map(fN).join('+') || '-'}` + (r.now.handoff != null ? `, let go ${fN(r.now.handoff)}` : '') }));
+      head.onclick = () => {
+        const was = open && open.li === li;
+        if (open) { open.stop(); open.el.remove(); open.head.setAttribute('aria-expanded', 'false'); open = null; }
+        if (was) return;
+        const b = body(r, head); li.append(b.el); head.setAttribute('aria-expanded', 'true');
+        open = { li, head, el: b.el, stop: b.stop }; li.scrollIntoView({ block: 'start' });
+      };
+      li.append(head);
+      return li;
+    }));
+    root.replaceChildren(h('h1', { text: 'Throw review, round 2' }),
+      h('p', { class: 'sub', text: `Each throw as three events: IMPACT (spark, sound, shake, damage), LAUNCH (when the victim is sent: up, away or none) and HELD (until when the thrower holds it; default the launch). Pre-filled from your round-1 answers: tap a throw, check, confirm.` }),
+      h('p', { class: 'sub' }, h('a', { href: 'review.html?q=throws' , text: 'Round 1 page (your old answers)' })),
       status, list);
     count();
     const want = new URLSearchParams(location.search).get('t');

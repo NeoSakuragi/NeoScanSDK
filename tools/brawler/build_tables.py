@@ -1008,6 +1008,58 @@ def slam_bounce(e, dflt, w):
     return (round(b['vy'] * 256), round(b.get('vx', 0) * 256))
 
 
+EVENT_DIRS = ('up', 'away', 'none')
+ENGINE_PLAYS_EVENTS = False                             # fighter.c reads throws.events (set with the engine change)
+EVENT_SIZES = ('small', 'medium', 'big')
+
+
+def throw_events(r, g=None):
+    """roster[].throws.events (THE THROW REVIEW round 2, Bruno 2026-10-16 after 0.10.142: "define WHEN THE IMPACT occurs
+    (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs (ejecting the victim up, or ejecting it
+    sideways) [...] Separate these concerns"; written by tools/brawler/throw_answers.py apply2 from review.html?q=throws2,
+    never by hand): per throw (forward | back | hold_b; hold_b = the extra paired throw or the grab special on hold + B)
+    {impact: N, launch: {frame: N, dir: up | away | none, size?: small | medium | big}, held?: N, from?, about?}, N = the
+    throw's frame (1 = its first frame, every game frame from its start counted, as the review page numbers them):
+      impact  the spark, the sound, the screen shake and the whole damage, on that one frame
+      launch  the engine takes the victim over on that frame and sends it: up (a pop), away (along the throw's way, from
+              the thrower), none (where it is: on the floor it lies, in the air it falls); size picks game.json
+              throw_launch[dir][size] {vy, vx} px a frame (default medium)
+      held    the victim stays in the thrower's grip (its script) until that frame; from there to the launch it stays
+              where it is, in its pose (default: the launch frame)
+    The thrower always plays its whole animation (THE THROW'S END). Replaces throws.timing / slam_bounce /
+    special_grab_timing for that throw (one path: a throw has events or timing, never both). -> {key: checked entry}"""
+    ev = (r.get('throws') or {}).get('events') or {}
+    tm = (r.get('throws') or {}).get('timing') or {}
+    w0 = f"roster {r['name']}: throws.events"
+    assert isinstance(ev, dict), f'{w0} = {{forward | back | hold_b: {{...}}}}'
+    out = {}
+    for k, e in ev.items():
+        w = f'{w0}.{k}'
+        assert k in TIMING_KEYS, f"{w}: one of {', '.join(TIMING_KEYS)}"
+        assert k not in tm, f'{w}: and throws.timing.{k}: one path (events replace timing)'
+        for f in e: assert f in ('impact', 'launch', 'held', 'from', 'about'), f'{w}: unknown field {f}'
+        def fr(x, what): assert isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 400, f'{w}.{what}: a throw frame 1-400'
+        fr(e.get('impact'), 'impact')
+        L = e.get('launch')
+        assert isinstance(L, dict), f'{w}.launch: {{frame, dir, size?}}'
+        for f in L: assert f in ('frame', 'dir', 'size'), f'{w}.launch: unknown field {f}'
+        fr(L.get('frame'), 'launch.frame')
+        assert L.get('dir') in EVENT_DIRS, f"{w}.launch.dir: one of {', '.join(EVENT_DIRS)}"
+        assert L.get('size', 'medium') in EVENT_SIZES, f"{w}.launch.size: one of {', '.join(EVENT_SIZES)}"
+        if 'held' in e:
+            fr(e['held'], 'held')
+            assert e['held'] <= L['frame'], f"{w}.held {e['held']}: not after its launch (frame {L['frame']})"
+        out[k] = e
+    if ev and g is not None:
+        tl = g.get('throw_launch')
+        assert isinstance(tl, dict), 'game.json throw_launch {up | away: {small | medium | big: {vy, vx}}}: the launches the events name'
+        for d in ('up', 'away'):
+            for z in EVENT_SIZES:
+                v = (tl.get(d) or {}).get(z)
+                assert isinstance(v, dict) and isinstance(v.get('vy'), (int, float)) and isinstance(v.get('vx'), (int, float)), f'throw_launch.{d}.{z}: {{vy, vx}}'
+    return out
+
+
 def throw_timing(r, g=None):
     """roster[].throws.timing (note 20261016-045300-e03d round 2, Bruno: "throws should be case by case"; written by
     tools/brawler/throw_answers.py from the throw review, review.html?q=throws): per throw {kind impact | slam, damage_row,
@@ -1824,6 +1876,9 @@ def tables(g, build):
         assert isinstance(w['to'], int) and 160 <= w['to'] <= 360, f"roster {r['name']}: clear_walk.to {w['to']} (screen x 160-360, or 'off')"
         cw.append(str(w['to']))
     c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
+    for r in g['roster']:                                # (THE THROW REVIEW round 2: until fighter.c plays the events, a
+        assert not throw_events(r, g) or ENGINE_PLAYS_EVENTS, (f"roster {r['name']}: throws.events: this engine does not play them yet (fighter.c "   # game
+            "reads throws.timing): refused, so Bruno's answers are never silently ignored")      # with them is refused)
     c.append('const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(
         '{ ' + ', '.join('{ %s, %s, %s, 0, %d, %d }' % t for t in throw_timing(r, g)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
     c.append('const uint8_t grun_grab[BC_COUNT][3] = {\n    ' + ',\n    '.join(
