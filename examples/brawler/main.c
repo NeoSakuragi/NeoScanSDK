@@ -1644,7 +1644,10 @@ static void hud_target(uint8_t slot, fighter_t *t, uint8_t right, uint8_t name_r
 #define BIOS_PLAYER_MOD ((volatile uint8_t *)0x10FDB6)   /* per player: 0 never played, 1 playing, 2 continue, 3 over */
 static uint8_t p2_in(void) { return in_play(&fighters[1]) || cont_t[1]; }
 #define BOSS_IDX_HUD 2                   /* = BOSS_IDX (campaign) */
+static const fighter_t *hud_hide;        /* a fighter that is not an opponent (the referee's body, main.c "the referee"):
+                                            no name, face or bar as a player's target */
 static fighter_t *tgt(fighter_t *f) {    /* a player's target for the right block: the boss has its own bar */
+    if (hud_hide && f->target == hud_hide) return 0;
     return f->target == &fighters[BOSS_IDX_HUD] && (phase == PH_BOSS || phase == PH_END) ? 0 : f->target;
 }
 static void hud(void) {
@@ -3202,8 +3205,15 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
  * right, mirrored when he comes from the left. Its rows: SS2's top, a middle row per line (SS2's two at least: its 16 px
  * font, our 8 px lines centred in theirs), its bottom. Sprites: behind 53-58 (a bonus game's shadows take 43-52, the
  * post's 55-58 are free at its end), in front the box viewer's 300..323: his shadow (300-303), him (304-310), the window (311-323, REF_WIN_W). Palettes REF_PAL..
- * (fighter slots 6-7: a bonus game loads only its player's). ---- */
+ * (fighter slots 6-7: a bonus game loads only its player's).
+ * The D quirk (gref.hit, note 20261016-045652-e03d reopen, Bruno: "the fury is triggered, but somehow it doesn't
+ * connect: all the hits are not done... have the real fury play start to finish"): as the fury fires, the drawn referee
+ * becomes his BODY, the roster fighter gref.fighter (game.json referee.fighter: SS2's Kuroko, the samsho2:kuroko export)
+ * in fighter slot RF_IDX where he stands (his landed feet, facing the player), a team-1 victim that never acts (no AI,
+ * no attack: bonus_input clears his intent) with gref.life (never KO'd); the whole fury lands on him as on any enemy,
+ * with his own reactions and get-up; up again, his window opens over the body with hit_text. ---- */
 #define REF_PAL     64
+#define RF_IDX      2                            /* the body's fighter slot (palettes 32-39, a fighter block, shadow) */
 #define REF_WIN_ROWS 16                          /* the window's columns: its rows, then blank ones to the 16th (a shrunk
                                                     sprite of 16 rows or fewer shows rows past its size: rows a sprite there
                                                     before left showed under the opening window, note 20261016-045652-e03d) */
@@ -3218,12 +3228,13 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
 _Static_assert(REF_PAL >= 16 + 2 * MAX_PALS && REF_PAL + REF_NPAL <= 16 + NF * MAX_PALS, "the referee's palettes: fighter slots past the players'");
 _Static_assert(RF_BACK_SPR + REF_MAXW_BACK <= SPR_BASE && RF_BACK_SPR + REF_MAXW_FRONT <= SPR_BASE && REF_MAXW_FRONT <= 7 &&
                RF_WIN_SPR + REF_WIN_W <= BT_SPR, "the referee's sprites: 53-58 behind, 300-323 in front");
-enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE, RF_WAIT, RF_FLY, RF_DOWN, RF_GETUP };
+enum { RF_OFF, RF_WALK, RF_STAND, RF_RISE, RF_JUMP, RF_LAND, RF_OPEN, RF_TYPE, RF_HOLD, RF_CLOSE, RF_WAIT };
 enum { RQ_NONE, RQ_RUN, RQ_FURY, RQ_HIT };       /* rf.quirk: the D quirk (gref.hit): none, the fighter running at him,
-                                                    his fury fired, the referee hit (his second speech: D ends it) */
+                                                    his fury fired (the body in play), the referee hit (his second
+                                                    speech: D ends it) */
 static struct {
     uint8_t ph, anim, step, tick, front, wface, nl, line, col, zoom, w;   /* w: the columns he took last tick */
-    uint8_t quirk;
+    uint8_t quirk, body;                         /* body: fighters[RF_IDX] is him (the D quirk's fury) */
     int16_t x, tx, g, wx, wy;                    /* his x, its target, the player's floor; the window's left / top */
     int32_t xs, y, vy, vx;                       /* 8.8: his x, his feet's y, the jump's speed, the walk's */
     uint16_t t, key;                             /* ticks in the phase; the step drawn last (its tiles written) */
@@ -3238,8 +3249,9 @@ static uint8_t rf_anim_tick(void) {              /* a tick of his animation: a s
     if (a->loop) { rf.step = 0; rf.tick = 0; return 0; }
     rf.tick = a->s[rf.step].ticks; return 1;
 }
-static void rf_draw(void) {                      /* him (behind or in front) as his step shows */
+static void rf_draw(void) {                      /* him (behind or in front) as his step shows (his body: drawn as a fighter) */
     const ref_step_t *s = &ref_anims[rf.anim].s[rf.step];
+    if (rf.body) return;
     uint16_t base = rf.front ? RF_SPR : RF_BACK_SPR, key = (uint16_t)(rf.anim << 8 | rf.step | rf.front << 7), c = 0;
     uint8_t i, tiles = key != rf.key;
     if (tiles && rf.key != 0xFFFF && (rf.key >> 7 & 1) != rf.front) { bn_hide(rf.front ? RF_BACK_SPR : RF_SPR, rf.w); rf.w = 0; }
@@ -3307,30 +3319,24 @@ static void rf_start(const char *const *text, int16_t px) {   /* px: the player'
     rf.y = (int32_t)(rf.g + REF_BACK_DY) << 8; rf.front = 0; rf.w = 0; rf.key = 0xFFFF; rf.anim = 0xFF;
     rf_set(rf.vx > 0 ? REF_WALK_R : REF_WALK_L);
     rf_win_place(text, rf.tx);
-    rf.ph = RF_WALK; rf.t = 0; rf.quirk = RQ_NONE;
+    rf.ph = RF_WALK; rf.t = 0; rf.quirk = RQ_NONE; rf.body = 0;
     FIX_print(17, 9, "                    ", 0);   /* (the game's TIME / POSTS line: under the window) */
 }
-static uint8_t rf_struck(void) {                 /* the fury (the fighter or its objects) striking him this tick */
-    int16_t rx0 = rf.x + cam_x - 20, rx1 = rf.x + cam_x + 20, ry1 = (int16_t)(rf.y >> 8), ry0 = ry1 - 96;   /* (world x,
-                                                    screen y: fighter_strike_box's) */
-    uint8_t i;
-    for (i = 0; i < nf; i++) {
-        int16_t x0, x1, y0, y1;
-        if (order[i]->team || !fighter_strike_box(order[i], &x0, &x1, &y0, &y1)) continue;
-        if (x1 > rx0 && x0 < rx1 && y1 > ry0 && y0 < ry1) return 1;
-    }
-    return 0;
+static void rf_body_on(void) {                   /* the fury fires: the drawn referee becomes his body (fighters[RF_IDX]) */
+    fighter_t *e = &fighters[RF_IDX];
+    bn_hide(rf.front ? RF_SPR : RF_BACK_SPR, rf.w); rf.w = 0; rf.key = 0xFFFF;
+    bn_hide(RF_SH_SPR, ref_shadow_s[0].p[0][0].w);   /* (his shadow: the body's own ground shadow) */
+    fighter_init(e, &bm_chars[gref.fighter], 0, 16 + RF_IDX * MAX_PALS, 1, rf.x + cam_x, BN_FEET_Z + REF_LAND_DY);
+    e->idx = RF_IDX; e->hp = e->hp_max = (int16_t)gref.life;
+    e->facing = INT(fighters[bn_lead].x) < INT(e->x) ? -1 : 1;
+    order[nf++] = e; rf.body = 1; hud_hide = e;
+}
+static void rf_body_off(void) {                  /* (its block cleared by draw: S_OFF in order[] until the next stage) */
+    if (rf.body) fighters[RF_IDX].state = S_OFF;
+    rf.body = 0; hud_hide = 0;
 }
 static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_flow); 0 when it is over */
     rf.t++;
-    if (rf.quirk == RQ_FURY && rf_struck()) {    /* the fury into him: Kuroko's knockdown, away from the fighter */
-        fighter_t *f = &fighters[bn_lead];
-        if (rf.ph >= RF_OPEN && rf.ph <= RF_CLOSE) { rf_text(1); bn_hide(RF_WIN_SPR, REF_WIN_W); }
-        rf.quirk = RQ_HIT; rf.ph = RF_FLY; rf.t = 0; rf_set(REF_FLY);
-        rf.xs = (int32_t)rf.x << 8; rf.vx = (int32_t)gref.knock_vx << 8; if (INT(f->x) - cam_x > rf.x) rf.vx = -rf.vx;
-        rf.vy = gref.knock_vy;
-        snd_sfx(SFX_HIT_CD);
-    }
     switch (rf.ph) {
     case RF_WALK:                                /* $E5D0: moved, then compared */
         rf_anim_tick(); rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
@@ -3383,32 +3389,23 @@ static uint8_t rf_tick(void) {                   /* a tick of the speech (bonus_
             rf.ph = RF_OFF; return 0;
         }
         rf_window(0); return 1;
-    case RF_WAIT: {                              /* the fighter runs at him, fires; the fury over without touching him
-                                                    (or never fired): the speech ends as without D */
-        const fighter_t *f = &fighters[bn_lead];
-        uint8_t i, busy = f->state == S_SPECIAL;
-        for (i = 0; i < NPJ; i++) busy |= projectiles[i].state == S_PROJ;
+    case RF_WAIT: {                              /* the fighter runs at him and fires: the fury plays on his body
+                                                    to its end, he lies and gets up as any enemy (his own reactions);
+                                                    up again: his window over the body with hit_text. A fury that never
+                                                    touched him (or never fired): the speech ends as without D */
+        const fighter_t *f = &fighters[bn_lead], *e = &fighters[RF_IDX];
+        uint8_t i, busy = sf_who || (f->state != S_IDLE && f->state != S_WALK) || (rf.body && e->state != S_IDLE);
+        for (i = 0; i < NPJ; i++) busy |= projectiles[i].state != S_OFF;
         rf_anim_tick(); rf_draw();
-        if (rf.t > 600 || (rf.quirk == RQ_FURY && !busy && !sf_who)) { rf.ph = RF_OFF; return 0; }
+        if (rf.quirk == RQ_FURY && !busy && rf.t > 1) {
+            if (e->hp >= (int16_t)gref.life) { rf.ph = RF_OFF; return 0; }
+            rf.quirk = RQ_HIT; rf_win_place(gref.hit_text, INT(e->x) - cam_x);
+            rf.ph = RF_OPEN; rf.zoom = REF_WIN_ZOOM; rf.t = 0;
+            return 1;
+        }
+        if (rf.t > (rf.quirk == RQ_FURY ? 1800 : 600)) { rf.ph = RF_OFF; return 0; }
         return 1;
     }
-    case RF_FLY:                                 /* SS2's knockdown flight (220), his jump's gravity, to his floor */
-        rf_anim_tick(); rf.vy += REF_GRAV; rf.xs += rf.vx; rf.x = (int16_t)(rf.xs >> 8);
-        if (rf.vy > 0 && (rf.y >> 8) + (rf.vy >> 8) >= rf.g + REF_LAND_DY) {
-            rf.y = (int32_t)(rf.g + REF_LAND_DY) << 8; rf_set(REF_DOWN); rf.ph = RF_DOWN; rf.t = 0; snd_sfx(ghitsnd.bounce);
-        } else rf.y += rf.vy;
-        bn_put(RF_SH_SPR, &ref_shadow_s[0].p[0][0], rf.x + ref_shadow_s[0].p[0][0].x, rf.g + REF_LAND_DY + ref_shadow_s[0].p[0][0].y, 0, 0xF, 0xFF, 0);
-        rf_draw(); return 1;
-    case RF_DOWN:                                /* landed, lying (222), down_ticks */
-        rf_anim_tick(); rf_draw();
-        if (rf.t >= gref.down_ticks + 5) { rf_set(REF_GETUP); rf.ph = RF_GETUP; }
-        return 1;
-    case RF_GETUP:                               /* the get-up (138), his idle, then his window again: hit_text */
-        if (rf_anim_tick()) {
-            rf_set(REF_IDLE); rf_win_place(gref.hit_text, rf.x);
-            rf.ph = RF_OPEN; rf.zoom = REF_WIN_ZOOM; rf.t = 0;
-        }
-        rf_draw(); return 1;
     }
     return 0;
 }
@@ -3559,7 +3556,7 @@ static void bonus_off(void) {                    /* out of a bonus: its sprites 
     if (bonus_on) bn_hide(BN_FRONT, 48);
     bt_hide();                                   /* (TIME OVER, the won headline: on 324-347) */
     if (rf.ph) { rf_text(1); rf.ph = RF_OFF; }   /* (the referee cut short: his sprites went with 47-58 / 300-347) */
-    rf.quirk = RQ_NONE;
+    rf.quirk = RQ_NONE; rf_body_off();
     if (bonus_on == BN_PICK || bonus_on >= BN_INTRO) { bscr_clear(); shadow_init(); }   /* (cut short on one of AOF2's screens) */
     bonus_on = BN_OFF;
 }
@@ -3813,15 +3810,18 @@ static void bonus_input(void) {                  /* this tick's intents: the gau
                                                     of its way (AOF2: Ryo from frame ~762, landing ~80 px back) */
         *i = (intent_t){ 0 }; i->dx = -1; i->hold = IN_B; if (bn_fall_t == BN_FALL_LEAP) i->press = IN_B; return;
     }
-    if (bonus_on == BN_END && rf.quirk == RQ_RUN) {   /* the referee's D quirk: run at him, then the fury */
+    if (rf.body) in[RF_IDX] = (intent_t){ 0 };   /* the referee's body: never acts (after the AI's intents) */
+    if (bonus_on == BN_END && rf.quirk == RQ_RUN) {   /* the referee's D quirk: run at him (onto his lane), then the fury */
         fighter_t *f = &fighters[bn_lead];
-        int16_t dx = rf.x + cam_x - INT(f->x), ad = dx < 0 ? -dx : dx;
+        int16_t dx = rf.x + cam_x - INT(f->x), ad = dx < 0 ? -dx : dx, dz = BN_FEET_Z + REF_LAND_DY - INT(f->z);
         int8_t s = dx < 0 ? -1 : 1;
         *i = (intent_t){ 0 };
         if (f->state != S_IDLE && f->state != S_WALK && f->state != S_RUN) return;   /* (his run's stop first) */
+        if (dz && rf.t < 240) i->dz = dz < 0 ? -1 : 1;
         if (ad > gref.fury_dx && rf.t < 180) { i->dx = s; i->run = 1; return; }
-        if (f->state != S_IDLE) return;
+        if (f->state != S_IDLE || (dz && rf.t < 240)) return;
         i->face = s; fighter_meter_fill(f); i->press = IN_D; rf.quirk = RQ_FURY;
+        rf_body_on();
         return;
     }
     if (bonus_on == BN_END || (bn_g->kind == BK_GAUGE && bn_hit_t != 1)) { *i = (intent_t){ 0 }; return; }
@@ -4857,7 +4857,6 @@ void game_tick(void) {
     } else read_player(0, &in[0], &fighters[0]);
     if (p2_in()) read_player(1, &in[1], &fighters[1]);
     if (in_ph == IN_WALK) intro_input();                     /* the stage intro's walk: the script's intents */
-    if (bonus_on) bonus_input();                             /* a bonus game: its intents */
 #if !AI_OFF
 #if LAB_BUILD
     if (lab.active != 1 || prac_ai()) ai_update(fighters, NF, 2, in);   /* the practice: dummies with AI on, the waves */
@@ -4865,6 +4864,8 @@ void game_tick(void) {
     if (lab.active != 1) ai_update(fighters, NF, 2, in);   /* not against the Chain Lab's dummy */
 #endif
 #endif
+    if (bonus_on) bonus_input();                             /* a bonus game: its intents (after the AI's: the
+                                                                referee's body cleared) */
 #if LAB_BUILD
     prac_input();                                            /* the practice dummies that stand / walk in */
 #endif

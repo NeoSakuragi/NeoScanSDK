@@ -10,15 +10,38 @@ games[].won_by), in our emulator's core (harness.py) vs SS2's numbers (tools/sam
       (1 px a tick), one tick standing, the jump (rising behind the player, falling in front: its ticks = SS2's 55 at
       the same speed and gravity), the landing (SS2's 8 ticks), the window opening (7 ticks), a letter every 2 ticks,
       held game.json referee.hold after the last, closing (14 ticks), then stage 2 with the fury unlocked.
-      d: D pressed in the hold: the window closes, the fighter runs at him and fires his fury, it strikes him: his
-      flight (FLY), lying referee.down_ticks (DOWN), the get-up (GETUP), the window again with referee.hit_text typed
-    screenshots OUT/*.png + OUT/sheet.png; one OK / FAIL line per check, exit 1 on any FAIL"""
+      d: D pressed in the hold: the window closes, the fighter runs at him (onto his lane) and fires his fury; as it
+      fires the referee becomes his body (fighters[2] = referee.fighter, Kuroko's export, note 20261016-045652-e03d
+      reopen): the WHOLE fury lands on him (WAIT: his hits counted by his life's drops = the same fury's hits on the
+      practice dummy (scenario mode "lab": a standing enemy that never acts) at the same distance, Kuroko's body and
+      the default dummy Ryo), his own reactions, up again (idle), then the window again with referee.hit_text typed
+    screenshots OUT/*.png + OUT/sheet.png; one OK / FAIL line per check, exit 1 on any FAIL; OUT/hits.json"""
 import json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from bonus_proof import Proof, BN
+import scenario
 from PIL import Image, ImageDraw
 
-PH = ['OFF', 'WALK', 'STAND', 'RISE', 'JUMP', 'LAND', 'OPEN', 'TYPE', 'HOLD', 'CLOSE', 'WAIT', 'FLY', 'DOWN', 'GETUP']
+PH = ['OFF', 'WALK', 'STAND', 'RISE', 'JUMP', 'LAND', 'OPEN', 'TYPE', 'HOLD', 'CLOSE', 'WAIT']
+BODY = 2                                                 # main.c RF_IDX: the referee's body's fighter slot
+
+
+def lab_hits(b, fighter, dummy, gap):
+    """the reference: the fury (D, gauge full) on the practice dummy (a standing enemy that never acts) gap px ahead,
+    on P1's lane; its hits = the harness's hit log on it (a life drop or a fresh hit-stop: harness.Brawler.run) from
+    the press to the fury's end (its life kept high once hit: the practice refills it below 20, which hid hits)"""
+    scenario.setup(b, {'setup': {'mode': 'lab', 'fighter': fighter, 'dummy': dummy, 'gap': gap}})
+    st = b.states
+    b.fset(0, 'drive', 240 * b.r(b.syms['drive_chunks'], 1)); b.fset(0, 'fgauge', 0xFFFF); b.run(2)
+    fired, seen, f0 = False, set(), b.frame; b.hits = []
+    for k in range(1800):
+        if st[b.fget(2, 'state')] not in ('IDLE', 'WALK') and b.fget(2, 'hp') < 1000: b.fset(2, 'hp', 30000)   # (hit: kept off the refills)
+        b.run(1, p1='d' if k == 0 else '')
+        s1, s0 = st[b.fget(2, 'state')], st[b.fget(0, 'state')]
+        seen.add(s1); fired |= s0 == 'SPECIAL'
+        if k > 30 and fired and s0 in ('IDLE', 'WALK') and s1 == 'IDLE': break
+    log = [(f - f0, d) for f, i, d, _ in b.hits if i == 2 and f > f0 and d < 1000]   # (not its refill as it stands up)
+    return len(log), sorted(seen), log
 SS2 = {'JUMP': 55, 'LAND': 8, 'OPEN': 7, 'CLOSE': 14}   # SS2's ticks (referee_ss2.py check: frames 1040-1094 the jump
                                                        # after its first, 1095-1102 the landing, 1104-1110, 1274-1287)
 
@@ -50,10 +73,17 @@ def main(game, out, fighter='terry', side='auto', quirk=''):
     rf = b.syms['rf']
     ph = lambda: PH[b.r(rf, 1)]
     seen, cur, n, xs, shots = [], None, 0, [], {'WALK': 30, 'RISE': 0, 'JUMP': 20, 'LAND': 0, 'OPEN': 3, 'TYPE': 30, 'HOLD': 40, 'CLOSE': 6}
-    if quirk: shots.update({'WAIT': 10, 'FLY': 8, 'DOWN': 20, 'GETUP': 6})
+    if quirk: shots.update({'WAIT': 40})
     keys, pressed = '', False
+    names = scenario.roster(game); body_ch = names.index(ref['fighter']) if quirk else None
+    hp0, gap, bstates, bup, f0 = None, None, [], None, None
     for k in range(3000):
         p = ph()
+        if quirk and p == 'WAIT' and b.states[b.fget(BODY, 'state')] != 'OFF' and b.char_of(BODY) == body_ch:
+            h = b.fget(BODY, 'hp'); s1 = b.states[b.fget(BODY, 'state')]
+            if hp0 is None: hp0 = h; gap = round(abs(b.fget(BODY, 'x') - b.fget(0, 'x'))); dz = b.fget(BODY, 'z') - b.fget(0, 'z'); f0 = b.frame - 1
+            if not bstates or bstates[-1] != s1: bstates.append(s1)
+        if quirk and gap is not None and p == 'OPEN' and bup is None: bup = b.states[b.fget(BODY, 'state')]   # (his window: up)
         if p != cur:
             if cur: seen.append((cur, n))
             cur, n = p, 0
@@ -70,13 +100,28 @@ def main(game, out, fighter='terry', side='auto', quirk=''):
         P.check(names[:9] == ['WALK', 'STAND', 'RISE', 'JUMP', 'LAND', 'OPEN', 'TYPE', 'HOLD', 'CLOSE'] and seen[7][1] == 32,
                 'the speech, D pressed 30 ticks into the held message (read the next tick): the window closes')
         i = names.index('CLOSE')
-        P.check(names[i + 1:i + 5] == ['WAIT', 'FLY', 'DOWN', 'GETUP'], f"then the fury runs at him and strikes him: {names[i + 1:i + 5]} (WAIT {dict(seen).get('WAIT')} ticks)")
-        P.check(dict(seen).get('DOWN') == ref['down_ticks'] + 5, f"lying {dict(seen).get('DOWN')} ticks (referee.down_ticks {ref['down_ticks']} + 5: SS2's landing step)")
-        P.check(names[i + 5:i + 9] == ['OPEN', 'TYPE', 'HOLD', 'CLOSE'] and seen[i + 6][1] == 2 * sum(len(l) for l in ref['hit_text']),
-                f"up, his window again: {' / '.join(ref['hit_text'])} typed ({seen[i + 6][1]} ticks)")
+        hlog = [(f - f0, d) for f, j, d, _ in b.hits if j == BODY and f0 is not None and f > f0]   # (the harness's hit log)
+        hits = len(hlog)
+        P.check(names[i + 1:i + 2] == ['WAIT'] and gap is not None,
+                f"then the fury runs at him and fires: his body (fighter {ref['fighter']}) in play {gap} px ahead, dz {dz if gap is not None else None} (WAIT {dict(seen).get('WAIT')} ticks)")
+        P.check(hits > 0 and bup == 'IDLE', f"the fury on his body: {hits} hits; his states {' > '.join(bstates)}, {bup} as his window opens")
+        P.check(names[i + 2:i + 6] == ['OPEN', 'TYPE', 'HOLD', 'CLOSE'] and seen[i + 3][1] == 2 * sum(len(l) for l in ref['hit_text']),
+                f"up, his window again: {' / '.join(ref['hit_text'])} typed ({seen[i + 3][1] if len(seen) > i + 3 else None} ticks)")
         P.until(lambda: P.r('bonus_on') == BN['off'] and P.r('mode') == 1, 120)
-        P.check(P.r('bonus_on') == BN['off'] and P.r('mode') == 1, 'then the next stage')
+        P.check(P.r('bonus_on') == BN['off'] and P.r('mode') == 1 and b.states[b.fget(BODY, 'state')] == 'OFF', 'then the next stage (his body gone)')
         seen = seen[:i]                                 # (the timing checks below: his first speech up to its hold)
+        ref_hits = {}
+        for dm in (ref['fighter'], 'ryo'):
+            ref_hits[dm] = lab_hits(b, fighter, dm, gap)
+            line = (f"the same fury on the practice dummy {dm} {gap} px ahead: {ref_hits[dm][0]} hits "
+                    f"(the referee's body: {hits}); dummy states {' '.join(ref_hits[dm][1])}")
+            if dm == ref['fighter']: P.check(ref_hits[dm][0] == hits, line)   # (the same body: the same hits)
+            else: print('info', line)                    # (another body: its own boxes may take more or fewer)
+        print('hit log (frame from the press, life lost): referee', hlog)
+        for dm, v in ref_hits.items(): print(f'hit log: dummy {dm}', v[2])
+        json.dump({'fighter': fighter, 'gap': gap, 'referee_hits': hits, 'referee_states': bstates, 'referee_log': hlog,
+                   'dummy_hits': {k: v[0] for k, v in ref_hits.items()}, 'dummy_logs': {k: v[2] for k, v in ref_hits.items()}},
+                  open(os.path.join(out, 'hits.json'), 'w'), indent=1)
     d = dict(seen)
     P.check(d.get('WALK') == ref['from'] + ref['mark'], f"the walk in: {d.get('WALK')} ticks ({ref['from']} px outside to {ref['mark']} px inside at 1 px a tick, SS2's vx 256)")
     P.check(d.get('STAND') == 1 and d.get('RISE') == 1, 'one tick standing, then the jump (SS2)')

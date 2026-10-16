@@ -1289,7 +1289,7 @@ BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge ga
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
-REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'knock_vx', 'knock_vy', 'down_ticks', 'hit_about')
+REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
 BONUS_SLOTS = (0, 2)                                     # AOF2's select slots whose title card is ripped (make_bonus.py CARDS)
 BONUS_SLOT_NAMES = ('SPIRIT TRAINING', 'STRENGTH TRAINING', 'SUPER DEATH BLOW')   # AOF2's games in its slots 0-2
@@ -1415,19 +1415,21 @@ def bonus_tables(g, songs_known, sfx_names):
              f".games = {{ {', '.join(rows)} }} }};")
     r = g.get('referee') or {}
     for k in r: assert k in REF_KEYS, f'referee: unknown field {k}'
-    rv = {'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'knock_vx': 3, 'knock_vy': -1024, 'down_ticks': 40,
-          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text')}}
-    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold / fury_dx / knock_* / down_ticks: integers'
+    rv = {'mark': 96, 'from': 48, 'hold': 124, 'fury_dx': 56, 'life': 999,
+          **{k: v for k, v in r.items() if k not in ('about', 'hit_about', 'hit_text', 'fighter')}}
+    assert all(isinstance(v, int) and not isinstance(v, bool) for v in rv.values()), 'referee: mark / from / hold / fury_dx / life: integers'
     ht = r.get('hit_text', [])
     assert isinstance(ht, list) and len(ht) <= 3 and all(isinstance(l, str) and 0 < len(l) <= REF_LINE and all(0x20 <= ord(ch) < 0x7F for ch in l) for l in ht), \
         f'referee: hit_text = his 1-3 lines after the fury hits him ([]: no D quirk), {REF_LINE} characters each'
-    assert 24 <= rv['fury_dx'] <= 160 and 0 <= rv['knock_vx'] <= 8 and -2048 <= rv['knock_vy'] <= 0 and 0 <= rv['down_ticks'] <= 600, \
-        'referee: fury_dx 24-160 px, knock_vx 0-8 px a tick, knock_vy -2048-0 (8.8), down_ticks 0-600'
+    body = r.get('fighter')                              # the D quirk's victim: a roster fighter (note 20261016-045652-e03d)
+    assert not ht or body in roster_names(g), f'referee: fighter = the roster fighter the fury hits (the D quirk: hit_text), got {body!r}'
+    assert 24 <= rv['fury_dx'] <= 160 and 200 <= rv['life'] <= 30000, \
+        "referee: fury_dx 24-160 px, life 200-30000 (never KO'd by a fury)"
     assert 40 <= rv['mark'] <= 160 and 32 <= rv['from'] <= 120 and 30 <= rv['hold'] <= 1200, \
         'referee: mark 40-160 px from his edge, from 32-120 px outside it, hold 30-1200 ticks'
     c.append('static const char *const gref_hit_text[3] = { ' + ', '.join(c_str(l) for l in (ht + ['', '', ''])[:3]) + ' };')
     c.append(f"const gref_t gref = {{ .mark = {rv['mark']}, .from = {rv['from']}, .hold = {rv['hold']}, .fury_dx = {rv['fury_dx']}, "
-             f".knock_vx = {rv['knock_vx']}, .knock_vy = {rv['knock_vy']}, .down_ticks = {rv['down_ticks']}, "
+             f".fighter = {'BC_' + body.upper() if ht else 0}, .life = {rv['life']}, "
              f".hit = {1 if ht else 0}, .hit_text = gref_hit_text }};   /* game.json referee */")
     return c
 
