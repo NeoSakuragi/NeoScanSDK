@@ -5560,5 +5560,174 @@
   "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-holdb): on frame 60 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 62. On frame 62 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
   "do_keys": "20:R,3:b,150:-",
   "proof": 90
+ },
+ "20261016-140501-8a01": {
+  "title": "HAGGAR's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (HAGGAR's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-back): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 64
+ },
+ "20261016-140502-8a02": {
+  "title": "HAGGAR's forward throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (HAGGAR's forward throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-fwd): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
+  "do_keys": "20:R,2:Ra,150:-",
+  "proof": 64
+ },
+ "20261016-140503-8a03": {
+  "title": "HAGGAR's hold + B: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then B alone (HAGGAR's hold + B). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-holdb): on frame 60 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 62. On frame 62 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
+  "do_keys": "20:R,3:b,150:-",
+  "proof": 90
+ },
+ "20261016-140504-8a04": {
+  "title": "HANZO's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (HANZO's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-back): on frame 30 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HANZO plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 64
+ },
+ "20261016-140505-8a05": {
+  "title": "HANZO's forward throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (HANZO's forward throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-fwd): on frame 31 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 38. On frame 38 Ryo pops straight up (a little away from him) (small), and HANZO plays his throw animation to its end.",
+  "do_keys": "20:R,2:Ra,150:-",
+  "proof": 66
+ },
+ "20261016-140506-8a06": {
+  "title": "HANZO's hold + B (the grab special 623K: Mozu Otoshi): impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then B alone (HANZO's hold + B (the grab special 623K: Mozu Otoshi)). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-holdb): on frame 83 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 101. On frame 101 Ryo is sent flying away from him (medium), and HANZO plays his throw animation to its end.",
+  "do_keys": "20:R,3:b,150:-",
+  "proof": 129
+ },
+ "20261016-140507-8a07": {
+  "title": "Haohmaru's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (Haohmaru's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haohmaru-back): on frame 18 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Haohmaru's grip until frame 18. On frame 18 Ryo is sent flying away from him (medium), and Haohmaru plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 46
+ },
+ "20261016-140508-8a08": {
+  "title": "Haohmaru's forward throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (Haohmaru's forward throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haohmaru-fwd): on frame 27 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Haohmaru's grip until frame 41. On frame 41 Ryo is sent flying away from him (medium), and Haohmaru plays his throw animation to its end.",
+  "do_keys": "20:R,2:Ra,150:-",
+  "proof": 69
+ },
+ "20261016-140509-8a09": {
+  "title": "Kim's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (Kim's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=kim-back): on frame 24 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Kim's grip until frame 24. On frame 24 Ryo pops straight up (a little away from him) (medium), and Kim plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 52
+ },
+ "20261016-140510-8a0a": {
+  "title": "Kim's forward throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (Kim's forward throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=kim-fwd): on frame 24 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Kim's grip until frame 24. On frame 24 Ryo pops straight up (a little away from him) (medium), and Kim plays his throw animation to its end.",
+  "do_keys": "20:R,2:Ra,150:-",
+  "proof": 52
+ },
+ "20261016-140511-8a0b": {
+  "title": "Robert's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (Robert's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=robert-back): on frame 24 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Robert's grip until frame 38. On frame 38 Ryo pops straight up (a little away from him) (medium), and Robert plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 66
+ },
+ "20261016-140512-8a0c": {
+  "title": "Robert's forward throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then forward + A (Robert's forward throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=robert-fwd): on frame 16 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Robert's grip until frame 23. On frame 23 Ryo is sent flying away from him (medium), and Robert plays his throw animation to its end.",
+  "do_keys": "20:R,2:Ra,150:-",
+  "proof": 51
+ },
+ "20261016-140513-8a0d": {
+  "title": "Terry's back throw: impact / held / launch as you set them",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him, then back + A (Terry's back throw). Watch it frame by frame (the replay's slow motion).",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=terry-back): on frame 34 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Terry's grip until frame 49. On frame 49 Ryo pops straight up (a little away from him) (medium), and Terry plays his throw animation to its end.",
+  "do_keys": "20:R,2:La,150:-",
+  "proof": 77
  }
 }
