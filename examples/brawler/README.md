@@ -48,6 +48,16 @@ tools/brawler/publish_vps.sh) and the info page canneji.duckdns.org/brawler/ sho
 (NeoGeo/android, NeoScan Player) fetches the newest build on launch, verifies it, and falls back to the cached one.
 The secret is in the APK: it keeps casual visitors out, it is not real protection.
 
+**Release gates** (every publish; the ship worker, tools/brawler/labcfg.py, runs them in this order): `bank_proof.py`
+ALL OK, `odd_access_proof.py` ALL OK, `regress.py --bleed-only` True / True, `throw_regress.py` ALL OK (throws shipped),
+`scenario.py lint`. `odd_access_proof.py` (2026-10-16, ~40 s): power on + 3 attract loops + a short campaign on BOTH
+BIOS (SNK MVS, UniBIOS as AES) on the address-error core (`tools/brawler/aerr_core.sh`: our Geolith with Musashi's
+address-error emulation; harness `BRAWLER_AERR=1`), zero word / long accesses at odd addresses. A real 68000 takes an
+ADDRESS ERROR there (UniBIOS: its ADDRESS ERROR screen; SNK's BIOS: garbage, then a reset) and our stock core does
+not: 0.10.152 crashed on Ismael's FPGA cart ~24 s after power-on (route trees emitted as byte arrays at odd addresses,
+read as rnode_t; export_bm.py now aligns them). Data read as words / structs is never a plain `uint8_t[]` without
+`__attribute__((aligned(2)))`. Whole-game check with the real exception: `fpga_playthrough.py --aerr 2`.
+
 ## Character select
 A group photo (2026-10-05, TODO #51): the whole roster on screen at once in three rows, like a school photo. Front
 row (6) and middle row (5): the playable fighters; back row (5): the campaign bosses, in stage order. A locked boss is
@@ -188,7 +198,8 @@ Songs: game.json `music.continue` / `music.gameover` (a song, or FADE). Proof: /
 stage reached (0-4), unlocked bosses (bit k = `BOSS[k]`), difficulty (0-3, AES OPTIONS), the unlock ladder's rungs (`rungs`,
 the first of the former 5 spare bytes: an older save reads 0), 4 spare, a 16-bit sum;
 anything that fails magic + sum is a fresh save. Format 1 ("BRW1", 2026-10-05: the difficulty byte was a 0 spare) is
-read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0999 (crt0; a released game needs its own number).
+read and upgraded in place (difficulty NORMAL). Game ID = the header NGH, $0B00 (crt0, = the .neo header's NGH since 2026-10-16: tools/neobuild.py copies it; it was
+$0999, whose MVS battery-RAM slot / AES card saves the game no longer reads; a released game needs its own number).
 - MVS (`BIOS_MVS_FLAG` $10FD82 != 0): the struct is the header's backup RAM block (`NEO_BACKUP`: header $10E/$112 =
   $100034 / 16). The BIOS restores it at power-on and copies it into battery RAM when the game returns control
   (SYSTEM_RETURN: game over, the ending, the demo's end) - measured: a change powered off before a return is lost.

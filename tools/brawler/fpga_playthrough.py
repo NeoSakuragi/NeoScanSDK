@@ -15,30 +15,36 @@ retro_neoscan_aerr / _pstat / _bw) it also reports every odd-address word / long
 address error there; our normal core does not emulate it), the highest P ROM byte read through the $200000 window per
 bank, and every write into $200000-$2FFFFF (bank register). Screenshots at each screen change: DIR/shots/.
 
-That core: a copy of the Geolith tree (never the repo's own) with fpga_core_hooks.patch applied, built with
-`make -C libretro`; BRAWLER_CORE=<copy>/libretro/geolith_libretro.so. The patch LOGS odd accesses and lets the
-access go on (so a whole game is played); to see what a real 68000 does, add the stock `longjmp(m68ki_aerr_trap, 1)`
-back after the log call: the CPU then takes the address-error exception (UniBIOS: its ADDRESS ERROR screen; SNK's MVS
-BIOS: a reset). Found with it, 2026-10-16: route nodes (rnode_t.speed, a word) read from the byte arrays
-export_bm.py writes as `static const uint8_t <f>_routes[]` (alignment 1: half of them land on odd addresses)."""
-import argparse, ctypes as C, json, os, sys, zlib
+That core: aerr_core.sh (aerr_core.patch on a copy of our Geolith tree, NEOSCAN_AERR=1) -> geolith_libretro_aerr.so,
+taken here by default (BRAWLER_AERR=1; built when missing or older than the tree / the patch). --aerr 1 (default) LOGS
+odd accesses and lets the access go on (a whole game is played); --aerr 2 does what a real 68000 does: the CPU takes
+the address-error exception (UniBIOS: its ADDRESS ERROR screen; SNK's MVS BIOS: a reset). Found with it, 2026-10-16:
+route nodes (rnode_t.speed, a word) read from the byte arrays export_bm.py wrote as `static const uint8_t
+<f>_routes[]` (alignment 1: half of them landed on odd addresses; now aligned(2)). The release gate on top of it:
+odd_access_proof.py (both BIOS, power-on + 3 attract loops + a short campaign, zero odd accesses)."""
+import argparse, ctypes as C, json, os, subprocess, sys, zlib
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
+
+if not os.environ.get('BRAWLER_CORE'): os.environ['BRAWLER_AERR'] = '1'   # (the address-error core, harness.aerr_core)
 import harness
+if not os.environ.get('BRAWLER_CORE'): harness.aerr_core()
 from scenario import SYSTEMS
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--rom', required=True); ap.add_argument('--game', default=os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 ap.add_argument('--build', default='build'); ap.add_argument('--sys', default='mvs-mvs'); ap.add_argument('--out', required=True)
 ap.add_argument('--replay'); ap.add_argument('--attract', type=int, default=8100); ap.add_argument('--max', type=int, default=120000)
+ap.add_argument('--aerr', type=int, default=1, help='1 log odd accesses, 2 also take the 68000 exception (a real CPU)')
+ap.add_argument('--stop-after-stage', type=int, help='end the run when the campaign reaches this stage index (a short campaign)')
 a = ap.parse_args()
 os.makedirs(os.path.join(a.out, 'shots'), exist_ok=True)
 harness.OPTIONS.update(SYSTEMS[a.sys])
 b = harness.Brawler(rom=a.rom, game=a.game, build=a.build)
 core = b.core; S = b.syms; OFF, DEAD = b.states.index('OFF'), b.states.index('DEAD')
 core.retro_neoscan_m68k_reg.restype = C.c_uint32
-hooks = hasattr(core, 'retro_neoscan_aerr')
-try: core.retro_neoscan_aerr; hooks = True
-except AttributeError: hooks = False
+hooks = b.aerr()
+if hooks: b.aerr_mode(a.aerr)
+else: print('fpga_playthrough: the stock core (BRAWLER_CORE): no odd-access log', flush=True)
 aud = [0]
 def _batch(d, n): aud[0] = zlib.crc32(C.string_at(d, n * 4), aud[0]); return n
 _bcb = harness.BATCH_CB(_batch); core.retro_set_audio_sample_batch(_bcb)
@@ -113,6 +119,7 @@ else:
             if seen_end: break
             keys = 's' if f % 60 < 3 else ''
         elif m == 1:
+            if a.stop_after_stage is not None and rd('camp') > a.stop_after_stage: break
             if b.fget(0, 'hp') < 40: poke('hp')
             id_ = (rd('camp'), rd('wave'), ph)
             if id_ != cur: cur = id_; wave_t = 0

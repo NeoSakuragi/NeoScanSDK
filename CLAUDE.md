@@ -61,3 +61,6 @@ REG_SOUND is at 0x320000 (NOT 0x320001). SNK sound drivers need cmd 0x07 to unlo
 - C-ROM tiles: 16x16, 4bpp planar, 128 bytes/tile. Bitplane order: [bp0, bp2, bp1, bp3].
 - Always `pkill -f neogeo_sdl` before launching a new emulator instance.
 - MAME green screen after 10 seconds = boot loop, ROM data is broken.
+- No word / long access at an odd address: a real 68000 (and the FPGA cart's MVS) takes an ADDRESS ERROR, our stock
+  Geolith core silently does not. Byte arrays read as words / structs need `__attribute__((aligned(2)))`. The
+  address-error core: `tools/brawler/aerr_core.sh` (harness `BRAWLER_AERR=1`); brawler gate `tools/brawler/odd_access_proof.py`.

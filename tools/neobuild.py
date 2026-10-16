@@ -11,6 +11,11 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SDK_DIR = os.path.join(os.path.dirname(SCRIPT_DIR), 'sdk')
 
 
+# NGHs Geolith's database (src/geo_neo.c ngh switch) gives special board / input handling: never ours
+GEOLITH_SPECIAL_NGH = {0x004, 0x006, 0x008, 0x019, 0x027, 0x036, 0x038, 0x047, 0x048, 0x052, 0x066, 0x080, 0x151, 0x236,
+                       0x242, 0x250, 0x251, 0x253, 0x256, 0x257, 0x263, 0x266, 0x268, 0x269, 0x271, 0x275, 0x3E7, 0x5003,
+                       0x999, 0xFEDC}
+
 def pad_rom(data, target_size, fill=0x00):
     """Pad ROM data to target size. Data larger than the region is an error (it used to be cut silently: a 5 MB fighter
     roster lost 3 MB of tiles)."""
@@ -179,10 +184,14 @@ def main():
     struct.pack_into('<I', neo_header, 0x1C, 2026)             # year
     struct.pack_into('<I', neo_header, 0x20, 0)                # genre
     struct.pack_into('<I', neo_header, 0x24, 0)                # screenshot
-    # NGH in the .neo header: NOT the file-name NGH (999). Emulators look games up by it: Geolith treats 999 / 0x3E7
-    # as V-Liner (port 2 disconnected, Brezzasoft board), which silently killed joystick 2 in our ROMs. 0x0B00 is
-    # no special entry in Geolith's database (src/geo_neo.c).
-    struct.pack_into('<I', neo_header, 0x28, 0x0B00)                # NGH
+    # NGH in the .neo header = the game header's NGH word at $108 (sdk/boot/crt0.s), so both agree (2026-10-16: the
+    # .neo said $0B00, the game $0999). NOT the file-name NGH (999). Emulators look games up by it: Geolith treats
+    # 999 / 0x3E7 as V-Liner (port 2 disconnected, Brezzasoft board), which silently killed joystick 2 in our ROMs;
+    # refuse every NGH Geolith's database special-cases (src/geo_neo.c). The SDK's is $0B00 (no entry there).
+    ngh_word = p_raw[0x108] << 8 | p_raw[0x109]
+    if ngh_word in GEOLITH_SPECIAL_NGH:
+        sys.exit(f'neobuild: game header NGH ${ngh_word:04X} is a special case in Geolith\'s database (src/geo_neo.c)')
+    struct.pack_into('<I', neo_header, 0x28, ngh_word)              # NGH
     name_bytes = args.name.upper().encode('ascii')[:32]
     neo_header[0x2C:0x2C + len(name_bytes)] = name_bytes
 

@@ -17,6 +17,7 @@ _Static_assert(offsetof(fighter_t, x) == 8 && offsetof(fighter_t, z) == 12 && of
 _Static_assert(offsetof(fighter_t, facing) == 32 && offsetof(fighter_t, anim) == 38 && offsetof(fighter_t, step) == 39, "draw.s F_FACING/F_ANIM/F_STEP");
 _Static_assert(offsetof(fighter_t, shown_frame) == 56 && offsetof(fighter_t, shown_facing) == 58 && offsetof(fighter_t, frame_ovr) == 60, "draw.s F_SHOWN_*/F_FRAME_OVR");
 _Static_assert(offsetof(fighter_t, ncols) == 94, "draw.s F_NCOLS");
+_Static_assert(!(offsetof(lab_t, buf) & 1) && !(offsetof(lab_t, pack) & 1), "lab.buf (rt_head_t / rnode_t / gretime_t) and lab.pack (gdpack_t) are read with word accesses: an odd offset is an address error on a 68000 (odd_access_proof.py)");
 _Static_assert(SFX_PAL == 224 && SFX_NPAL <= SFX_NPAL_MAX, "draw.s SFX_PAL (KOF's shared effects bank, TODO #214)");
 _Static_assert(offsetof(bchar_t, frames) == 10 && offsetof(bchar_t, anims) == 14 && offsetof(bchar_t, tile_hi) == 60, "draw.s CH_*");
 _Static_assert(offsetof(banim_t, steps) == 2 && offsetof(bframe_t, nparts) == 0 && offsetof(bframe_t, parts) == 2, "draw.s AN_STEPS/FR_*");

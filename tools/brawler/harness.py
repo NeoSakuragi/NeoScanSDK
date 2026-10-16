@@ -31,6 +31,22 @@ import ctypes as C, json, os, re, struct, subprocess, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME = os.path.normpath(os.path.join(HERE, '..', '..', 'examples', 'brawler'))
 CORE = os.environ.get('BRAWLER_CORE') or os.path.normpath(os.path.join(HERE, '..', '..', 'geolith', 'libretro', 'geolith_libretro.so'))
+# the address-error core (aerr_core.sh, 2026-10-16: a real 68000 traps odd-address word / long accesses, the stock core
+# ignores them): BRAWLER_AERR=1 (odd_access_proof.py always) takes it; Brawler.odd_accesses() / aerr_mode() read it
+AERR_CORE = os.path.normpath(os.path.join(HERE, '..', '..', 'geolith', 'libretro', 'geolith_libretro_aerr.so'))
+if os.environ.get('BRAWLER_AERR') == '1' and not os.environ.get('BRAWLER_CORE'): CORE = AERR_CORE
+
+
+def aerr_core():
+    """the address-error core, (re)built by aerr_core.sh when missing or older than our Geolith tree / the patch"""
+    src = os.path.realpath(os.path.join(HERE, '..', '..', 'geolith'))
+    newest = os.path.getmtime(os.path.join(HERE, 'aerr_core.patch'))
+    for d, ds, fs in os.walk(src):
+        ds[:] = [x for x in ds if x != '.git']
+        newest = max([newest] + [os.path.getmtime(os.path.join(d, f)) for f in fs if f.endswith(('.c', '.h', 'Makefile'))])
+    if not os.path.exists(AERR_CORE) or os.path.getmtime(AERR_CORE) < newest:
+        subprocess.check_call(['sh', os.path.join(HERE, 'aerr_core.sh')])
+    return AERR_CORE
 SYSDIR = os.path.expanduser('~/.config/retroarch/system')
 WORK = '/data/tmp/harness'                      # save dir (NVRAM, memory card) and the cached fight-start state
 RAM_BASE = 0x100000
@@ -185,6 +201,18 @@ class Brawler:
     def _input(self, port, dev, idx, id):
         if dev != 1 or port > 1: return 0
         return int(any(KEYS[k] == id for k in self.pad[port]))
+
+    # address-error core (AERR_CORE; the stock core has none of these: aerr() is False)
+    def aerr(self): return hasattr(self.core, 'retro_neoscan_aerr_mode')
+    def aerr_mode(self, mode=-1):
+        """0 off, 1 log odd-address word / long accesses and let them go on, 2 log + take the 68000's address-error
+        exception (the real CPU); -1 only reads; returns the previous mode"""
+        self.core.retro_neoscan_aerr_mode.restype = C.c_int; return self.core.retro_neoscan_aerr_mode(mode)
+    def odd_accesses(self):
+        """(count, [(addr, write mode 16 read / 0 write, fc, PPC) of the last 4096])"""
+        p = C.POINTER(C.c_uint)(); self.core.retro_neoscan_aerr.restype = C.c_uint
+        n = self.core.retro_neoscan_aerr(C.byref(p))
+        return n, [(p[i * 4], p[i * 4 + 1], p[i * 4 + 2], p[i * 4 + 3]) for i in range(min(n, 4096))]
 
     def power_cycle(self):
         """power off (the core writes NVRAM / memory card to save_dir) and on again (it loads them)"""

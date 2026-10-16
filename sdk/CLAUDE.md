@@ -38,8 +38,9 @@ make          # builds sdk/lib/libneoscan.a
 - **`.data` is copied to work RAM** by crt0 (`copy_data`). Before this, initialised non-const globals lived in ROM and
   silently ignored writes.
 - **P2 joystick** is `$10FD9C` (BIOS P2CURRENT); the SDK read `$10FD98` (P1's repeat byte) until 2026-10-03.
-- **.neo header NGH** (offset 0x28) is written as 0x0B00 by `tools/neobuild.py`: NGH 999/0x3E7 is V-Liner in Geolith's
-  database, which disconnects joystick 2.
+- **NGH** is $0B00, ONE value: the game header word at $108 (`boot/crt0.s`), which `tools/neobuild.py` copies into the
+  .neo header (offset 0x28) and refuses when Geolith's database special-cases it. NGH 999/0x3E7 is V-Liner there, which
+  disconnects joystick 2 (until 2026-10-16 the game header said $0999 and the .neo $0B00).
 - No libgcc: a 32-bit multiply/divide in C fails at link time (`__mulsi3`); use 16-bit operands, shifts or pointer steps.
 - `make` tracks header dependencies (`-MMD`).
 - **Program ROM past 1 MB: P2 banks** (`neo_bank.h`, 2026-10-06): sections named `.p2bankN` (N 0-6; `.p2data` =
@@ -64,7 +65,7 @@ make          # builds sdk/lib/libneoscan.a
 - **Save data** (`neo_backup.h`, measured with Unibios 4.0 in our emulator, 2026-10-05): variables declared
   `NEO_BACKUP` go to the linker's `.backup` section (work RAM, neither cleared nor copied by crt0); crt0 puts its
   address and size in the header ($10E / $112; none declared: 0 / 0). MVS: the BIOS restores the block at power-on and
-  copies it into battery RAM (here $D00322 for NGH $0999) each time the game hands control back (SYSTEM_RETURN), not
+  copies it into battery RAM (its slot for the header NGH; $D00322 when the NGH was $0999) each time the game hands control back (SYSTEM_RETURN), not
   while the game runs: a change powered off before the next return is lost. First 2 bytes = debug dipswitches (SNK).
   AES: `CARD_call(CARD_SAVE / CARD_LOAD, buf, size, sub)` = the BIOS CARD call $C00468 (FCB = header NGH), answer
   `CARD_OK` 0, `CARD_NO_DATA` $82 ...; written to the card at once (our emulator: `<rom>.mcr` in the save dir).

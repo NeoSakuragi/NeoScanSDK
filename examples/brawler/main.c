@@ -1951,7 +1951,7 @@ static uint8_t boss_fighter(uint8_t s) { return genemies[gstages[s].boss].base; 
  * the BIOS copies it into battery RAM (its area for our NGH) each time the game hands control back (SYSTEM_RETURN:
  * game over, the ending, the attract's end; measured in our emulator: a change made in a fight and powered off
  * before any return is lost, after one it is there) and restores it at power-on. AES = the memory card through the
- * BIOS CARD call (FCB = NGH $0999, sub 0): loaded on the title, written at once after each stage. Checked by magic +
+ * BIOS CARD call (FCB = NGH $0B00 (crt0.s), sub 0): loaded on the title, written at once after each stage. Checked by magic +
  * sum: anything else (a blank block, another build's) = a fresh save. ---- */
 typedef struct {
     uint8_t  dips[2];                            /* SNK: the backup block starts with the debug dipswitches */

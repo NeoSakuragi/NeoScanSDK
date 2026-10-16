@@ -43,7 +43,7 @@ _start:
 | =====================================================================
     .org    0x100
     .ascii  "NEO-GEO\0"        /* Magic */
-    .word   0x0999              /* NGH number (patched by build tool) */
+    .word   0x0B00              /* NGH number (tools/neobuild.py copies it into the .neo header; 0x0999 = V-Liner in Geolith) */
     .long   0x00100000          /* P ROM size (1 MB) */
     .long   __backup_ptr        /* backup RAM block in work RAM (neoscan.ld .backup; 0 = none) */
     .word   __backup_size       /* its size in bytes */

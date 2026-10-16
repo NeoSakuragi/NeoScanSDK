@@ -2659,7 +2659,9 @@ def write_c(chars, outdir):
         base = R.load(n, roster()[n]['routes'])
         tree = R.chain_tree(n, base, roster()[n].get('chain'), has)   # the chain core (revamp 1A)
         blob = R.encode(tree, MOVES, has, [sp is not None for sp in sps])
-        c.append(f'static const uint8_t {n}_routes[] = {{' + ', '.join(map(str, blob)) + '};')
+        c.append(f'static const uint8_t {n}_routes[] __attribute__((aligned(2))) = {{' + ', '.join(map(str, blob)) + '};')
+        # (aligned: the game reads it as rt_head_t / rnode_t, rnode_t.speed a word; an odd start is an address error on a
+        #  68000, the FPGA / MVS crash of 2026-10-16: odd_access_proof.py)
         hsnd = [(MOVES.index(m), v) for m, v in R.hit_sounds(tree).items()]   # its hits' own sounds (bm_hsnd)
         hsd = ((roster()[n].get('throws') or {}).get('hold') or {}).get('sound') or {}
         for k, v in hsd.items():

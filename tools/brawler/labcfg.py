@@ -17,6 +17,7 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         draft section asked for (SECTIONS: "levels" -> levels.py merge, stage names / backgrounds / songs; "game" ->
         gamecfg.py merge, the game-wide numbers and texts; "roster" -> roster.py merge, who is selectable + the select layout;
         "throws" -> throwcfg.py merge, the throw events), rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK,
+        odd_access_proof.py ALL OK (no odd-address word / long access, both BIOS),
         regress.py --bleed-only True / True (+ throw_regress.py ALL OK when throws are shipped), git commit
         (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
         push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
@@ -161,6 +162,9 @@ def ship_one(c, fighters, row):
         run('make sdk', nice + ['make', '-C', 'sdk'])
         run('make', nice + ['make', f'-j{c["jobs"]}'], cwd=game)
         run('bank_proof', py('bank_proof.py', game), ok=lambda o: 'ALL OK' in o)
+        run('odd_access', py('odd_access_proof.py', '--rom', os.path.join(game, 'brawler.neo'), '--game', game,   # (no word /
+                             '--out', os.path.join(c['logs'], f'{row["id"]}_odd')), ok=lambda o: 'ALL OK' in o)   # long access
+        # at an odd address: a real 68000's ADDRESS ERROR, the FPGA / MVS crash of 2026-10-16; both BIOS, ~40 s)
         run('regress bleed', py('regress.py', game, os.path.join(c['logs'], f'{row["id"]}_regress.json'), '--bleed-only'),
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
         if 'throws' in secs:                             # the Throws tab's events: every throw played whole, each event on its frame
