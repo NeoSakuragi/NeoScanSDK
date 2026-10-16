@@ -613,13 +613,13 @@
      "forward": {
       "impacts": [{"frame": 21}],
       "held": 36,
-      "launch": {"frame": 36, "dir": "away", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium, held until frame 36"
+      "launch": {"frame": 36, "dir": "up", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium, held until frame 36; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16)"
      },
      "back": {
       "impacts": [{"frame": 21}],
-      "launch": {"frame": 36, "dir": "away", "size": "medium"},
-      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium"
+      "launch": {"frame": 36, "dir": "up", "size": "medium"},
+      "from": "throw review round 2 2026-10-16 (review.html?q=throws2): impact frame 21, launch frame 36 AWAY medium; launch UP per note 20261016-140501-8a01 (Bruno 2026-10-16)"
      },
      "hold_b": {
       "impacts": [{"frame": 60}],

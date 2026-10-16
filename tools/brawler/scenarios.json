@@ -5570,7 +5570,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then back + A (HAGGAR's back throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-back): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-back): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
   "do_keys": "20:R,2:La,150:-",
   "proof": 64
  },
@@ -5583,7 +5583,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then forward + A (HAGGAR's forward throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-fwd): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HAGGAR plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-fwd): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
   "do_keys": "20:R,2:Ra,150:-",
   "proof": 64
  },
