@@ -26,6 +26,12 @@
       "damage_row": 22,
       "glue_row": 22,
       "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): IMPACT, damage frame 23, eject frame 23, glued until frame 23"
+     },
+     "back": {
+      "kind": "slam",
+      "damage_row": 33,
+      "glue_row": 33,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 34, glued until frame 34"
      }
     }
    },
@@ -83,7 +89,24 @@
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_b_jump"},
    "air_specials": {"ddA": "air 214D"},
    "juggle": ["air 214D"],
-   "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_c_crouch"}},
+   "throws": {
+    "hold": {"hit": "atk_b_close", "fin": "atk_c_crouch"},
+    "timing": {
+     "back": {
+      "kind": "slam",
+      "damage_row": 34,
+      "glue_row": 34,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): SLAM, damage frame 24, glued until frame 24"
+     },
+     "forward": {
+      "kind": "impact",
+      "damage_row": 22,
+      "eject_row": 22,
+      "glue_row": 22,
+      "from": "throw review 2026-10-16 (review.html?q=throws, build 0.10.130): IMPACT, damage frame 16, eject frame 16, glued until frame 16"
+     }
+    }
+   },
    "fury": "23624C",
    "fury_damage_scale": 2,
    "hit_sfx": {"23624C": {"states": [184, 185], "sound": "94 DRAGON HIT"}, "MAX 23624C": {"states": [196, 197], "sound": "94 DRAGON HIT"}},
