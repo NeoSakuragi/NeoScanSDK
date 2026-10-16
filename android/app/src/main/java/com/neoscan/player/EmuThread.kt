@@ -51,7 +51,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
     private fun loop() {
         Native.setSystem(hw, aesBios(java.io.File(sysDir, "neogeo.zip")))
         val rate = Native.load(sysDir, saveDir, rom)
-        if (rate <= 0) { onError("Could not load $rom"); return }
+        if (rate <= 0) { onError(tr(R.string.emu_cannot_load, rom)); return }
         val min = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         val track = AudioTrack.Builder()
             .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME)

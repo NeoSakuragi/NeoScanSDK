@@ -18,6 +18,7 @@ import java.io.File
  *  sensor; no restart on rotation (configChanges), the views just get their new size. BIOS (neogeo.zip, APK assets)
  *  copied to files/system once; the game = brawler.neo in the app's external files dir (fetched by RomFetch). */
 class MainActivity : Activity() {
+    override fun attachBaseContext(base: android.content.Context) { super.attachBaseContext(Lang.wrap(base)); Lang.init(base) }
     /** the process's emulation thread (EmuThread.claim, TODO #183), seen only while this activity owns it: an older
      *  MainActivity still around after a newer one claimed the thread neither pauses nor drives it */
     private var mine: EmuThread? = null
@@ -78,7 +79,7 @@ class MainActivity : Activity() {
         val rom = File(getExternalFilesDir(null), "brawler.neo")
         RomFetch.configure(this, if (!BuildConfig.DEV) null else intent.getStringExtra("url"))   // the Brawler app: its own server only
         PlayerUpdate.setChannel(this, intent.getStringExtra("channel")); PlayerUpdate.cleanup(this)
-        val msg = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; text = "Checking for a new build..." }
+        val msg = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; text = getString(R.string.main_checking) }
         val launch = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER }
         launch.addView(msg)
         setContentView(launch)
@@ -86,11 +87,12 @@ class MainActivity : Activity() {
             // the brawler role, asked again at every start (Auth.recheck): a role this app refuses = the sign-in screen
             // with the reason (Brawler Dev: admins only; both: no role = no access); offline = the last known role
             if (Auth.recheck(this) != Auth.Result.OK) { runOnUiThread { toLogin() }; return@Thread }
+            if (SettingsSync.pull(this)) { runOnUiThread { recreate() }; return@Thread }   // 0.0.44: the account's settings (another language: again in it)
             PlayerUpdate.offer(this)                                   // is a newer app offered (no download here: the poll thread's)
             val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
             RomFetch.loaded(this)                                      // the ROM's version (hashes a new file): off the UI thread
             if (ok) SaveSync.pull(this, save, rom)                     // 0.0.39: the account's cloud save, before the core loads
-            runOnUiThread { msg.text = "Brawler '27  v${RomFetch.installed(this)}\nplayer ${BuildConfig.VERSION_NAME}" }
+            runOnUiThread { msg.text = getString(R.string.main_version, RomFetch.installed(this), BuildConfig.VERSION_NAME) }
             Thread.sleep(1200)                                         // the version, readable, before the game starts
             runOnUiThread {
                 // replaced meanwhile (after a reinstall the update receiver and the launcher both start one: TODO #183)
@@ -98,8 +100,8 @@ class MainActivity : Activity() {
                 val pu = PlayerUpdate.ready(this) ?: PlayerUpdate.available()
                 if (ok && pu != null) updateBanner(launch, pu) { startGame(sys, save, rom) }
                 else if (ok) startGame(sys, save, rom)
-                else msg.text = if (!BuildConfig.DEV) "No game yet.\n\nCheck the connection, or ask Bruno for a build." else
-                    "No game yet.\n\nCheck the connection (builds: canneji.duckdns.org/brawler), or\nadb push brawler.neo ${rom.absolutePath}"
+                else msg.text = if (!BuildConfig.DEV) getString(R.string.main_no_game) else
+                    getString(R.string.main_no_game_dev, rom.absolutePath)
             }
         }.start()
     }
@@ -117,17 +119,18 @@ class MainActivity : Activity() {
             if (!line.isAttachedToWindow && line.text.isNotEmpty()) return
             val r = PlayerUpdate.ready(this@MainActivity)
             line.text = when { r != null -> PlayerUpdate.readyText(r)
-                PlayerUpdate.progress >= 0 -> "Downloading ${PlayerUpdate.available()?.version ?: pu.version}: ${PlayerUpdate.progress} %"
+                PlayerUpdate.progress >= 0 -> getString(R.string.upd_downloading_pct, PlayerUpdate.available()?.version ?: pu.version, PlayerUpdate.progress)
                 else -> PlayerUpdate.offerText(PlayerUpdate.available() ?: pu) }
             line.postDelayed(this, 300) } }.run()
         val row = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER }
         row.addView(android.widget.Button(this).apply { text = PlayerUpdate.ACTION; setOnClickListener { PlayerUpdate.install(this@MainActivity) } })
-        row.addView(android.widget.Button(this).apply { text = "Play"; setOnClickListener { play() } })
+        row.addView(android.widget.Button(this).apply { text = getString(R.string.main_play); setOnClickListener { play() } })
         box.addView(row)
         launch.addView(box, android.widget.LinearLayout.LayoutParams(-2, -2).apply { topMargin = (24 * dp).toInt() })
     }
 
     private fun toLogin() {
+        if (isFinishing) return
         emu?.paused = true
         startActivity(android.content.Intent(this, LoginActivity::class.java)); finish()
     }
@@ -221,23 +224,24 @@ class MainActivity : Activity() {
         val inLab = lab?.active == true
         emu?.paused = true                                         // 0.0.22: his notes, or the test queue; 0.0.24: the decisions
         val items = ArrayList<Pair<String, () -> Unit>>()
-        items.add("My tickets" to { list(null) })
-        if (admin && d > 0) items.add("Decisions ($d): pictures waiting for your answer" to { list("decisions") })
-        if (q.isNotEmpty() && !inLab) items.add("Test queue (${q.size}): test each fixed note in turn" to { testMode?.start(q); Unit })
-        if (admin) items.add((if (inLab) "Character lab: the faces" else "Character lab: fighters + live config") to { openLab() })   // 0.0.28
-        items.add("Reset game save" to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
-        items.add("Log out" to {
-            android.app.AlertDialog.Builder(this).setTitle("Log out ${Auth.user(this) ?: ""}?")
-                .setMessage("Back to the sign-in screen. The next account gets its own build and its own save.")
-                .setPositiveButton("Log out") { _, _ -> Auth.signOut(this) }.setNegativeButton("Back", null)
+        items.add(getString(R.string.menu_tickets) to { list(null) })
+        if (admin && d > 0) items.add(getString(R.string.menu_decisions, d) to { list("decisions") })
+        if (q.isNotEmpty() && !inLab) items.add(getString(R.string.menu_test_queue, q.size) to { testMode?.start(q); Unit })
+        if (admin) items.add(getString(if (inLab) R.string.menu_lab_faces else R.string.menu_lab) to { openLab() })   // 0.0.28
+        items.add(getString(R.string.menu_reset_save) to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
+        items.add("Language / Langue" to { chooseLanguage(); Unit })   // 0.0.44: the app restarts in it
+        items.add(getString(R.string.menu_logout) to {
+            android.app.AlertDialog.Builder(this).setTitle(getString(R.string.logout_title, Auth.user(this) ?: ""))
+                .setMessage(getString(R.string.logout_msg))
+                .setPositiveButton(getString(R.string.menu_logout)) { _, _ -> Auth.signOut(this) }.setNegativeButton(getString(R.string.back), null)
                 .setOnDismissListener { emu?.paused = held() }.show(); emu?.paused = true; Unit })
         val dp = resources.displayMetrics.density
         val head = TextView(this).apply { val m = (18 * dp).toInt(); setPadding(m, m, m, (6 * dp).toInt()); textSize = 14f
-            val role = when { Auth.role(this@MainActivity) == "admin" -> "admin"; Auth.role(this@MainActivity) == "tester" -> "tester"; else -> "?" }
+            val role = when { Auth.role(this@MainActivity) == "admin" -> getString(R.string.role_admin); Auth.role(this@MainActivity) == "tester" -> getString(R.string.role_tester); else -> "?" }
             text = android.text.SpannableStringBuilder().apply {
                 append(Auth.user(this@MainActivity) ?: "?", android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0)
                 setSpan(android.text.style.RelativeSizeSpan(1.35f), 0, length, 0)
-                append("  $role\nGame ${RomFetch.installed(this@MainActivity)}  ·  ${if (BuildConfig.DEV) "Brawler Dev" else "Brawler"} ${BuildConfig.VERSION_NAME}") } }
+                append("  $role\n" + getString(R.string.menu_head, RomFetch.installed(this@MainActivity), if (BuildConfig.DEV) "Brawler Dev" else "Brawler", BuildConfig.VERSION_NAME)) } }
         android.app.AlertDialog.Builder(this).setCustomTitle(head)
             .setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }
             .setOnDismissListener { if (testMode?.active != true) emu?.paused = held() }.show()
@@ -250,9 +254,9 @@ class MainActivity : Activity() {
     private var resetOpen = false                                  // the confirm keeps the game paused (held) after the menu closes
     private fun confirmResetSave() {
         resetOpen = true; emu?.paused = true
-        android.app.AlertDialog.Builder(this).setTitle("Reset game save?")
-            .setMessage("Erase this game's saved data, on this device and on your account? Unlocks and settings stored by the game will be lost.")
-            .setPositiveButton("Erase") { _, _ -> resetOpen = false; resetSave() }.setNegativeButton("Back", null)
+        android.app.AlertDialog.Builder(this).setTitle(getString(R.string.reset_title))
+            .setMessage(getString(R.string.reset_msg))
+            .setPositiveButton(getString(R.string.reset_erase)) { _, _ -> resetOpen = false; resetSave() }.setNegativeButton(getString(R.string.back), null)
             .setOnDismissListener { resetOpen = false; emu?.paused = held() }.show()
     }
     private fun resetSave() {
@@ -345,11 +349,11 @@ class MainActivity : Activity() {
             val m = (16 * dp).toInt(); setPadding(m, m, m, m); isClickable = true
             background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.BLACK)
                 setStroke((3 * dp).toInt(), android.graphics.Color.WHITE); cornerRadius = 12 * dp } }
-        card.addView(TextView(this).apply { textSize = 15f; setTextColor(android.graphics.Color.WHITE); alpha = 0.8f; text = "The Feedback button (the microphone)" })
+        card.addView(TextView(this).apply { textSize = 15f; setTextColor(android.graphics.Color.WHITE); alpha = 0.8f; text = getString(R.string.tip_title) })
         card.addView(TextView(this).apply { textSize = 19f; setTextColor(android.graphics.Color.WHITE); setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = Gravity.CENTER; setPadding(0, (8 * dp).toInt(), 0, (8 * dp).toInt())
-            text = "Hold to describe a problem. The game freezes while you talk. Release when you're done." })
-        card.addView(android.widget.Button(this).apply { text = "Got it"; textSize = 16f; setOnClickListener { closeTip() } })
+            text = getString(R.string.tip_body) })
+        card.addView(android.widget.Button(this).apply { text = getString(R.string.tip_ok); textSize = 16f; setOnClickListener { closeTip() } })
         val pic = Screen.picture(root.width, root.height)
         val w = minOf(pic.width(), (420 * dp).toInt()) - (24 * dp).toInt()
         root.addView(card, android.widget.FrameLayout.LayoutParams(w, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pic.top + pic.height() / 6 })
@@ -398,7 +402,7 @@ class MainActivity : Activity() {
         lateinit var edit: android.widget.EditText
         private val ticker = object : Runnable { override fun run() {
             if (!feedback.recording) return
-            banner.text = "● Recording… release to finish   ${(android.os.SystemClock.uptimeMillis() - t0) / 1000}s"
+            banner.text = getString(R.string.sheet_recording, (android.os.SystemClock.uptimeMillis() - t0) / 1000)
             banner.postDelayed(this, 250) } }
         private val t0 = android.os.SystemClock.uptimeMillis()
         /** the keyboard's height read from the window's insets every 150 ms while the sheet is up (API 30+): the sheet's
@@ -416,12 +420,12 @@ class MainActivity : Activity() {
             val step2 = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(m, m / 2, m, m / 2); setBackgroundColor(panelColor) }
             val s2 = android.widget.LinearLayout(this@MainActivity).apply { orientation = android.widget.LinearLayout.VERTICAL }
-            s2.addView(heading("② Point at the problem (optional)"))
+            s2.addView(heading(getString(R.string.sheet_step2)))
             s2.addView(TextView(this@MainActivity).apply { textSize = 13f; setTextColor(android.graphics.Color.WHITE); alpha = 0.8f
-                text = "Draw on the picture to circle what's wrong" })
+                text = getString(R.string.sheet_step2_hint) })
             step2.addView(s2, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
-            step2.addView(btn("Undo") { ink.undo() }, android.widget.LinearLayout.LayoutParams(-2, -2))
-            step2.addView(btn("Clear") { ink.clear() }, android.widget.LinearLayout.LayoutParams(-2, -2))
+            step2.addView(btn(getString(R.string.sheet_undo)) { ink.undo() }, android.widget.LinearLayout.LayoutParams(-2, -2))
+            step2.addView(btn(getString(R.string.sheet_clear)) { ink.clear() }, android.widget.LinearLayout.LayoutParams(-2, -2))
             col.addView(banner, android.widget.LinearLayout.LayoutParams(-1, -2))
             col.addView(step1, android.widget.LinearLayout.LayoutParams(-1, -2))
             col.addView(step2, android.widget.LinearLayout.LayoutParams(-1, -2))
@@ -448,26 +452,26 @@ class MainActivity : Activity() {
                 setBackgroundColor(android.graphics.Color.rgb(55, 55, 64)); setPadding(m, m / 2, m, m / 2)
                 inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
                     android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-                hint = if (voice) "Transcribing..." else "Type what's wrong"
+                hint = getString(if (voice) R.string.transcribing else R.string.sheet_type_hint)
             }
             val info = TextView(this@MainActivity).apply { textSize = 13f; setTextColor(android.graphics.Color.WHITE); alpha = 0.8f
-                text = if (voice) "Turning your voice into text..." else "What happened, and what you expected" }
-            step1.addView(heading("① Your words"))
+                text = getString(if (voice) R.string.sheet_voice_to_text else R.string.sheet_what) }
+            step1.addView(heading(getString(R.string.sheet_step1)))
             step1.addView(info)
             step1.addView(edit, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = m / 2 })
             step1.visibility = View.VISIBLE
-            val discard = android.widget.Button(this@MainActivity).apply { text = "Discard"; textSize = 13f; isAllCaps = false
+            val discard = android.widget.Button(this@MainActivity).apply { text = getString(R.string.sheet_discard); textSize = 13f; isAllCaps = false
                 setOnClickListener { feedback.cancel(); close() } }
-            val send = android.widget.Button(this@MainActivity).apply { text = "③ Send feedback"; textSize = 18f; isAllCaps = false
+            val send = android.widget.Button(this@MainActivity).apply { text = getString(R.string.sheet_send); textSize = 18f; isAllCaps = false
                 setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.WHITE)
                 background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.rgb(25, 110, 210)); cornerRadius = 8 * dp
                     setStroke((2 * dp).toInt(), android.graphics.Color.WHITE) }
                 setOnClickListener {
                     feedback.send(edit.text.toString().trim(), raw, model, failed, ArrayList(ink.strokes)) { sent ->
-                        runOnUiThread { notice(if (sent) "Thanks, your note was sent" else "Saved, will send when online") } }
-                    close(); notice("Sending your note…", 15000) } }
+                        runOnUiThread { notice(getString(if (sent) R.string.sheet_sent else R.string.sheet_saved)) } }
+                    close(); notice(getString(R.string.sheet_sending), 15000) } }
             step3.addView(discard, android.widget.LinearLayout.LayoutParams(-2, -2))
-            if (Auth.admin(this@MainActivity)) step3.addView(android.widget.Button(this@MainActivity).apply { text = "Reply to..."; textSize = 13f; isAllCaps = false
+            if (Auth.admin(this@MainActivity)) step3.addView(android.widget.Button(this@MainActivity).apply { text = getString(R.string.sheet_reply_to); textSize = 13f; isAllCaps = false
                 setOnClickListener { pickNote() } }, android.widget.LinearLayout.LayoutParams(-2, -2))
             step3.addView(send, android.widget.LinearLayout.LayoutParams(0, (56 * dp).toInt(), 1f).apply { leftMargin = m })
             step3.visibility = View.VISIBLE
@@ -477,8 +481,8 @@ class MainActivity : Activity() {
                     if (r != null) {
                         raw = r.first; model = r.second
                         if (edit.text.isEmpty()) { edit.setText(r.first); edit.setSelection(edit.text.length) }
-                        info.text = "Correct or add to it if needed"
-                    } else { failed = true; info.text = "No text this time: your voice is sent as it is"; edit.hint = "Type a note (optional)" }
+                        info.text = getString(R.string.sheet_correct)
+                    } else { failed = true; info.text = getString(R.string.sheet_no_text); edit.hint = getString(R.string.sheet_type_optional) }
                 }
             }.start()
         }
@@ -490,21 +494,21 @@ class MainActivity : Activity() {
             Thread {
                 val r = Feedback.mine(this@MainActivity)
                 runOnUiThread {
-                    r.onFailure { toast("Your notes are unavailable: ${it.message}") }
+                    r.onFailure { toast(getString(R.string.notes_unavailable, it.message)) }
                     r.onSuccess { j ->
                         val all = j.getJSONArray("rows")
                         val notes = (0 until all.length()).map { all.getJSONObject(it) }.filter { Feedback.isOpen(it) || Feedback.isReady(it, running) }
-                        if (notes.isEmpty()) { toast("No open notes to reply to"); return@onSuccess }
+                        if (notes.isEmpty()) { toast(getString(R.string.no_open_notes)); return@onSuccess }
                         val labels = notes.map { n -> Feedback.local(n.optString("created")) + "  " +
-                            (if (n.optString("status") == "shipped") "SHIPPED " + n.optString("release") else n.optString("status").uppercase()) + "\n" +
+                            (if (n.optString("status") == "shipped") getString(R.string.status_shipped_rel, n.optString("release")) else FeedbackListActivity.statusWord(this@MainActivity, n.optString("status"))) + "\n" +
                             n.optString("title").takeIf { it.isNotEmpty() && it != "null" }
                                 ?: n.optString("final_text").ifEmpty { n.optString("raw_transcript") }.take(90) }
-                        android.app.AlertDialog.Builder(this@MainActivity).setTitle("Reply to which note?")
+                        android.app.AlertDialog.Builder(this@MainActivity).setTitle(getString(R.string.reply_which))
                             .setItems(labels.toTypedArray()) { _, i ->
                                 feedback.replyTo(notes[i].optString("id"), edit.text.toString().trim(), raw) { err ->
-                                    runOnUiThread { toast(if (err == null) "Reply sent" else "Reply not sent: $err") } }
+                                    runOnUiThread { toast(if (err == null) getString(R.string.reply_sent) else getString(R.string.reply_not_sent, err)) } }
                                 close()
-                            }.setNegativeButton("Back", null).show()
+                            }.setNegativeButton(getString(R.string.back), null).show()
                     }
                 }
             }.start()
@@ -550,14 +554,54 @@ class MainActivity : Activity() {
         while (polling) {
             if (n % 12 == 0) Feedback.flush(this)
             if (n % 720 == 0) PlayerUpdate.check(this)
+            if (n % 6 == 0) {                                          // 0.0.44: the assigned (or nightly) build, every 30 s
+                val b = RomFetch.latest(this)
+                gameNewer = RomFetch.newer(this, b)
+                if (gameNewer && !restarting) (RomFetch.nextReady(this) ?: RomFetch.prefetch(this))?.let { v -> runOnUiThread { buildBanner(v) } }
+            }
             n++
-            val b = RomFetch.latest(this)
-            gameNewer = RomFetch.newer(this, b)
             val ready = gameNewer || PlayerUpdate.available() != null
             runOnUiThread { if (::pad.isInitialized) pad.updateReady = ready }
             try { Thread.sleep(5000) } catch (e: InterruptedException) { }
         }
     }.apply { isDaemon = true; start() }
+
+    /** THE NEW BUILD BANNER (app 0.0.44): a newer build downloaded while playing (RomFetch.prefetch): a small line at
+     *  the top of the picture, never in the way of the fight (touches outside its buttons go through), "New build
+     *  0.10.x ready: restart to play it" + Restart (the saves written, the app starts again on it) + ✕ (later: the next
+     *  start loads it anyway). Never restarts by itself. Shown once per version. */
+    private var bannerFor: String? = null
+    private var buildBannerView: android.view.View? = null
+    private fun buildBanner(v: String) {
+        if (!::root.isInitialized || bannerFor == v || isFinishing) return
+        bannerFor = v; buildBannerView?.let { root.removeView(it) }
+        val dp = resources.displayMetrics.density
+        val bar = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            val m = (8 * dp).toInt(); setPadding(m * 2, m / 2, m / 2, m / 2)
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.argb(235, 0, 0, 0))
+                setStroke((2 * dp).toInt(), android.graphics.Color.WHITE); cornerRadius = 10 * dp } }
+        bar.addView(TextView(this).apply { textSize = 14f; setTextColor(android.graphics.Color.WHITE); text = getString(R.string.build_ready, v) })
+        bar.addView(android.widget.Button(this).apply { text = getString(R.string.build_restart); textSize = 13f; isAllCaps = false
+            setOnClickListener { restart() } }, android.widget.LinearLayout.LayoutParams(-2, (40 * dp).toInt()).apply { leftMargin = (8 * dp).toInt() })
+        bar.addView(android.widget.Button(this, null, android.R.attr.borderlessButtonStyle).apply { text = "✕"; textSize = 15f; setTextColor(android.graphics.Color.WHITE)
+            contentDescription = getString(R.string.build_later); setOnClickListener { root.removeView(bar); buildBannerView = null } },
+            android.widget.LinearLayout.LayoutParams((40 * dp).toInt(), (40 * dp).toInt()))
+        val pic = Screen.picture(root.width, root.height)
+        root.addView(bar, android.widget.FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = pic.top + (4 * dp).toInt() })
+        buildBannerView = bar
+    }
+
+    /** the profile menu's "Language / Langue" (0.0.44): English / Français; a change restarts the app in it (the game's
+     *  saves written first) and goes to the account's settings */
+    private fun chooseLanguage() {
+        emu?.paused = true
+        val cur = Lang.current(this)
+        android.app.AlertDialog.Builder(this).setTitle("Language / Langue")
+            .setSingleChoiceItems(arrayOf("English", "Français"), if (cur == "fr") 1 else 0) { d, i ->
+                d.dismiss(); val code = Lang.CODES[i]
+                if (code != cur) { Lang.set(this, code); restart() } }
+            .setOnDismissListener { if (!restarting) emu?.paused = held() }.show()
+    }
 
     @Volatile private var gameNewer = false
     /** the update button (0.0.21): the game pauses and a list says what is newer, "Player 0.0.x" (the in-app install)
@@ -567,17 +611,19 @@ class MainActivity : Activity() {
         val items = ArrayList<Pair<String, () -> Unit>>()
         val pu = PlayerUpdate.ready(this); val pa = PlayerUpdate.available()
         if (pu != null) items += PlayerUpdate.readyText(pu) + ": " + PlayerUpdate.ACTION to { PlayerUpdate.install(this) }
-        else if (pa != null) items += (if (PlayerUpdate.progress >= 0) "App ${pa.version}: downloading ${PlayerUpdate.progress} %"
+        else if (pa != null) items += (if (PlayerUpdate.progress >= 0) getString(R.string.upd_app_downloading, pa.version, PlayerUpdate.progress)
             else PlayerUpdate.offerText(pa) + ": " + PlayerUpdate.ACTION) to { PlayerUpdate.install(this) }
-        if (gameNewer) items += "Game ${RomFetch.latestVersion ?: "?"}: download and restart" to { downloadLatest() }
+        val nx = RomFetch.nextReady(this)
+        if (nx != null) items += getString(R.string.build_ready, nx) to { restart() }
+        else if (gameNewer) items += getString(R.string.upd_game_download, RomFetch.latestVersion ?: "?") to { downloadLatest() }
         val b = android.app.AlertDialog.Builder(this).setOnDismissListener { emu?.paused = held() }
-        if (items.isEmpty()) b.setTitle("Up to date").setMessage("Player ${BuildConfig.VERSION_NAME}, game ${RomFetch.installed(this)}")
-            .setPositiveButton("Check now") { _, _ -> Thread {
+        if (items.isEmpty()) b.setTitle(getString(R.string.upd_up_to_date)).setMessage(getString(R.string.upd_versions, BuildConfig.VERSION_NAME, RomFetch.installed(this)))
+            .setPositiveButton(getString(R.string.upd_check_now)) { _, _ -> Thread {
                 val r = PlayerUpdate.check(this); val g = RomFetch.latest(this); gameNewer = RomFetch.newer(this, g)
                 runOnUiThread { pad.updateReady = gameNewer || PlayerUpdate.available() != null
-                    toast(if (r != null) PlayerUpdate.readyText(r) else if (gameNewer) "A new game build is ready" else "Up to date") } }.start() }
-            .setNegativeButton("Back", null)
-        else b.setTitle("Update").setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton("Back", null)
+                    toast(if (r != null) PlayerUpdate.readyText(r) else getString(if (gameNewer) R.string.upd_game_ready else R.string.upd_up_to_date)) } }.start() }
+            .setNegativeButton(getString(R.string.back), null)
+        else b.setTitle(getString(R.string.upd_title)).setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton(getString(R.string.back), null)
         b.show()
     }
 

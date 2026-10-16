@@ -59,9 +59,9 @@ object PlayerUpdate {
     private fun label(ctx: Context) = ctx.applicationInfo.loadLabel(ctx.packageManager).toString()
 
     /** the launch screen's line: downloaded / offered; the button */
-    fun readyText(i: Info) = "App ${i.version} is ready"
-    fun offerText(i: Info) = "A new version of the app is available (${i.version})"
-    const val ACTION = "Update"
+    fun readyText(i: Info) = tr(R.string.pu_ready, i.version)
+    fun offerText(i: Info) = tr(R.string.pu_offer, i.version)
+    val ACTION get() = tr(R.string.pu_action)
 
     /** a newer app than this one is on the server (downloaded or not) */
     fun available(): Info? = latest?.takeIf { it.code > BuildConfig.VERSION_CODE }
@@ -164,24 +164,24 @@ object PlayerUpdate {
         val r = ready(act)
         if (r == null) {
             val a = available() ?: return
-            android.widget.Toast.makeText(act, "Downloading ${a.version}...", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(act, tr(R.string.pu_downloading, a.version), android.widget.Toast.LENGTH_SHORT).show()
             Thread {
                 val got = check(act)
                 act.runOnUiThread { if (act.isFinishing || act.isDestroyed) return@runOnUiThread
-                    if (got != null) install(act) else failed(act, error.ifEmpty { "the download failed" }) }
+                    if (got != null) install(act) else failed(act, error.ifEmpty { tr(R.string.pu_dl_failed) }) }
             }.start()
             return
         }
         prefs(act).getString("upd_failed", null)?.takeIf { it.startsWith("${r.code}:") }?.let {
             prefs(act).edit().remove("upd_failed").commit(); failed(act, it.substringAfter(':'), retry = true); return }
         if (!act.packageManager.canRequestPackageInstalls()) {
-            AlertDialog.Builder(act).setTitle("Allow updates")
-                .setMessage("Android asks once: turn on \"Allow from this source\" for ${label(act)}, then come back; the update goes on by itself.")
-                .setPositiveButton("Open the setting") { _, _ ->
+            AlertDialog.Builder(act).setTitle(tr(R.string.pu_allow_title))
+                .setMessage(tr(R.string.pu_allow_msg, label(act)))
+                .setPositiveButton(tr(R.string.pu_open_setting)) { _, _ ->
                     pendingInstall = true
                     try { act.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + act.packageName))) }
-                    catch (e: Exception) { pendingInstall = false; failed(act, "no settings screen for it") } }
-                .setNegativeButton("Later", null).show()
+                    catch (e: Exception) { pendingInstall = false; failed(act, tr(R.string.pu_no_setting)) } }
+                .setNegativeButton(tr(R.string.build_later), null).show()
             return
         }
         if (askNotify(act)) return
@@ -198,12 +198,12 @@ object PlayerUpdate {
     /** the in-app path failed: say why; the Brawler app's download link in the browser, or try again */
     private fun failed(act: Activity, why: String, retry: Boolean = false) {
         val link = available()?.link ?: ""
-        val b = AlertDialog.Builder(act).setTitle("Update not installed").setMessage(why)
-        if (link.isNotEmpty()) b.setPositiveButton("Open in the browser") { _, _ ->
+        val b = AlertDialog.Builder(act).setTitle(tr(R.string.pu_not_installed)).setMessage(why)
+        if (link.isNotEmpty()) b.setPositiveButton(tr(R.string.pu_open_browser)) { _, _ ->
             try { act.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            catch (x: Exception) { android.widget.Toast.makeText(act, "No browser to open the download", android.widget.Toast.LENGTH_LONG).show() } }
-        if (retry) b.setNeutralButton("Try again") { _, _ -> ready(act)?.let { session(act, it) } }
-        b.setNegativeButton("Close", null).show()
+            catch (x: Exception) { android.widget.Toast.makeText(act, tr(R.string.pu_no_browser), android.widget.Toast.LENGTH_LONG).show() } }
+        if (retry) b.setNeutralButton(tr(R.string.pu_try_again)) { _, _ -> ready(act)?.let { session(act, it) } }
+        b.setNegativeButton(tr(R.string.pu_close), null).show()
     }
 
     private fun session(act: Activity, r: Info) = Thread {
@@ -224,7 +224,7 @@ object PlayerUpdate {
             }
         } catch (e: Exception) {
             Log.e(TAG, "player update: install ${e.message}")
-            act.runOnUiThread { if (!act.isFinishing) failed(act, "Android refused the install: ${e.message}") }
+            act.runOnUiThread { if (!act.isFinishing) failed(act, tr(R.string.pu_refused, e.message)) }
         }
     }.start()
 
@@ -233,6 +233,7 @@ object PlayerUpdate {
      *  gone by then) */
     class Status : BroadcastReceiver() {
         override fun onReceive(ctx: Context, i: Intent) {
+            Lang.init(ctx)
             val st = i.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
             val m = i.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: ""
             Log.i(TAG, "player update: status $st $m (running ${BuildConfig.VERSION_NAME})")
@@ -241,11 +242,11 @@ object PlayerUpdate {
                     @Suppress("DEPRECATION") i.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)?.let { ctx.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
                 PackageInstaller.STATUS_SUCCESS -> {}
-                PackageInstaller.STATUS_FAILURE_ABORTED -> android.widget.Toast.makeText(ctx, "Update cancelled", android.widget.Toast.LENGTH_SHORT).show()
+                PackageInstaller.STATUS_FAILURE_ABORTED -> android.widget.Toast.makeText(ctx, tr(R.string.pu_cancelled), android.widget.Toast.LENGTH_SHORT).show()
                 else -> {
-                    val why = "Android did not install it: ${m.ifEmpty { "status $st" }}"
+                    val why = tr(R.string.pu_not_installed_why, m.ifEmpty { "status $st" })
                     ctx.getSharedPreferences("fetch", 0).edit().putString("upd_failed", "${i.getIntExtra("code", 0)}:$why").apply()
-                    android.widget.Toast.makeText(ctx, "Update not installed: ${m.ifEmpty { "status $st" }}", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(ctx, tr(R.string.pu_not_installed) + ": " + m.ifEmpty { "status $st" }, android.widget.Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -258,15 +259,16 @@ object PlayerUpdate {
     class Restart : BroadcastReceiver() {
         override fun onReceive(ctx: Context, i: Intent) {
             if (i.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+            Lang.init(ctx)
             Log.i(TAG, "player update: now ${BuildConfig.VERSION_NAME}")
             val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)!!
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             try { ctx.startActivity(open) } catch (e: Exception) { Log.w(TAG, "player update: restart ${e.message}") }
             val nm = ctx.getSystemService(android.app.NotificationManager::class.java)
-            nm.createNotificationChannel(android.app.NotificationChannel("update", "App updates", android.app.NotificationManager.IMPORTANCE_HIGH))
+            nm.createNotificationChannel(android.app.NotificationChannel("update", tr(R.string.pu_channel), android.app.NotificationManager.IMPORTANCE_HIGH))
             val pi = PendingIntent.getActivity(ctx, 0, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             nm.notify(1, android.app.Notification.Builder(ctx, "update").setSmallIcon(android.R.drawable.stat_sys_download_done)
-                .setContentTitle("${label(ctx)} ${BuildConfig.VERSION_NAME} installed").setContentText("Tap to play")
+                .setContentTitle(tr(R.string.pu_installed, label(ctx), BuildConfig.VERSION_NAME)).setContentText(tr(R.string.pu_tap_play))
                 .setContentIntent(pi).setAutoCancel(true).build())
         }
     }

@@ -19,9 +19,9 @@ import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPOutputStream
 
 /** SESSION RECORDING (Player 0.0.41, keyframes 0.0.43; docs/feedback.md "Session recording"; both apps): while the game
- *  runs, every ~5 s a CHUNK of the play session goes to the feedback service (POST sessions/chunk), so the developers can
+ *  runs, every ~2 s (0.0.44; ~5 s before) a CHUNK of the play session goes to the feedback service (POST sessions/chunk), so the developers can
  *  replay a tester's whole session, or watch it live, in the Lab's Sessions tab (chainlab/sessions.js).
- *  - A chunk (player.c Native.sessionChunk) = the pads of its ~300 frames, the same pads as inputs.bin (NSIN v1, bit 15
+ *  - A chunk (player.c Native.sessionChunk) = the pads of its ~120 frames (300 before 0.0.44), the same pads as inputs.bin (NSIN v1, bit 15
  *    of port 0 = a soft reset before that frame) + the SHA-256 of the save state at its start (the viewer's drift check
  *    every 5 s). A KEYFRAME chunk also carries that state, gzip'd (~1/7 of its size): every [KEY_FRAMES] frames (~30 s),
  *    the session's first chunk, after a jump in the frame count (a test state loaded, a chunk dropped before packing) and
@@ -37,8 +37,8 @@ import java.util.zip.GZIPOutputStream
 object Session {
     private const val TAG = "NeoScanPlayer"
     const val GAP_MS = 60_000L                                      // a pause longer than this ends the session
-    private const val MAX_QUEUE = 240                               // chunks waiting for the network (~20 min, ~2 MB)
-    const val KEY_FRAMES = 1800L                                    // a keyframe (full state) every 1800 frames (~30 s)
+    private const val MAX_QUEUE = 600                               // chunks waiting for the network (~20 min of 2 s chunks, ~2 MB)
+    const val KEY_FRAMES = 1800L                                    // a keyframe (full state) every 1800 frames (~30 s = every 15th 2 s chunk)
     @Volatile private var app: Context? = null
     fun init(ctx: Context) { app = ctx.applicationContext; sender }
 

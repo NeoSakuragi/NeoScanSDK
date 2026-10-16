@@ -489,6 +489,12 @@ Every brawler account is an Oros account (canneji.duckdns.org/oros). Its brawler
 - **brawler_tester**: the Brawler app only: the game, the pad, the Feedback button (upload, transcribe, reply and thumbs
   on his own notes, his own `/mine`), and his allowed build.
 - **no tag**: an ordinary Oros user. Both apps refuse him ("This account has no access to the brawler").
+- **brawler_nightly** (0.0.44, with tester or admin): the newest published build at once instead of the testers'
+  assignment ("bleeding edge").
+- **brawler_banned** (0.0.44): blocked by an admin (the tester tag removed at the same time).
+
+Since app 0.0.44 most tester accounts create themselves with an invite code (Oros role **brawler**, tag brawler_tester):
+see "Sign-up and the player admin" below.
 
 **Setting a role** (on the VPS; Oros reads the tags from its DB at every check, so a change applies at once):
 `cd /root/oros-server && ./oros-server user-tags --name=Wael --add=brawler_tester` (`--remove=` takes one off;
@@ -565,6 +571,85 @@ from stdin, so it never shows in ps or a shell history).
   `share/accounts.json`): Wael and Asenka are Oros accounts with brawler_tester, under the same names, so their
   assignments in the `players` section still apply.
 
+## Sign-up and the player admin (app 0.0.44, 2026-10-16)
+
+Bruno posts the brawler27.duckdns.org link + an invite code in group chats; nobody creates accounts by hand any more,
+and the Factory's Players tab tracks and controls who plays. **One source of truth per kind of data:** Oros
+(`/data/JanusPlus` `server-go/brawlersignup.go`, migration 012) holds the accounts, the invite codes, the sign-up log,
+the blocked addresses and the admin audit log; the feedback service holds the play data (sessions, notes, cloud saves,
+seen, settings) and its own audit rows (reset cloud save).
+
+- **The app's first screens** (`LoginActivity.kt`): the very first launch = the language picker (two flags, English /
+  Français); then "I have an invite code" / "I already have an account" (a phone that was signed in before goes straight
+  to the sign-in). Sign-up = invite code, login, password, repeat -> Create account, checked in plain words on the
+  phone (3-16 letters, digits or _; 8+ characters; both the same) and by Oros (the same + unique ignoring case, a small
+  rude-word / reserved-name filter, the code). One line: "Your play sessions, IP address and device are recorded for
+  this beta." Created = signed in exactly as by a sign-in (the same token). Brawler Dev shows the sign-in only.
+- **Oros `POST /api/signup {code, username, password, device}`** (public): one transaction (the code's use, the user
+  with role `brawler` and tag `brawler_tester`, a `signups` row: code, IP, user agent, device, time). Refusals as error
+  codes the app words in EN / FR: `name_invalid`, `name_rude`, `name_taken`, `password_short`, `code_unknown`,
+  `code_off`, `code_used_up`, `ip_blocked`, `too_many` (5 accounts or 20 refusals per address per hour).
+  Seeded code: **BRAWLER27**, 50 uses, "first group".
+- **A role-`brawler` account is not an Oros user:** its token reaches `/api/whoami`, `/api/password`, `/api/logout` and
+  only the gates that name one of its tags (`/api/authcheck?tag=brawler_tester,...`). A plain `/api/authcheck` (the
+  gate of /jlpt/, /bunpo/, /chesspuzzle/, /vinted/, /decisions/) and every media / Oros API answer 403.
+- **Revocation:** tokens carry `iat_ms`; `users.token_valid_after` (ms) kills every older token (401 `signed_out`), also
+  a deleted user's. The app's silent renewal with the saved password sends `since` = its old token's iat_ms: after a
+  "sign out everywhere" that renewal is refused too and the phone shows the sign-in ("You were signed out: sign in
+  again"). A typed sign-in works. (Apps before 0.0.44 do not send `since`: they renew silently.)
+- **Temporary password:** an admin's reset sets `must_change`; the sign-in answers `must_change: true` and the app asks
+  for a new password (`POST /api/password {old_password, new_password}`, which clears it and signs other devices out).
+- **Block:** tester tag -> `brawler_banned`, every token revoked; a role-`brawler` account can no longer sign in (403
+  `banned`: "This account is blocked from the beta"); an Oros account keeps its Oros login but loses the brawler.
+  "Also block IP": those addresses go to `ip_blocks` (no sign-up from them, no sign-in of a role-`brawler` account from
+  them); Unblock lifts the ones that block added.
+- **The admin API** (Oros, the `brawler_admin` tag read from the DB; the Factory calls `/oros/api/brawler/...` with the
+  admin's Oros cookie): `GET players` {accounts (tags, joined via which code, sign-up IP / device / UA, last sign-in /
+  seen, must_change), others (Oros accounts without access, for Grant), codes (+ who joined with each), blocks, audit};
+  `POST codes {code, label?, max_uses?, active?}`; `POST account {username, action, block_ips?}` with action block,
+  unblock, grant, make_admin, remove_admin (never your own), nightly_on, nightly_off, reset_password (returns
+  `temp_password` once), sign_out, delete (role-`brawler` accounts only; the sign-up row stays); `POST ipblock {ip,
+  blocked, reason?}`. Every action -> `brawler_audit` (who, what, target, detail, when).
+- **The feedback service's side** (`/brawler-lab/feedback-api/`, admins): `GET players` = per account sessions (count,
+  play time, first / last, the live one), devices, app versions, IPs (sessions, notes, replies, transcriptions), notes
+  (all / open), last seen, cloud saves, the app language, + who is LIVE (a chunk in the last 15 s) and its audit rows;
+  `POST players/reset_save {user, game?}`; `GET sessions?user=X` (one player's).
+- **The Factory's Players tab** (`canneji.duckdns.org/brawler-factory/?tab=players`, `players.js`, admins only; never on
+  brawler27): Online now (each live player with SPECTATE = the Lab's live view `brawler-lab/game.html#sess=<id>`),
+  Players (one row each: tags LIVE / tester / admin / blocked / nightly / temp password / Oros account, last seen, play
+  time, sessions, notes, "shared IP" flag, the code; a tap = profile: joined, sign-up device / IP / UA, language, devices,
+  app versions, IPs with who else used each, play, build, cloud save, last sign-in; the actions; his last 12 sessions
+  with Watch / Spectate and "all in the Lab" (`game.html?user=X#sessions`); his notes with a link to each replay),
+  Invite codes (uses / max, on / off, who joined, add, change max), Grant access, Builds (the testers' build + the
+  admins'), Blocked addresses (add / lift), Audit log (both sides, newest first). Destructive actions confirm; Delete
+  confirms twice (the login typed). Proof: `tools/brawler/factory/players_proof.js` (41 checks, real local Oros +
+  server.py, 390 px).
+- **Nightly:** an account with `brawler_nightly` gets, from `share/latest.json` / `me`, the newest build in the published
+  builds (`make publish-vps`'s directory), whatever the testers' assignment.
+- **The 30 s build check + the banner (both apps):** every 30 s the app asks `share/latest.json` (its account's build)
+  and compares the sha; a different build is downloaded in the background as `brawler.neo.next` (size + sha256 checked;
+  the ROM being played is never touched), then a small banner over the top of the picture: "New build 0.10.x ready:
+  restart to play it" / "Nouvelle version 0.10.x prête : redémarrez pour y jouer", Restart + ✕. Never restarts by
+  itself; the next start puts the new build in place before anything reads the ROM (`RomFetch.promote`). Proof: a
+  tester flagged nightly picked up a newer local build 28 s later; Restart -> the title screen says the new version.
+- **Language (both apps):** every app string is a string resource (`res/values` English, `res/values-fr` French,
+  "vous"), applied by a Configuration wrapper on every activity whatever the phone's locale (`Lang.kt`); the profile
+  menu's "Language / Langue" switches (the app restarts in it), Brawler Dev's settings too. **The game itself (the Neo
+  Geo ROM) stays in English.** Brawler Dev's own lab screens (Character lab, Assembly) stay English. The download page
+  (`tools/brawler/getpage/index.html`) has the same EN / FR switch (two flags, the browser's language by default,
+  remembered in the browser).
+- **Settings per account:** `GET / PUT /brawler/feedback/settings` {settings {language, + Brawler Dev's display /
+  controls / system prefs}, updated (ms)}, newest wins (`SettingsSync.kt`): pulled after every sign-in and at every
+  start (the server's newer = applied, the language included), a local change sent at once; the first-launch language
+  pick is local until the sign-in, then uploaded. Files `DATA/settings/<user>.json`.
+- **Proof 2026-10-16** (AVD NeoPhoneP40, Android 10, the Brawler app 0.0.44 against a local Oros (branch brawler-signup)
+  + server.py): first launch -> French -> sign-up refusals (mismatch, login taken "Wael", used-up code, switched-off
+  code), BRAWLER27 accepted -> in the game in French; nightly + newer build -> banner -> Restart -> 0.10.148; blocked ->
+  signed out within 25 s, typed sign-in refused "Ce compte est bloqué"; unblocked; reset password -> temporary sign-in
+  -> new password page -> in; sign out everywhere -> the saved password no longer renews; the 6th sign-up from one
+  address -> "Too many sign-ups"; English picked locally, the account's French restored at the sign-in; Language /
+  Langue -> English, sent to the account. Files: `/data/tmp/signup44/` (shots/, web/).
+
 ## Cloud saves (Player 0.0.39)
 
 A game's save follows the Oros account: sign in on another phone (or after a reinstall) and the save is there. Any
@@ -590,7 +675,7 @@ A game's save follows the Oros account: sign in on another phone (or after a rei
   data was wiped, cs-a signed in again and got his save back byte for byte; cs-b on the same device got a fresh save;
   Reset game save deleted the server's copy. `/data/brawler-share/proof_0039/`.
 
-## Session recording (Player 0.0.41; keyframes 0.0.43)
+## Session recording (Player 0.0.41; keyframes 0.0.43; 2 s chunks 0.0.44)
 
 Every play session of the game build is recorded and sent to the server while it is played, so a tester's whole
 session can be replayed in the Lab, or watched live, a few seconds behind. Both apps, one code path. The sign-in screen
@@ -598,22 +683,23 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
 
 - **In the player** (`player.c` `Native.sessionChunk`, `Session.kt`, called by `EmuThread` before every frame and while
   paused):
-  - A **chunk** = the pads of its ~300 frames (~5 s), the same pads as inputs.bin (bit 15 of port 0 = a soft reset
+  - A **chunk** = the pads of its 120 frames (~2 s, app 0.0.44; 300 = ~5 s in 0.0.41-0.0.43, still replayed), the same pads as inputs.bin (bit 15 of port 0 = a soft reset
     before that frame) + the SHA-256 of the save state at its start (taken before its first frame, as the feedback
     snaps): the viewer's drift check every 5 s. A pause closes the chunk so far (a short chunk). A chunk is taken before
     a soft reset asked for that frame, so the reset is the next chunk's first frame's RESET bit.
   - **Keyframes (0.0.43, Bruno's scheme):** only a KEYFRAME chunk also carries that state (gzip'd: 222 789 bytes raw,
-    ~30 KB packed): every 1800 frames (~30 s, every 6th chunk), the session's first chunk, after a jump in the frame
+    ~30 KB packed): every 1800 frames (~30 s, every 15th 2 s chunk), the session's first chunk, after a jump in the frame
     count (a test state loaded, a raw chunk dropped by the packer) and after a chunk dropped or refused on the way out.
-    Still sent every 5 s (the inputs are small), so live stays ~5 s behind. Chunks of 0.0.41 / 0.0.42 = every chunk a
+    Sent every 2 s since 0.0.44 (the inputs are small), so live stays ~2-3 s behind. Chunks of 0.0.41 / 0.0.42 = every chunk a
     keyframe; the server and the viewer take both.
   - Measured in the AVD (0.0.43, 51 min, 608 chunks, 101 keyframes): keyframe chunk ~30.5 KB, input chunk ~1.9 KB
-    (~0.8 KB of it the JSON meta), **4.7 MB per hour of play** (0.0.41: 20.8 MB per hour).
+    (~0.8 KB of it the JSON meta), **4.7 MB per hour of play** (0.0.41: 20.8 MB per hour). 0.0.44 (2 s chunks,
+    measured locally over 10 min: 299 chunks, input chunk ~1.2 KB, keyframes as before): **5.1 MB per hour**.
   - **A session** = `<install id, 8 hex>-<UTC start yyyymmdd-hhmmss>`. A new one starts when the next chunk comes more
     than 60 s after the last (a pause > 60 s), with another ROM / system (another EmuThread) and in a new process.
   - Only the game build (`files/brawler.neo`, RomFetch.romFile) and only signed in; never the Character lab's shell.
   - Never stalls the emulation: the emulation thread copies the chunk out of the core (JNI, one memcpy); the gzip runs
-    on one worker (bounded queue of 6, the oldest dropped), the upload on another (up to 240 chunks waiting, ~20 min, the
+    on one worker (bounded queue of 6, the oldest dropped), the upload on another (up to 600 chunks waiting, ~20 min, the
     oldest dropped). Offline / server down / 5xx: retried with a growing wait (5 s doubling to 2 min), in order; a 4xx
     (not 401 / 408 / 429) drops the chunk. Memory only: a chunk not sent when the app is killed is lost.
   - The POST body (little endian): `"NSCK"`, u32 1, u32 n + JSON meta (session, seq, start_frame, frames, paused,
@@ -622,7 +708,7 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
     inputs (NSIN v1: `"NSIN"`, u32 1, u64 W, u64 P, the pads), u32 n + the gzip'd state (n = 0: none = not a keyframe; the
     server then checks state_sha256 is a SHA-256).
 - **Server** (`server.py`, nginx `location = /brawler/feedback/sessions/chunk`, 1 MB body cap, zone `brawler_sess`
-  60 r/min + burst 120 per address):
+  180 r/min + burst 300 per address since 0.0.44's 2 s chunks):
   - `POST sessions/chunk`: signed in, a brawler admin or tester. Checked: NSCK v1, the session id, seq / frames
     (1..1200), the inputs = NSIN v1 for exactly those frames, the ROM sha, the system key, the state gunzips to its
     size and sha256. A session belongs to the account that sent its first chunk (another account: 403). A chunk sent
@@ -646,7 +732,8 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
   wasm core (one core per build, shared with the Feedback tab), seek bar, Play / Pause, ×1 (sound) / ×2 / ×4. A seek
   loads the nearest keyframe at or before the target and plays the inputs silently up to it (at most ~30 s of play,
   ~3 s at ~550 frames/s). A live session opens on its latest keyframe, fast-forwards silently to its newest chunk and
-  plays the chunks as they arrive (polled every 2.5 s): measured 5-6.5 s behind the newest chunk's end. **The drift
+  plays the chunks as they arrive (polled every 1 s since 0.0.44, was 2.5 s: 5-6.5 s behind with 5 s chunks; with 2 s
+  chunks the bound is the chunk (2 s) + the upload + the poll (1 s), ~2-3 s; not yet measured on the live page). **The drift
   check:** at every chunk boundary that follows the chunk played, the SHA-256 of the replay's state is compared with
   the recorded one ("N chunk boundaries checked (state SHA-256): all identical to the recording"). A difference is
   shown, the replay plays on ("drifting") and resyncs at the next keyframe; a missing chunk (a gap in seq / frames) is
@@ -691,6 +778,8 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
   SHA-256 7c2d6c04... = the recorded one. Headless Chrome on the page: live view, seek, ×4, 390 px. A pause of 70 s
   started a new session (replayed too: 18 / 18 joins identical); a 40 s server outage was bridged by the retries, the 8 chunks held back arrived in order, none lost. Files:
   `/data/tmp/sess_proof/` (screens, scripts). Not proven: an arm64 device (same open point as the feedback replays).
+- **2 s chunks, proven 2026-10-16** (the 0.0.44 proof above): a 6 min session of 175 chunks of 120 frames, 12
+  keyframes, replayed with `session_replay_node.js`: 174 / 174 boundaries SHA-identical, no gap.
 - **Keyframes, proven 2026-10-16** (AVD NeoPhoneP40, the Brawler app 0.0.43 against local services, build 0.10.139's
   ROM): a 51-min session (608 chunks, 101 keyframes, play + attract + a pause) replayed in Node from its first
   keyframe: 607 / 607 boundaries SHA-identical; from each of the 101 keyframes loaded into a fresh core, its chunk

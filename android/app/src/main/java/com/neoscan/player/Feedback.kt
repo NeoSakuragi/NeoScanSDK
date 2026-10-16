@@ -243,7 +243,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         /** a reply to one of his notes (0.0.17, POST ../feedback/reply): [kind] voice | text | up (verified fixed) |
          *  down (still broken: reopened); the voice goes along in base64. Blocking. -> the note's row, or the error */
         fun reply(ctx: Context, id: String, kind: String, text: String, raw: String = "", tx: String = "", audio: File? = null): Result<JSONObject> {
-            val u = url(ctx, "reply") ?: return Result.failure(Exception("no server"))
+            val u = url(ctx, "reply") ?: return Result.failure(Exception(tr(R.string.no_server)))
             val body = JSONObject().apply {
                 put("id", id); put("kind", kind); put("text", text); put("raw_transcript", raw); put("tx_id", tx)
                 put("device", "${Build.MANUFACTURER} ${Build.MODEL}"); put("android", "${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
@@ -261,13 +261,13 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
                 val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
                 if (code == 200) JSONObject(txt).let { j -> Result.success(j.getJSONObject("row").put("last_reply_id", j.optJSONObject("reply")?.optInt("id", -1) ?: -1)) }
                 else Result.failure(Exception("HTTP $code " + (try { JSONObject(txt).optString("error") } catch (x: Exception) { "" })))
-            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+            } catch (x: Exception) { Result.failure(Exception(tr(R.string.no_connection, x.message))) }
         }
 
         /** a test attempt (Player 0.0.22, POST ../feedback/test): a zip of test.json ([t]: id, result up | down | abandoned,
          *  rom_sha, game_version, system, seconds, reply_id, note) + the attempt's replay [dir] (optional). Blocking. */
         fun postTest(ctx: Context, t: JSONObject, dir: File?): Result<JSONObject> {
-            val u = url(ctx, "test") ?: return Result.failure(Exception("no server"))
+            val u = url(ctx, "test") ?: return Result.failure(Exception(tr(R.string.no_server)))
             val bos = java.io.ByteArrayOutputStream()
             ZipOutputStream(bos).use { z ->
                 t.put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
@@ -288,7 +288,7 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
                 val code = c.responseCode
                 val txt = (if (code == 200) c.inputStream else c.errorStream)?.use { it.readBytes().toString(Charsets.UTF_8) } ?: ""
                 if (code == 200) Result.success(JSONObject(txt)) else Result.failure(Exception("HTTP $code $txt"))
-            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+            } catch (x: Exception) { Result.failure(Exception(tr(R.string.no_connection, x.message))) }
         }
 
         /** a note's test state for this build and system (GET ../feedback/mine/scenario/<id>/<sha>/<key>.state), cached;
@@ -296,19 +296,19 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
         fun scenarioState(ctx: Context, id: String, sha: String, key: String): Result<File> {
             val f = File(ctx.cacheDir, "scenario/${id}_${sha.take(12)}_$key.state")
             if (f.exists() && f.length() > 0) return Result.success(f)
-            val u = url(ctx, "mine/scenario/$id/$sha/$key.state") ?: return Result.failure(Exception("no server"))
+            val u = url(ctx, "mine/scenario/$id/$sha/$key.state") ?: return Result.failure(Exception(tr(R.string.no_server)))
             return try {
                 val c = Auth.call(ctx) { tok -> (u.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 5000; readTimeout = 30000
                     setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
                     if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
                 } }
-                if (c.responseCode == 404) return Result.failure(Exception("No test state for the build you run yet"))
-                if (c.responseCode != 200) return Result.failure(Exception("The server answered HTTP ${c.responseCode}"))
+                if (c.responseCode == 404) return Result.failure(Exception(tr(R.string.fb_no_state)))
+                if (c.responseCode != 200) return Result.failure(Exception(tr(R.string.fb_http, c.responseCode)))
                 f.parentFile?.mkdirs(); val part = File(f.path + ".part")
                 c.inputStream.use { i -> part.outputStream().use { i.copyTo(it) } }
                 part.renameTo(f); Result.success(f)
-            } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+            } catch (x: Exception) { Result.failure(Exception(tr(R.string.no_connection, x.message))) }
         }
 
         /** the state key the player asks for: the BIOS it boots + its hardware (scenario.py SYSTEMS) */
@@ -329,9 +329,9 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
             val p = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
             val t = p.parse(iso)!!.time; val s = (System.currentTimeMillis() - t) / 1000
             when {
-                s < 60 -> "just now"; s < 3600 -> "${s / 60} min ago"; s < 86400 -> "${s / 3600} h ago"
-                s < 2 * 86400 -> "yesterday"; s < 7 * 86400 -> "${s / 86400} days ago"
-                else -> SimpleDateFormat("MMM d", Locale.US).format(Date(t))
+                s < 60 -> tr(R.string.ago_now); s < 3600 -> tr(R.string.ago_min, s / 60); s < 86400 -> tr(R.string.ago_h, s / 3600)
+                s < 2 * 86400 -> tr(R.string.ago_yesterday); s < 7 * 86400 -> tr(R.string.ago_days, s / 86400)
+                else -> SimpleDateFormat("d MMM", Locale(Lang.s(R.string.lang_code))).format(Date(t))
             }
         } catch (x: Exception) { iso.take(10) }
 
@@ -343,11 +343,11 @@ class Feedback(private val ctx: Context, private val rom: File, private val emu:
                 setRequestProperty("X-Install-Id", installId(ctx)); setRequestProperty("X-App-Version", BuildConfig.VERSION_NAME)
                 if (tok != null) setRequestProperty("Authorization", "Bearer $tok")
             } }
-            if (c == null) Result.failure(Exception("no server"))
-            else if (c.responseCode == 401) Result.failure(Exception("Not signed in: log out and in again (settings)"))
-            else if (c.responseCode != 200) Result.failure(Exception("The server answered HTTP ${c.responseCode}"))
+            if (c == null) Result.failure(Exception(tr(R.string.no_server)))
+            else if (c.responseCode == 401) Result.failure(Exception(tr(R.string.fb_not_signed)))
+            else if (c.responseCode != 200) Result.failure(Exception(tr(R.string.fb_http, c.responseCode)))
             else Result.success(JSONObject(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }))
-        } catch (x: Exception) { Result.failure(Exception("No connection (${x.message})")) }
+        } catch (x: Exception) { Result.failure(Exception(tr(R.string.no_connection, x.message))) }
 
         /** the filters of his list (0.0.17): open = not closed and not waiting for him; ready = shipped in a build
          *  at or before the one he runs (he can test it) */

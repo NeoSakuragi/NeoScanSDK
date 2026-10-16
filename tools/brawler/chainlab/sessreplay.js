@@ -1,5 +1,5 @@
 /* Session replay engine (docs/feedback.md "Session recording", Player 0.0.41, keyframes 0.0.43): a tester's play
- * session, sent by the Player in ~5 s chunks (Session.kt: the pads of each chunk's frames + the SHA-256 of the state at
+ * session, sent by the Player in ~2 s chunks (~5 s before app 0.0.44; any length replays) (Session.kt: the pads of each chunk's frames + the SHA-256 of the state at
  * its start; a KEYFRAME chunk, every ~30 s, also that state), replayed in the wasm Geolith core through fbreplay.js's
  * FeedbackReplay (one core per build). Used by the Lab's Sessions tab (sessions.js) and by
  * tools/feedback/session_replay_node.js (the determinism proof in Node). Sessions of 0.0.41 / 0.0.42 = every chunk a

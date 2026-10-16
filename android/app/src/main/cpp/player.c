@@ -53,10 +53,10 @@ static int reset_pending;
 static struct { uint64_t frame; uint8_t *data; int valid; } snaps[NSNAP];
 static size_t snap_size;
 /* SESSION RECORDING (Player 0.0.41, docs/feedback.md "Session recording"): the play session goes to the server in chunks
- * of ~5 s: the state at the chunk's start (taken before its first frame runs, as the snaps) + the pads of its frames.
+ * of ~2 s (0.0.44; ~5 s before): the state at the chunk's start (taken before its first frame runs, as the snaps) + the pads of its frames.
  * Native.sessionChunk, called by the emulation thread before every frame, closes the chunk that is CHUNK frames old (or
  * any non-empty one when asked to flush: a pause), hands it over and opens the next with a fresh state. */
-#define CHUNK 300                      /* ~5 s */
+#define CHUNK 120                      /* ~2 s (app 0.0.44; 300 = ~5 s before: the viewer reads any length) */
 static uint8_t *ck_state;
 static uint64_t ck_start;
 static int ck_valid;
