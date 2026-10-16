@@ -361,6 +361,12 @@ each), scenario.py lint 0.
   $2B), E9 = samsho2 `1A73` (his landing voice); build_snd reads SS2's prefix $1A as slot 1.
 - `slam_bounce.vx` is away from the thrower (note 20261016-095622-e03d reopen: +1.5); the slam's group impact (throw_body)
   lands on the slam frame and the bouncing victim touches nobody after it (note 20261016-111144-e03d, fighter_t.tb_slam).
+- The slam's cut (fighter_t.tbnc): only a fresh A / C / D press at or after the slam cuts the rest of the throw (fighter.c
+  IN_STRIKE, note 20261016-131633-e03d); the stick and the jump never do, so the end pose plays whole otherwise.
+- Bonus pick: a game with `unlock` fury is greyed and skipped while the fury is free (fury_lock 0: won this credit, the
+  select cheat; main.c bonus_start, note 20261016-132535-e03d); build_tables asserts a game without it exists.
+- Haohmaru down + C = the A+B Senpuu Retsuzan (`236AB`) with Bakuen Ryuu's treatment (note 20261016-131850-e03d):
+  `proj_react` lift + juggle_reset, `retime` startup 0.5x, `knobs` sp_dc S-003 speed 1.59 (half); 623S moved to up-forward + C.
 - Posts bonus (BB_ANY): each hit of a move counts once on the post (the striker's hit_mask bit 7, cleared by its next hit
   window), so a two-hit move hits it twice (note 20261016-111341-e03d; was: one count per continuous touch).
 - fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before

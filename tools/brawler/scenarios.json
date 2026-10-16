@@ -5236,5 +5236,46 @@
   "expect": "The fourth link hits the post twice (two sparks, two chips, two hits off the post's 10), like it hits an enemy twice; each other attack counts once per hit it makes.",
   "do_keys": "70:-,110:R,2:a,10:-,2:a,10:-,2:a,10:-,2:a,40:-",
   "proof": 60
+ },
+ "20261016-132535-e03d": {
+  "title": "Bonus pick: the fury already unlocked, Super Death Blow is greyed and cannot be picked",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "pick",
+   "after": 1,
+   "unlocked": true
+  },
+  "do": "The SELECT BONUS GAME screen comes up with the fury already unlocked (as after winning the posts, or with the select-screen cheat). Push the stick right a few times, then press A.",
+  "expect": "The third picture (Super Death Blow, the posts) is grey like the middle one, and the cursor never reaches it: it stays on Spirit Training (the tree), which A then starts. With the fury still locked (a new credit, posts not won yet), the third picture is in colour and selectable as before.",
+  "do_keys": "200:-,2:R,20:-,2:R,20:-,2:a",
+  "proof": 120
+ },
+ "20261016-131850-e03d": {
+  "title": "Haohmaru: down + C = the tornado (Senpuu Retsuzan) with Hanzo's Bakuen treatment",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 160,
+   "drive": "full"
+  },
+  "do": "Press down + C (Ougi Senpuu Retsuzan) at Ryo standing across the screen. Then try again up close and follow the lifted Ryo with an attack.",
+  "expect": "The tornado leaves his sword about twice as soon as before (about 16 frames after the press, was about 30) and travels half as fast (3 px a frame, was 6). It lifts Ryo straight up (no sideways push), high, juggle-able, his juggle count back to 0, like Hanzo's Bakuen Ryuu. Ougi Kogetsuzan's A version, formerly on down + C, is now up-forward + C (C alone still plays its A+B version). A second tornado waits until the first one's spin on Ryo is over (one projectile at a time).",
+  "do_keys": "2:Dc,100:-",
+  "proof": 60
+ },
+ "20261016-131633-e03d": {
+  "title": "Haggar's slam throw: the suplex end pose always plays, unless A / C / D follows up",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "Walk into Ryo to grab him and throw him with forward + A, and KEEP HOLDING forward through the slam. Then the same releasing the stick, holding back, and once pressing A right as Ryo hits the floor.",
+  "expect": "Holding forward, holding back or letting go: the throw plays to its end every time, Haggar holding the suplex on the ground with Ryo smashed into it for its last frames (24 frames after the slam). Only a fresh A, C or D press at or after the slam cuts it to follow up on the bouncing Ryo. The same on every slam throw and on Hanzo's Mozu Otoshi.",
+  "do_keys": "20:R,2:Ra,70:R",
+  "proof": 30
  }
 }

@@ -3460,7 +3460,10 @@ static void bonus_start(void) {                  /* after stage camp: AOF2's BON
     bd_set(COLOR_BLACK);
     bscr_pals(bscr_intro_pal, BSCR_INTRO_NPAL);
     for (i = 0; i < 3; i++) bn_slot_game[i] = 0xFF;
-    for (i = 0; i < gbonus.ngames; i++) bn_slot_game[gbonus.games[i].slot] = i;
+    for (i = 0; i < gbonus.ngames; i++)          /* a game whose reward is the fury, the fury already free (won this
+                                                    credit, the cheat): its slot greyed and skipped like an empty one
+                                                    (note 20261016-132535-e03d) */
+        if (!(gbonus.games[i].unlock == BU_FURY && !fury_lock)) bn_slot_game[gbonus.games[i].slot] = i;
 }
 static void bonus_play(uint8_t k);
 static void bn_select_start(void) {

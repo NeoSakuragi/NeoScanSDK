@@ -1696,8 +1696,12 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
  * special_grab_timing: its blow, vlist_place) leaves the floor at once in a short low pop, bvy / bvx 8.8 px a frame up /
  * away from the thrower (game.json slam_bounce, gthrow_tm / gsgt_bounce): an ordinary airborne knockdown (S_KNOCKDOWN,
  * the juggle box, its air hits counted toward chain.juggle_cap), which falls, lands and lies as any. Its thrower may cut
- * the rest of his throw / special short from that frame with any press or stick (tbnc, a player: update's S_THROW / S_SPECIAL), to reach it and hit it
- * again on the way down. A MAX chain's throw with another to come does not bounce (chain_more) */
+ * the rest of his throw / special short from that frame with a fresh attack press, A, C or D (IN_STRIKE; tbnc, a player:
+ * update's S_THROW / S_SPECIAL), to reach it and hit it again on the way down. Only a press made at or after the slam:
+ * the stick (held from the throw's own forward / back) and the jump never cut it, so the throw's end pose plays whole
+ * unless he follows up (note 20261016-131633-e03d: the stick still held from forward + A cut Haggar's suplex on the
+ * slam frame, released it played whole). A MAX chain's throw with another to come does not bounce (chain_more) */
+#define IN_STRIKE (IN_A | IN_C | IN_D)
 static void bounce_cancel(fighter_t *f) {                       /* the thrower's cut: neutral, facing its victim (the */
     const fighter_t *v = f->target;                              /* stick still turns him: update's neutral) */
     if (v && v != f && INT(v->x) != INT(f->x)) f->facing = v->x > f->x ? 1 : -1;
@@ -4564,14 +4568,14 @@ static void update(fighter_t *f, const intent_t *in) {
         if (in && (in->press & IN_A) && f->tbnc && f->y > 0 && f->target && INT(f->target->x) != INT(f->x))   /* (its */
             f->facing = f->target->x > f->x ? 1 : -1;            /* slam bounced the victim: the air A turned to it) */
         if (in && (in->press & IN_A) && throw_air(f)) goto air;   /* (its leap: the jump's A, game.json keeps_air_attack) */
-        if (f->tbnc && in && (in->press || in->dx || in->dz) && !f->held && f->y <= 0) {   /* its slam bounced the */
+        if (f->tbnc && in && (in->press & IN_STRIKE) && !f->held && f->y <= 0) {   /* its slam bounced the */
             throw_free(f, 0); f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;   /* victim: the rest of the throw cut */
             bounce_cancel(f); goto neutral;                      /* short, the press plays from neutral (slam_bounce) */
         }
         throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
-        if (f->tbnc && in && (in->press || in->dx || in->dz) && !(f->pflags & PF_HOLD) && f->y <= 0) {   /* a grab */
+        if (f->tbnc && in && (in->press & IN_STRIKE) && !(f->pflags & PF_HOLD) && f->y <= 0) {   /* a grab */
             carry_drop(f); special_end(f); f->pflags = 0;       /* special's slam bounced its victim: the rest cut */
             bounce_cancel(f); goto neutral;                      /* short (slam_bounce) */
         }

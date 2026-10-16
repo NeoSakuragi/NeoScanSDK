@@ -1421,6 +1421,8 @@ def bonus_check(g, songs_known, sfx_names=None):
 def bonus_tables(g, songs_known, sfx_names):
     """game.json "bonus" -> gbonus (gamedata.h gbonus_t, main.c "bonus stages"); sfx_names: songs.json sfx name -> code"""
     b = bonus_check(g, songs_known, sfx_names)
+    assert not b['games'] or any(x.get('unlock') != 'fury' for x in b['games']), \
+        'bonus.games: a game without unlock fury (the fury free, the unlock games are greyed: main.c bonus_start)'
     code = lambda v: sfx_names[v.upper()] if v else 0
     c = ['static const uint8_t gbonus_after[GS_COUNT] = { ' + ', '.join('1' if s + 1 in b['after'] else '0' for s in range(len(g['stages']))) + ' };   /* bonus.after */']
     rows = []
