@@ -377,7 +377,7 @@ typedef struct {
     uint16_t won_ticks;           /* BK_BREAK: a won result held this long (the unlock's message box) */
     const char *lesson[3];        /* BK_BREAK: the lesson box (fix rows 20 / 22 / 24, the first highlighted; "" = none) */
     const char *won_text[3];      /* BK_BREAK won the first time: the message box under CONGRATULATIONS (rows 20 / 22 / 24);
-                                     referee: his speech's lines instead (up to 20 characters) */
+                                     referee: his speech's lines instead (up to 18 characters) */
     uint8_t show_name;            /* the game's name shown at its start (games[].show_name; note 20261015-221208-e03d: off =
                                      no message at the start, just go) */
     uint8_t referee;              /* BK_BREAK won the first time: SS2's referee delivers won_text (games[].won_by "referee",

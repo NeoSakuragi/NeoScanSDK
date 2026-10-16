@@ -1566,6 +1566,7 @@ static void release(fighter_t *a) {                              /* both free wh
     a->held = 0; a->frame_ovr = 0xFFFF; a->zfront = 0; a->y = 0; a->srow = 0; a->xwait = 0; to_neutral(a, 0);
     if (v) { v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; to_neutral(v, 0); }
 }
+static void throw_due(fighter_t *v);
 static void victim_end(fighter_t *v) {                           /* its script over: it lies where it landed */
     const bthrow_t *th = v->thr;
     if (th && th->stun && IS_THROW(v->throw_id)) {              /* a stun strike (bthrow_t.stun, TODO #212: Double */
@@ -1574,12 +1575,7 @@ static void victim_end(fighter_t *v) {                           /* its script o
         v->dizzy = th->stun;                                     /* dizzy, its +$FE frames, open to any hit; a hit ends */
         return;                                                  /* it: enter) */
     }
-    if (IS_THROW(v->throw_id)) {
-        uint8_t d = v->thr_dmg - v->throw_dealt;
-        v->hp -= d;
-        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
-        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
-    }
+    throw_due(v);                                                /* (no slam row: the script's end) */
     v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0; v->vx = 0; v->y = 0; clamp(v);
     enter(v, S_DOWN); play(v, BA_DOWN);
 }
@@ -1589,8 +1585,8 @@ static void victim_end(fighter_t *v) {                           /* its script o
  * physics of the engine"): a throw's script for its victim ends at its release row (bthrow_t.rel): from there it is an
  * ordinary knocked-down body (S_KNOCKDOWN with the velocity its script had at the release: it flies, lands, bounces,
  * lies and gets up as any knockdown), a thrown body (tb_by, spawn.body) until it touches the floor. Its impact rows
- * after the release (the landing) are no impacts any more: the throw's damage is shared by its impacts before the
- * release; a throw whose only impacts came after it (the landing: Ryo's / Geese's back throw, Billy Lee's) has its
+ * after the release (the landing) are no impacts any more: the throw's damage lands at the release (slam_row: its hand-off), its impacts before
+ * it only show; a throw whose only impacts came after it (the landing: Ryo's / Geese's back throw, Billy Lee's) has its
  * release row as its impact. impacts_before: the impact rows before the release (all of them without one). */
 /* With throw_handoff "landing" (gthrow.handoff TH_LANDING) the script plays the flight: every impact row up to the
  * hand-off (the landing) is an impact, the landing's own included (hand_row). */
@@ -1599,6 +1595,33 @@ static uint16_t impacts_before(const bthrow_t *th) {
     if (gthrow.handoff == TH_LANDING) end = h < th->nrows ? h + 1 : th->nrows;
     for (i = 0; i < end; i++) if (th->rows[i].flags & 4) n++;
     return n;
+}
+/* THE SLAM (note 20261016-045300-e03d, the tester: "the throw inflicts damage from the first grappling; the damage should
+ * only occur when the victim is thrown on the ground"): a paired throw's whole damage (thr_dmg) lands on one row, the
+ * victim's ground impact: its hand-off row (the landing), else its last impact row from the release on (a slam without a
+ * flight: Haggar's piledriver, rel = land), else, without a release, its last impact (Kim's), else the first row past the
+ * release back down to the height it left from (Billy's / Ralf's flights without a landing row); 0xFFFF: none, at the
+ * script's end (victim_end). The impact rows before it keep their spark, sound and voice: the blows show, the life
+ * drops at the slam. Every other path deals what is still due (thr_dmg - throw_dealt): the hand-off, the script's end, a
+ * hit in the flight, the MAX chain's next grab. */
+static uint16_t slam_row(const bthrow_t *th) {
+    uint16_t i = th->nrows, h = hand_row(th);
+    int16_t y0;
+    if (h != 0xFFFF) return h;
+    if (th->rel >= th->nrows) { while (i--) if (th->rows[i].flags & 4) return i; return 0xFFFF; }
+    while (i-- > th->rel) if (th->rows[i].flags & 4) return i;
+    if (!th->rel) return 0xFFFF;
+    y0 = th->rows[th->rel - 1].ty + th->rows[th->rel - 1].vy;
+    for (i = th->rel; i < th->nrows; i++) if (th->rows[i].ty + th->rows[i].vy <= y0) return i;
+    return 0xFFFF;
+}
+static void throw_due(fighter_t *v) {                          /* a paired throw's damage still due, dealt now */
+    uint8_t d;
+    if (!IS_THROW(v->throw_id) || v->thr_dmg <= v->throw_dealt) return;
+    d = v->thr_dmg - v->throw_dealt;
+    v->hp -= d; v->throw_dealt += d;
+    if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
+    gauge_add(v, (uint16_t)d * gmeter.fury_taken);
 }
 static uint8_t thr_impact(const bthrow_t *th, uint16_t i, uint8_t moved) {   /* moved: the release is the impact */
     if (gthrow.handoff == TH_LANDING) return (th->rows[i].flags & 4) && (hand_row(th) == 0xFFFF || i <= hand_row(th));
@@ -1627,12 +1650,7 @@ static void thrown_release(fighter_t *v, const bthrow_t *th) {
     vx = (int32_t)div16((uint32_t)(dx < 0 ? -dx : dx) << 8, t) << 8; if (dx < 0) vx = -vx;   /* (16.16; divu.w, mulu.w: */
     vy = (int32_t)((uint32_t)t * (uint16_t)(GRAVITY_KD >> 1));                              /*  no libgcc) */
     if (y0 > 0) vy -= (int32_t)div16((uint32_t)y0 << 8, t) << 8;
-    if (IS_THROW(v->throw_id) && v->thr_dmg > v->throw_dealt) {  /* (the impacts' division's rest) */
-        uint8_t d = v->thr_dmg - v->throw_dealt;
-        v->hp -= d; v->throw_dealt += d;
-        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);
-        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
-    }
+    throw_due(v);                                                /* (the slam's, if not dealt yet) */
     thrown_place(v, r);
     v->held = 0; v->thr = 0; v->zfront = 0;
     enter(v, S_KNOCKDOWN);
@@ -1659,12 +1677,7 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
     int16_t dx = (b->tx + b->vx) - (a->tx + a->vx);
     uint16_t sp = th->speed ? th->speed : 0x100;
     if (dx > LAND_VMAX) dx = LAND_VMAX; else if (dx < -LAND_VMAX) dx = -LAND_VMAX;
-    if (IS_THROW(v->throw_id) && v->thr_dmg > v->throw_dealt) {  /* (the impacts' division's rest) */
-        uint8_t d = v->thr_dmg - v->throw_dealt;
-        v->hp -= d; v->throw_dealt += d;
-        if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);
-        gauge_add(v, (uint16_t)d * gmeter.fury_taken);
-    }
+    throw_due(v);                                                /* (the slam's, if not dealt yet) */
     thrown_place(v, vrow(v, th, h, &t0));
     v->held = 0; v->thr = 0; v->zfront = 0; v->tb_by = 0;
     if (v->thr_by && v->thr_by != v) v->tb_fl = 0x80 | tbody_of(v, v->thr_by)->floor;   /* its floor impact still knocks
@@ -1688,6 +1701,7 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
     for (; j <= i; j++) {
         const bthrow_row_t *r = vrow(v, th, j, &tmp);            /* (its own side) */
         if (r->vpose != 0xFF) show_pose(v, r);                   /* a pose set on a passed row still applies */
+        if (j == v->slam) throw_due(v);                          /* the slam: the throw's damage (slam_row) */
         if (IS_THROW(v->throw_id) ? !thr_impact(th, j, moved) : !(r->flags & 4)) continue;
         hit = 1;                                                 /* impact: the blow lands / the victim hits the floor */
         if (IS_HOLD(v->throw_id)) {                              /* a hold hit: the victim reels in place */
@@ -1713,13 +1727,6 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
             }
             v->freeze = 4;
             continue;
-        }
-        {
-            uint8_t d = 0, rest = v->thr_dmg;                    /* its damage / impacts (no divide here) */
-            while (v->grab_hits && rest >= v->grab_hits) { rest -= v->grab_hits; d++; }
-            v->hp -= d; v->throw_dealt += d;
-            if (by) gauge_add(by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
-            gauge_add(v, (uint16_t)d * gmeter.fury_taken);
         }
         if (v->hv) { v->hv = 0; hurt_voice(v, HV_LAND); }    /* its first impact: the body meets the floor (hurt_voice; */
         else hurt_voice(v, HV_HIT);                          /* the KO voice: at the death, S_DEAD) */
@@ -1906,8 +1913,7 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     v->thr_dmg = THROW_DAMAGE;                                   /* (the super throw: its tier, super_throw) */
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
                                                                     throw, as the chain's back throw was) */
-    v->grab_hits = impacts_before(th);                           /* its impacts share the throw's damage (the release */
-    if (!v->grab_hits && release_moved(th)) v->grab_hits = 1;    /* rule: those before it, else the release row) */
+    v->slam = IS_THROW(t) ? slam_row(th) : 0xFFFF;               /* its damage at its ground impact (slam_row) */
     if (f->team) stat_throws++;
     victim_side(f, v, t);
     {                                                            /* the pair placed once, the swap segment (throws part 1) */
@@ -1944,6 +1950,7 @@ static uint8_t max_chain(fighter_t *f, fighter_t *v) {         /* the chain's ne
     int32_t x, y;
     if (f->ch->id >= BC_COUNT || !f->mchn) { f->mchn = 0; return 0; }
     m = &gmax_chain[f->ch->id];
+    if (i && v && v != f) throw_due(v);                          /* (the previous throw's slam not reached: dealt now) */
     if (!v || v == f || i >= m->n || v->hp <= 0 || v->state == S_DEAD || v->state == S_OFF) { f->mchn = 0; return 0; }
     f->mchn++;
     x = v->x; y = v->y;
@@ -4606,7 +4613,7 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
     if (a->state == S_SPECIAL && (a->spec_id == BS_THROW || a->sthr) && v->tb_by != a) { v->tb_by = a; v->hit_mask = 0; v->tb_fl = 0; v->tb_kind = TBK_SPECIAL; }   /* a
                                                                     throw special's victim: a thrown body (revamp 3) */
     if (v->state == S_THROWN) {                                  /* rule 5: hit in its throw's flight: the script ends */
-        if (IS_THROW(v->throw_id)) v->hp -= v->thr_dmg - v->throw_dealt;   /* (the throw's damage still dealt) */
+        throw_due(v);                                            /* (the throw's damage still dealt) */
         v->held = 0; v->thr = 0; v->frame_ovr = 0xFFFF; v->zfront = 0;
     }
     if (a->state == S_SPECIAL && a->ch->specials[a->spec_ix].prog) {   /* a ROM special (TODO #139): */

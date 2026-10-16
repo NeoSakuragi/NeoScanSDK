@@ -4933,5 +4933,31 @@
   "expect": "Down + C throws his projectile toward the post, exactly as in a stage fight (before: plain C's smoke vanish came out instead). He stays on his line: down alone or down + B never moves him toward or away from the camera.",
   "do_keys": "60:-,3:Dc,60:-,3:Db,60:-",
   "proof": 200
+ },
+ "20261016-045300-e03d": {
+  "title": "Throws: the damage lands when the victim hits the ground, not at the grab",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Robert walk into Ryo to grab him, then press forward + A (his forward throw), watching Ryo's life bar. Grab him again and press back + A. Try other fighters' throws too (Haggar's MAX chain, Hanzo's Mozu Otoshi with B).",
+  "expect": "Ryo's life does not move while Robert holds and lifts him; it drops in one go the moment Ryo lands on the floor. Same total damage as before. Every throw works this way: the life drops at the slam, never at the grab.",
+  "do_keys": "20:R,2:Ra,120:-,20:R,2:La",
+  "proof": 160
+ },
+ "20261016-045652-e03d": {
+  "title": "Posts bonus, referee's D quirk: no stray graphics when his window opens again, text inside the box with a margin",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "robert",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Break the 4 posts. When the referee has written his whole message, press D: Robert runs at him and fires his fury, the referee is knocked down and gets up. Watch his window opening again.",
+  "expect": "The window opens clean both times: no pieces of other graphics under or beside it while it grows. His lines sit centred inside the box with a gap to its border on both sides: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D!, then HORRIBLE / ATMOSPHERE. on two lines.",
+  "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
+  "proof": 150
  }
 }

@@ -3204,6 +3204,12 @@ static void bn_text(uint8_t row, const char *t, uint8_t pal) { FIX_print(1, row,
  * post's 55-58 are free at its end), in front the box viewer's 300..323: his shadow, him, the window. Palettes REF_PAL..
  * (fighter slots 6-7: a bonus game loads only its player's). ---- */
 #define REF_PAL     64
+#define REF_WIN_ROWS 16                          /* the window's columns: its rows, then blank ones to the 16th (a shrunk
+                                                    sprite of 16 rows or fewer shows rows past its size: rows a sprite there
+                                                    before left showed under the opening window, note 20261016-045652-e03d) */
+#define REF_TXT_MID  98                          /* the window's inside, its centre px from its left (SS2's graphic: the
+                                                    inner border at 18 / 178): the lines centred there, 18 letters at most
+                                                    (build_tables.py REF_LINE: 6 px each side, note 20261016-045652-e03d) */
 #define RF_BACK_SPR (SH_SPR + 10)
 #define RF_SH_SPR   BN_FRONT
 #define RF_SPR      (RF_SH_SPR + 4)
@@ -3251,12 +3257,14 @@ static void rf_window(uint8_t tiles) {           /* SS2's window at rf.zoom (+$7
     for (c = 0; c < o->w; c++) {
         if (tiles) {                             /* its column: SS2's top row, middle rows (its first, then its second:
                                                     the frame's two halves), its bottom row */
-            uint16_t *w = cmd_run(VRAM_SCB1 + (RF_WIN_SPR + c) * 64, n * 2);
+            uint16_t *w = cmd_run(VRAM_SCB1 + (RF_WIN_SPR + c) * 64, REF_WIN_ROWS * 2);
             const uint16_t *m = o->map + c * o->h * 2;
             for (r = 0; r < n; r++) {
                 uint8_t k = r == 0 ? 0 : r == n - 1 ? 3 : r <= (n - 2 + 1) / 2 ? 1 : 2;
                 *w++ = m[k * 2]; *w++ = m[k * 2 + 1];
             }
+            for (; r < REF_WIN_ROWS; r++) { *w++ = 0; *w++ = 0; }   /* (the rows past its last blank: the shrink
+                                                    reads them, note 20261016-045652-e03d) */
         }
         cmd_push(VRAM_SCB2 + RF_WIN_SPR + c, 0x0F00 | vs);
         cmd_push(VRAM_SCB3 + RF_WIN_SPR + c, c ? 0x40 : (uint16_t)((((496 - y) & 0x1FF) << 7) | n));
@@ -3264,13 +3272,14 @@ static void rf_window(uint8_t tiles) {           /* SS2's window at rf.zoom (+$7
     }
 }
 static void rf_text(uint8_t clear) {             /* the lines typed so far (rf.line, rf.col), or the window's rows cleared */
-    uint8_t k, n, col0 = (uint8_t)((rf.wx + 16) >> 3);
+    uint8_t k, n;
     for (k = 0; k < rf.nl; k++) {
         uint8_t row = (uint8_t)((rf.wy + 16 * (k + 1) + 4) >> 3);   /* (fix row r = sprite y 8 r: measured) */
-        if (clear) { FIX_print(col0, row, "                    ", 0); continue; }
+        if (clear) { FIX_print((uint8_t)((rf.wx + 16) >> 3), row, "                    ", 0); continue; }
         if (k != rf.line) continue;
         n = 0; while (rf.text[k][n]) n++;
-        { char ch[2] = { rf.text[k][rf.col], 0 }; FIX_print((uint8_t)(col0 + ((20 - n) >> 1) + rf.col), row, ch, 0); }
+        { char ch[2] = { rf.text[k][rf.col], 0 };   /* centred on the box's inside (REF_TXT_MID) */
+          FIX_print((uint8_t)(((rf.wx + REF_TXT_MID - 4 * n) >> 3) + rf.col), row, ch, 0); }
     }
 }
 static void rf_win_place(const char *const *text, int16_t x) {   /* his lines and their window, him standing at x */
@@ -3278,7 +3287,9 @@ static void rf_win_place(const char *const *text, int16_t x) {   /* his lines an
     const ref_part_t *o = &ref_window_s[0].p[rf.wface][0];
     rf.text = text; rf.nl = 0; while (rf.nl < 3 && text[rf.nl][0]) rf.nl++;
     rf.wx = wox + o->x;
-    if (rf.wx < 0) rf.wx = 0; else if (rf.wx > 320 - 16 * o->w) rf.wx = 320 - 16 * o->w;   /* (knocked back: on screen) */
+    rf.wx = ((rf.wx + 4 + REF_TXT_MID) & ~7) - REF_TXT_MID;     /* (its inside's centre on the fix grid, the nearest) */
+    while (rf.wx < 0) rf.wx += 8;                                /* (knocked back: on screen) */
+    while (rf.wx > 320 - 16 * o->w) rf.wx -= 8;
     wy = rf.g + REF_LAND_DY + REF_WIN_Y + o->y - 16 * (rf.nl > 2 ? rf.nl - 2 : 0);   /* (taller: it grows upwards) */
     rf.wy = (int16_t)(((wy + 4) & ~7) - 4);      /* (a line's 8 px centred in a 16 px row on a fix row: top = 4 mod 8) */
 }

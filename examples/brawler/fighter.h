@@ -622,6 +622,8 @@ typedef struct fighter {
     int16_t  jdx, jprev;          /* a hold + B throw's travel (bxthr_t pad, fighter.c "B in the hold"): px over its airborne
                                      rows, signed by the stick (0: none); jprev the part already added to throw_x0 */
     uint16_t jr0;                 /* its first airborne row (the thrower's script leaves the floor) */
+    uint16_t slam;                /* a paired throw's victim: the row its whole damage lands on, its ground impact (fighter.c
+                                     slam_row, note 20261016-045300-e03d; 0xFFFF: at the script's end) */
     uint8_t  tb_fl, tb_kind;      /* a thrown body's floor impact (note 20261014-132326-5d29, fighter.c "thrown bodies",
                                      game.json throw_body.floor): bit 7 = it touched the floor, bits 0-6 = frames it still
                                      knocks others down there (0: none, or not landed yet); tb_kind = which throw made
