@@ -1,4 +1,17 @@
 {
+ "20261016-040850-e03d": {
+  "title": "Robert: after the air down,down + A dive, his follow-ups hit the launched enemies",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 50
+  },
+  "do": "Jump, and at the top of the jump press down, down + A (the flying kick dive) onto Ryo. As soon as Robert lands, press C (the rising dragon kick) while Ryo is still high in the air.",
+  "expect": "The dive knocks Ryo high into the air; Robert's C rises into him and hits him in the air (a juggle). Before, every attack passed through him until he landed.",
+  "do_keys": "1:b,17:-,4:D,4:-,4:D,2:Da,52:-,2:c",
+  "proof": 90
+ },
  "20261011-223923-5d29": {
   "title": "Kyo: after the down + C scissors kick, Ryo falls like any other launched fighter",
   "setup": {

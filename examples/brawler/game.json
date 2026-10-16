@@ -71,6 +71,7 @@
    "blitz": {"ff": "624D", "dd": "EX 624D", "du": "623D"},
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_b_jump"},
    "air_specials": {"ddA": "air 214D"},
+   "juggle": ["air 214D"],
    "throws": {"hold": {"hit": "atk_b_close", "fin": "atk_c_crouch"}},
    "fury": "23624C",
    "fury_damage_scale": 2,

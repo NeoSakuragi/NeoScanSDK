@@ -307,6 +307,10 @@ victim's own offsets (KOF's per-victim lists; other games' victims: posture anch
   exported tables are byte-identical (checked: bm_spec.c differs only in kyo_sp0's rows). Its travelling objects keep
   their own reactions. Set: Kyo `623A` (its own second hit now lands too: 2 hits, the victim up to ~146 px instead of
   114; then C / forward + C / the fury cancelled into it hit him in the air). Recipe scenarios.json 20261011-201837-5d29.
+  Robert `air 214D` (note 20261016-040850-e03d, the down,down + A Hien Ryuujin Kyaku dive: "after this attack ...
+  everything just whiffs"): its launch (KOF reaction without $0200) floated every victim ~55 frames untouchable, so his
+  623C rising through them, down + C and the chain all missed; listed, they take hits in the air up to the juggle cap.
+  Recipe scenarios.json 20261016-040850-e03d.
 
 - **A free victim flies the brawler's standard arc** — a rule, no flag (note 20261011-223923-5d29, Kyo's down + C 75 Shiki
   Kai: "the falling trajectory ... looks like it was copied from KOF98. We should have the standard trajectory from the
