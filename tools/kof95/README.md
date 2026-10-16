@@ -123,3 +123,4 @@ screen frame 3400 (the count is restored from save states). The capture scripts 
 | `victim_poses.json` | portable throw-pose vocabulary |
 | `throw_tables.json` | throw table addresses per character |
 | `capture/*.lua`, `capture/*.py` | MAME recorders and analysis (throws, specials, mirror checks, pairs) |
+| `hud_export.py` | the battle HUD as PNGs + `hud.json` → `/data/kof95_hud` (for SF6 Mobile Replays): our emulator's VRAM / palette RAM from the `vs_kyo` state (`/data/neogeo_dict/ngsdl_sta/kof95`), life / power pokes (P1 object `$108100`: life `+$120`, shown life `+$122`, power `+$118` (word, 127 = MAXIMUM); P2 `$108300`). The whole HUD but the portraits is fix layer; fill rules, blink and tile numbers in the script and the output README |
