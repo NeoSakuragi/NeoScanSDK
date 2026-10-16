@@ -1639,12 +1639,12 @@ static uint8_t release_moved(const bthrow_t *th) {             /* its landing im
  * last), from where it is at the release: vx = the distance / the flight's frames, vy = the gravity's (GRAVITY_KD) for that
  * flight from that height. (The script's own speed at the release row overshoots: Terry's forward throw left at 10 px a
  * frame, a 600 px flight under the knockdown's gravity, which has no air drag; KOF's throw flights slow down.) */
-static void thrown_release(fighter_t *v, const bthrow_t *th) {
-    uint16_t le = th->land < th->nrows && th->land > th->rel ? th->land : th->nrows - 1;   /* its landing row */
-    bthrow_row_t t0, t1;
-    const bthrow_row_t *r = vrow(v, th, th->rel, &t0), *e = vrow(v, th, le, &t1);   /* (the victim's own side) */
+static void thrown_release(fighter_t *v, const bthrow_t *th, uint16_t rel) {   /* rel: its release row (bthrow_t.rel, or */
+    uint16_t le = th->land < th->nrows && th->land > rel ? th->land : th->nrows - 1;   /* an eject: fighter_t.eject); le: */
+    bthrow_row_t t0, t1;                                                               /* its landing row */
+    const bthrow_row_t *r = vrow(v, th, rel, &t0), *e = vrow(v, th, le, &t1);   /* (the victim's own side) */
     int16_t dx = (e->tx + e->vx) - (r->tx + r->vx), y0 = r->ty + r->vy;   /* px */
-    uint16_t t = le > th->rel ? div16((uint32_t)(le - th->rel) << 8, th->speed ? th->speed : 0x100) : 1;   /* its flight, frames */
+    uint16_t t = le > rel ? div16((uint32_t)(le - rel) << 8, th->speed ? th->speed : 0x100) : 1;   /* its flight, frames */
     int32_t vx, vy;
     if (!t) t = 1;
     vx = (int32_t)div16((uint32_t)(dx < 0 ? -dx : dx) << 8, t) << 8; if (dx < 0) vx = -vx;   /* (16.16; divu.w, mulu.w: */
@@ -1694,7 +1694,8 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
 static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i) {
     fighter_t *by = v->thr_by;
     uint8_t hit = 0, moved = IS_THROW(v->throw_id) && release_moved(th);
-    uint16_t h = IS_THROW(v->throw_id) ? hand_row(th) : 0xFFFF;  /* (the hand-off: game.json throw_handoff) */
+    uint16_t h = !IS_THROW(v->throw_id) ? 0xFFFF : v->eject < th->nrows ? v->eject : hand_row(th);   /* (the hand-off: game.json
+                                                                    throw_handoff, or the throw's own: throws.timing) */
     bthrow_row_t tmp;
     if (i >= th->nrows) i = th->nrows - 1;
     if (h != 0xFFFF && i > h) i = h;
@@ -1737,7 +1738,11 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
     }
     v->srow = i + 1;
     if (h != 0xFFFF && i == h) {                                 /* the hand-off: the engine's body from here */
-        if (gthrow.handoff == TH_LANDING) thrown_land(v, th, h); else thrown_release(v, th);
+        if (h == v->eject) {                                     /* the throw's own (throws.timing): an IMPACT ejects */
+            const bthrow_row_t *r = vrow(v, th, h, &tmp);        /* (a launch that lands where the script did); a SLAM's */
+            if (v->ejk == TK_SLAM && r->ty + r->vy <= 0) thrown_land(v, th, h);   /* glue on the floor: its landing there */
+            else thrown_release(v, th, h);
+        } else if (gthrow.handoff == TH_LANDING) thrown_land(v, th, h); else thrown_release(v, th, th->rel);
         return hit | 2;
     }
     return hit;
@@ -1914,6 +1919,12 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
                                                                     throw, as the chain's back throw was) */
     v->slam = IS_THROW(t) ? slam_row(th) : 0xFFFF;               /* its damage at its ground impact (slam_row) */
+    v->eject = 0xFFFF;
+    if (IS_THROW(t) && f->ch->id < BC_COUNT) {                   /* the throw's own timing, as Bruno judged it (game.json */
+        const gthrtm_t *tm = &gthrow_tm[f->ch->id][t == BT_XTHROW ? TM_HOLD_B : dir == TD_BACK ? TM_BACK : TM_FWD];   /* roster[]. */
+        if (tm->dmg != 0xFFFF) v->slam = tm->dmg;                /* throws.timing, gamedata.h gthrtm_t): its damage row, */
+        v->eject = tm->hand; v->ejk = tm->kind;                  /* its hand-off row (an IMPACT's eject) */
+    }
     if (f->team) stat_throws++;
     victim_side(f, v, t);
     {                                                            /* the pair placed once, the swap segment (throws part 1) */

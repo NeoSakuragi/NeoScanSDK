@@ -623,7 +623,12 @@ typedef struct fighter {
                                      rows, signed by the stick (0: none); jprev the part already added to throw_x0 */
     uint16_t jr0;                 /* its first airborne row (the thrower's script leaves the floor) */
     uint16_t slam;                /* a paired throw's victim: the row its whole damage lands on, its ground impact (fighter.c
-                                     slam_row, note 20261016-045300-e03d; 0xFFFF: at the script's end) */
+                                     slam_row, note 20261016-045300-e03d; 0xFFFF: at the script's end); game.json
+                                     roster[].throws.timing's damage_row instead when the throw has one (gthrow_tm) */
+    uint16_t eject;               /* its hand-off row from game.json roster[].throws.timing (gthrow_tm: an IMPACT throw's eject,
+                                     a glue): the engine's body from that row (fighter.c victim_rows); 0xFFFF: the rule's */
+    uint8_t  ejk;                 /* that hand-off's kind (gamedata.h TK_*): TK_IMPACT launches the victim from the row toward its
+                                     script's landing (thrown_release), TK_SLAM hands it over there (on the floor: thrown_land) */
     uint8_t  tb_fl, tb_kind;      /* a thrown body's floor impact (note 20261014-132326-5d29, fighter.c "thrown bodies",
                                      game.json throw_body.floor): bit 7 = it touched the floor, bits 0-6 = frames it still
                                      knocks others down there (0: none, or not landed yet); tb_kind = which throw made

@@ -13,6 +13,8 @@
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   const get = async (u, o) => { const r = await fetch(u, Object.assign({ cache: 'no-cache', credentials: 'same-origin' }, o)); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
 
+  if (new URLSearchParams(location.search).get('q') === 'throws') { await throwReview(); return; }
+
   let index;
   try { index = await get('review/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No review data (' + e.message + ').' })); return; }
   const want = new URLSearchParams(location.search).get('f') || (location.hash.match(/^#f=(\w+)/) || [])[1];
@@ -27,6 +29,205 @@
   const RID = id => (D.round || 1) > 1 ? id + '-r' + D.round : id;   // the proposal's answers per round (round 1's stay apart)
   const ROLE = { starter: 'starter', intermediate: 'intermediate', launcher: 'launcher', crumple: 'crumple (down finisher)', hold: 'hit while holding', dash: 'dash attack (forward, forward + A)' };
   const roleTxt = p => Object.entries(p.roles || {}).map(([k, v]) => `${ROLE[k] || k} ${Math.round(v * 100)} %`).join(', ');
+
+  // ---- THE THROW REVIEW (review.html?q=throws[&t=<row id>]; note 20261016-045300-e03d round 2, Bruno: "Throws should be case
+  // by case [...] review the throws frame by frame so I can show you exactly what to do and when"): one row per throw of the
+  // beta's playable fighters (tools/brawler/throw_review.py: every game frame as the brawler plays it, captured in our
+  // emulator); a tap opens its frames (slider, step, play, a strip of every frame) and the answer: IMPACT / SLAM / "None of
+  // these", the damage frame, an IMPACT's eject frame (default: the damage frame), optionally "glued until", a note with
+  // the microphone. Saved to the decisions store, set "throws" (POST feedback-api/decision: choice, label, note, flags
+  // "dmg-N" / "eject-N" / "glue-N", N = the frame number as shown, 1-based); tools/brawler/throw_answers.py turns them into
+  // game.json roster[].throws.timing. ----
+  async function throwReview() {
+    const KINDS = ['IMPACT: the damage lands at the impact, which ejects the victim', 'SLAM: the damage lands at the one slam into the ground', NONE];
+    const SHORT = ['IMPACT', 'SLAM', 'None of these'];
+    if (!document.getElementById('thr-css')) {
+      const st = document.createElement('style'); st.id = 'thr-css';
+      st.textContent = `
+#rev.thr { max-width: 720px; margin: 0 auto; color: #000; background: #fff; font: 16px system-ui, sans-serif; }
+#rev.thr h1 { font-size: 20px; margin: 0 0 4px; }
+#rev.thr .sub { font-size: 14px; margin: 0 0 8px; }
+#rev.thr button { font: inherit; font-size: 14px; color: #000; background: #fff; border: 2px solid #000; border-radius: 0; padding: 5px 8px; cursor: pointer; }
+#rev.thr button[aria-pressed="true"] { background: #000; color: #fff; }
+#rev.thr button:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+#rev.thr ul.trows { list-style: none; margin: 0; padding: 0; border-top: 2px solid #000; }
+#rev.thr li.trow { border-bottom: 2px solid #000; }
+#rev.thr .thead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; width: 100%; text-align: left; border: 0; padding: 7px 4px; }
+#rev.thr .thead[aria-expanded="true"] { border-bottom: 2px dashed #000; }
+#rev.thr .thead b { font-size: 15px; }
+#rev.thr .thead .now, #rev.thr .thead .mine { font: 12px ui-monospace, monospace; }
+#rev.thr .thead .mine { text-align: right; font-weight: 700; }
+#rev.thr .tbody { padding: 8px 0 12px; display: flex; flex-direction: column; gap: 8px; }
+#rev.thr canvas.tframe { display: block; width: 100%; max-width: 608px; height: auto; image-rendering: pixelated; border: 2px solid #000; background: #fff; box-sizing: border-box; }
+#rev.thr .fline { font: 13px ui-monospace, monospace; min-height: 2.6em; }
+#rev.thr .ctl { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+#rev.thr input[type=range] { width: 100%; margin: 0; accent-color: #000; }
+#rev.thr .tstrip { display: flex; gap: 2px; overflow-x: auto; padding-bottom: 4px; }
+#rev.thr .tstrip button { flex: 0 0 auto; padding: 0; border: 1px solid #000; display: flex; flex-direction: column; align-items: center; }
+#rev.thr .tstrip button[aria-current="true"] { border: 3px solid #000; }
+#rev.thr .tstrip .th { display: block; width: 76px; height: 56px; background-repeat: no-repeat; image-rendering: pixelated; }
+#rev.thr .tstrip small { font: 11px ui-monospace, monospace; padding: 0 2px; white-space: nowrap; }
+#rev.thr .kinds { display: flex; flex-direction: column; gap: 5px; }
+#rev.thr .kinds button { text-align: left; }
+#rev.thr .picks { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 5px 6px; align-items: center; font-size: 14px; }
+#rev.thr .picks b { font-family: ui-monospace, monospace; }
+#rev.thr .saved { font-size: 13px; min-height: 1em; }
+#rev.thr .legend { font-size: 13px; margin: 0; }`;
+      document.head.append(st);
+    }
+    root.classList.add('thr');
+    let IX;
+    try { IX = await get('review/throws/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No throw review data (' + e.message + ').' })); return; }
+    const SETT = IX.set || 'throws';
+    let ans = {};
+    try { ans = await get(API + 'decisions/' + SETT, { cache: 'no-store' }); } catch (e) { /* offline: answers can't load */ }
+    const post = async body => {
+      const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: SETT }, body)) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    };
+    const status = h('p', { class: 'sub', role: 'status' });
+    const count = () => { status.textContent = `${IX.rows.filter(r => ans[r.id] && ans[r.id].choice != null).length} of ${IX.rows.length} answered`; };
+    const fN = k => k == null ? '-' : String(k + 1);                // frames shown 1-based
+    const nowTxt = r => `now: damage ${r.now.damage.map(fN).join('+') || '-'}` + (r.kind === 'paired' ? `, let go ${fN(r.now.handoff)}` : ' (a special)');
+    const parse = a => { const o = {}; for (const f of (a && a.flags) || []) { const m = /^(dmg|eject|glue)-(\d+)$/.exec(f); if (m) o[m[1]] = +m[2]; } return o; };
+    const mineTxt = a => { if (!a || a.choice == null) return '○ to answer'; const p = parse(a);
+      return '✓ ' + SHORT[a.choice] + (p.dmg ? ' d' + p.dmg : '') + (p.eject ? ' e' + p.eject : '') + (p.glue ? ' g' + p.glue : ''); };
+    let open = null;                                               // the one open row
+
+    function body(r, head) {
+      const a = ans[r.id] || {};
+      const pk = parse(a);
+      let choice = a.choice != null ? a.choice : null;
+      const sheet = new Image(); sheet.src = r.sheet;
+      let D = null;
+      const cv = h('canvas', { class: 'tframe', width: r.w, height: r.h, role: 'img', 'aria-label': `${r.display}, ${r.label}: frame by frame` });
+      const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+      const fline = h('div', { class: 'fline', 'aria-live': 'polite' });
+      const slider = h('input', { type: 'range', min: '1', max: String(r.frames), value: '1', 'aria-label': 'Frame' });
+      let k = 0, playing = false, speed = 1, acc = 0, last = 0, raf = 0;
+      const marks = j => {
+        const t = [];
+        if (r.now.impacts && r.now.impacts.includes(j)) t.push('impact row (spark, sound)');
+        if (r.now.damage.includes(j)) t.push('DAMAGE NOW');
+        if (r.now.release === j) t.push('thrown body starts');
+        if (r.now.handoff === j) t.push('LET GO NOW');
+        if (pk.dmg === j + 1) t.push('YOUR DAMAGE');
+        if (pk.eject === j + 1) t.push('YOUR EJECT');
+        if (pk.glue === j + 1) t.push('YOUR GLUE END');
+        return t;
+      };
+      const tag = j => [r.now.damage.includes(j) ? 'D' : '', r.now.impacts && r.now.impacts.includes(j) ? 'I' : '', r.now.handoff === j ? 'L' : '',
+        pk.dmg === j + 1 ? '*d' : '', pk.eject === j + 1 ? '*e' : '', pk.glue === j + 1 ? '*g' : ''].join('');
+      const strip = h('div', { class: 'tstrip', 'aria-label': 'Every frame: tap one to see it' });
+      function draw() {
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, r.w, r.h);
+        if (sheet.complete && sheet.naturalWidth) ctx.drawImage(sheet, (k % r.cols) * r.w, Math.floor(k / r.cols) * r.h, r.w, r.h, 0, 0, r.w, r.h);
+        const st = D ? D.states[k] : null;
+        fline.textContent = `frame ${k + 1} / ${r.frames}` + (st && st[1] === 'THROWN' ? ` · row ${D.rows[k][0]}` : '') +
+          (st ? ` · ${st[0].toLowerCase()} / ${st[1].toLowerCase()}` : '') + (marks(k).length ? ' · ' + marks(k).join(' · ') : '');
+        slider.value = String(k + 1);
+        strip.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-current', String(j === k)));
+        const cur = strip.children[k];
+        if (cur && !playing) strip.scrollLeft = Math.max(0, cur.offsetLeft - strip.offsetLeft - strip.clientWidth / 2 + cur.offsetWidth / 2);
+      }
+      get(r.data).then(x => { D = x; draw(); }, () => {});
+      sheet.onload = draw;
+      const go = j => { k = Math.max(0, Math.min(r.frames - 1, j)); draw(); };
+      slider.oninput = () => { stop(); go(+slider.value - 1); };
+      const bPlay = h('button', { type: 'button', 'aria-pressed': 'false', text: 'Play' });
+      const tickp = now => {
+        if (!playing) return;
+        acc += Math.min(250, now - last) * speed; last = now;
+        const fms = 1000 / IX.fps; let n = 0;
+        while (acc >= fms) { acc -= fms; k = (k + 1) % r.frames; n++; }
+        if (n) draw();
+        raf = requestAnimationFrame(tickp);
+      };
+      function stop() { playing = false; cancelAnimationFrame(raf); bPlay.textContent = 'Play'; bPlay.setAttribute('aria-pressed', 'false'); }
+      bPlay.onclick = () => { if (playing) { stop(); draw(); return; } playing = true; acc = 0; last = performance.now(); bPlay.textContent = 'Pause'; bPlay.setAttribute('aria-pressed', 'true'); raf = requestAnimationFrame(tickp); };
+      const bSlow = h('button', { type: 'button', 'aria-pressed': 'false', text: '¼ speed' });
+      bSlow.onclick = () => { speed = speed === 1 ? 0.25 : 1; bSlow.setAttribute('aria-pressed', String(speed !== 1)); };
+      const step = d => h('button', { type: 'button', text: d < 0 ? '◀ ' + -d : d + ' ▶', 'aria-label': (d < 0 ? 'Back ' : 'Forward ') + Math.abs(d) + ' frame' + (Math.abs(d) > 1 ? 's' : ''), onclick: () => { stop(); go(k + d); } });
+      const sc = 76 / r.w;
+      for (let j = 0; j < r.frames; j++) {
+        const th = h('span', { class: 'th' });
+        th.style.backgroundImage = `url(${r.sheet})`;
+        th.style.backgroundSize = `${r.cols * r.w * sc}px auto`;
+        th.style.backgroundPosition = `-${(j % r.cols) * r.w * sc}px -${Math.floor(j / r.cols) * r.h * sc}px`;
+        strip.append(h('button', { type: 'button', 'aria-label': 'Frame ' + (j + 1), onclick: () => { stop(); go(j); } }, th, h('small', { text: (j + 1) + ' ' + tag(j) })));
+      }
+      const retag = () => strip.querySelectorAll('small').forEach((s, j) => { s.textContent = (j + 1) + ' ' + tag(j); });
+      // ---- the answer ----
+      const saved = h('div', { class: 'saved', text: a.at ? 'Saved' : '' });
+      const ta = h('textarea', { 'aria-label': `Note for ${r.display}'s ${r.label}`, placeholder: 'Note (type or speak)' }); ta.value = a.note || '';
+      const flags = () => ['dmg', 'eject', 'glue'].filter(x => pk[x]).map(x => x + '-' + pk[x]);
+      const label = () => choice == null ? '' : SHORT[choice] + (pk.dmg ? ', damage frame ' + pk.dmg : '') +
+        (choice === 0 ? ', eject frame ' + (pk.eject || pk.dmg || '-') : '') + (pk.glue ? ', glued until frame ' + pk.glue : '');
+      const question = `${r.display}, ${r.label}: impact or slam, and when?`;
+      const save = async extra => {
+        const body = Object.assign({ id: r.id, question, flags: flags() }, choice != null ? { choice, label: label() } : {}, extra || {});
+        ans[r.id] = Object.assign({}, ans[r.id], body); count();
+        head.querySelector('.mine').textContent = mineTxt(ans[r.id]);
+        saved.textContent = 'Saving…';
+        try { await post(body); saved.textContent = 'Saved'; }
+        catch (e) { saved.textContent = 'Not saved (' + e.message + '): try again'; }
+      };
+      let tn; ta.addEventListener('input', () => { clearTimeout(tn); tn = setTimeout(() => save({ note: ta.value }), 700); });
+      const kb = KINDS.map((o, i) => h('button', { type: 'button', 'aria-pressed': String(choice === i), 'data-kind': String(i), onclick: () => {
+        choice = i; kb.forEach((x, j) => { x.setAttribute('aria-pressed', String(i === j)); x.firstChild.textContent = i === j ? '✓ ' : '○ '; });
+        if (i !== 0) delete pk.eject;
+        paint(); retag(); draw(); save(); if (o === NONE) ta.focus(); } }, h('span', { text: choice === i ? '✓ ' : '○ ' }), o));
+      const val = { dmg: h('b'), eject: h('b'), glue: h('b') };
+      const setPk = (x, v) => { if (v == null) delete pk[x]; else pk[x] = v; paint(); retag(); draw(); save(); };
+      const rowOf = (x, t, here, clear) => [h('span', {}, t + ': ', val[x]),
+        h('button', { type: 'button', 'data-set': x, text: here, onclick: () => setPk(x, k + 1) }), h('button', { type: 'button', text: clear, onclick: () => setPk(x, null) })];
+      const ejRow = rowOf('eject', 'Eject frame', 'Eject here', 'Same as damage');
+      function paint() {
+        val.dmg.textContent = pk.dmg ? 'frame ' + pk.dmg : '-';
+        val.eject.textContent = pk.eject ? 'frame ' + pk.eject : (pk.dmg ? 'frame ' + pk.dmg + ' (the damage)' : '-');
+        val.glue.textContent = pk.glue ? 'frame ' + pk.glue : '-';
+        ejRow.forEach(e => { e.hidden = choice !== 0; });
+      }
+      const picks = h('div', { class: 'picks' }, rowOf('dmg', 'Damage frame', 'Damage here', 'Clear'), ejRow,
+        rowOf('glue', 'Victim glued until (optional)', 'Glued until here', 'Clear'));
+      paint();
+      const jump = (t, j) => h('button', { type: 'button', text: t + ' ' + fN(j), onclick: () => { stop(); go(j); } });
+      const jumps = h('div', { class: 'ctl' }, h('span', { class: 'legend', text: 'Go to:' }),
+        r.now.impacts && r.now.impacts.length ? jump('impact', r.now.impacts[0]) : null,
+        r.now.damage.length ? jump('damage now', r.now.damage[0]) : null,
+        r.now.handoff != null ? jump('let go now', r.now.handoff) : null);
+      const el = h('div', { class: 'tbody' },
+        h('p', { class: 'legend', text: `${r.input}; the victim: ${IX.dummy.toUpperCase()}; build ${IX.game_version}, every game frame (59.18 a second).` +
+          (r.kind === 'special' ? ' A grab special, not a paired throw: its answer is kept; the engine\'s new timing fields are the paired throws\'.' : '') }),
+        cv, fline, slider, h('div', { class: 'ctl' }, step(-10), step(-1), bPlay, step(1), step(10), bSlow), jumps, strip,
+        h('p', { class: 'legend', text: 'Strip letters: D damage now, I impact row (spark, sound), L let go now (the engine\'s body from here), *d *e *g yours.' }),
+        h('div', { class: 'kinds', role: 'group', 'aria-label': 'Kind of throw' }, kb), picks,
+        h('div', { class: 'dnote' }, window.micNote ? window.micNote(ta) : ta), saved);
+      draw();
+      return { el, stop };
+    }
+    const list = h('ul', { class: 'trows' }, IX.rows.map(r => {
+      const li = h('li', { class: 'trow', id: 't-' + r.id });
+      const head = h('button', { type: 'button', class: 'thead', 'aria-expanded': 'false' },
+        h('b', { text: `${r.display} · ${r.label}` }), h('span', { class: 'mine', text: mineTxt(ans[r.id]) }), h('span', { class: 'now', text: nowTxt(r) }));
+      head.onclick = () => {
+        const was = open && open.li === li;
+        if (open) { open.stop(); open.el.remove(); open.head.setAttribute('aria-expanded', 'false'); open = null; }
+        if (was) return;
+        const b = body(r, head); li.append(b.el); head.setAttribute('aria-expanded', 'true');
+        open = { li, head, el: b.el, stop: b.stop }; li.scrollIntoView({ block: 'start' });
+      };
+      li.append(head);
+      return li;
+    }));
+    root.replaceChildren(h('h1', { text: 'Throw review' }),
+      h('p', { class: 'sub', text: `Every throw of the beta's fighters as build ${IX.game_version} plays it. Tap one: its frames, then IMPACT or SLAM and the frame where the damage lands.` }),
+      status, list);
+    count();
+    const want = new URLSearchParams(location.search).get('t');
+    if (want) { const li = document.getElementById('t-' + want); if (li) li.querySelector('.thead').click(); }
+    window.reviewReady = true;
+  }
 
   // ---- the frame player: every visible clip on one clock, one game frame = 1000 / fps ms ----
   const FMS = 1000 / D.fps;

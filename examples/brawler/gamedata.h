@@ -161,6 +161,16 @@ extern const gchain_t gchain;
 typedef struct { uint8_t handoff, swap_n, swap_arc, glide_px; } gthrow_t;
 enum { TH_RELEASE, TH_LANDING };
 extern const gthrow_t gthrow;
+/* ---- a throw's timing as Bruno judged it (note 20261016-045300-e03d, round 2: "throws should be case by case": an IMPACT
+ * throw's damage lands at its impact and that impact ejects the victim; a SLAM throw's at its one slam): game.json
+ * roster[].throws.timing.forward / back / hold_b (written by tools/brawler/throw_answers.py from the throw review page,
+ * review.html?q=throws) -> gthrow_tm[fighter][TM_*]. dmg: the script row the whole damage lands on (fighter_t.slam; 0xFFFF:
+ * the 0.10.129 rule, fighter.c slam_row); hand: the row the victim becomes the engine's body (fighter_t.eject: an
+ * IMPACT (TK_IMPACT) launched from it toward its script's landing row, a SLAM's (TK_SLAM, its glue) on the floor there the
+ * landing hand-off, in the air the same launch; 0xFFFF: game.json throw_handoff's rule); kind: TK_* (0: no entry) */
+typedef struct { uint16_t dmg, hand; uint8_t kind, pad; } gthrtm_t;
+enum { TM_FWD, TM_BACK, TM_HOLD_B, TM_COUNT };
+enum { TK_NONE, TK_IMPACT, TK_SLAM };
 /* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown
  * body is a projectile, 8 damage + knockdown on every other enemy it touches, through its whole flight AND its floor
  * impact; a finisher's / the 3rd knee's knockdown is none; players are never hit): every paired throw's victim from its

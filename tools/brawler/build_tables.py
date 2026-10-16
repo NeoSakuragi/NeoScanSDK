@@ -943,6 +943,35 @@ TBODY_KEYS = ('about', 'damage', 'hitstop', 'body_hitstop', 'floor', 'depth', 's
 TBODY_KINDS = {'throw_c': 'BT_THROW_C', 'throw_d': 'BT_THROW_D', 'throw_x': 'TBK_XTHROW', 'special': 'TBK_SPECIAL'}
 
 
+TIMING_KEYS = ('forward', 'back', 'hold_b')             # gamedata.h TM_FWD / TM_BACK / TM_HOLD_B
+TIMING_KINDS = ('impact', 'slam')
+
+
+def throw_timing(r):
+    """roster[].throws.timing (note 20261016-045300-e03d round 2, Bruno: "throws should be case by case"; written by
+    tools/brawler/throw_answers.py from the throw review, review.html?q=throws): per throw {kind impact | slam, damage_row,
+    eject_row?, glue_row?, about?, from?} in its script's rows -> [(dmg, hand, kind)] by TM_* (gamedata.h gthrtm_t). dmg = damage_row;
+    hand = an IMPACT's eject_row (default its damage_row), not before its glue_row; a SLAM: its glue_row, else none (the
+    throw_handoff rule). No entry: 0xFFFF both (the 0.10.129 rule: fighter.c slam_row)"""
+    tm = (r.get('throws') or {}).get('timing') or {}
+    assert isinstance(tm, dict), f"roster {r['name']}: throws.timing = {{forward | back | hold_b: {{...}}}}"
+    for k in tm: assert k in TIMING_KEYS, f"roster {r['name']}: throws.timing.{k}: one of {', '.join(TIMING_KEYS)}"
+    out = []
+    for k in TIMING_KEYS:
+        e = tm.get(k)
+        if not e: out.append(('0xFFFF', '0xFFFF', 'TK_NONE')); continue
+        w = f"roster {r['name']}: throws.timing.{k}"
+        for f in e: assert f in ('kind', 'damage_row', 'eject_row', 'glue_row', 'about', 'from'), f'{w}: unknown field {f}'
+        assert e.get('kind') in TIMING_KINDS, f"{w}.kind: one of {', '.join(TIMING_KINDS)}"
+        for f in ('damage_row', 'eject_row', 'glue_row'):
+            assert f not in e or (isinstance(e[f], int) and 0 <= e[f] < 0xFFFF), f'{w}.{f}: a script row'
+        assert 'damage_row' in e, f'{w}.damage_row: the row its damage lands on'
+        assert e['kind'] == 'impact' or 'eject_row' not in e, f'{w}: eject_row is an IMPACT throw\'s'
+        hand = max(e.get('eject_row', e['damage_row']), e.get('glue_row', 0)) if e['kind'] == 'impact' else e.get('glue_row', 0xFFFF)
+        out.append((str(e['damage_row']), '0xFFFF' if hand == 0xFFFF else str(hand), 'TK_' + e['kind'].upper()))
+    return out
+
+
 def tbody_tables(g, build):
     """the thrown body (Bruno's note 20261014-132326-5d29, "like in Final Fight"; gamedata.h gtbody_t, fighter.c "thrown
     bodies"): game.json "throw_body" = the game's rule (every throw of every fighter), roster[].throws.body = per-throw
@@ -1560,6 +1589,7 @@ def tables(g, build):
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
+         'extern const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT];   /* a throw\'s damage row and hand-off row as Bruno judged it (game.json roster[].throws.timing; gamedata.h gthrtm_t, fighter.c throw_start; 0xFFFF: the rule) */',
          'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
          'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; CLEAR_WALK_OFF = "off": right until his whole picture has left the screen, the screen edges not holding him; main.c win_tick) */',
          '#define CLEAR_WALK_OFF 0xFFFF',
@@ -1677,6 +1707,8 @@ def tables(g, build):
         assert isinstance(w['to'], int) and 160 <= w['to'] <= 360, f"roster {r['name']}: clear_walk.to {w['to']} (screen x 160-360, or 'off')"
         cw.append(str(w['to']))
     c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
+    c.append('const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(
+        '{ ' + ', '.join('{ %s, %s, %s, 0 }' % t for t in throw_timing(r)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
     c.append('const uint8_t gthrow_keep[BC_COUNT] = { ' + ', '.join(tk) + ' };')
     c.append('const uint16_t gclear_walk[BC_COUNT] = { ' + ', '.join(cw) + ' };')
     ft = []                                              # the fury's closing throw (note 20261014-171937-5d29, Haggar:

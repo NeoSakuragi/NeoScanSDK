@@ -334,6 +334,16 @@ each), scenario.py lint 0.
   Rosa's single throw (it lands behind) now lands in front on forward + A.
 - `roster[].throws.back` "throw_c" (Krauser): the back throw (hold + back + A) = the C throw played turned (the victim
   over to his back at the grab); his own BT_THROW_D is left empty (bthrow_t turn, fighter.c throw_start).
+- `roster[].throws.timing` {`forward` | `back` | `hold_b`: {`kind` "impact" | "slam", `damage_row`, `eject_row`?,
+  `glue_row`?, `from`}} (note 20261016-045300-e03d round 2, Bruno: "throws should be case by case"): a throw's timing as
+  Bruno judged it on the throw review page (brawler-lab/review.html?q=throws, data tools/brawler/throw_review.py),
+  written by `tools/brawler/throw_answers.py apply` from his answers (decisions store set "throws"), never by hand. Rows
+  are the throw's script rows. The whole damage lands on `damage_row` (instead of the 0.10.129 rule, fighter.c slam_row);
+  an IMPACT ejects the victim at `eject_row` (default `damage_row`, not before `glue_row`): from that row it is launched
+  toward the script's landing place (thrown_release); a SLAM keeps the throw_handoff rule unless `glue_row` holds the
+  victim to that row (on the floor there: the landing hand-off). `hold_b` = the extra paired throw (BT_XTHROW: Haggar's
+  piledriver). build_tables `throw_timing` -> `gthrow_tm[fighter][TM_*]` {dmg, hand, kind} -> fighter.c throw_start
+  (fighter_t slam / eject / ejk). No entry: the rule as before.
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;

@@ -5,10 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fighter Review</title>
 <!-- The old URL (review.html?f=X[&q=<set>], or #f=X): the Fighter Lab's Review tab is the one template now (lab.html +
-     fighterlab.js load review.js; Bruno 2026-10-10). Without a fighter: the first of the review index, as before. -->
+     fighterlab.js load review.js; Bruno 2026-10-10). Without a fighter: the first of the review index, as before.
+     review.html?q=throws: the THROW REVIEW (note 20261016-045300-e03d round 2), a page of its own: review.js's throw mode
+     in #rev here (no fighter: every throw of the beta's playable fighters; data tools/brawler/throw_review.py). -->
 <script>
 (function () {
   var q = new URLSearchParams(location.search), m = /^#f=(\w+)/.exec(location.hash);
+  if (q.get('q') === 'throws') {
+    document.title = 'Throw Review';
+    document.addEventListener('DOMContentLoaded', function () {
+      ['micnote.js', 'review.js'].reduce(function (p, src) {
+        return p.then(function () { return new Promise(function (ok) { var s = document.createElement('script'); s.src = src; s.onload = s.onerror = ok; document.body.append(s); }); });
+      }, Promise.resolve());
+    });
+    return;
+  }
   if (!q.get('f') && m) q.set('f', m[1]);
   q.set('tab', 'review');
   if (q.get('f')) { location.replace('lab.html?' + q.toString()); return; }
@@ -18,7 +29,7 @@
 })();
 </script>
 </head>
-<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px">
-<p>This page moved: <a href="lab.html">the Fighter Lab</a>, a fighter's Review tab.</p>
+<body style="background:#fff;color:#000;font:17px system-ui,sans-serif;padding:16px;margin:0">
+<main id="rev"><p>Loading…</p></main>
 </body>
 </html>
