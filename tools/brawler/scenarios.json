@@ -4972,5 +4972,44 @@
   "expect": "IMPACT throw (your throw review answer): the damage lands in one go on the kick at frame 23, and Ryo is thrown away at that same moment; he stays held until then.",
   "do_keys": "20:R,2:Ra",
   "proof": 160
+ },
+ "20261016-140101-7b01": {
+  "title": "Terry's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Terry walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 34, glued until frame 34. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 160
+ },
+ "20261016-140102-7b02": {
+  "title": "Robert's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Robert walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: IMPACT, damage frame 16, eject frame 16, glued until frame 16. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 160
+ },
+ "20261016-140103-7b03": {
+  "title": "Robert's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Robert walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 24, glued until frame 24. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 160
  }
 }
