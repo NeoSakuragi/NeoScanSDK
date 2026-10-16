@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brawler admin</title>
+<style>
+  :root { --bg:#fff; --ink:#000; --soft:#555; --line:#000; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --ink:#eee; --soft:#aaa; --line:#eee; } }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:15px/1.4 system-ui, sans-serif; }
+  body { display:flex; flex-direction:column; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 10px; border-bottom:2px solid var(--line); }
+  nav b { margin-right:8px; letter-spacing:.04em; }
+  nav button { font:inherit; padding:6px 10px; border:2px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); cursor:pointer; }
+  nav button[aria-current="page"] { background:var(--ink); color:var(--bg); font-weight:700; }
+  nav a.out { margin-left:auto; color:var(--soft); font-size:13px; }
+  iframe { flex:1; width:100%; border:0; }
+</style>
+</head>
+<body>
+<nav id="nav"><b>BRAWLER ADMIN</b></nav>
+<iframe id="f" title="admin tool"></iframe>
+<script>
+(function () {
+  "use strict";
+  // one page for every admin tool (Bruno 2026-10-16: "regroup everything in one page brawler-admin");
+  // each tab is the existing page, same origin, same Oros admin login
+  const TABS = [
+    ["players",  "Players",   "/brawler-factory/?tab=players"],
+    ["live",     "Live wall", "/brawler-lab/game.html#wall"],
+    ["sessions", "Sessions",  "/brawler-lab/game.html#sessions"],
+    ["tickets",  "Tickets",   "/brawler-lab/game.html#feedback"],
+    ["throws",   "Throws",    "/brawler-factory/?tab=throws"],
+    ["factory",  "Factory",   "/brawler-factory/"],
+    ["lab",      "Lab",       "/brawler-lab/"],
+    ["decisions","Decisions", "/decisions/?p=neo-geo-brawler"]
+  ];
+  const nav = document.getElementById("nav"), f = document.getElementById("f");
+  const btn = {};
+  for (const [id, label] of TABS) {
+    const b = document.createElement("button"); b.textContent = label; b.onclick = () => show(id, true);
+    nav.appendChild(b); btn[id] = b;
+  }
+  const out = document.createElement("a"); out.className = "out"; out.textContent = "Download page ↗";
+  out.href = "https://brawler27.duckdns.org/"; out.target = "_blank"; out.rel = "noopener"; nav.appendChild(out);
+  function show(id, push) {
+    const t = TABS.find(x => x[0] === id) || TABS[0];
+    for (const k in btn) btn[k].removeAttribute("aria-current");
+    btn[t[0]].setAttribute("aria-current", "page");
+    f.src = t[2]; document.title = "Brawler admin · " + t[1];
+    if (push) history.replaceState(null, "", "#" + t[0]);
+  }
+  show((location.hash || "#players").slice(1), false);
+})();
+</script>
+</body>
+</html>
