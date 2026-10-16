@@ -25,7 +25,7 @@ allows it (KOF96 / 98 / 99 with tools/brawler/arb_pieces/<f>.json), its tiles in
 SLOT_TILE_FIRST (the pack format's fixed tile block); its tables never share another fighter's (dedupe_c);
 OUTDIR/slot.json says where its tiles are, OUTDIR/shared_ids.json the game-wide numbered tables its data indexes
 (lab_pack.py: the pack format, docs/character_lab.md "The pack format")."""
-import json, math, os, re, sys
+import json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'kof96'))
 import export96
@@ -2096,13 +2096,14 @@ def voice_data(ch, n, game, pool, sps):
     return ks, sug, mp, V.table(ks, sug, mp, len(V.bank(n)), n), voice_waits(n, ks, sug, mp, more)
 
 VK_WAIT = 0x80                                          # (fighter.c VK_WAIT)
-FPS = 59.185                                            # the MVS frame rate
 def voice_waits(n, ks, sug, mp, more):
-    """game.json roster[].voice_whole = [special input, ...]: that special's voice parts each play whole (note
-    20261016-131850-e03d: Haohmaru's tornado says SS2's $1A $90 then $1A $91; its startup retimed 0.5x brought the second
-    in over the first). Its further voice (vmore [key, id, row]) becomes [key | VK_WAIT, id, frames]: sent the first
-    voice's sample length (real frames, rounded up) after the key's first voice, whatever the move's clock (retiming,
-    hit-stop) and after the move's end (fighter.c vw_n)"""
+    """game.json roster[].voice_whole = [special input, ...]: that special's voice parts keep the source game's own
+    spacing (note 20261016-131850-e03d: Haohmaru's tornado says SS2's $1A $90 then $1A $91 40 frames later, measured in
+    our emulator by tools/samsho2/tornado_voice_proof.py ss2: key-ons at +1 / +41 of the special, on two channels, the
+    first still sounding; its startup retimed 0.5x had brought the second in at +23). Its further voice (vmore [key, id,
+    row]) becomes [key | VK_WAIT, id, frames]: sent the source's frames between the two sends (voices.json uses 'at')
+    after the key's first voice, whatever the move's clock (retiming, hit-stop) and after the move's end (fighter.c
+    vw_n)"""
     out = list(more)
     for inp in roster()[n].get('voice_whole') or []:
         k = 'special:' + inp
@@ -2110,8 +2111,9 @@ def voice_waits(n, ks, sug, mp, more):
         ki = ks.index(k); assert ki < 0x7E, f'{n} voice_whole {inp}: key {ki} (VK_WAIT keys stay below 0x7E)'
         parts = [e for e in out if e[0] == ki]
         assert len(parts) == 1, f'{n} voice_whole {inp}: {len(parts)} further voices (one waiting part at a time: fighter.c vw_n)'
-        first = V.bank(n)[mp[k] - 1]
-        wait = math.ceil(first['bytes'] * 2 / V.RATE * FPS)
+        at = [next(u['at'] for u in V.bank(n)[(i & 0x7F) - 1]['uses'] if u['kind'] == 'special' and u['input'] == inp)
+              for i in (mp[k], parts[0][1])]
+        wait = at[1] - at[0]
         assert 0 < wait < 256, f'{n} voice_whole {inp}: {wait} frames'
         out[out.index(parts[0])] = [ki | VK_WAIT, parts[0][1], wait]
     return out

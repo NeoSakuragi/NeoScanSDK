@@ -348,7 +348,7 @@
    "proj_react": {"236AB": {"react": "lift", "juggle_reset": true, "about": "note 20261016-131850-e03d (tester: Hanzo's Bakuen Ryuu treatment on down + C): the tornado lifts its victim straight up, juggle-able, its juggle count back to 0; startup 0.5x (retime), the tornado half as fast (knobs sp_dc speed)"}},
    "knobs": {"sp_dc": {"S-003": {"speed": 1.59}}},
    "voice_whole": ["236AB"],
-   "voice_whole_about": "note 20261016-131850-e03d round 3 (tester: 'since we sped up the startup, his voice for this special is split in two and the second part overlaps the first'): the tornado's second voice part (SS2 $1A $91) waits for the first ($1A $90, 1023 ms) to end: sent 61 frames after it (export_bm voice_waits), the move's timing unchanged",
+   "voice_whole_about": "note 20261016-131850-e03d rounds 3-4: the tornado's second voice part (SS2 $1A $91) keeps SS2's own spacing from the first ($1A $90): sent 40 real frames after it (export_bm voice_waits: voices.json uses 'at' 0 / 40), whatever the retimed startup; SS2 measured in our emulator (tools/samsho2/tornado_voice_proof.py ss2): key-ons +1 / +41 of the special on two channels, the first (1023 ms) still sounding (SS2 overlaps them too); the move's timing unchanged",
    "blitz": {"ff": "atk_ab_far", "dd": "214A"},
    "fury": "WFT",
    "max": "34123421BC",

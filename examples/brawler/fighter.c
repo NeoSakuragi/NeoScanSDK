@@ -137,7 +137,7 @@ static void hurt_land(fighter_t *f) { if (f->hv) { f->hv = 0; hurt_voice(f, HV_L
 #define VK_XTHROW 0xFE
 #define VK_WAIT 0x80               /* a vmore key | VK_WAIT: [key | VK_WAIT, voice id, frames]: that voice plays `frames`
                                     real frames after the key's first voice is sent (game.json roster[].voice_whole: a
-                                    special's voice parts each played whole, note 20261016-131850-e03d; export_bm
+                                    special's voice parts at the source's spacing, note 20261016-131850-e03d; export_bm
                                     voice_waits); keys stay below 0x7E (VK_XTHROW, the 0xFF end) */
 static void voice_at(const fighter_t *f, uint8_t key, uint16_t from, uint16_t to) {   /* `at` in [from, to] */
     const uint8_t *e = voice_tab[f->ch->id] + key * 2;

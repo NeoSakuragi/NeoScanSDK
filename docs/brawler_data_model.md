@@ -1250,11 +1250,12 @@ writes to REG_SOUND, with the stack) and QLOG (KOF98's sound ring $10D940), plus
   move's source animation (its step), the throw animation's record (its script row) else its captured voice, the
   captured hit / KO voices, the first intro line for `select`, the special's first captured voice at its frame (as
   played: frozen rows dropped). One voice per key (Kyo's 236A says two lines in KOF: the first is kept).
-- `roster[].voice_whole` = [special input, ...] (note 20261016-131850-e03d): that special's voice parts each play whole.
-  Its further voice (vmore [key, id, row]) becomes [key | VK_WAIT, id, frames] (`export_bm.voice_waits`): sent the
-  first voice's sample length (real frames, rounded up) after the first is sent, whatever the move's clock (retiming,
-  hit-stop) and after the move ended (fighter.c `vw_n`; dropped when the fighter is hit or starts another special).
-  Haohmaru's tornado (236AB, startup and recovery retimed 0.5x): $1A $90 (1023 ms) then $1A $91, 61 frames later.
+- `roster[].voice_whole` = [special input, ...] (note 20261016-131850-e03d): that special's voice parts keep the source
+  game's own spacing, whatever the move's clock. Its further voice (vmore [key, id, row]) becomes [key | VK_WAIT, id,
+  frames] (`export_bm.voice_waits`): sent the source's frames between the two sends (voices.json uses `at`) after the
+  first is sent, whatever retiming / hit-stop do and after the move ended (fighter.c `vw_n`; dropped when the fighter
+  is hit or starts another special). Haohmaru's tornado (236AB, startup and recovery retimed 0.5x): $1A $90 then
+  $1A $91 40 frames later, as SS2 (measured: key-ons +1 / +41 on two channels, the 1023 ms first still sounding).
 - Export (`export_bm.voice_data`): `bchar_t.voices` = [voice id, at] per key (VK_* in bm_chars.h: BA_*, VK_THROW +
   BT_*, VK_HIT, VK_KO, VK_SELECT, VK_SPEC + pool index), `nvoice`; build/voice_map.json = the ids each fighter maps.
 - Sound build (`build_snd.py voices`, songs.json `voices`): only the mapped voices' samples, copied from their game's
