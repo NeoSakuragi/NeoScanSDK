@@ -16,12 +16,13 @@ every run from scenario.py's mode "bonus" (lab req 6: a new game, then the bonus
               the fury after the win                                                                    -> d_locked.png, d_unlocked.png
       --sweep every selectable fighter: the posts won with normals (A), posts broken / ticks used (OUT/sweep.json)
     a contact sheet OUT/sheet.png; prints one OK / FAIL line per check, exit 1 on any FAIL"""
-import json, os, re, sys
+import ctypes as C, json, os, re, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import harness as H, scenario
 from PIL import Image, ImageDraw
 
 BN = {'off': 0, 'pick': 1, 'play': 2, 'end': 3, 'intro': 4, 'card': 5}
+BIG_BONUS_METER = 6                                    # build_tables BIG_USES: big_text.bonus_meter's row in gbig
 BP_STAND = 2
 
 
@@ -85,7 +86,7 @@ class Proof:
             want = (lo + hi) // 2
             self.setup(game=ki['id']); self.b.run(40)
             c0 = self.r('drive_chunks')
-            k = self.until(lambda: abs(self.r('bn_power') - want) <= ki['step'] and lo <= self.r('bn_power') + ki['step'] < hi, 400)
+            k = self.until(lambda: lo <= self.r('bn_power') < lo + ki['step'] and lo > 0 or g == 0 and self.r('bn_power') < ki['step'], 400)   # (just inside the grade's band: the narrow top ones too; the press reads the next power)
             self.b.run(1, p1='a')
             ba = re.search(r'enum \{ (BA_IDLE[^}]*)\}', open(os.path.join(self.game, 'build', 'bm_chars.h')).read()).group(1).replace(' ', '').split(',')
             cg = ki.get('charge') or {}; win = g >= ki.get('win_grade', 5)
@@ -107,8 +108,10 @@ class Proof:
             t = self.until(lambda: self.r('bonus_on') == BN['end'], 300); self.b.run(2)
             got, c1 = self.r('bn_grade'), self.r('drive_chunks')
             self.shot(f'tree_g{g}', f'tree grade {g}: result')
-            add = min(ki['chunks'][g], 4 - c0)
+            pr = ki.get('pass_reward')                  # (notes 20261016-133045 / -135212-e03d: a pass's chunks by clear)
+            add = min(pr['chunks'][0] if win and pr else ki['chunks'][g], 4 - c0)
             self.check(k >= 0 and got == g and c1 == c0 + add, f'tree: pressed at power ~{want}: grade {got} (want {g}), drive chunks {c0} -> {c1} (want +{add})')
+            if win and pr: self.pass_screen(pr['text'][add], 'the first pass')
             song = self.r('snd_song'); want_s = self.mus['BONUS_WIN' if win else 'BONUS_OVER']
             self.check(t >= 0 and song == want_s and (self.r('bn_fall_t', 2) > 0) == win,
                        f"tree grade {g}: {'passed' if win else 'failed'} as AOF2: song ${song:02X} (want ${want_s:02X} {'won' if win else 'failed'}), the tree {'falls' if self.r('bn_fall_t', 2) else 'stands'}")
@@ -117,6 +120,33 @@ class Proof:
         self.check(self.r('bonus_on') == BN['off'] and self.r('mode') == 1 and self.r('camp') == 1, 'tree: the next stage (stage 2) after the result')
         self.b.run(60); self.shot('tree_stage2_bar', 'stage 2: the 4-chunk drive bar')
         self.check(self.r('drive_chunks') == 4, f'tree: the bar keeps {self.r("drive_chunks")} chunks in stage 2 (want 4: 2 + the top grade\'s 2)')
+
+    def pass_screen(self, text, what):
+        """a pass's result (note 20261016-135212-e03d): its big headline alone (pass_reward.text), nothing on the fix
+        layer's rows 4-27 (no grade, no BONUS, the gauge bar gone)"""
+        b = self.b; S = b.syms
+        n = b.core.retro_get_memory_size(3); vram = (C.c_uint16 * (n // 2)).from_address(b.core.retro_get_memory_data(3))
+        b.run(100)                                 # (in the headline's hold: after its slide in and blink)
+        use = (b.r(S['bt_s'], 4) - S['gbig']) // 10
+        row = lambda r: ''.join(chr(v) if 0x20 < v < 0x7F else ' ' for v in (vram[0x7000 + c * 32 + r + 2] & 0xFFF for c in range(1, 39))).strip()
+        tiles = [vram[0x7000 + c * 32 + 9 + 2] & 0xFFF for c in range(12, 28)]
+        rows = {r: row(r) for r in range(4, 26) if row(r)}   # (row 26+: the arcade line, version / CPU)
+        self.check(b.r(S['bt_n'], 1) > 0 and use == BIG_BONUS_METER and not rows and all(t == 0x20 or t == 0 for t in tiles),
+                   f'tree {what}: only the big headline {text!r} ({b.r(S["bt_n"], 1)} glyph columns, use {use}); fix rows {rows}, the gauge bar row 9 {"cleared" if all(t in (0, 0x20) for t in tiles) else tiles}')
+        self.shot('tree_pass_' + what.split()[1], f'tree {what}: {text}')
+
+    def second_pass(self):
+        """the same credit's second pass of the gauge game: pass_reward.chunks[1] (bn_clr = 1, as after a first pass)"""
+        ki = next(x for x in self.G['games'] if x['kind'] == 'gauge'); pr = ki.get('pass_reward')
+        if not pr or len(pr['chunks']) < 2: return
+        self.setup(game=ki['id']); self.b.run(2)
+        self.b.w(self.b.syms['bn_clr'] + self.G['games'].index(ki), 1, 1)   # (one pass of it already this credit)
+        self.b.run(38); c0 = self.r('drive_chunks')
+        self.until(lambda: self.r('bn_power') >= ki['grades'][-1] + 2, 400); self.b.run(1, p1='a')
+        self.until(lambda: self.r('bonus_on') == BN['end'], 600); self.b.run(2)
+        add = min(pr['chunks'][1], 4 - c0)
+        self.check(self.r('bn_grade') == 5 and self.r('drive_chunks') == c0 + add, f'tree, the second pass this credit: drive chunks {c0} -> {self.r("drive_chunks")} (want +{add}: pass_reward.chunks[1])')
+        self.pass_screen(pr['text'][add], 'the second pass')
 
     # ---- the posts: played with D (win) or A only (fail)
     def play_posts(self, fighter, key, shots=False, limit=None):
@@ -236,7 +266,7 @@ def main():
     a = [x for x in sys.argv[1:] if not x.startswith('--')]
     if len(a) != 2: sys.exit(__doc__)
     P = Proof(*a)
-    P.pick(); P.grades(); P.posts()
+    P.pick(); P.grades(); P.second_pass(); P.posts()
     if '--sweep' in sys.argv: P.sweep()
     P.sheet()
     print('ALL OK' if not P.fails else f'{P.fails} FAIL'); sys.exit(1 if P.fails else 0)

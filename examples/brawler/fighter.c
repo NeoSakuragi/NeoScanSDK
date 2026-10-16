@@ -217,13 +217,17 @@ static uint8_t air_button(const bchar_t *ch, uint8_t ix) {      /* the button of
     for (e = bm_air[ch->id]; *e != 0xFF; e += 2) if (e[1] == ix) return e[0] & AIR_A ? IN_A : IN_C;
     return IN_A;
 }
-/* the special playing may be cancelled ("cancels" rules 2 / 3): a special (not a form's transition), or a fury (not a
- * MAX) when the fighter has a MAX fury of its own (bchar_t.fury_max: the cancel's only target then) */
+/* the special playing may be cancelled ("cancels" rules 2 / 3): a special (not a form's transition), or a player's fury
+ * (not a MAX) when game.json max_cancel is on (gmaxcan.cost: note 20261016-133443-e03d, Bruno: "cancel the fury into the
+ * MAX fury now that we have four meters"; was never since 2026-10-08): its MAX on down + D is then its only target
+ * (fury_buy; its C / Blitz presses are not buffered) */
 static uint8_t may_cancel(const fighter_t *f) {
     if (f->spec_id == BS_FORM || f->spec_id == BS_AIR || f->spec_id == BS_DOWNATK || f->spec_id == BS_THROW || f->sthr) return 0;   /* (a
                                                                     throw, its super: no cancel, revamp 3) */
-    return f->spec_id != BS_FURY;                                /* a fury: never (Bruno 2026-10-08: the fury is the ladder's
-                                                                    last rung, no fury -> MAX cancel) */
+    return f->spec_id != BS_FURY || (gmaxcan.cost && !f->fmax && !f->team);
+}
+static uint8_t cancel_open(const fighter_t *f) {                 /* its cancel window is open: a hit landed (scancel), or */
+    return f->scancel || (f->spec_id == BS_FURY && gmaxcan.any);   /* a fury with max_cancel.window 'any': from its start */
 }
 void routes_init(void) { uint8_t i; for (i = 0; i < BC_COUNT; i++) route_tab[i] = (const rt_head_t *)bm_chars[i].routes; lab.cur = LE_NONE; }
 /* lab.load 5 (revamp phase 5, the chain tool: fighter.h lab_t, tools/brawler/chainlab/chaintool.js): buf = a chain
@@ -892,7 +896,8 @@ static uint8_t blitz_play(fighter_t *f, uint8_t slot, uint8_t how) {
  * its first gmeter.sflash frames (Bruno 2026-10-10: "it's costing energy"; the breaker keeps its white / red, the fury
  * its own signals). The life bar's red blink at low life is the HUD's (main.c hud). gmeter.infinite
  * (a test switch): nothing spent, both bars full. */
-enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM };
+enum { PAY_SPECIAL, PAY_FURY, PAY_MAX, PAY_FORM, PAY_MAXC };   /* PAY_MAXC: a fury cancelled into its MAX (gmaxcan.cost drive
+                                                                    chunks, nothing else: game.json max_cancel) */
 static const uint16_t WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
                                         0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static void set_burn(fighter_t *f, uint8_t burn);
@@ -921,6 +926,11 @@ static uint8_t pay(fighter_t *f, uint8_t kind, uint8_t dry) {   /* dry: only whe
         if (gmeter.infinite) { f->drive = DRIVE_FULL; if (!dry) f->sfl = gmeter.sflash; return 1; }
         if (f->drive < cost) return 0;
         if (!dry) { f->drive -= cost; f->sfl = gmeter.sflash; }   /* paid: the blue flash (pal_overlay) */
+        return 1;
+    }
+    if (kind == PAY_MAXC) {                                      /* the MAX cancel: its drive only (note 20261016-133443-e03d) */
+        if (!gmaxcan.cost || !drive_has(f, gmaxcan.cost)) return 0;
+        if (!dry && !gmeter.infinite) f->drive -= (uint16_t)(gmaxcan.cost * gmeter.chunk);
         return 1;
     }
     if (kind == PAY_MAX) { if (!max_ready(f)) return 0; }
@@ -1903,8 +1913,10 @@ static uint8_t paired_update(fighter_t *f) {
  * cancels only into its MAX ("cancels" rule 3). Pays (dry: only whether
  * it could) -> BS_FURY / BS_FURY_MAX, 0xFF: nothing (no fury, not payable) */
 static uint8_t fury_buy(fighter_t *f, uint8_t down, uint8_t dry) {
-    uint8_t k = spec_ix(f->ch, BS_FURY) == 0xFF || (f->state == S_SPECIAL && f->spec_id == BS_FURY) ? 0xFF :
-                down ? BS_FURY_MAX : BS_FURY;                     /* (Bruno 2026-10-09: D = the fury, down+D = the MAX) */
+    uint8_t k;
+    if (f->state == S_SPECIAL && f->spec_id == BS_FURY)          /* a fury playing: down + D = the MAX cancel (max_cancel, */
+        return down && may_cancel(f) && pay(f, PAY_MAXC, dry) ? BS_FURY_MAX : 0xFF;   /* its drive alone), D alone nothing */
+    k = spec_ix(f->ch, BS_FURY) == 0xFF ? 0xFF : down ? BS_FURY_MAX : BS_FURY;   /* (Bruno 2026-10-09: D = the fury, down+D = the MAX) */
     if (k == BS_FURY_MAX && !pay(f, PAY_MAX, 1)) k = BS_FURY;   /* down+D, the MAX not payable (its red state, its drive):
                                                                     the fury plays, with its own cost (Bruno 2026-10-11,
                                                                     note 20261011-210011-5d29, every fighter) */
@@ -3271,10 +3283,12 @@ static uint8_t cancel_pick(fighter_t *f) {                       /* a throw's bu
     return k;
 }
 static uint8_t fury_cancel(fighter_t *f) {                       /* a buffered D: the fury (its MAX) now, paid -> 1 */
+    uint8_t mc = f->state == S_SPECIAL && f->spec_id == BS_FURY;   /* (a fury -> its MAX: the MAX cancel; special_end kept its state) */
     uint8_t k = (f->fury_buf & 0x80) ? fury_buy(f, f->fury_buf & 1, 0) : 0xFF;
     f->fury_buf = 0;
     if (k == 0xFF) return 0;
     lab_note(f, LE_SPECIAL, 0, LH_CANCEL, BS_FURY); start_special(f, k);
+    if (mc && k == BS_FURY_MAX) max_cancel_fx(f);                /* MAX CANCEL: the freeze before the MAX (main.c) */
     return 1;
 }
 /* ---- specials read from the ROM (tools/kof96/handlers98.py, handlers98.md) ---------------------------------------------
@@ -3870,6 +3884,15 @@ static void vphase(fighter_t *f, uint8_t a, int16_t b) {
     if (a & VA_MIRROR) t->vph |= VPH_MIRROR;
     if (a & VA_UNMIRROR) t->vph &= ~VPH_MIRROR;
 }
+/* a special's own effects on its program's frames (game.json roster[].special_sounds -> gspec_snd, note
+ * 20261016-100735-e03d round 3: SS2's $1A $2B whistle at the run Mozu Otoshi's leap and every 5 frames): sent on the
+ * frame its program reaches srow == at (sound.c's ring: the code on the latch the frame after) */
+static void spec_sounds(const fighter_t *f) {
+    const gspsnd_t *e;
+    if (mute) return;
+    for (e = gspec_snd; e->fighter != 0xFF && e->fighter <= f->ch->id; e++)
+        if (e->fighter == f->ch->id && e->spec == f->spec_ix && e->at == f->srow) snd_sfx(e->sfx);
+}
 static void prog_update(fighter_t *f, const bspec_t *sp) {
     const bstep_t *s;
     uint8_t n;
@@ -3877,7 +3900,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     if (f->pcatch == 2) {                                        /* a catch: KOF's dead frames ($1B402: the catching */
         if (!f->pdead) f->pdead = f->pdeadn;                     /* step's hit-stop + 1) */
         if (!--f->pdead) f->pcatch = 1;
-        f->srow++; hold_apply(f); return;
+        f->srow++; spec_sounds(f); hold_apply(f); return;
     }
     if (f->pcatch == 1) {                                        /* then its routine (+$19C); its victim runs the */
         f->pcatch = 0xFE; f->pres = f->phit;                     /* routine the catch gave it (+$1A0): the first */
@@ -3889,6 +3912,7 @@ static void prog_update(fighter_t *f, const bspec_t *sp) {
     if (f->pcatch == 3) f->pcatch = 2;                           /* (the frame after the hit-stop runs as it was) */
     x0 = f->x;
     f->srow++;                                                   /* frames played (the reversal's invincibility) */
+    spec_sounds(f);
     if (f->spec_id == BS_DOWN_D && f->srow <= sp->inv_rows && f->inv < 2) f->inv = 2;
     f->ppc = f->pres;
     for (n = 0; n < 255; n++) {                                  /* (a frame's op budget: 255 since TODO #136, a Kizuna
@@ -4266,13 +4290,13 @@ static void update(fighter_t *f, const intent_t *in) {
         if (!(in->press & (IN_C | IN_D)) && !f->freeze && f->cnc_buf && !--f->cnc_buf) f->spec_buf = f->fury_buf = 0;   /* too
                                                                     early: gone (a hit-stop does not age it) */
     }
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_D))
+    if (f->state == S_SPECIAL && may_cancel(f) && cancel_open(f) && (in->press & IN_D))
         f->fury_buf = 0x80 | (in->dz > 0);                       /* a special that landed: D buffers its fury (a press
                                                                     before its first hit does nothing) */
     if (f->state == S_SPECIAL && f->spec_id == BS_BLITZ && may_cancel(f) && f->scancel && (in->press & IN_A) && in->blitz &&
         !f->team && f->blz_slot < BZ_COUNT && (gblitz_can[f->ch->id][f->blz_slot] & (1 << (in->blitz - 1))))
         f->blz_buf = in->blitz;                                  /* a Blitz that landed: its quirk's Blitz (gblitz_can) */
-    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) &&
+    if (f->state == S_SPECIAL && may_cancel(f) && f->scancel && (in->press & IN_C) && f->spec_id != BS_FURY &&
         !seq_owns(f, IN_C) && !c_link(f))
         f->spec_buf = 0x80 | d_input(f, in);                     /* the ladder (Bruno 2026-10-08): a special / a Blitz that
                                                                     landed: C buffers ANOTHER special (special_cancel); a
@@ -4630,10 +4654,10 @@ static void update(fighter_t *f, const intent_t *in) {
                 route_go(f, c, nx, b, in, LH_CANCEL); break;
             }
         }
-        if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
+        if (may_cancel(f) && cancel_open(f) && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
             (f->pcatch == 0 || f->pcatch == 0xFE) && fury_buy(f, f->fury_buf & 1, 1) == 0xFF)
             f->fury_buf = 0;                                     /* not payable (the meter, the red state): it plays on */
-        if (may_cancel(f) && f->scancel && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
+        if (may_cancel(f) && cancel_open(f) && f->y == 0 && !(f->pflags & PF_HOLD) && f->fury_buf &&
             (f->pcatch == 0 || f->pcatch == 0xFE)) {             /* a catch: once its routine lets the victim go
                                                                     (PF_HOLD off: its final impact), rules 2 / 3 */
             if (f->spec_id == BS_FURY) {                         /* a fury -> its MAX (rule 3): the fury's objects go */

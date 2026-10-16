@@ -38,7 +38,7 @@ A recipe (scenarios.json, keyed by note id):
                   true: its minions taken off (state OFF: the boss is the last enemy), foe_hp = the boss's life, gap =
                   P1 put this far in front of it (its lane, facing it); foe = the fighter index these four mean
                   instead of the boss's 2 (a wave's enemy: alone keeps only it);
-              drive (chunks, "full"), fury (the hidden fury gauge, "full"; meter: an older recipe's 0..300 / "full" =
+              chunks (the drive bar's chunks, 1-4: drive_chunks, as a bonus game's reward), drive (chunks, "full"), fury (the hidden fury gauge, "full"; meter: an older recipe's 0..300 / "full" =
               that share of both), hp (P1's life; the lab's P1 then keeps it: lab.p1_life), lives (P1's), face (+1 / -1), pre = "frames:keys,..." inputs played
               before the save (e.g. walking into the grab: the state then starts mid-hold)
   do_keys     the "do" as inputs ("frames:keys,..." with the harness keys U D L R a b c d), for the proof clip
@@ -177,6 +177,8 @@ def setup(b, rec):
     M = json.load(open(os.path.join(b.game, 'game.json')))['meter']
     if 'chunk' in M:                                       # the new system (Bruno 2026-10-08): drive chunks + the hidden
         dfull, ffull = M['chunk'] * M['chunks'], M['fury_max']   # fury gauge
+        if 'chunks' in s:                                  # the bar's chunks (drive_chunks: a bonus game's reward, up to
+            b.w(b.syms['drive_chunks'], 1, int(s['chunks'])); dfull = M['chunk'] * int(s['chunks'])   # 4; the MAX cancel's 2 + the fury's)
         if 'meter' in s:                                   # (an older recipe's meter: "full" = both full, a number of the
             v = s['meter']                                 # 300-point gauge = that share of each)
             b.fset(0, 'drive', dfull if v == 'full' else int(v) * dfull // 300)

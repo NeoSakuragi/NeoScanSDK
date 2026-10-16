@@ -753,6 +753,7 @@ void screen_keep(fighter_t **fs, uint8_t n, int16_t cam_x, uint8_t again);   /* 
 void wall_update(fighter_t **fs, uint8_t n, int16_t cam_x);   /* after the camera: the wall rule (a special's victims and
                                                                   their attacker inside the screen's walls) */
 void super_flash(fighter_t *f);      /* main.c: the fury's super flash starts (fx.super_flash: the game freezes except f) */
+void max_cancel_fx(fighter_t *f);    /* main.c: a fury cancelled into its MAX (game.json max_cancel): the MAX CANCEL freeze */
 const char *fighter_state_name(uint8_t st);
 const bstep_t *fighter_step(const fighter_t *f);
 const bstep_t *fighter_hurt_step(const fighter_t *f);       /* the step whose hurt box counts (a ROM special's own step) */

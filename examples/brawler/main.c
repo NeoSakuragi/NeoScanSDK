@@ -207,6 +207,7 @@ static uint8_t phase;
 enum { BN_OFF, BN_PICK, BN_PLAY, BN_END, BN_INTRO, BN_CARD };           /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
                                                           game won this credit; sh_n = the entities shadows() handles */
 static uint8_t bonus_on, bn_won, sh_n = NE;
+static uint8_t bn_clr[GB_MAX_GAMES];     /* passes of each bonus game this credit (gbonus_game_t.pass_chunks: the reward by clear) */
 
 /* ---- SNK MVS conventions: the game (not the BIOS) shows "LEVEL-n" and "CREDIT nn" on the bottom line. LEVEL = the
  * DIFFICULTY setting of the soft DIP table below (BIOS game menu; value at BIOS RAM $10FD84 + 6, 0-7); CREDIT = P1's
@@ -682,6 +683,12 @@ _Static_assert(SF_GLOW_COLS + SF_RAYS_COLS <= BG_N, "super flash: its columns pe
 static fighter_t *sf_who;                /* the attacker while the flash runs (0: none) */
 static uint8_t sf_flash_t, sf_col, sf_glow_on, sf_ray;   /* frames since it started; 0 DM blue / 1 MAX orange; shown frames */
 static uint8_t sf_frozen;                /* the projectile entities alive when it started: frozen through it (TODO #202) */
+/* the MAX cancel (game.json max_cancel, note 20261016-133443-e03d; KOF 2002's MAX CANCEL / KOF XI's DREAM CANCEL screen,
+ * simple): a fury cancelled into its MAX (fighter.c fury_cancel) holds the whole game still for gmaxcan.freeze ticks
+ * (game_tick: nothing updates, the timers hold), the stage hidden behind gmaxcan.backdrop with the fighters on it
+ * (screen_fx), MAX CANCEL in the big font (big_text.max_cancel), gmaxcan.sound sent; then the MAX plays from its first
+ * frame, its own super flash */
+static uint8_t mc_t;                     /* ticks of the MAX cancel's freeze left (0: none) */
 static int16_t sf_dx, sf_dy;
 void super_flash(fighter_t *f) {
     const bspec_t *sp = f->state == S_SPECIAL ? &f->ch->specials[f->spec_ix] : 0;   /* (a paired super throw, revamp 3: none) */
@@ -697,6 +704,14 @@ void super_flash(fighter_t *f) {
     snd_sfx(sf_col ? gflash.sound_max : gflash.sound);      /* a fury: KOF98's charge sound ($370F0 -> $3906E: index
                                                                 $99 = $1A $3A, DM and SDM alike); a MAX: KOF2000's
                                                                 SDM flash whistle ($1E $8F there, $1A $8F here: TODO #155) */
+}
+static void bt_show(const char *t, uint8_t use);
+void max_cancel_fx(fighter_t *f) {
+    (void)f;
+    if (mode != 1 || !gmaxcan.freeze) return;
+    mc_t = gmaxcan.freeze;
+    if (gmaxcan.sound) snd_sfx(gmaxcan.sound);
+    if (gbig[BIG_MAX_CANCEL].on) bt_show(0, BIG_MAX_CANCEL);
 }
 static void sf_reset(void) {
     uint8_t c;
@@ -848,15 +863,22 @@ static void dbg_draw(void) {
  * `pitch` apart); a sprite per glyph column (BT_SPR.., BT_MAX: the debug boxes' last 24, hidden while a message shows;
  * the bonus game's splinters / chips stay below 324), palette BT_PAL (the title banner's / staff roll's: never on
  * screen with a message); the line guard counts its columns on every band (bt_n, as the drama portrait's). bt_draw (in
- * draw(), a tick): the slide-in from the right over `slide` ticks, the blink; bt_hide: gone, the debug boxes' tiles
+ * draw(), a tick): THE headline animation every message plays (big_text.headline -> gbig_anim, note
+ * 20261016-133635-e03d): slide_in ticks in from the right edge, blink ticks of its cycle (a frame each: shown / hidden /
+ * white = BT_PAL all white, Savage Reign's round call measured: its own palette and an all-white one on alternate frames
+ * while its letters move), hold ticks shown, slide_out ticks out to the left, then gone (bt_hide); a use with exit 0
+ * stays after its hold, a still one shows in place until its screen hides it. bt_hide: gone, the debug boxes' tiles
  * back. ---- */
 #define BT_SPR (DBG_SPR + 24)
 #define BT_MAX 24
 #define BT_PAL 250                       /* BN_PAL / SR_PAL: the title banner's, the staff roll's */
 #define BT_W 304                         /* the widest line */
 _Static_assert(BT_SPR + BT_MAX <= DBG_SPR + DBG_BOXES * 8, "big text: inside the debug boxes' sprites");
-static uint8_t bt_t, bt_k, bt_off, bt_dirty;
-static uint16_t bt_step;
+enum { BT_SHOWN, BT_HIDDEN, BT_WHITE };   /* gbig_anim.cyc */
+static uint8_t bt_white, bt_k;          /* BT_PAL is all white now; the blink's place in its cycle */
+static uint16_t bt_t, bt_in, bt_out;     /* ticks since shown; px a tick sliding in / out */
+static const uint16_t BT_WHITE_PAL[16] = { 0x8000, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF,
+                                           0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF };
 static const gbig_t *bt_s;
 static int16_t bt_x[BT_MAX], bt_y[BT_MAX];
 static uint8_t bt_glyph(char c) {                            /* a character -> its bigf_* index (0: a space) */
@@ -898,7 +920,7 @@ static void bt_show(const char *t, uint8_t use) {           /* t: the text (gbig
     if (!t) return;
     while (t[n]) n++;
     while (n && t[n - 1] == ' ') n--;
-    bt_s = s; bt_t = 0; bt_k = 0; bt_off = 0; bt_dirty = 1;
+    bt_s = s; bt_t = 0; bt_white = 0; bt_k = 0;
     PAL_setPalette(BT_PAL, bigf_pal);
     if (bt_width(t, n) > BT_W)                               /* two lines: at the first double space */
         for (b = 1; b + 1 < n && !(t[b] == ' ' && t[b + 1] == ' '); b++) ;
@@ -906,24 +928,32 @@ static void bt_show(const char *t, uint8_t use) {           /* t: the text (gbig
         for (e = b; e < n && t[e] == ' '; e++) ;
         bt_line(t, b, s->y); bt_line(t + e, n - e, s->y + s->pitch);
     } else bt_line(t, n, s->y);
-    bt_step = 0;
-    if (s->slide) { uint16_t a = 0; while (a < 336) { a += s->slide; bt_step++; } }   /* px a tick: 336 / slide, up */
+    bt_in = bt_out = 0;
+    if (s->still) return;
+    if (gbig_anim.slide_in) { uint16_t a = 0; while (a < 336) { a += gbig_anim.slide_in; bt_in++; } }   /* px a tick: 336 / ticks, up */
+    if (gbig_anim.slide_out) { uint16_t a = 0; while (a < 336) { a += gbig_anim.slide_out; bt_out++; } }
 }
-static void bt_draw(void) {                                  /* a tick: the slide, the blink */
-    uint8_t i, off = 0;
-    uint16_t *y, *x;
-    int16_t d;
+static void bt_draw(void) {                                  /* a tick: the headline animation (see above) */
+    const gbig_anim_t *a = &gbig_anim;
+    uint16_t *y, *x, t = bt_t, e1 = a->slide_in + a->blink, e2 = e1 + a->hold, e3 = e2 + a->slide_out;
+    uint8_t i, look = BT_SHOWN;
+    int16_t d = 0;
     if (!bt_n) return;
-    if (bt_s->blink && ++bt_k >= bt_s->blink) { bt_k = 0; bt_off ^= 1; bt_dirty = 1; }
-    d = bt_t < bt_s->slide ? (int16_t)(bt_s->slide - bt_t) * (int16_t)bt_step : 0;
-    if (d || bt_t == bt_s->slide) bt_dirty = 1;
-    if (bt_t < 255) bt_t++;
-    if (!bt_dirty) return;
-    bt_dirty = 0; off = bt_off;
+    if (bt_s->still) { if (t) return; }                      /* (in place: written once) */
+    else if (t < a->slide_in) d = (int16_t)(a->slide_in - t) * (int16_t)bt_in;   /* in from the right */
+    else if (t < e1) { look = a->cyc[bt_k]; if (++bt_k >= a->ncyc) bt_k = 0; }   /* the blink: one look a frame */
+    else if (t >= e2) {
+        if (!bt_s->exit) { if (t > e2) return; }             /* (held for good: shown once more, then left) */
+        else if (t >= e3) { bt_hide(); return; }             /* out: gone */
+        else d = -(int16_t)(t - e2 + 1) * (int16_t)bt_out;   /* out to the left */
+    }
+    if (bt_t < 0xFFFF) bt_t++;
+    if ((look == BT_WHITE) != bt_white) { bt_white = look == BT_WHITE; PAL_setPalette(BT_PAL, bt_white ? BT_WHITE_PAL : bigf_pal); }
     y = cmd_run(VRAM_SCB3 + BT_SPR, bt_n); x = cmd_run(VRAM_SCB4 + BT_SPR, bt_n);
     for (i = 0; i < bt_n; i++) {
-        y[i] = off ? 0 : (uint16_t)((((496 - bt_y[i]) & 0x1FF) << 7) | BIGF_ROWS);
-        x[i] = (uint16_t)((bt_x[i] + d > 320 ? 320 : bt_x[i] + d) & 0x1FF) << 7;   /* (past the right edge: parked there) */
+        int16_t px = bt_x[i] + d;
+        y[i] = look == BT_HIDDEN ? 0 : (uint16_t)((((496 - bt_y[i]) & 0x1FF) << 7) | BIGF_ROWS);
+        x[i] = (uint16_t)((px > 320 || px < -16 ? 320 : px) & 0x1FF) << 7;   /* (past an edge: parked off the right) */
     }
 }
 
@@ -948,7 +978,11 @@ static void screen_fx(void) {
     }
     /* (TODO #217) every colour here goes through bd_set: written at the next vblank with the stage's sprites (cmd
        queue), so the stage and its backdrop change on the same frame and no frame shows two backdrops */
-    if (bighit_red) {                                        /* SS2's big hit (fighter.c big_hit): red, no stage */
+    if (mc_t) {                                              /* the MAX cancel's freeze: the stage hidden, its backdrop (over
+                                                                every other screen effect: theirs hold with the game) */
+        if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
+        bd_set(gmaxcan.backdrop);
+    } else if (bighit_red) {                                 /* SS2's big hit (fighter.c big_hit): red, no stage */
         if (!bd_on) { stage_hide(); bd_on = 1; bd_t = 0; }
         bd_set(bighit_col); bighit_red--;
     } else if (hitflash) {                                   /* Double Dragon's super hit (fighter.c hit_spark, TODO #215;
@@ -2948,8 +2982,9 @@ static void intro_title(void) {                              /* the title's line
     char sp[40];
     if (!gi->title[0]) return;
     if (gbig[BIG_STAGE_INTRO].on) {                          /* in the big font (game.json big_text.stage_intro) */
-        if (in_t == gi->title_at) bt_show(gi->title, BIG_STAGE_INTRO);
-        else if (in_t == gi->title_at + gi->title_hold) bt_hide();
+        if (in_t == gi->title_at) bt_show(gi->title, BIG_STAGE_INTRO);   /* (it leaves by itself: the headline
+                                                                animation's slide out, big_text.headline; title_hold is
+                                                                the fix layer's) */
         return;
     }
     if (in_t == gi->title_at) centre(13, gi->title);
@@ -3054,7 +3089,7 @@ static void fight_start(void) {                  /* from the select screen (pl_*
     bonus_off();                                 /* (a bonus cut short by the BIOS: its sprites given back) */
     fury_lock = !attract && gbonus.fury_lock && !(save.cheat & 1);   /* (the cheat: never locked) a new credit: the fury locked until the posts are won (the
                                                         attract demo never: its bot plays as before) */
-    bn_won = 0; bonus_on = BN_OFF;
+    bn_won = 0; bonus_on = BN_OFF; bn_clr[0] = bn_clr[1] = bn_clr[2] = 0;
     stage_begin(attract ? 0 : camp_from, 1);
 }
 static void fight_start_at(uint8_t s) { uint8_t c = camp_from; camp_from = s; fight_start(); camp_from = c; }   /* (lab_bonus) */
@@ -3597,6 +3632,13 @@ static void bn_result(const char *l1, const char *l2, uint16_t bonus, uint8_t wo
     FIX_print(13, r + 2, "BONUS", 0); FIX_printNum(20, r + 2, bonus, 1);
     snd_music(won ? gbonus.win_music : gbonus.over_music);   /* (AOF2: $2D a passed game, $2E a failed one) */
 }
+static void bn_result_big(const char *l1, uint8_t big) {   /* a result told by its big headline alone (gbig[big]): every
+                                                    fix line of the game (its name, the gauge bar, the prompt) cleared */
+    bonus_on = BN_END; bn_t = 0; bn_hold = BN_END_T; bn_skip = 90;
+    bar_clear(&bn_bar); bn_text(13, 0, 0); bn_text(20, 0, 0);
+    bt_show(l1, big);
+    snd_music(gbonus.win_music);
+}
 /* the top grade's tree (note 20261014-133606-5d29, AOF2 measured: tools/aof/bonus_rip.py spirit_top): AOF2 only passes
  * Spirit Training at the top grade, and then the tree breaks: its cracked trunk, its top falling, the crown squashed
  * as it lands and swaying (bonus.h bonus_fall_seq, ticks from the blow = AOF2's frames from the punch mark); a lower
@@ -3666,14 +3708,23 @@ static void bn_gauge_flow(fighter_t *f) {
         if (bn_hit_t == (bn_pass ? BN_FALL_RESULT : 12 + bn_g->fail_result)) {   /* the result: the grade, its reward (a pass: the crown
                                                     down; a fail: AOF2's jingle frame, fail_result) */
             static const char *const GRADE[6] = { "MISS", "WEAK", "FAIR", "GOOD", "GREAT", "PERFECT!" };
-            uint8_t add = bn_g->chunks[bn_grade], room = MAX_CHUNKS - drive_chunks, i;
-            if (bn_won >> bn_game & 1) add = 0;  /* (won before: its bonus only) */
+            uint8_t add = bn_g->chunks[bn_grade], room = MAX_CHUNKS - drive_chunks, i, byclr = bn_pass && bn_g->pass_n;
+            if (byclr) {                         /* (games[].pass_reward: the chunks of this credit's n-th pass) */
+                add = bn_clr[bn_game] < bn_g->pass_n ? bn_g->pass_chunks[bn_clr[bn_game]] : 0;
+                if (bn_clr[bn_game] < 255) bn_clr[bn_game]++;
+            } else if (bn_won >> bn_game & 1) add = 0;   /* (won before: its bonus only) */
             if (add > room) add = room;
             if (add) {
                 bn_won |= 1 << bn_game; drive_chunks += add; bn_gain = add;
                 for (i = 0; i < 2; i++) fighters[i].drive = (uint16_t)(gmeter.chunk * drive_chunks);
                 hud_reset(); hud_two = 0xFF;     /* the bar's new chunks drawn */
             }
+            if (byclr) {                         /* a pass: its headline alone (notes 20261016-133045 / -135212-e03d:
+                                                    "announce that the player was given more meter with the big font
+                                                    and display nothing else"): no grade, no BONUS, the gauge bar gone */
+                bn_won |= 1 << bn_game;
+                bn_result_big(bn_g->pass_text[add], BIG_BONUS_METER);
+            } else
             bn_result(GRADE[bn_grade], !bn_pass ? "TRAINING FAILED" : add == 2 ? "METER +2" : add == 1 ? "METER +1" :
                       bn_g->chunks[bn_grade] && !room ? "METER ALREADY FULL" : 0, (uint16_t)bn_grade * 2000, bn_pass, 0xFF);
         }
@@ -4326,7 +4377,7 @@ static void lab_start(uint8_t kind) {
 static void lab_stage(void) {
     uint8_t w = lab.wave, i;
     attract = 0; opt_on = 0; banner_hide(); BIOS_USER_MODE = 2; lab.active = 0;
-    bonus_off(); fury_lock = 0; bn_won = 0;                   /* (the fury free, as before the bonus stages: a recipe
+    bonus_off(); fury_lock = 0; bn_won = 0; bn_clr[0] = bn_clr[1] = bn_clr[2] = 0;                   /* (the fury free, as before the bonus stages: a recipe
                                                                  that tests it starts here; req 6 is the bonus's own) */
     pl_ch[0] = lab.fighter < BC_COUNT ? lab.fighter : 0; pl_set[0] = 0; pl_on[0] = 1; pl_on[1] = 0;
     no_intro = 1; stage_begin(lab.dummy < GS_COUNT ? lab.dummy : 0, 1); no_intro = 0;
@@ -4865,6 +4916,7 @@ void game_tick(void) {
 #endif
     if (!lab.active && !dr_on && mode != 4) arcade_line();   /* (the ending: its own screens, no bottom line) */
     if (sf_who && mode != 1) sf_reset();                     /* the fight left mid-flash: its sprites go */
+    if (mc_t && mode != 1) mc_t = 0;                         /* (the MAX cancel's freeze: the same) */
     if (mode == 2) { title_tick(); if (mode == 2) return; }
     if (!mode) { select_tick(); depth_sort(); draw(); return; }
     if (mode == 6) { bonus_screen_tick(); if (mode == 6) { depth_sort(); draw(); return; } }   /* the bonus screens (AOF2's) */
@@ -4902,6 +4954,10 @@ void game_tick(void) {
     mark(P_AI);
     close_marks();
     if (bighit_slow && --bighit_slow < BIGHIT_SLOW && (bighit_slow & 1)) { depth_sort(); draw(); hud(); return; }
+    if (mc_t) {                                              /* the MAX cancel: everything held (see max_cancel_fx) */
+        if (!--mc_t && bt_s == &gbig[BIG_MAX_CANCEL]) bt_hide();
+        depth_sort(); draw(); hud(); return;
+    }
                                                           /* SS2's big hit's slow motion: every other tick held */
     if (in_ph == IN_WALK) intro_pre();
     for (i = 0; i < NF; i++)                                 /* a super flash: only its attacker moves */

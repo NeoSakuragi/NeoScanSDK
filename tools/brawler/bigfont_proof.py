@@ -24,6 +24,8 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else '/data/tmp/bigfont/proof'
 EMU = os.path.join(HERE, '..', '..', 'emu', 'neogeo_sdl')
 GAMESEQ = '1500:-,6:o,60:-,6:s,300:-,6:a,200:-,6:a,200:-,6:a,200:-,6:a,3000:-'   # one credit, Hayate, the first fight
 fails = 0
+_HL = json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))['big_text']['headline']
+HOLD_AT = _HL['slide_in'] + _HL['blink'] + 4      # (big_text.headline: the first ticks of its hold, note 20261016-133635-e03d)
 
 
 def check(ok, msg):
@@ -129,7 +131,7 @@ def one(want):
         for m, k in keys:
             for _ in range(m):
                 b.run(1, p1=k); t += 1
-                if btn() and b.r(S['bt_t'], 1) >= 40: done = True; break   # (standing still: past any slide, 16 ticks here)
+                if btn() and b.r(S['bt_t'], 2) >= HOLD_AT: done = True; break   # (standing still: in the headline's hold, after its slide in and blink)
             if done: break
         check(done, f'{label}: the big text shows ({rid}, {t} frames)')
         if not done: continue
@@ -186,8 +188,53 @@ def sheet(sr, br):
     s.save(os.path.join(OUT, 'sheet.png'))
 
 
+def anim(rid, use):
+    """the headline animation (note 20261016-133635-e03d, big_text.headline) of recipe rid's message, frame by frame from
+    its first: the first glyph sprite's x (SCB4), shown / hidden (SCB3 height), its palette white (main.c bt_white) ->
+    the phases: slide in from the right, the blink (its cycle a frame each), the hold in place, the slide out to the
+    left, gone; checked against game.json's ticks (exit false: held, no slide out)"""
+    import harness as H, scenario
+    G = os.path.join(HERE, '..', '..', 'examples', 'brawler')
+    R = json.load(open(os.path.join(HERE, 'scenarios.json')))[rid]
+    b = H.Brawler(game=G); b.game = G; scenario.setup(b, R)
+    S = b.syms; vram = (C.c_uint16 * (b.core.retro_get_memory_size(3) // 2)).from_address(b.core.retro_get_memory_data(3))
+    keys = [(int(m), k) for m, k in (p.split(':') for p in R['do_keys'].split(','))] + [(4000, '-')]
+    rows, on = [], False
+    for m, k in keys:
+        for _ in range(m):
+            b.run(1, p1=k)
+            n = b.r(S['bt_n'], 1)
+            if n: on = True
+            if not on: continue
+            if not n: rows.append(('gone', None)); break
+            s3, x = vram[0x8200 + 324], vram[0x8400 + 324] >> 7
+            look = 'hidden' if not (s3 & 0x3F) else 'white' if b.r(S['bt_white'], 1) else 'shown'
+            rows.append((look, x if x < 496 else x - 512))
+            if len(rows) > 700: break
+        if rows and rows[-1][0] == 'gone' or len(rows) > 700: break
+    hl = _HL; a, bl, ho, so = hl['slide_in'], hl['blink'], hl['hold'], hl['slide_out']
+    cyc = hl['blink_cycle']
+    x0 = rows[a + 1][1] if len(rows) > a + 1 else None
+    check(len(rows) > a + bl, f'{rid}: the message shows ({len(rows)} frames logged)')
+    if len(rows) <= a + bl: return
+    if rows[0] == ('hidden', 0): rows = rows[1:]                     # (the frame bt_show ran, before its first bt_draw)
+    ok_in = rows[0][1] > x0 and all(r[0] == 'shown' and r[1] >= x0 for r in rows[:a])
+    ok_bl = [r[0] for r in rows[a:a + bl]] == [cyc[i % len(cyc)] for i in range(bl)]
+    ok_ho = all(r == ('shown', x0) for r in rows[a + bl:a + bl + ho])
+    exit_ = json.load(open(os.path.join(G, 'game.json')))['big_text'][use].get('exit', True)
+    tail = rows[a + bl + ho:]
+    ok_out = (all(r[0] == 'shown' and (r[1] < x0 or r[1] == 320) for r in tail[:so]) and tail[so][0] == 'gone') if exit_ else all(r == ('shown', x0) for r in tail[:60])
+    print('frames:', ' '.join(f'{i}:{l[0][0]}{"" if l[1] is None else l[1]}' for i, l in enumerate(rows) if i < a + 4 or a + bl - 3 <= i <= a + bl + 2 or i >= a + bl + ho - 2))
+    check(ok_in, f'{rid}: slides in from the right over {a} ticks to x {x0}')
+    check(ok_bl, f'{rid}: blinks {bl} ticks, {"/".join(cyc)} a frame each')
+    check(ok_ho, f'{rid}: held {ho} ticks in place')
+    check(ok_out, f'{rid}: ' + (f'slides out to the left over {so} ticks, then gone' if exit_ else 'stays (exit false)'))
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
+    if '--anim' in sys.argv:
+        anim(*sys.argv[sys.argv.index('--anim') + 1:sys.argv.index('--anim') + 3]); print('ALL OK' if not fails else f'{fails} FAIL'); sys.exit(1 if fails else 0)
     if '--one' in sys.argv:
         one(sys.argv[sys.argv.index('--one') + 1]); sys.exit(1 if fails else 0)
     sr = rip()

@@ -371,6 +371,21 @@ each), scenario.py lint 0.
   select cheat; main.c bonus_start, note 20261016-132535-e03d); build_tables asserts a game without it exists.
 - Haohmaru down + C = the A+B Senpuu Retsuzan (`236AB`) with Bakuen Ryuu's treatment (note 20261016-131850-e03d):
   `proj_react` lift + juggle_reset, `retime` startup 0.5x, `knobs` sp_dc S-003 speed 1.59 (half); 623S moved to up-forward + C.
+  Round 2: the recovery 0.5x too (`retime` ["0.5x", null, "0.5x"]), down-forward + C (the 236K feint) emptied.
+- Terry (note 20261016-134456-e03d): down + C = Power Wave (`EX 236C`), forward + C = Burn Knuckle (`214C`), up + C =
+  Power Dunk (`623B`); C / down-forward / up-forward + C the Rising Tackle (`623C`). `roster[].specials_about`: a note.
+- `roster[].special_sounds` {special input: [{sfx: songs.json sfx name, at: [program frames]}]} (note
+  20261016-100735-e03d round 3): effects a special sends on its program's frames (build_tables special_sounds ->
+  `gspec_snd[]`; fighter.c spec_sounds: fighter_t.srow == at). Hanzo's run Mozu Otoshi: SS2's $1A $2B rising whistle
+  (songs.json sfx EA, from samsho2 1A2B) at 14 16 18 20 22 26 31 36 41 46 51 = SS2's heard frames - 1; its $1C $4E
+  voice (0.10.140) dropped. tools/samsho2/mozu_run_proof.py: the 11 key-ons byte-equal to SS2's sample.
+- A gauge bonus game's `pass_reward` {chunks: [per clear], text: [per chunks added]} (notes 20261016-133045 /
+  -135212-e03d): a pass adds chunks[k] on the credit's (k + 1)-th pass of that game (main.c bn_clr), its result =
+  text[n] alone in the big font (big_text.bonus_meter), no grade / BONUS line, the gauge bar cleared. Ki training: 2, 1.
+- Win poses 1+ (bm_wins vox): their voices now have samples in the V ROM (export_bm voice_map + WVOX; note
+  20261016-133259-e03d: SS2 Haohmaru's poses 198 / 202 / 203 were silent); voices.py list haohmaru adds the shared
+  effects his win animations send ($00CC $00D0 $1A $1B $1A $23). tools/samsho2/winsnd_ss2.py (SS2's per pose) /
+  winsnd_proof.py (the brawler vs SS2: every sound, frame +-1, sample bytes).
 - Posts bonus (BB_ANY): each hit of a move counts once on the post (the striker's hit_mask bit 7, cleared by its next hit
   window), so a two-hit move hits it twice (note 20261016-111341-e03d; was: one count per continuous touch).
 - fighter.c `hits_to_come`: the step just entered that opens a hit counts until it is tested (anim_tick runs before
@@ -640,6 +655,13 @@ is hidden), `white` 4 (of them, frames the backdrop is `white_colour`, then `dar
 feet, KOF orientation: where the concentration plays when the move has no anchor of its own). KOF98's values
 (tools/kof96/handlers98.md "Super flash"). Blue for a fury, orange for a MAX fury (by role).
 
+`max_cancel` (`gmaxcan_t`, ROM only; note 20261016-133443-e03d, KOF's Dream Cancel): a player's fury cancels into the MAX
+(down + D) once one of its hits landed (`window` "hit"; "any": from its first frame), on the ground, not while it holds a
+caught victim, for `cost` drive chunks (2; 0 = off; nothing else: no gauge, no low life). The fury's objects end; then
+the whole game holds still `freeze` frames (40) over the `backdrop` colour (black) with MAX CANCEL in the big font
+(big_text.max_cancel) and `sound`, and the MAX plays from its start with its own super flash (fighter.c fury_buy /
+may_cancel / fury_cancel, main.c max_cancel_fx / mc_t). Proof: tools/brawler/maxcancel_proof.py (every fighter with a fury).
+
 `hit_sounds` (`ghitsnd_t`, ROM only; Bruno's impact-sound picks 2026-10-09, brawler-lab/impacts.html): songs.json sfx
 names. `light` / `strong`: the hit cycles: every A / B normal's hit (a hold's or a throw's that sounds as A / B too) plays
 the attacker's next `light` entry, every C / D normal's its next `strong` entry (fighter.c `btn_sound`; C+D and every
@@ -828,11 +850,17 @@ intro"; levels.py `intro`, the marks and a stage's own `intro` stay in game.json
 
 `big_text` -> `gbig[BIG_USES]` (build_tables.py `big_tables`; main.c "big text"): which screens draw their headline in
 the big font, and how. Uses: `stage_intro` (the stage intro's `title`), `stage_clear`, `game_over`, `time_over` (the
-bonus break game's clock out), `bonus_won` (the bonus game's `won_text[0]`); a use left out keeps its fix-layer line,
-and the detail lines stay small either way. Fields: `y` (the glyphs' top, px; the cell is 48 high), `slide` (ticks
-sliding in from the right, 0 = in place), `blink` (half-period in ticks, 0 = steady), `pitch` (px between the two lines
-of a text wider than 304 px, which breaks at its first double space; default 44), `text` (stage_clear / game_over /
-time_over only). With `bonus_won`, CONGRATULATIONS! and BONUS move up to fix rows 10 / 12 and won_text[1] / [2] down
+bonus break game's clock out), `bonus_won` (the bonus game's `won_text[0]`), `ladder`, `bonus_meter` (a gauge game's
+pass: its `pass_reward.text`), `max_cancel` (the MAX cancel's freeze); a use left out keeps its fix-layer line, and the
+detail lines stay small either way. Fields: `y` (the glyphs' top, px; the cell is 48 high), `pitch` (px between the two
+lines of a text wider than 304 px, which breaks at its first double space; default 44), `text` (the uses with a text of
+their own), `exit` (false: it stays after the headline's hold: GAME OVER, the ladder), `still` (true: no animation, shown
+in place until its screen hides it: MAX CANCEL). `headline` -> `gbig_anim` (note 20261016-133635-e03d): THE animation of
+every big message (main.c bt_draw): `slide_in` ticks in from the right, `blink` ticks of `blink_cycle` (a look a frame:
+shown / hidden / white = the font's palette all white; Savage Reign's round call measured in our emulator: its own
+palette and an all-white one on alternate frames while its letters fly), `hold` ticks shown, `slide_out` ticks out to the
+left, then gone (16 / 60 / 120 / 16: 1 s of blink, 2 s held). bigfont_proof.py `--anim RECIPE USE` checks it frame by
+frame. With `bonus_won`, CONGRATULATIONS! and BONUS move up to fix rows 10 / 12 and won_text[1] / [2] down
 to rows 24 / 25. Every text a use can draw is checked against the font's characters (A-Z 0-9 space ! . - ' : ?) and
 the 304 px width at build time (levels.py checks a title edit the same way).
 

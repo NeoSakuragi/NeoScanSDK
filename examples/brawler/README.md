@@ -322,9 +322,11 @@ box (red) the hit test uses, as 8x8 brackets on sprites 300-363 (8 boxes per kin
 ## Big text (2026-10-14)
 Headlines in Savage Reign's round-call letters (R O U N D 1-4 ripped, the rest of A-Z / 0-9 / ! . - ' : ? built in
 their construction: `tools/brawler/make_bigfont.py`): STAGE n START, STAGE CLEAR, GAME OVER, the bonus game's TIME OVER
-and FURY UNLOCKED! / PRESS D. Which screens use it, where and how (slide-in, blink): game.json `big_text`
-(docs/brawler_data_model.md "Big text"); a glyph column = one sprite of 3 tiles (48 px), palette 250. Proof:
-`tools/brawler/bigfont_proof.py`.
+and FURY UNLOCKED! / PRESS D, the Ki training's METERS GAINED, MAX CANCEL. Which screens use it and where: game.json
+`big_text`; every message plays ONE animation, `big_text.headline` (note 20261016-133635-e03d: slide in from the right,
+1 s of Savage Reign's blink: shown / hidden / white a frame each, 2 s held, slide out to the left; GAME OVER and the
+ladder stay, MAX CANCEL is still) (docs/brawler_data_model.md "Big text"); a glyph column = one sprite of 3 tiles (48
+px), palette 250. Proof: `tools/brawler/bigfont_proof.py` (`--anim RECIPE USE`: the animation frame by frame).
 
 ## Controls (P1 and P2) (TODO #71, 2026-10-05)
 Stick walks on the floor (up/down = depth), forward twice = run.

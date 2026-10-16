@@ -668,18 +668,14 @@ def han_623k_run(v):
     ents, objs, vl = han_623k(v)
     ents = list(ents)
     e3 = dict(ents[3]); e3['init'] = [('set', 'vx', bx(vx))] + list(e3['init']); ents[3] = e3
-    ents[0] = E(58, [('set', 'vx', 0), ('catch_now', 3, 1), ('vsend', *RUN_WHISTLE)], [('now', 'next')])
+    ents[0] = E(58, [('set', 'vx', 0), ('catch_now', 3, 1)], [('now', 'next')])   # (no voice sent: see below)
     return ents, objs, vl
-# the run version's whistle (note 20261016-100735-e03d round 2, Bruno: "it misses the special startup sound this throw
-# makes in SS2, a whistling-in-the-air sound made for that specific run throw") [code + meas, mozu_ss2.py RUN /
-# whistle]: out of a run the 6 2 3 input brakes him first (2: class 0 action 41, anim 72) and the catch comes out of the
-# brake; anim 72 step 0 sends sound $157 = $1C $4E (his voice slot: a steady ~450 Hz tone, 0.41 s; driver pages
-# 22334-22348) the frame before the catch, behind the brake's seven prefix-$15 words (its action entry's voice list,
-# silent in the driver): one byte a frame, the Z80 gets $4E 13 frames after the catch, as he shoots up. From a stand
-# (CD) no word of the kind: the only sound the run version adds (plus the run's own start, $1C $4E $1A $7B, the run's).
-# The brawler's program starts the frame after the grab (= SS2's catch); P_VOICE b = 11: sent then, sound.c's ring puts
-# its prefix on the latch at grab + 12 and the code at grab + 13 = SS2's (measured: mozu_run_proof.py, key-on at + 13)
-RUN_WHISTLE = (0x157, 11)
+# the run version's whistle (note 20261016-100735-e03d): round 2 (0.10.140) sent sound $157 = $1C $4E here (the brake's
+# anim 72 step 0, the frame before the catch; his voice slot: a steady ~450 Hz tone, 0.41 s); round 3, Bruno: "not the
+# sound I was thinking of; it's a sound effect, not Hanzo's voice" -> dropped. The whistle is SS2's shared effect
+# $1A $2B (ids $07F / $085: a rising whistle 1.5 -> 3.5 kHz), queued at the leap and every 5 frames (mozu_ss2.py RUN),
+# played by the engine from game.json roster hanzo_ss2 special_sounds (songs.json sfx EA = samsho2 1A2B; fighter.c
+# spec_sounds)
 
 SD_FRAMES = 300                                   # $2C47A: the timer once the puff has played
 def han_sd(v):

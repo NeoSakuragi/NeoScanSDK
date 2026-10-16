@@ -5202,7 +5202,7 @@
    "drive": "full"
   },
   "do": "Hanzo stands far from Ryo with a full drive bar. Tap forward twice and hold it: Hanzo runs all the way into Ryo (over half a second). Then run into him again with an empty drive bar, and once with a short run (start running right next to him).",
-  "expect": "After a long run (30 frames or more) the grab turns at once into SS2's other Mozu Otoshi: Hanzo flashes blue, one drive chunk is gone, and with no pause (no freeze, no reaching pose) he crouches for two frames and shoots straight up with Ryo, out of the top of the screen in about 11 frames, as in Samurai Shodown II (airborne 4 frames after the grab; SS2: 3 after its catch). As he shoots up you hear SS2's whistle for this run throw (a short steady whistling tone, about 13 frames after the grab, as in SS2); the Mozu Otoshi from a stand has no whistle. He drifts back as he rises; they come down head first about 100 frames after the grab, the slam with the fire columns, Ryo bounces off the floor away from Hanzo (juggle him). Ryo faces Hanzo in the grab and the lift. With no chunk left, or after a short run, he just holds Ryo as usual.",
+  "expect": "After a long run (30 frames or more) the grab turns at once into SS2's other Mozu Otoshi: Hanzo flashes blue, one drive chunk is gone, and with no pause (no freeze, no reaching pose) he crouches for two frames and shoots straight up with Ryo, out of the top of the screen in about 11 frames, as in Samurai Shodown II (airborne 4 frames after the grab; SS2: 3 after its catch). As he shoots up you hear SS2's rising whistle ($1A $2B, a sound effect, not his voice): 11 times, from about 15 frames after the grab and then every 2 to 5 frames until he is out of sight, as SS2 plays it; the steady tone of 0.10.140 is gone. He drifts back as he rises; they come down head first about 100 frames after the grab, the slam with the fire columns, Ryo bounces off the floor away from Hanzo (juggle him). Ryo faces Hanzo in the grab and the lift. With no chunk left, or after a short run, he just holds Ryo as usual.",
   "do_keys": "1:R,1:-,40:R",
   "proof": 200
  },
@@ -5258,11 +5258,12 @@
    "fighter": "haohmaru",
    "dummy": "ryo",
    "gap": 160,
-   "drive": "full"
+   "drive": "full",
+   "chunks": 4
   },
-  "do": "Press down + C (Ougi Senpuu Retsuzan) at Ryo standing across the screen. Then try again up close and follow the lifted Ryo with an attack.",
-  "expect": "The tornado leaves his sword about twice as soon as before (about 16 frames after the press, was about 30) and travels half as fast (3 px a frame, was 6). It lifts Ryo straight up (no sideways push), high, juggle-able, his juggle count back to 0, like Hanzo's Bakuen Ryuu. Ougi Kogetsuzan's A version, formerly on down + C, is now up-forward + C (C alone still plays its A+B version). A second tornado waits until the first one's spin on Ryo is over (one projectile at a time).",
-  "do_keys": "2:Dc,100:-",
+  "do": "Press down + C (Ougi Senpuu Retsuzan) at Ryo standing across the screen. Then try again up close and follow the lifted Ryo with an attack. Then, once the tornado is gone, press down-forward + C.",
+  "expect": "The tornado leaves his sword about twice as soon as before (about 16 frames after the press, was about 30) and travels half as fast (3 px a frame, was 6). It lifts Ryo straight up (no sideways push), high, juggle-able, his juggle count back to 0, like Hanzo's Bakuen Ryuu. Ougi Kogetsuzan's A version, formerly on down + C, is now up-forward + C (C alone still plays its A+B version). A second tornado waits until the first one's spin on Ryo is over (one projectile at a time). Round 2 (the reopen): his recovery after throwing the tornado is twice as fast (about 29 frames, was 58), and down-forward + C no longer plays the Senpuu Retsuzan feint (that slot is empty: down-forward + C now plays down + C's tornado, as every empty diagonal plays its vertical).",
+  "do_keys": "2:Dc,240:-,2:DRc,100:-",
   "proof": 60
  },
  "20261016-131633-e03d": {
@@ -5289,6 +5290,91 @@
   "do": "Walk into Ryo and throw him with back + A, touching nothing until Terry stands again. Throw him again with back + A, this time mashing A through the whole throw. Again, pressing D once (empty bars) just after Ryo hits the floor. Again, holding the stick forward or back throughout. Then once pressing A ONLY after Ryo has hit the floor (no A before).",
   "expect": "Every one of those back throws plays the whole end animation: Terry holds his finishing pose on the floor for about half a second (31 frames after the slam) before he can move, the same length every time, mashing or not, a useless D or not, the stick or not. Only the last one is cut: the lone A after the slam turns him into a jab at the bouncing Ryo at once. A D WITH the fury ready (or C with a drive chunk) after the slam also cuts it, into the fury / special. Ryo takes the throw's damage once, at the slam. The same for every throw of every fighter.",
   "do_keys": "20:R,2:La,150:-,40:L,2:Ra,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,2:a,2:-,90:-",
+  "proof": 60
+ },
+ "20261016-134456-e03d": {
+  "title": "Terry: down + C = Power Wave, forward + C = Burn Knuckle, up + C = Power Dunk",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 100,
+   "drive": "full",
+   "chunks": 4
+  },
+  "do": "Press down + C, then forward + C, then up + C, then C alone (Ryo standing 100 px ahead; a 4-chunk drive bar, full: one chunk a special).",
+  "expect": "Down + C throws the Power Wave (the travelling shot along the floor, across the screen). Forward + C is the Burn Knuckle (the flaming dash punch; it was on down + C). Up + C is the Power Dunk (the leap and the falling punch; it was on forward + C). C alone, down-forward + C and up-forward + C stay the Rising Tackle. The Blitz down, up + A keeps its short ground wave.",
+  "do_keys": "2:Dc,90:-,2:Rc,90:-,2:Uc,90:-,2:c,100:-",
+  "proof": 30
+ },
+ "20261016-133045-e03d": {
+  "title": "Ki training (the big tree): +2 drive chunks the first clear, +1 the second",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is in its top quarter (PERFECT). Then play the second bonus of the same credit (after stage 3) and clear the tree again.",
+  "expect": "The first clear adds 2 drive chunks (the HUD bar grows from 2 to 4 chunks for the rest of the credit). The second clear of the credit adds 1 more (up to the bar's 4: with the bar already at 4, METER ALREADY FULL). A missed grade adds nothing.",
+  "do_keys": "40:-,1:a,400:-",
+  "proof": 60
+ },
+ "20261016-135212-e03d": {
+  "title": "Ki training cleared: only the big METERS GAINED headline",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "ki",
+   "after": 1
+  },
+  "do": "Press A when the gauge is in its top quarter (PERFECT) and watch the result.",
+  "expect": "After the tree falls, only one message: 2 METERS GAINED! in the big Savage Reign letters (1 METER GAINED! on the credit's second clear), sliding in, blinking, held, sliding out. No PERFECT!, no METER +2 line, no BONUS 10000, and the gauge bar is gone. A missed grade keeps its TRAINING FAILED screen.",
+  "do_keys": "40:-,1:a,400:-",
+  "proof": 60
+ },
+ "20261016-133443-e03d": {
+  "title": "MAX CANCEL: the fury cancelled into the MAX (down + D) with 4 chunks",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60,
+   "chunks": 4,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "With a 4-chunk drive bar and the fury ready, press D (the fury) at Ryo; once it hits him, press down + D.",
+  "expect": "The fury stops and everything freezes for about two thirds of a second: the stage goes black behind the fighters and MAX CANCEL shows in the big Savage Reign letters. Then the MAX starts from its beginning with its own orange flash and whistle. The cancel costs 2 drive chunks on top of the fury's. With only 2 chunks (1 left after the fury), or D without down, the fury just plays on. Every fighter with a fury works the same way.",
+  "do_keys": "1:d,10:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,2:Dd,2:-,200:-",
+  "proof": 30
+ },
+ "20261016-133259-e03d": {
+  "title": "Haohmaru's win poses: SS2's sounds in every pose",
+  "setup": {
+   "mode": "stage",
+   "fighter": "haohmaru",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Beat the stage 1 boss (one hit left: press A at him) and listen to Haohmaru's win pose; clear it again to get each of his four poses.",
+  "expect": "Each win pose plays SS2's sounds on SS2's frames (frames from the pose's start): the sword throw (198): his shout at 1, SS2's effect $1A $23 at 11 as the sword leaves, the sheathing ($00D0) at 89 when he catches it, his line at 128; the pose 202: the sheathing at 36, his line at 107; the pose 203: his shout at 12, SS2's effect $00CC at 13 and 44, $1A $1B at 85; the pose 200: its effect at 14 (as before). Before, only that last pose made a sound.",
+  "do_keys": "4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,4:a,4:-,700:-",
+  "proof": 60
+ },
+ "20261016-133635-e03d": {
+  "title": "Big messages: slide in, blink, hold 2 s, slide out (STAGE n START, STAGE CLEAR...)",
+  "setup": {
+   "mode": "select",
+   "cursor": "terry"
+  },
+  "do": "Press A on Terry and watch STAGE 1 START.",
+  "expect": "The message slides in from the right to the centre, then blinks hard for one second (a frame shown, a frame hidden, a frame all white, as Savage Reign's round call flickers), stays still for two seconds, then slides out to the left and is gone. STAGE CLEAR, TIME OVER, the bonus messages and FURY UNLOCKED! do the same; GAME OVER and NEW CHALLENGERS! blink and then stay on their screen.",
+  "do_keys": "30:-,3:a,300:-",
   "proof": 60
  }
 }

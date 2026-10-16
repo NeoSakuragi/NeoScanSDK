@@ -516,6 +516,27 @@ def run_grab(g, build):
     return out
 
 
+def special_sounds(g, build, snames):
+    """gspec_snd: roster[].special_sounds {special input: [{sfx: songs.json sfx name, at: [program frames]}], about} ->
+    [(roster index = bchar_t.id, the special's pool index, frame, sfx code)], by fighter then special then frame.
+    fighter.c spec_sounds: the frame a special's program reaches fighter_t.srow == at, the effect is sent (note
+    20261016-100735-e03d round 3: SS2's $1A $2B whistle at the run Mozu Otoshi's leap and its repeats)"""
+    fl = json.load(open(os.path.join(build, 'chainlab.json')))['fighters']
+    pools = {f['name']: [p['input'] for p in f['pool']] for f in fl}
+    out = []
+    for i, r in enumerate(g['roster']):
+        for inp, lst in (r.get('special_sounds') or {}).items():
+            if inp == 'about': continue
+            w = f"roster {r['name']}: special_sounds.{inp}"
+            assert inp in pools[r['name']], f"{w}: not in its pool ({' '.join(map(str, pools[r['name']]))})"
+            for e in lst:
+                for k in e: assert k in ('sfx', 'at'), f'{w}: unknown field {k}'
+                assert e['sfx'].upper() in snames, f"{w}: {e['sfx']!r} is no songs.json sfx name (the V ROM has no sample for it)"
+                assert all(isinstance(t, int) and 1 <= t <= 0xFFFF for t in e['at']), f'{w}.at: program frames 1-65535'
+                out += [(i, pools[r['name']].index(inp), t, snames[e['sfx'].upper()]) for t in e['at']]
+    return sorted(out)
+
+
 def blitz_cancels(g):
     """gblitz_can: per roster fighter (bm_chars order) per Blitz slot (BZ_FF .. BZ_UU) the slots it may cancel into on hit,
     bit k = slot k (roster[].blitz_cancel {from: [to, ...]}; Bruno 2026-10-09, note 20261009-114542-5d29: Terry's quirk
@@ -1326,11 +1347,12 @@ BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES,
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
 MAXC_N = 6                                               # roster[].max_chain: at most this many throws
-BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
+BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'pass_reward', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
                    'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
+GB_PASS_N = 4                                           # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
 REF_KEYS = ('about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about', 'jump_sound', 'land_sound', 'sound_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
@@ -1379,6 +1401,13 @@ def bonus_check(g, songs_known, sfx_names=None):
             assert len(gr) == 5 and all(a < b for a, b in zip([0] + gr, gr)) and gr[-1] <= 127, f"bonus game {x['id']}: grades: 5 rising powers 1-127"
             assert len(ch) == 6 and all(isinstance(v, int) and 0 <= v <= 3 for v in ch), f"bonus game {x['id']}: chunks: 6 values 0-3 (grade 0-5)"
             assert x.get('win_grade', 5) in range(1, 6), f"bonus game {x['id']}: win_grade 1-5 (the lowest grade that passes)"
+            pr = x.get('pass_reward')                    # (notes 20261016-133045 / -135212-e03d: the pass's chunks per clear,
+            if pr is not None:                           #  its big headline per chunks added)
+                for k in pr: assert k in ('about', 'chunks', 'text'), f"bonus game {x['id']}: pass_reward: unknown field {k}"
+                assert 1 <= len(pr['chunks']) <= GB_PASS_N and all(isinstance(v, int) and 0 <= v <= 4 for v in pr['chunks']), \
+                    f"bonus game {x['id']}: pass_reward.chunks: 1-{GB_PASS_N} values 0-4 (the n-th clear's chunks)"
+                assert len(pr['text']) == max(pr['chunks']) + 1 and all(isinstance(t, str) and t for t in pr['text']), \
+                    f"bonus game {x['id']}: pass_reward.text: one line per chunks added 0..{max(pr['chunks'])}"
             bl = x.get('blows', ['jab'] * 6)
             assert len(bl) == 6 and all(v in BONUS_BLOWS for v in bl), f"bonus game {x['id']}: blows: 6 slots (grade 0-5) of {' | '.join(BONUS_BLOWS)}"
             fs = x.get('fall_sounds') or []
@@ -1432,6 +1461,9 @@ def bonus_tables(g, songs_known, sfx_names):
         if x['kind'] == 'gauge':
             f += [f".step = {x['step']}", '.grades = { ' + ', '.join(map(str, x['grades'])) + ' }', '.chunks = { ' + ', '.join(map(str, x['chunks'])) + ' }',
                   f".win_grade = {x.get('win_grade', 5)}",
+                  f".pass_n = {len((x.get('pass_reward') or {}).get('chunks', []))}",
+                  '.pass_chunks = { ' + (', '.join(map(str, (x.get('pass_reward') or {}).get('chunks', []))) or '0') + ' }',
+                  '.pass_text = { ' + (', '.join(c_str(t) for t in (x.get('pass_reward') or {}).get('text', [])) or '0') + ' }',
                   '.blows = { ' + ', '.join('BL_' + BONUS_BLOWS[v] for v in x.get('blows', ['jab'] * 6)) + ' }']   # (fighter.h BL_*)
             fs = x.get('fall_sounds') or []              # (the tree's sounds as it falls: AOF2's, ticks from the blow)
             f += [f".nfall = {len(fs)}", '.fall_t = { ' + ', '.join(str(t) for t, _ in fs) + ' }' if fs else '.fall_t = { 0 }',
@@ -1541,34 +1573,52 @@ def intro_tables(g):
 
 BIG_USES = {                                   # game.json big_text: the screens whose headline the big font can draw (main.c
     'stage_intro': None,                       # "big text"); text None = the screen's own (stage_intro.title, the bonus's
-    'stage_clear': 'STAGE CLEAR',              # won_text[0]), else the default here, a use's "text" over it
-    'game_over': 'GAME OVER',
+    'stage_clear': 'STAGE CLEAR',              # won_text[0], a gauge game's pass_reward.text), else the default here, a
+    'game_over': 'GAME OVER',                  # use's "text" over it
     'time_over': 'TIME OVER',
     'bonus_won': None,
     'ladder': 'NEW CHALLENGERS!',              # the unlock ladder screen after a game clear that unlocked a rung
+    'bonus_meter': None,                       # a gauge game's pass: the chunks it gave (note 20261016-135212-e03d)
+    'max_cancel': 'MAX CANCEL',                # the fury -> MAX cancel's freeze (game.json max_cancel, note 20261016-133443-e03d)
 }
-BIG_KEYS = ('y', 'slide', 'blink', 'pitch', 'text')
+BIG_KEYS = ('y', 'pitch', 'text', 'exit', 'still')
+BIG_CYCLE = {'shown': 0, 'hidden': 1, 'white': 2}   # main.c BT_SHOWN / BT_HIDDEN / BT_WHITE
+BIG_CYC_N = 6                                  # gamedata.h GBIG_CYC
 
 
 def big_tables(g):
     """game.json big_text (Bruno 2026-10-14, Savage Reign's letters: tools/brawler/make_bigfont.py) -> gbig[BIG_USES]: per
-    screen whether its headline is drawn in the big font (a use listed) and how (y, slide-in, blink, line pitch); a use
-    not listed keeps the fix layer's line. Every text a use can draw is checked against the font's characters."""
+    screen whether its headline is drawn in the big font (a use listed) and where (y, line pitch), whether it leaves after
+    the standard animation (exit) or plays none (still); a use not listed keeps the fix layer's line. big_text.headline ->
+    gbig_anim: the one animation every big message plays (note 20261016-133635-e03d: slide in, blink, hold, slide out).
+    Every text a use can draw is checked against the font's characters."""
     from make_bigfont import CHARS, SPACE, font
     adv = {c: a.shape[1] for c, (a, _) in font().items()}; adv[' '] = SPACE
-    B = {k: v for k, v in (g.get('big_text') or {}).items() if k != 'about'}
+    B = {k: v for k, v in (g.get('big_text') or {}).items() if k not in ('about', 'headline')}
     for k, v in B.items():
         assert k in BIG_USES, f'big_text: unknown use {k} ({", ".join(BIG_USES)})'
         for f in v: assert f in BIG_KEYS, f'big_text.{k}: unknown field {f} ({", ".join(BIG_KEYS)})'
         assert 'text' not in v or BIG_USES[k], f'big_text.{k}: its text is the screen\'s own (no "text")'
+        assert isinstance(v.get('exit', True), bool) and isinstance(v.get('still', False), bool), f'big_text.{k}: exit / still: true | false'
+    hl = (g.get('big_text') or {}).get('headline') or {}
+    for k in hl: assert k in ('about', 'slide_in', 'blink', 'blink_cycle', 'hold', 'slide_out'), f'big_text.headline: unknown field {k}'
+    an = {k: hl.get(k, d) for k, d in (('slide_in', 16), ('blink', 0), ('hold', 120), ('slide_out', 16))}
+    for k, x in an.items(): assert isinstance(x, int) and 0 <= x <= 600, f'big_text.headline.{k} {x!r}: 0-600 ticks'
+    cyc = hl.get('blink_cycle', ['shown', 'hidden'])
+    assert 1 <= len(cyc) <= BIG_CYC_N and all(c in BIG_CYCLE for c in cyc), \
+        f"big_text.headline.blink_cycle: 1-{BIG_CYC_N} of {' | '.join(BIG_CYCLE)}"
+    gauge = [x for x in (g.get('bonus') or {}).get('games', []) if x.get('pass_reward')]
     texts = {'stage_intro': [intro_of(g, si)['title'] for si in range(len(g['stages']))],
-             'bonus_won': [b['won_text'][0] for b in (g.get('bonus') or {}).get('games', []) if b.get('won_text')]}
+             'bonus_won': [b['won_text'][0] for b in (g.get('bonus') or {}).get('games', []) if b.get('won_text')],
+             'bonus_meter': [t for x in gauge for t in x['pass_reward']['text']]}
+    assert not gauge or 'bonus_meter' in B, 'big_text.bonus_meter: a gauge game with pass_reward draws its result in the big font'
+    assert not (g.get('max_cancel') or {}).get('cost') or 'max_cancel' in B, 'big_text.max_cancel: the MAX cancel draws its text in the big font'
     rows = []
     for k, dflt in BIG_USES.items():
         v = B.get(k)
         if v is None: rows.append(f'    {{ 0, 0, 0, 0, 0, 0 }},   /* {k}: the fix layer */'); continue
-        y, sl, bl, pi = v.get('y', 80), v.get('slide', 0), v.get('blink', 0), v.get('pitch', 44)
-        for f, x, lo, hi in (('y', y, 0, 176), ('slide', sl, 0, 120), ('blink', bl, 0, 120), ('pitch', pi, 32, 64)):
+        y, pi = v.get('y', 80), v.get('pitch', 44)
+        for f, x, lo, hi in (('y', y, 0, 176), ('pitch', pi, 32, 64)):
             assert isinstance(x, int) and lo <= x <= hi, f'big_text.{k}.{f} {x!r}: {lo}-{hi}'
         t = v.get('text', dflt)
         for s in ([t] if dflt else texts[k]):
@@ -1578,16 +1628,25 @@ def big_tables(g):
             for w in (words if sum(adv[c] for c in s.upper().strip()) > 304 else [s.upper().strip()]):
                 assert sum(adv[c] for c in w) <= 304, f'big_text.{k}: {w!r} is wider than 304 px (two lines at most: they break at a double space)'
             assert len(words) <= 2, f'big_text.{k}: {s!r}: two lines at most'
-        rows.append(f'    {{ {c_str(t) if dflt else 0}, {y}, {sl}, {bl}, {pi}, 1 }},   /* {k} */')
+        rows.append(f'    {{ {c_str(t) if dflt else 0}, {y}, {pi}, 1, {1 if v.get("exit", True) else 0}, {1 if v.get("still", False) else 0} }},   /* {k} */')
     h = ['typedef struct {                  /* a screen\'s headline in the big font (game.json big_text; main.c "big text") */',
          '    const char *text;             /* 0 = the screen\'s own text */',
          '    int16_t y;                    /* the glyphs\' top on screen (48 px cells) */',
-         '    uint8_t slide, blink, pitch;  /* ticks sliding in from the right (0 = in place); blink half-period (0 = steady); px between two lines */',
+         '    uint8_t pitch;                /* px between two lines */',
          '    uint8_t on;                   /* 0: this screen keeps the fix layer\'s line */',
+         '    uint8_t exit, still;          /* exit 0: it stays after the headline\'s hold; still 1: no animation (shown in place) */',
          '} gbig_t;',
+         f'#define GBIG_CYC {BIG_CYC_N}',
+         'typedef struct {                  /* big_text.headline: the one animation of every big message (note 20261016-133635-e03d) */',
+         '    uint16_t slide_in, blink, hold, slide_out;   /* ticks: in from the right, blinking, held, out to the left */',
+         '    uint8_t ncyc, cyc[GBIG_CYC];  /* the blink\'s frames, repeated: BT_SHOWN / BT_HIDDEN / BT_WHITE */',
+         '} gbig_anim_t;',
          'enum { ' + ', '.join(f'BIG_{k.upper()}' for k in BIG_USES) + ', BIG_USES };',
-         'extern const gbig_t gbig[BIG_USES];']
-    return h, ['const gbig_t gbig[BIG_USES] = {', '\n'.join(rows), '};']
+         'extern const gbig_t gbig[BIG_USES];',
+         'extern const gbig_anim_t gbig_anim;']
+    return h, ['const gbig_t gbig[BIG_USES] = {', '\n'.join(rows), '};',
+               f"const gbig_anim_t gbig_anim = {{ {an['slide_in']}, {an['blink']}, {an['hold']}, {an['slide_out']}, {len(cyc)}, "
+               f"{{ {', '.join(str(BIG_CYCLE[c]) for c in cyc)} }} }};"]
 
 
 def tables(g, build):
@@ -1841,6 +1900,18 @@ def tables(g, build):
         assert fl.get(k, fl['sound']).upper() in [x.upper() for x in sfx], f"super_flash {k} {fl.get(k)}: not in songs.json sfx codes (the V ROM has no sample for it)"
     c.append(f"const gflash_t gflash = {{ .start = {fl['start']}, .freeze = {fl['freeze']}, .white = {fl['white']}, .sound = 0x{fl['sound']}, .sound_max = 0x{fl.get('sound_max', fl['sound'])}, .dx = {fl['anchor'][0]}, "
              f".dy = {fl['anchor'][1]}, .white_col = {fl['white_colour']}, .dark_col = {fl['dark_colour']} }};")
+    snames = {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()}
+    mc = g.get('max_cancel') or {}                       # the fury -> MAX cancel (note 20261016-133443-e03d, gamedata.h gmaxcan_t)
+    for k in mc: assert k in ('about', 'window', 'cost', 'freeze', 'backdrop', 'sound'), f'max_cancel: unknown field {k}'
+    assert mc.get('window', 'hit') in ('hit', 'any'), "max_cancel.window: 'hit' | 'any'"
+    assert isinstance(mc.get('cost', 0), int) and 0 <= mc.get('cost', 0) <= 4, 'max_cancel.cost: 0 (off) or 1-4 drive chunks'
+    assert isinstance(mc.get('freeze', 0), int) and 0 <= mc.get('freeze', 0) <= 255, 'max_cancel.freeze: 0-255 frames'
+    assert not mc.get('sound') or mc['sound'].upper() in snames, f"max_cancel.sound {mc.get('sound')!r}: no songs.json sfx name"
+    c.append(f"const gmaxcan_t gmaxcan = {{ .cost = {mc.get('cost', 0)}, .any = {1 if mc.get('window') == 'any' else 0}, .freeze = {mc.get('freeze', 0)}, "
+             f".sound = 0x{snames[mc['sound'].upper()] if mc.get('sound') else 0:02X}, .backdrop = {mc.get('backdrop', '0x0000')} }};")
+    c.append('const gspsnd_t gspec_snd[] = {')            # roster[].special_sounds (note 20261016-100735-e03d round 3)
+    for n, ix, at, code in special_sounds(g, build, snames): c.append(f'    {{ {n}, {ix}, {at}, 0x{code:02X} }},')
+    c.append('    { 0xFF, 0, 0, 0 } };')
     hs = g['hit_sounds']                                 # the hit cycles, the guard and the boss KO sounds (gamedata.h
     for k in hs: assert k in ('about', 'light', 'strong', 'guard', 'boss_ko', 'bounce', 'scream_delay', 'hurt_voice', 'rest_music'), f'hit_sounds: unknown field {k}'   # ghitsnd_t)
     names = {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()}

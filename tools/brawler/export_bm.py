@@ -2118,6 +2118,7 @@ def xthrow_voices(ch, n, game, mp):
     return [[VK_XTHROW, vid | V.fx_bit(n, vid), min(255, at)]] if vid else []
 
 WINS = {}                                               # per fighter: (its win poses besides 'win', any step effect)
+WVOX = {}                                               # per fighter: the voice ids its other win poses send (bm_wins vox: voice_map, note 20261016-133259-e03d)
 def win_voices(ch, n, game, m):
     """a win pose's voices beyond 'win' (bm_wins vox): [(step, voice id | fx bit)], the source's own as voices.suggest /
     anim_extras give the 'win' key its own, where the roster keeps KOF's suggestions (game.json roster[].voices)"""
@@ -2590,7 +2591,10 @@ def write_c(chars, outdir):
         if wm or objs:                                           # effects, pose 0 = 'win' (BA_WIN) too (note 20261011-
                                                                  # 225104-5d29: Kyo's hand fire, Terry's cap)
             c.append(f'const banim_t {n}_wan[] = {{' + (', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[id(source(ch, m))]}}}' for m in wm) or '{0, 0, 0}') + '};')
-            c.append(f'const uint8_t {n}_wvox[] = {{' + ''.join(f'{k + 1}, {at}, {v}, ' for k, m in enumerate(wm) for at, v in win_voices(ch, n, game, m)) + '0xFF};   /* [pose, step, voice id] */')
+            wv = [(k + 1, at, v) for k, m in enumerate(wm) for at, v in win_voices(ch, n, game, m)]
+            WVOX[n] = {v & 0x7F for _, _, v in wv}               # (their samples in the V ROM: voice_map below; note
+                                                                 #  20261016-133259-e03d: poses 1+ were silent, no sample)
+            c.append(f'const uint8_t {n}_wvox[] = {{' + ''.join(f'{p}, {at}, {v}, ' for p, at, v in wv) + '0xFF};   /* [pose, step, voice id] */')
             c.append(f'const uint8_t {n}_wfx[] = {{' + ''.join(f'{k}, {st}, {j}, ' for j, (k, st, _) in enumerate(objs)) + '0xFF};   /* [pose, step, object] */')
             if objs: cs.append(projectile_c(n, 'w', [o for _, _, o in objs], game, {'input': 'WIN'}))
             cs.append(f'extern const banim_t {n}_wan[];\nextern const uint8_t {n}_wvox[], {n}_wfx[];')
@@ -2647,7 +2651,7 @@ def write_c(chars, outdir):
                                 'chain_cfg': roster()[n].get('chain'), 'chain_base': R.chain_base(base, has)})
     json.dump(lab, open(os.path.join(outdir, 'chainlab.json'), 'w'), ensure_ascii=False)
     # the voices the ROM maps (build_snd.py brings only their samples into the V ROM: songs.json "voices")
-    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | {v & 0x7F for _, _, v in fpose_steps(ch) if v}), **({'slot_of': src(n)} if n in ALIAS else {})} for game, n, ch, off in chars],
+    json.dump([{'name': n, 'game': game, 'ids': sorted(set(vdata[n]['map'].values()) | {m[1] & 0x7F for m in vdata[n]['more']} | set(vdata[n]['prog']) | WVOX.get(n, set()) | {v & 0x7F for _, _, v in fpose_steps(ch) if v}), **({'slot_of': src(n)} if n in ALIAS else {})} for game, n, ch, off in chars],
               open(os.path.join(outdir, 'voice_map.json'), 'w'))
     json.dump({n: [fr.get('record') for fr in ch['frames']] for game, n, ch, off in chars},   # bm frame -> 'id:ROM frame'
               open(os.path.join(outdir, 'bm_frames.json'), 'w'))                          # (romspecials_check.py)

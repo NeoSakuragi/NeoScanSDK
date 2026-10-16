@@ -200,6 +200,17 @@ typedef struct {
 } gflash_t;
 extern const gflash_t gflash;
 
+/* ---- the MAX cancel (game.json "max_cancel", note 20261016-133443-e03d: KOF's Dream Cancel): a player's fury cancels into
+ * the MAX on down + D (any: from its first frame; else once one of its hits landed) for `cost` drive chunks (0: off);
+ * before the MAX the game holds still `freeze` frames over a `backdrop` colour, MAX CANCEL in the big font, `sound` (an
+ * sfx code, 0 none) played (fighter.c fury_buy / may_cancel, main.c "the MAX cancel") ---- */
+typedef struct { uint8_t cost, any, freeze, sound; uint16_t backdrop; } gmaxcan_t;
+extern const gmaxcan_t gmaxcan;
+/* a special's effects sent on its program's frames (game.json roster[].special_sounds; fighter.c spec_sounds): rows by
+ * fighter (bchar_t.id), then special (pool index), then frame (fighter_t.srow); fighter 0xFF ends the table */
+typedef struct { uint8_t fighter, spec; uint16_t at; uint8_t sfx, pad; } gspsnd_t;
+extern const gspsnd_t gspec_snd[];
+
 /* ---- layer 2: the hit sounds (game.json "hit_sounds", Bruno's impact-sound picks 2026-10-09): cycle[0] / [1] the light /
  * strong hit cycles (n entries each, $1A codes: every A / B hit plays the attacker's next light entry, every C / D hit
  * its next strong one, unless the fighter's own sound is set: fighter.c btn_sound); guard: the guard sound
@@ -357,6 +368,7 @@ extern const ai_preset_t *ai_tab; /* the rows the AI reads: ai_presets, or an in
 enum { BK_GAUGE, BK_BREAK };
 #define GB_FALL_SND 6                /* (build_tables.py GB_FALL_SND) */
 #define GB_FAIL_SND 16               /* (build_tables.py GB_FAIL_SND) */
+#define GB_PASS_N 4                  /* (build_tables.py GB_PASS_N) */
 #define GB_VOICE_HIT 0xFF             /* a fail_sfx: the fighter's hurt voice */
 enum { BB_FURY, BB_ANY };            /* what breaks a BK_BREAK object: a fury's / MAX's strike only; any strike */
 enum { BU_NONE, BU_FURY };
@@ -369,6 +381,11 @@ typedef struct {
     uint16_t seconds;             /* the game's clock (BK_GAUGE: no press by then = grade 0) */
     uint8_t grades[5];            /* BK_GAUGE: the power (0-127) each grade 1-5 needs */
     uint8_t chunks[6];            /* BK_GAUGE: drive chunks a grade 0-5 adds (the bar up to 4) */
+    uint8_t pass_n, pass_chunks[GB_PASS_N];   /* BK_GAUGE (games[].pass_reward, notes 20261016-133045 / -135212-e03d):
+                                     pass_n > 0: a pass adds pass_chunks[k] on the credit's (k + 1)-th pass of this game (k
+                                     >= pass_n: none) instead of chunks[grade], and its result is pass_text[n] alone in the
+                                     big font (n = the chunks really added), the gauge bar gone */
+    const char *pass_text[GB_PASS_N + 1];
     uint8_t blows[6];             /* BK_GAUGE: the blow a grade 0-5 throws at the tree, fighter.h BL_* (fighter_blow: his
                                      jab, chain finisher or forward finisher; game.json games[].blows, Bruno results-1014: a
                                      jab when the tree holds, the forward finisher when it breaks) */
