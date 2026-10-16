@@ -5063,5 +5063,70 @@
   "expect": "As you answered on the throw review: SLAM, damage frame 31, glued until frame 38. The whole damage lands in one go on that frame, never at the grab.",
   "do_keys": "20:R,2:Ra",
   "proof": 200
+ },
+ "20261016-140301-7d01": {
+  "title": "Hanzo's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Hanzo walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: IMPACT, damage frame 31, eject frame 31, glued until frame 31. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 200
+ },
+ "20261016-140302-7d02": {
+  "title": "Haohmaru's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haohmaru walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 27, glued until frame 41. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 200
+ },
+ "20261016-140303-7d03": {
+  "title": "Haohmaru's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haohmaru",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haohmaru walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: IMPACT, damage frame 18, eject frame 18, glued until frame 18. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 200
+ },
+ "20261016-140304-7d04": {
+  "title": "Kim's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Kim walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 24, glued until frame 24. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 200
+ },
+ "20261016-140305-7d05": {
+  "title": "Kim's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "kim",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Kim walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 24, glued until frame 24. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 200
  }
 }
