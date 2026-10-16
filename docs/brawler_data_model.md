@@ -344,22 +344,40 @@ each), scenario.py lint 0.
   victim to that row (on the floor there: the landing hand-off). `hold_b` = the extra paired throw (BT_XTHROW: Haggar's
   piledriver). build_tables `throw_timing` -> `gthrow_tm[fighter][TM_*]` {dmg, hand, kind} -> fighter.c throw_start
   (fighter_t slam / eject / ejk). No entry: the rule as before.
-- `roster[].throws.events` {`forward` | `back` | `hold_b`: {`impact`: N, `launch`: {`frame`: N, `dir` "up" | "away" |
-  "none", `size`? "small" | "medium" | "big"}, `held`?: N, `from`}} (THE THROW REVIEW round 2, Bruno 2026-10-16 after
-  0.10.142: "define WHEN THE IMPACT occurs (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs [...]
-  Separate these concerns"; brawler-lab/review.html?q=throws2, written by `tools/brawler/throw_answers.py apply2` from
-  set "throws2", never by hand). N = the throw's frame: 1 = its first frame, every game frame from its start, as the page
-  numbers them (no script rows). `impact`: the spark, the sound, the screen shake and the whole damage on that one frame
-  (the script's own impact rows no longer spark / sound). `launch`: the engine takes the victim over on that frame and
-  sends it: up (a pop), away (along the throw's way), none (where it is: lying stays down, in the air falls), strength
-  game.json `throw_launch[dir][size]` {vy, vx} (default medium). `held`: the victim follows the thrower's grip (the
-  script) until that frame, then stays where it is, in its pose, until the launch (default: the launch frame). The
-  thrower plays its whole animation (THE THROW'S END). Replaces `throws.timing`, `slam_bounce` and, for SS2 Hanzo's hold
-  + B, `special_grab_timing` "623K" for that throw (one path; build_tables `throw_events` refuses a throw with both).
-  Until fighter.c plays them (build_tables `ENGINE_PLAYS_EVENTS`), a game.json with events is refused by the build and
-  apply2 runs `--dry` only, so his answers are never silently ignored. `tools/brawler/throw_regress.py` checks each throw
-  with events (impact frame once, launch frame + direction, held), `--events FILE --events-only` measures a build
-  against answers not applied yet.
+- `roster[].throws.events` {`forward` | `back` | `hold_b` | `run`: {`impacts`: [{`frame`: N, `damage`?: %, `spark`?,
+  `sound`?, `shake`?: bool}, ...], `held`?: N, `launch`: {`frame`: N, `dir` "up" | "away" | "none", `size`? "small" |
+  "medium" | "big"}, `from`}} (THE THROW EVENTS; THE THROW REVIEW round 2, Bruno 2026-10-16 after 0.10.142: "define WHEN
+  THE IMPACT occurs (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs [...] Separate these
+  concerns"; brawler-lab/review.html?q=throws2, written by `tools/brawler/throw_answers.py apply2` from set "throws2").
+  N = the throw's frame: 1 = its first frame, every game frame from its start, as the page numbers them (no script
+  rows). A throw is FOUR SEPARATE CONCERNS, each its own field, none inferred from another (a Factory tab edits them as
+  they are):
+  1. the GRAB MOTION: where thrower and victim are, frame by frame: the throw's script (paired: bthrow_t rows, the
+     export's; a grab special: its victim lists) - not in `events`;
+  2. the IMPACTS, 1 to 3 (Kyo's: a blow, then his slam), each on its `frame`: its `damage` = its share of the throw's
+     damage in % (default 0; the LAST impact takes all that is still due, so by default the whole damage lands on the
+     last; the shares before it 100 % at most), its hit `spark`, its `sound` (the throw's hit sound; a grab special: its
+     move's), the screen `shake` (game.json `throw_shake` {frames, px}), each true unless false. Nothing else in the throw
+     sparks, sounds or damages (the script's impact rows, a grab special's catch and blows are silent). A lone
+     `impact`: N is accepted as `impacts`: [{`frame`: N}] (apply2 writes the list);
+  3. HELD: the victim follows the grab motion until that frame, then stays where it is, in its pose (a slammed victim
+     lying at the spot) until the launch; default: the launch frame;
+  4. the RELEASE and its TRAJECTORY, `launch`: on that frame the engine takes the victim over and sends it: `dir` up (a
+     pop: vy up, a little vx away), away (away from the thrower: a thrown body until it lands), none (where it is: on the
+     floor it lies down, in the air it falls); `size` picks game.json `throw_launch[dir][size]` {vy, vx} px a frame
+     (default medium). Every impact is on or before it.
+  The thrower plays its whole animation (THE THROW'S END); its follow-ups: C / D from its first impact frame, a lone A
+  from the launch on. `hold_b` = the paired hold + B throw (`throws.b`) or the grab special on hold + B
+  (`throws.extra.b`: SS2 Hanzo's Mozu Otoshi), `run` = the run grab's special (`throws.run.special`), their frames from
+  the special's first. Replaces `throws.timing`, `slam_bounce` and the special's `special_grab_timing` for that throw
+  (one path; build_tables `throw_events` refuses a throw with both). A MAX chain's throws keep the chain's own rule.
+  build_tables `event_rows` -> `gthrow_ev[fighter][TM_*]` / `gsg_ev[fighter][hold_b, run]` (gamedata.h gthrev_t) ->
+  fighter.c "THE THROW EVENTS" (ev_rows / ev_impact / ev_launch; a grab special: sg_events / sg_hit / sg_release).
+  `tools/brawler/throw_answers.py apply2 examples/brawler` applies every answer present (incremental, idempotent: run it
+  after each new answer, then build); page flags `impact-N` (one per impact), `share-N-P`, `launch-N`, `dir-*`, `size-*`,
+  `held-N`. `tools/brawler/throw_regress.py` checks every throw with events in every pattern without a follow-up, both
+  facings (each impact's damage, spark, shake and sound on its frame and nowhere else, held, the launch frame and
+  direction), `--events FILE --events-only` measures a build against answers not applied yet.
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;

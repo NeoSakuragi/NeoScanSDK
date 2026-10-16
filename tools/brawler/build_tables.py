@@ -1009,37 +1009,78 @@ def slam_bounce(e, dflt, w):
 
 
 EVENT_DIRS = ('up', 'away', 'none')
-ENGINE_PLAYS_EVENTS = False                             # fighter.c reads throws.events (set with the engine change)
+ENGINE_PLAYS_EVENTS = True                              # fighter.c plays throws.events (THE THROW EVENTS)
 EVENT_SIZES = ('small', 'medium', 'big')
+EVENT_KEYS = TIMING_KEYS + ('run',)                     # + the run grab's special (roster[].throws.run.special)
+
+
+EVENT_IMPS = 3                                          # gamedata.h EV_IMPS: impacts a throw at most
+IMPACT_FX = ('spark', 'sound', 'shake')                 # gamedata.h EVF_SPARK / EVF_SOUND / EVF_SHAKE
+
+
+def event_impacts(e, w):
+    """a throw's impacts, checked: [{frame, damage, spark, sound, shake}] (throws.events.<k>.impacts; a lone "impact": N is
+    the one-entry list [{frame: N}]); damage = its share of the throw's damage in % (default 0, the last one: all that is
+    still due, so by default the whole damage on the last impact); spark / sound / shake default true"""
+    assert ('impact' in e) != ('impacts' in e), f'{w}: impacts [{{frame, damage?, spark?, sound?, shake?}}, ...] (or one impact: N)'
+    L = e['impacts'] if 'impacts' in e else [{'frame': e['impact']}]
+    assert isinstance(L, list) and 1 <= len(L) <= EVENT_IMPS, f'{w}.impacts: 1-{EVENT_IMPS} impacts'
+    out, prev, tot = [], 0, 0
+    for n, x in enumerate(L):
+        wi = f'{w}.impacts[{n}]'
+        assert isinstance(x, dict), f'{wi}: {{frame, damage?, spark?, sound?, shake?}}'
+        for f in x: assert f in ('frame', 'damage') + IMPACT_FX + ('about',), f'{wi}: unknown field {f}'
+        fr = x.get('frame')
+        assert isinstance(fr, int) and not isinstance(fr, bool) and 1 <= fr <= 400, f'{wi}.frame: a throw frame 1-400'
+        assert fr > prev, f'{wi}.frame {fr}: after the impact before it (frame {prev})'
+        prev = fr
+        d = x.get('damage', 0)
+        assert isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 100, f'{wi}.damage: its share of the throw\'s damage, 0-100 %'
+        for f in IMPACT_FX: assert x.get(f, True) in (True, False), f'{wi}.{f}: true | false'
+        if n + 1 < len(L): tot += d
+        out.append({'frame': fr, 'damage': d, **{f: x.get(f, True) for f in IMPACT_FX}})
+    assert tot <= 100, f'{w}.impacts: the shares before the last add up to {tot} % (100 at most)'
+    assert 'damage' not in L[-1] or tot + L[-1]['damage'] == 100, f'{w}.impacts: the last takes what is still due ({100 - tot} %)'
+    return out
 
 
 def throw_events(r, g=None):
     """roster[].throws.events (THE THROW REVIEW round 2, Bruno 2026-10-16 after 0.10.142: "define WHEN THE IMPACT occurs
     (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs (ejecting the victim up, or ejecting it
-    sideways) [...] Separate these concerns"; written by tools/brawler/throw_answers.py apply2 from review.html?q=throws2,
-    never by hand): per throw (forward | back | hold_b; hold_b = the extra paired throw or the grab special on hold + B)
-    {impact: N, launch: {frame: N, dir: up | away | none, size?: small | medium | big}, held?: N, from?, about?}, N = the
-    throw's frame (1 = its first frame, every game frame from its start counted, as the review page numbers them):
-      impact  the spark, the sound, the screen shake and the whole damage, on that one frame
-      launch  the engine takes the victim over on that frame and sends it: up (a pop), away (along the throw's way, from
-              the thrower), none (where it is: on the floor it lies, in the air it falls); size picks game.json
-              throw_launch[dir][size] {vy, vx} px a frame (default medium)
-      held    the victim stays in the thrower's grip (its script) until that frame; from there to the launch it stays
-              where it is, in its pose (default: the launch frame)
+    sideways) [...] Separate these concerns"; written by tools/brawler/throw_answers.py apply2 from review.html?q=throws2):
+    per throw (forward | back | hold_b | run) {impacts: [{frame, damage?, spark?, sound?, shake?}, ...] (or impact: N),
+    held?: N, launch: {frame: N, dir: up | away | none, size?: small | medium | big}, from?, about?}, N = the throw's frame
+    (1 = its first frame, every game frame from its start counted, as the review page numbers them). Four concerns, each
+    its own field, never mixed:
+      the grab motion  the throw's script (paired: bthrow_t rows) / the grab special's victim lists: where both are
+      impacts  1-3 (Kyo's: a blow, then his slam), each on its frame: its share of the throw's damage (damage %, the last
+               all that is still due: by default the whole damage on the last), its spark, its sound, the screen shake
+               (game.json throw_shake), each true unless false (event_impacts)
+      held     the victim stays in the thrower's grip (the grab motion) until that frame; from there to the launch it
+               stays where it is, in its pose (default: the launch frame)
+      launch   the release and its trajectory: the engine takes the victim over on that frame and sends it: up (a pop),
+               away (along the throw's way, from the thrower), none (where it is: on the floor it lies, in the air it
+               falls); size picks game.json throw_launch[dir][size] {vy, vx} px a frame (default medium)
     The thrower always plays its whole animation (THE THROW'S END). Replaces throws.timing / slam_bounce /
-    special_grab_timing for that throw (one path: a throw has events or timing, never both). -> {key: checked entry}"""
+    special_grab_timing for that throw (one path: a throw has events or timing, never both). hold_b = the paired hold + B
+    throw (throws.b) or the grab special on hold + B (throws.extra.b); run = the run grab's special (throws.run.special),
+    its frames from the special's first. -> {key: checked entry, its impacts as event_impacts lists them}"""
     ev = (r.get('throws') or {}).get('events') or {}
     tm = (r.get('throws') or {}).get('timing') or {}
     w0 = f"roster {r['name']}: throws.events"
-    assert isinstance(ev, dict), f'{w0} = {{forward | back | hold_b: {{...}}}}'
+    assert isinstance(ev, dict), f'{w0} = {{forward | back | hold_b | run: {{...}}}}'
     out = {}
     for k, e in ev.items():
         w = f'{w0}.{k}'
-        assert k in TIMING_KEYS, f"{w}: one of {', '.join(TIMING_KEYS)}"
+        assert k in EVENT_KEYS, f"{w}: one of {', '.join(EVENT_KEYS)}"
         assert k not in tm, f'{w}: and throws.timing.{k}: one path (events replace timing)'
-        for f in e: assert f in ('impact', 'launch', 'held', 'from', 'about'), f'{w}: unknown field {f}'
+        sp = event_special(r, k)
+        if k == 'hold_b': assert (r.get('throws') or {}).get('b') or sp, f'{w}: no hold + B throw (throws.b / throws.extra.b)'
+        if k == 'run': assert sp, f'{w}: no run grab (throws.run.special)'
+        assert not sp or sp not in (r.get('special_grab_timing') or {}), f'{w}: and special_grab_timing.{sp}: one path (events replace it)'
+        for f in e: assert f in ('impact', 'impacts', 'launch', 'held', 'from', 'about'), f'{w}: unknown field {f}'
         def fr(x, what): assert isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 400, f'{w}.{what}: a throw frame 1-400'
-        fr(e.get('impact'), 'impact')
+        imps = event_impacts(e, w)
         L = e.get('launch')
         assert isinstance(L, dict), f'{w}.launch: {{frame, dir, size?}}'
         for f in L: assert f in ('frame', 'dir', 'size'), f'{w}.launch: unknown field {f}'
@@ -1049,7 +1090,9 @@ def throw_events(r, g=None):
         if 'held' in e:
             fr(e['held'], 'held')
             assert e['held'] <= L['frame'], f"{w}.held {e['held']}: not after its launch (frame {L['frame']})"
-        out[k] = e
+        assert imps[-1]['frame'] <= L['frame'], f"{w}: impact frame {imps[-1]['frame']} after its launch (frame {L['frame']})"
+        out[k] = dict(e, impacts=imps)
+        out[k].pop('impact', None)
     if ev and g is not None:
         tl = g.get('throw_launch')
         assert isinstance(tl, dict), 'game.json throw_launch {up | away: {small | medium | big: {vy, vx}}}: the launches the events name'
@@ -1058,6 +1101,43 @@ def throw_events(r, g=None):
                 v = (tl.get(d) or {}).get(z)
                 assert isinstance(v, dict) and isinstance(v.get('vy'), (int, float)) and isinstance(v.get('vx'), (int, float)), f'throw_launch.{d}.{z}: {{vy, vx}}'
     return out
+
+
+def event_special(r, k):
+    """the grab special an events key names for roster entry r (hold_b: throws.extra.b, run: throws.run.special), else None"""
+    t = r.get('throws') or {}
+    if k == 'hold_b' and not t.get('b'): return (t.get('extra') or {}).get('b')
+    if k == 'run': return (t.get('run') or {}).get('special')
+    return None
+
+
+def event_rows(g, build):
+    """THE THROW EVENTS -> (gthrow_ev rows [fighter][TM_*], gsg_ev rows [fighter][hold_b, run]) as C (gamedata.h gthrev_t
+    {held, lch, dir, n, vy, vx, ifr[], ish[], ifl[]}, gsgev_t {ix, pad, e}); no events: n 0, ix 0xFF"""
+    fl = json.load(open(os.path.join(build, 'chainlab.json')))['fighters']
+    pools = {f['name']: [p['input'] for p in f['pool']] for f in fl}
+    tl = g.get('throw_launch') or {}
+    z3 = '{ ' + ', '.join(['0'] * EVENT_IMPS) + ' }'
+    def ev(e):
+        if not e: return '{ 0, 0, TE_NONE, 0, 0, 0, %s, %s, %s }' % (z3, z3, z3)
+        L = e['launch']; d = L['dir']; I = e['impacts']
+        v = (tl.get(d) or {}).get(L.get('size', 'medium')) or {'vy': 0, 'vx': 0}
+        pad = lambda xs: '{ ' + ', '.join(map(str, xs + [0] * (EVENT_IMPS - len(xs)))) + ' }'
+        fx = [' | '.join(f'EVF_{f.upper()}' for f in IMPACT_FX if x[f]) or '0' for x in I]
+        return '{ %d, %d, TE_%s, %d, %d, %d, %s, %s, %s }' % (e.get('held', L['frame']), L['frame'], d.upper(), len(I), round(v['vy'] * 256),
+            round(v['vx'] * 256), pad([x['frame'] for x in I]), pad([x['damage'] for x in I]), pad(fx))
+    tr, sr = [], []
+    for r in g['roster']:
+        E = throw_events(r, g)
+        tr.append('{ ' + ', '.join(ev(None if event_special(r, k) else E.get(k)) for k in TIMING_KEYS) + f' }}   /* {r["name"]} */')
+        cells = []
+        for k in ('hold_b', 'run'):
+            sp = event_special(r, k)
+            if not sp or k not in E: cells.append('{ 0xFF, 0, ' + ev(None) + ' }'); continue
+            assert sp in pools[r['name']], f"roster {r['name']}: throws.events.{k}: its special {sp} not in its pool"
+            cells.append('{ %d, 0, %s }' % (pools[r['name']].index(sp), ev(E[k])))
+        sr.append('{ ' + ', '.join(cells) + f' }}   /* {r["name"]} */')
+    return tr, sr
 
 
 def throw_timing(r, g=None):
@@ -1751,6 +1831,9 @@ def tables(g, build):
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
          'extern const uint8_t grun_grab[BC_COUNT][3];   /* the run grab (game.json roster[].throws.run, note 20261016-100735-e03d; fighter.c try_grab): [its grab special\'s pool index (0xFF none), run frames before it, drive chunks it costs] */',
          'extern const int16_t gsgt_bounce[BC_COUNT][2];   /* a grab special\'s slam bounce (vy, vx 8.8 px a frame; game.json slam_bounce, special_grab_timing.bounce; fighter.c slam_bounce) */',
+         'extern const gthrev_t gthrow_ev[BC_COUNT][TM_COUNT];   /* THE THROW EVENTS of a paired throw (game.json roster[].throws.events; gamedata.h gthrev_t, fighter.c; imp 0: none) */',
+         'extern const gsgev_t gsg_ev[BC_COUNT][2];   /* THE THROW EVENTS of a grab special: [0] hold + B (throws.extra.b), [1] the run grab (throws.run.special); ix its pool index, 0xFF none */',
+         'extern const gshake_t gthrow_shake;   /* the screen shake at a throw\'s impact (game.json throw_shake) */',
          'extern const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT];   /* a throw\'s damage row and hand-off row as Bruno judged it (game.json roster[].throws.timing; gamedata.h gthrtm_t, fighter.c throw_start; 0xFFFF: the rule) */',
          'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
          'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; CLEAR_WALK_OFF = "off": right until his whole picture has left the screen, the screen edges not holding him; main.c win_tick) */',
@@ -1884,6 +1967,13 @@ def tables(g, build):
             "reads throws.timing): refused, so Bruno's answers are never silently ignored")      # with them is refused)
     c.append('const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(
         '{ ' + ', '.join('{ %s, %s, %s, 0, %d, %d }' % t for t in throw_timing(r, g)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
+    er, sr = event_rows(g, build)                        # THE THROW EVENTS (throw_events; fighter.c)
+    c.append('const gthrev_t gthrow_ev[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(er) + '\n};')
+    c.append('const gsgev_t gsg_ev[BC_COUNT][2] = {\n    ' + ',\n    '.join(sr) + '\n};')
+    sh = g.get('throw_shake') or {'frames': 0, 'px': 0}
+    for k in sh: assert k in ('about', 'frames', 'px'), f'throw_shake: unknown field {k}'
+    assert isinstance(sh.get('frames'), int) and 0 <= sh['frames'] <= 60 and isinstance(sh.get('px'), int) and 0 <= sh['px'] <= 8, 'throw_shake {frames 0-60, px 0-8}'
+    c.append('const gshake_t gthrow_shake = { %d, %d };' % (sh['frames'], sh['px']))
     c.append('const uint8_t grun_grab[BC_COUNT][3] = {\n    ' + ',\n    '.join(
         '{ %d, %d, %d }' % t + f'   /* {n} */' for n, t in run_grab(g, build)) + '\n};')
     sb = []                                              # a grab special's slam bounce (special_grab_timing, slam_bounce)

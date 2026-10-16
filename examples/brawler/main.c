@@ -1402,6 +1402,9 @@ static void blk_check(uint8_t i, fighter_t *f, uint8_t m, int32_t b) {
 #endif
 static void draw(void) {
     uint8_t i;
+    int16_t shk = mode == 1 ? fighter_shake() : 0;           /* a throw's impact shakes the screen (fighter.c THE THROW
+                                                                EVENTS): the camera moved while drawing only */
+    cam_x += shk;
     if (mode == 1) { screen_fx(); stage_draw(); }            /* only the fight has a stage */
     {   uint8_t bc = blk_cols, ob = neo_bank, w;             /* (CPU budget D: one pass, the bank put back once) */
         fighter_t **o = order, **oe = order + nf;
@@ -1484,6 +1487,7 @@ static void draw(void) {
     tfx_draw();
     dbg_draw();
     bt_draw();
+    cam_x -= shk;
 }
 
 static intent_t in[NF];                          /* this frame's intent per fighter (player pad or AI) */

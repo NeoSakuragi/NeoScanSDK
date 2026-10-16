@@ -661,6 +661,14 @@ typedef struct fighter {
      * (GR_*, rolled by the AI), gctr = it has just counter-grabbed (its hold: the AI throws), bred = its red period (an
      * enemy: the low-life blink, pal_overlay) */
     uint8_t  gd_stun, gd_n, gd_max, grsp, gctr, bred;
+    /* THE THROW EVENTS (fighter.c; gamedata.h gthrev_t): tev = the events of the throw it is in (a paired throw's thrower
+     * and victim, a grab special's attacker; 0: none, the old timing; any state but S_THROW / S_THROWN / S_SPECIAL clears
+     * it), evd / evdm the impacts' progress, evf = a paired victim's throw frame (1 = the throw's first), evx / evy = a grab special's victim's spot from
+     * its held frame */
+    const gthrev_t *tev;
+    uint16_t evf;
+    uint8_t  evd, evdm;           /* the next impact (0 to tev->n); a grab special's damage dealt by its impacts so far */
+    int32_t  evx, evy;
 } fighter_t;
 enum { GR_NONE, GR_IMMUNE, GR_COUNTER };   /* fighter_t.grsp: a grab on it holds as usual / does not take (it stands firm) /
                                    is reversed (it grabs the grabber: SoR2's counter, into its own throw) */
@@ -685,6 +693,8 @@ uint8_t fighter_strike_box(const fighter_t *a, int16_t *x0, int16_t *x1, int16_t
                                    frame on screen (world x, screen y) -> 0 none, 1 a normal / special, 2 a fury's (MAX's)
                                    body or one of its objects */
 void fighter_game_reset(void);   /* a new game: the overlay cache and the burn clock from zero (fighter.c; the attract never bleeds into play) */
+int16_t fighter_shake(void);     /* the screen shake this frame (THE THROW EVENTS: a throw's impact, game.json throw_shake): px to add
+                                   to the camera while drawing (main.c draw), 0 none; one call a drawn frame */
 uint8_t fighter_low(const fighter_t *f);   /* low life (gmeter.low): the life bar blinks red; with the gauge full: the MAX */
 enum { RT_ON = 1, RT_FIRST = 2, RT_END = 4 };   /* rt_flags: retimed; a program's first frame (one source frame, not
                                    * counted); a segment ended this frame */
