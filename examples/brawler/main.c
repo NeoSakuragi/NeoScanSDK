@@ -2067,10 +2067,20 @@ static void ladder_start(void);
 static void save_load(void);
 static void save_reset(void);
 static void save_write(void);
+/* a personalized build (make OWNER="..."; tools/brawler/watermark.py header -> owner.h, -include'd): the owner's name
+ * under the banner, on the title and the attract logo (rows 20-21, the empty menu rows: title_menu wipes them, so it
+ * writes them again). The Player's plain build has no OWNER_NAME: none of this is in it. */
+#ifdef OWNER_NAME
+static void owner_lines(void) { FIX_print(OWNER_COL1, 20, OWNER_LINE1, 0); FIX_print(OWNER_COL, 21, OWNER_NAME, 0); }
+#define OWNER_LINES() owner_lines()
+#else
+#define OWNER_LINES() ((void)0)
+#endif
 static void title_menu(void) {
     static const char *const TXT[2] = { "NEW GAME", "OPTIONS" };
     uint8_t i;
     for (i = 0; i < 4; i++) FIX_print(12, 20 + i, "                  ", 0);   /* (4: CONTINUE STAGE and UNLOCKS, until 2026-10-15) */
+    OWNER_LINES();
     title_n = 0; title_item[title_n++] = TI_NEW;   /* no menu at all (Bruno 2026-10-15: "when you play Final Fight there
                                                      is no NEW GAME"): PRESS START -> the select; the console's OPTIONS
                                                      open with SELECT on the title (title_tick) */
@@ -2085,6 +2095,7 @@ static void title_screen(void) {
     banner_show((320 - BANNER_COLS * 16) / 2, 56);
     FIX_print(14, 24, "(C) 2027 NEOSAKURAGI", 0);
     FIX_print(17, 15, "V" GAME_VERSION, 0);                 /* VERSION, from the Makefile */
+    OWNER_LINES();
 }
 static void title_start(void) {
     uint8_t i;

@@ -140,7 +140,8 @@ $(BUILD)/draw.o: draw.s
 	$(CC) -m68000 -c $< -o $@
 
 # --- Link ---
-$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a
+ROM_OBJS = $(BUILD)/fighter.o $(BUILD)/ai.o $(BUILD)/sound.o $(BUILD)/draw.o $(BUILD)/bm_chars_b.o $(BUILD)/bm_spec_b.o $(BUILD)/bm_bank.o $(BUILD)/game_tables.o $(SDK)/lib/libneoscan.a   # (the link's objects after main.o: the OWNER build links the same)
+$(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(ROM_OBJS)
 	$(LD) -T $(SDK)/boot/neoscan.ld $(SLOT_LDFLAGS) -o $@ $^
 	$(if $(SLOT),python3 $(TOOLS)/brawler/lab_pack.py seal $(CURDIR)/$(BUILD) || (rm -f $@; exit 1))   # the slot header + the shell's anchor (pack format)
 
@@ -148,6 +149,39 @@ $(BUILD)/rom.elf: $(SDK)/lib/crt0.o $(BUILD)/main.o $(BUILD)/fighter.o $(BUILD)/
 $(ROM_NAME).zip: $(BUILD)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
 	printf 'c1=$(BUILD)/rom_c1.bin\nc2=$(BUILD)/rom_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(BUILD)/manifest.txt
 	python3 $(TOOLS)/neobuild_from_manifest.py $(BUILD)/manifest.txt --elf $(BUILD)/rom.elf --name $(ROM_NAME) -o $@
+
+# --- a PERSONALIZED build (per-buyer ROMs, memory project_copy_protection): make OWNER="Ismael C." [OWNER_ID=XXXXXXXX]
+# [OWNER_OUT=/data/roms] -> OWNER_OUT/brawler-<VERSION>-<slug>.neo: the Player's game with "THIS COPY BELONGS TO" + the
+# name on the title screen (main.c OWNER_NAME, the attract logo too; nothing else in main.o changes) and the owner's
+# hidden ID written into bytes the game never reads (tools/brawler/watermark.py: P2 bank tails, C ROM tail, fix tiles
+# $800-$FFF, V ROM tail), the ID + build recorded in the private registry /data/brawler-share/watermarks.json;
+# `watermark.py find <rom>` reads it back. The plain build/ and brawler.neo stay as they are: only main.o is compiled
+# again (into build/owner_<slug>/), linked with the same objects and packaged with the same C / S / M / V data.
+OWNER ?=
+OWNER_ID ?=
+OWNER_OUT ?= /data/roms
+ifneq ($(OWNER),)
+ifneq ($(SLOT),)
+$(error OWNER: a personalized build is the Player's game, never a Lab build)
+endif
+export BRAWLER_OWNER = $(OWNER)
+export OWNER_ID
+OWNER_SLUG := $(shell python3 $(TOOLS)/brawler/watermark.py slug)
+OWNER_DIR = $(BUILD)/owner_$(OWNER_SLUG)
+OWNER_NEO = $(OWNER_OUT)/$(ROM_NAME)-$(VERSION)-$(OWNER_SLUG).neo
+all: $(OWNER_NEO)
+$(OWNER_DIR)/owner.h: FORCE
+	python3 $(TOOLS)/brawler/watermark.py header $@
+$(OWNER_DIR)/main.o: $(BUILD)/main.o $(OWNER_DIR)/owner.h
+	$(CC) $(CFLAGS) -include $(OWNER_DIR)/owner.h -c main.c -o $@
+$(OWNER_DIR)/rom.elf: $(SDK)/lib/crt0.o $(OWNER_DIR)/main.o $(ROM_OBJS)
+	$(LD) -T $(SDK)/boot/neoscan.ld -o $@ $^
+$(OWNER_DIR)/$(ROM_NAME).zip: $(OWNER_DIR)/rom.elf $(BUILD)/rom_c1.bin $(BUILD)/font.s1 $(BUILD)/snd/m1.bin
+	printf 'c1=$(BUILD)/rom_c1.bin\nc2=$(BUILD)/rom_c2.bin\ns1=$(BUILD)/font.s1\ndonor_m1=$(BUILD)/snd/m1.bin\ndonor_v1=$(BUILD)/snd/v1.bin\n' > $(OWNER_DIR)/manifest.txt
+	python3 $(TOOLS)/neobuild_from_manifest.py $(OWNER_DIR)/manifest.txt --elf $(OWNER_DIR)/rom.elf --name $(ROM_NAME) -o $@
+$(OWNER_NEO): $(OWNER_DIR)/$(ROM_NAME).zip $(TOOLS)/brawler/watermark.py
+	python3 $(TOOLS)/brawler/watermark.py stamp $(OWNER_DIR)/$(ROM_NAME).neo --elf $(OWNER_DIR)/rom.elf --build $(BUILD) --version $(VERSION) -o $@
+endif
 
 clean:
 	rm -rf $(BUILD) $(ROM_NAME).zip $(ROM_NAME).neo roms/ hash/
