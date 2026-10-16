@@ -1822,8 +1822,9 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
  *               shake (ifl[k] EVF_*; gthrow_shake), each once (the group impact of a thrown body on the others there:
  *               tb_slam); the thrower's C / D follow-ups open from the first (TB_IMPACT);
  *   n == lch    the engine takes the victim over: TE_UP a pop straight up (vy, a little vx away), TE_AWAY sent away from
- *               the thrower (a thrown body until it lands), TE_NONE left where it is (lying on the floor, in the air it
- *               falls); a lone A from the thrower follows up from here (TB_ARMED, THE THROW'S END).
+ *               the thrower (a thrown body until it lands), TE_BACK the same flight the opposite horizontal way (toward
+ *               the thrower's side: notes 20261016-140504-8a04 / 140505-8a05, SS2 Hanzo's throws, whose "away" flew the
+ *               way he faces), TE_NONE left where it is (lying on the floor, in the air it falls); a lone A from the thrower follows up from here (TB_ARMED, THE THROW'S END).
  * The thrower plays its whole animation, as every throw. A MAX chain's throws keep the chain's own rule. ---- */
 static uint8_t ev_share(uint8_t total, uint8_t dealt, const gthrev_t *e, uint8_t k) {   /* impact k's damage */
     uint8_t d;
@@ -1869,10 +1870,10 @@ static void ev_launch(fighter_t *v, fighter_t *by, const gthrev_t *e) {
         v->kfloor = 0; v->kslam = 0; v->kmode = 0; v->kvfr = 0; v->kdelay = 0;
         if (e->dir == TE_NONE) { v->vx = v->vy = 0; play(v, BA_KNOCKDOWN_FLIGHT); }   /* (in the air: it falls) */
         else {
-            v->vy = (int32_t)e->vy << 8; v->vx = dir_mul(away, (int32_t)e->vx << 8);   /* (8.8 -> 16.16) */
+            v->vy = (int32_t)e->vy << 8; v->vx = dir_mul(e->dir == TE_BACK ? -away : away, (int32_t)e->vx << 8);   /* (8.8 -> 16.16) */
             play(v, e->dir == TE_UP ? BA_BLOWBACK_N : BA_BLOWBACK);
         }
-        if (e->dir == TE_AWAY && by && by != v) { v->tb_by = by; v->tb_fl = 0; }   /* sent away: a thrown body until it
+        if ((e->dir == TE_AWAY || e->dir == TE_BACK) && by && by != v) { v->tb_by = by; v->tb_fl = 0; }   /* sent away: a thrown body until it
                                                                     lands (combat "thrown bodies") */
         else { v->tb_by = 0; v->tb_fl = 0x80; }                  /* (its group impact was the impact's) */
     }

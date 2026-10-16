@@ -189,7 +189,8 @@ enum { TK_NONE, TK_IMPACT, TK_SLAM };
 #define EV_IMPS 3
 enum { EVF_SPARK = 1, EVF_SOUND = 2, EVF_SHAKE = 4 };
 typedef struct { uint16_t held, lch; uint8_t dir, n; int16_t vy, vx; uint16_t ifr[EV_IMPS]; uint8_t ish[EV_IMPS], ifl[EV_IMPS]; } gthrev_t;
-enum { TE_UP, TE_AWAY, TE_NONE };
+enum { TE_UP, TE_AWAY, TE_NONE, TE_BACK };   /* TE_BACK: TE_AWAY's flight the opposite horizontal way (vx toward the
+                                                thrower's side; note 20261016-140504-8a04, SS2 Hanzo's throws) */
 typedef struct { uint8_t ix, pad; gthrev_t e; } gsgev_t;
 typedef struct { uint8_t frames, px; } gshake_t;   /* the screen shake (game.json throw_shake): frames, +-px */
 /* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown

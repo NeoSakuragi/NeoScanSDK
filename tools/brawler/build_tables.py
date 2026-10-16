@@ -1008,7 +1008,8 @@ def slam_bounce(e, dflt, w):
     return (round(b['vy'] * 256), round(b.get('vx', 0) * 256))
 
 
-EVENT_DIRS = ('up', 'away', 'none')
+EVENT_DIRS = ('up', 'away', 'back', 'none')         # back: away's flight the opposite horizontal way (TE_BACK)
+LAUNCH_TABLE = {'back': 'away'}                         # the throw_launch entry a dir's speeds come from (back = away's)
 ENGINE_PLAYS_EVENTS = True                              # fighter.c plays throws.events (THE THROW EVENTS)
 EVENT_SIZES = ('small', 'medium', 'big')
 EVENT_KEYS = TIMING_KEYS + ('run',)                     # + the run grab's special (roster[].throws.run.special)
@@ -1049,7 +1050,7 @@ def throw_events(r, g=None):
     (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs (ejecting the victim up, or ejecting it
     sideways) [...] Separate these concerns"; written by tools/brawler/throw_answers.py apply2 from review.html?q=throws2):
     per throw (forward | back | hold_b | run) {impacts: [{frame, damage?, spark?, sound?, shake?}, ...] (or impact: N),
-    held?: N, launch: {frame: N, dir: up | away | none, size?: small | medium | big}, from?, about?}, N = the throw's frame
+    held?: N, launch: {frame: N, dir: up | away | back | none, size?: small | medium | big}, from?, about?}, N = the throw's frame
     (1 = its first frame, every game frame from its start counted, as the review page numbers them). Four concerns, each
     its own field, never mixed:
       the grab motion  the throw's script (paired: bthrow_t rows) / the grab special's victim lists: where both are
@@ -1059,7 +1060,8 @@ def throw_events(r, g=None):
       held     the victim stays in the thrower's grip (the grab motion) until that frame; from there to the launch it
                stays where it is, in its pose (default: the launch frame)
       launch   the release and its trajectory: the engine takes the victim over on that frame and sends it: up (a pop),
-               away (along the throw's way, from the thrower), none (where it is: on the floor it lies, in the air it
+               away (along the throw's way, from the thrower), back (away's flight the opposite horizontal way, toward the
+               thrower's side: notes 20261016-140504-8a04 / 140505-8a05, SS2 Hanzo's throws), none (where it is: on the floor it lies, in the air it
                falls); size picks game.json throw_launch[dir][size] {vy, vx} px a frame (default medium)
     The thrower always plays its whole animation (THE THROW'S END). Replaces throws.timing / slam_bounce /
     special_grab_timing for that throw (one path: a throw has events or timing, never both). hold_b = the paired hold + B
@@ -1121,7 +1123,7 @@ def event_rows(g, build):
     def ev(e):
         if not e: return '{ 0, 0, TE_NONE, 0, 0, 0, %s, %s, %s }' % (z3, z3, z3)
         L = e['launch']; d = L['dir']; I = e['impacts']
-        v = (tl.get(d) or {}).get(L.get('size', 'medium')) or {'vy': 0, 'vx': 0}
+        v = (tl.get(LAUNCH_TABLE.get(d, d)) or {}).get(L.get('size', 'medium')) or {'vy': 0, 'vx': 0}
         pad = lambda xs: '{ ' + ', '.join(map(str, xs + [0] * (EVENT_IMPS - len(xs)))) + ' }'
         fx = [' | '.join(f'EVF_{f.upper()}' for f in IMPACT_FX if x[f]) or '0' for x in I]
         return '{ %d, %d, TE_%s, %d, %d, %d, %s, %s, %s }' % (e.get('held', L['frame']), L['frame'], d.upper(), len(I), round(v['vy'] * 256),

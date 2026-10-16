@@ -1,6 +1,6 @@
 // The Brawler Factory's THROWS tab (?tab=throws[&t=<row id>]; the throw editor, 2026-10-16): every playable fighter's
 // throws (forward, back, hold + B, the run grab) as game.json roster[].throws.events (docs/brawler_data_model.md "THE THROW
-// EVENTS": 1-3 impacts {frame, damage share %}, held, launch {frame, dir up | away | none, size}; frame 1 = the throw's
+// EVENTS": 1-3 impacts {frame, damage share %}, held, launch {frame, dir up | away | back | none, size}; frame 1 = the throw's
 // first frame). One row per fighter x throw with its events; tap = the throw's frames (the throw review's captures:
 // /brawler-lab/review/throws2/, tools/brawler/throw_review.py) with the marks editable: impacts added / moved / removed
 // with their share, held, launch frame + direction + size. Checked as build_tables does (throw_events / event_impacts,
@@ -15,9 +15,9 @@
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else if (v != null && v !== false) e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   const P = document.getElementById('pThrows');
   const FX = ['spark', 'sound', 'shake'];
-  const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['none', 'NONE ·']];
+  const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·']];
   const SIZES = [['small', 'S'], ['medium', 'M'], ['big', 'B']];
-  const ARROW = { up: '↑', away: '→', none: '·' };
+  const ARROW = { up: '↑', away: '→', back: '←', none: '·' };
   document.head.append(h('style', { text: `
 #pThrows { color: #000; }
 #pThrows .tcard { background: #fff; border: 2px solid #000; border-radius: 0; padding: 6px 8px; }
@@ -90,7 +90,7 @@
     if (!L || !L.frame) out.push('a launch frame');
     else {
       if (!inT(L.frame)) out.push(`launch: frame ${L.frame} is outside the throw (frames 1-${top})`);
-      if (!L.dir) out.push('a launch direction (up, away or none)');
+      if (!L.dir) out.push('a launch direction (up, away, back or none)');
       if (I.length && I[I.length - 1].frame > L.frame) out.push(`impact frame ${I[I.length - 1].frame} is after the launch (frame ${L.frame})`);
       if (E.held != null) { if (!inT(E.held)) out.push(`held: frame ${E.held} is outside the throw`); else if (E.held > L.frame) out.push(`held ${E.held} is after the launch (frame ${L.frame})`); }
     }
@@ -244,7 +244,7 @@
     P.replaceChildren(h('div', { class: 'card tcard' },
       h('h2', {}, 'Throws', h('span', { class: 'sp' }), h('span', { text: (pend.length ? pend.length + ' unshipped · ' : '') + 'in game ' + (G().version || '?') })),
       h('div', { class: 'btns' }, bShip, msg),
-      h('p', { class: 'msg', text: 'I impact (share %), H held until, L launch frame ↑ up → away · none, s / m / b size. Frame 1 = the throw\'s first frame.' }),
+      h('p', { class: 'msg', text: 'I impact (share %), H held until, L launch frame ↑ up → away ← back (away\'s flight the other way) · none, s / m / b size. Frame 1 = the throw\'s first frame.' }),
       list));
     if (open) { const el = document.getElementById('tr-' + open); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start' }); }
   }

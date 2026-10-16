@@ -3,8 +3,8 @@
 fighter (game.json unlocks: starters + rungs) edited with no token, as the "throws" draft section (the feedback service
 lab/throws, server.py throws_clean; docs/character_lab.md "The Factory's Throws"). The data model is build_tables
 throw_events' (docs/brawler_data_model.md roster[].throws.events): per throw (forward | back | hold_b | run) 1-3 impacts
-{frame, damage share %}, held, launch {frame, dir up | away | none, size small | medium | big}; frame 1 = the throw's
-first frame.
+{frame, damage share %}, held, launch {frame, dir up | away | back | none, size small | medium | big} (back = away's flight the
+opposite horizontal way, toward the thrower's side); frame 1 = the throw's first frame.
 
     throwcfg.py state GAME                   what the game plays: every throw row, its events (or none), its length
     throwcfg.py merge GAME DRAFT.json [--dry-run]
@@ -82,7 +82,7 @@ def state(game):
                     'label': LABEL[s] + (f' (special {sp})' if sp else ''), 'kind': kind, 'frames': ln,
                     'events': {x: y for x, y in e.items() if x not in ('from', 'about')} if e else None, 'timing': old})
     return {'version': open(os.path.join(game, 'VERSION')).read().strip(), 'rows': out,
-            'launch': {d: g.get('throw_launch', {}).get(d) for d in ('up', 'away')}, 'max_impacts': BT.EVENT_IMPS}
+            'launch': {d: g.get('throw_launch', {}).get(BT.LAUNCH_TABLE.get(d, d)) for d in ('up', 'away', 'back')}, 'max_impacts': BT.EVENT_IMPS}
 
 
 def clean_entry(rid, e):

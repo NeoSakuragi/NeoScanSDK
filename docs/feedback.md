@@ -739,6 +739,38 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
   shown, the replay plays on ("drifting") and resyncs at the next keyframe; a missing chunk (a gap in seq / frames) is
   shown ("missing chunks before N"), the chunks up to the next keyframe are skipped and the replay goes on from it. Console sessions (`uni-aes`)
   need UniBIOS, which the Lab's BIOS file lacks (testers play arcade only).
+- **What a session shows (2026-10-16, `chainlab/sessinfo.js`):** the list has two sections, **LIVE NOW** then the past
+  sessions, one row each: player, build, character (P1, + P2 when two play), screen (title / select / fight / demo /
+  bonus / ending / game over; in a fight the stage and the wave or BOSS), life % and drive chunks per player, length
+  (device on wide screens; on a phone only player, character, start, length). Read from the session's latest keyframe
+  (fetched as for a seek; "(25 s)" = how old it is at the session's newest chunk; an ended session: the latest
+  keyframe showing a fighter, up to 4 back; ended rows cached in the browser). The single view and the wall tiles read
+  the same from the running core every frame. **Where the RAM is:** Geolith's state v3 of the deployed core holds the
+  68000 RAM at byte 153 777 and the VRAM at 67 625 (measured; a state of another size = unknown). **The build's RAM
+  map** = `brawler-lab/ramsyms/<rom sha256>.json` (`chainlab/ramsyms.py`: symbol addresses from `build/rom.elf`,
+  fighter_t offsets, the fighters' HUD names and the stages' names / wave counts from the ROM, the drive chunk size),
+  sent by `tools/brawler/publish_vps.sh` with every build. A build without one (all builds before 0.10.148) shows only
+  what its HUD shows (the fix layer: P1's name, P2's when two play) and the difficulty (BIOS RAM $10FD8A, MVS); the rest
+  "—". The difficulty: MVS = the soft DIP's LEVEL-n (BIOS RAM), AES = the game's `difficulty`.
+- **The live wall** (`chainlab/wall.js` + `wall_worker.js`; `brawler-lab/game.html#wall`, or Sessions → Live wall):
+  every LIVE session in a grid of tiles (Auto = 1 / 2×2 / 3×3 by how many play, or chosen; on a phone one column of at
+  most 2). A new live session joins by itself; one that ended (no chunk for 15 s) leaves 5 s later unless pinned (Pin).
+  One Web Worker per tile, its own wasm core (the page compiles core.wasm once and hands the module over), the picture
+  drawn by the worker into the tile's canvas (OffscreenCanvas): the tiles run in parallel on the machine's cores.
+  Per tile the single view's live path: the latest keyframe, silent fast-forward to the newest chunk, then the chunks
+  as they arrive (each tile polls `session/<id>?after=` every 1 s; 120-frame and 300-frame chunks alike), and a
+  silent catch-up at ×4 when it falls more than 8 s behind. Tile header: LIVE / ENDED, player, build, the drift check
+  ("✓ N same" / "✗ differs at chunk N", gap, drifting), how far behind; then the info line. Tap = hear that tile (only
+  one sounds; Mute), double-tap = the single view at full size ("← Back to the wall"; the tiles pause meanwhile and
+  join live again on the way back). A hidden page pauses the tiles.
+  **Measured 2026-10-16** (headless Chrome on brunux, 12 threads; fake live sessions = recorded pads re-run on 0.10.148
+  in 120- and 300-frame chunks + 0.10.139's own recording, posted in real time to a LOCAL server copy by
+  `chainlab/wall_feed.py`; `wall_synth_node.js` makes them, `wall_measure.js` measures, `wall_proof.js` the behaviour):
+  the whole browser 0.18 cores / 486 MB PSS on the Sessions tab without the wall; 1 tile 0.39 cores / 587 MB; 4 tiles
+  0.94 / 842 MB; 9 tiles 2.0 cores / 1146 MB = **~0.2 core and ~73 MB per tile** (each worker busy 15-19 % of a core,
+  58-60 frames/s, 134 MB wasm heap reserved), every tile's drift check identical, 1-5 s behind the newest chunk.
+  The grid stops at 3×3 (9 tiles: the readable size on a desktop screen); CPU and memory would allow far more on this
+  desktop. A phone: at most 2. Files: `/data/tmp/livewall/` (bin/start.sh = the local stack, shots/, proof/).
 - **Determinism, proven 2026-10-16** (AVD NeoPhoneP40, x86_64, the Brawler app 0.0.41 built against local services: a
   stand-in Oros + server.py, account role tester; build 0.10.139): a 3 min 14 s session (39 chunks: boot, title, select,
   fights, a 10 s pause = a 70-frame chunk, a soft reset at frame 9002) replayed in Node

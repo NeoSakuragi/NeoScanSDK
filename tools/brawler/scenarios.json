@@ -5570,7 +5570,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then back + A (HAGGAR's back throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-back): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-back): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 32. On frame 32 (4 frames earlier than before: 36) Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
   "do_keys": "20:R,2:La,150:-",
   "proof": 64
  },
@@ -5583,7 +5583,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then forward + A (HAGGAR's forward throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-fwd): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 36. On frame 36 Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haggar-fwd): on frame 21 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HAGGAR's grip until frame 32. On frame 32 (4 frames earlier than before: 36) Ryo is sent flying up from him (medium), and HAGGAR plays his throw animation to its end.",
   "do_keys": "20:R,2:Ra,150:-",
   "proof": 64
  },
@@ -5609,7 +5609,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then back + A (HANZO's back throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-back): on frame 30 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 36. On frame 36 Ryo is sent flying away from him (medium), and HANZO plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-back): on frame 30 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 36. On frame 36 Ryo is sent flying BACK (medium): the other way from before, back toward HANZO's side, no longer off the way HANZO faces at the release (the new launch direction 'back'), and HANZO plays his throw animation to its end.",
   "do_keys": "20:R,2:La,150:-",
   "proof": 64
  },
@@ -5622,7 +5622,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then forward + A (HANZO's forward throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-fwd): on frame 31 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 38. On frame 38 Ryo is sent flying away from him (medium), and HANZO plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=hanzo_ss2-fwd): on frame 31 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in HANZO's grip until frame 38. On frame 38 Ryo is sent flying BACK (medium): the other way from before, back toward HANZO's side, no longer off the way HANZO moves after the throw (the new launch direction 'back'), and HANZO plays his throw animation to its end.",
   "do_keys": "20:R,2:Ra,150:-",
   "proof": 66
  },
@@ -5661,7 +5661,7 @@
    "gap": 34
   },
   "do": "Walk into Ryo to grab him, then forward + A (Haohmaru's forward throw). Watch it frame by frame (the replay's slow motion).",
-  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haohmaru-fwd): on frame 27 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Haohmaru's grip until frame 41. On frame 41 Ryo pops straight up (a little away from him) (medium), and Haohmaru plays his throw animation to its end.",
+  "expect": "Counting the throw's first frame as 1 (as on review.html?q=throws2&t=haohmaru-fwd): on frame 27 the impact: the hit spark, the hit sound, a short screen shake and the throw's whole damage, and no spark, sound or damage anywhere else in the throw. Ryo stays in Haohmaru's grip until frame 39. On frame 39 (2 frames earlier than before: 41) Ryo pops straight up (a little away from him) (medium), and Haohmaru plays his throw animation to its end.",
   "do_keys": "20:R,2:Ra,150:-",
   "proof": 69
  },
@@ -5757,5 +5757,15 @@
   "expect": "Hanzo stops at the depth where he stood in your note (feet on the road just below the wall's curb), and no enemy goes further back either. Before, after a fury (or any super flash) the limit vanished for the rest of the stage and everyone could walk up into the wall.",
   "do_keys": "3:d,150:-,60:U,120:-",
   "proof": 60
+ },
+ "20261016-173135-e03d": {
+  "title": "Attract demo: only the fighters you have unlocked",
+  "setup": {
+   "mode": "title"
+  },
+  "do": "First clear the save (the Player's Reset game save, or A+B+C+D held 2 s on the title). Then leave the game alone on the logo without a coin and watch several attract demo fights in a row (each starts about 17 s after the logo). Then unlock rungs (a game clear, or the select screen cheat: down 2 s + up 2 s, which unlocks the whole ladder) and watch the demo fights again.",
+  "expect": "With a cleared save the demo fights only ever show TERRY and ROBERT (the starters, the two on the select screen): never HAGGAR, HANZO, HAOHMARU or KIM. Once rungs are unlocked, the demo shows exactly the fighters the select screen shows (after the cheat: everyone on the ladder).",
+  "do_keys": "",
+  "proof": 3000
  }
 }

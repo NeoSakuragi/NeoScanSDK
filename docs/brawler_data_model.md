@@ -193,7 +193,8 @@ feet's y, `from` / `to` the first's and the last's feet x, evenly spaced between
 `LAD_K` / 16 and centred on its place so none overlaps; `ladder_places`), locked ones as dark silhouettes (two tones,
 every other one lighter); ONLY after a game clear that unlocked a rung (the ending's last screen), the new rung revealed
 (no title entry; all unlocked: no ladder screen). Tables: `lad_fighter`, `lad_rung`, `lad_slot` (its select slot: its palettes), `lad_pos`
-(screen x, feet y, draw order, face). The attract demo plays every starter / ladder fighter whatever the save. Taking
+(screen x, feet y, draw order, face). The attract demo plays only the fighters the select screen shows: the starters + the rungs the save unlocked (the
+cheat's included; note 20261016-173135-e03d: Haggar stays a surprise until his rung; main.c roster_build = char_locked). Taking
 the block out: every selectable fighter from the start (the bosses' own locks back) and the select layout to be placed
 again (the full one before the beta: `benched.select_layout_full`). Proof: `tools/brawler/unlock_proof.py`.
 
@@ -346,7 +347,7 @@ each), scenario.py lint 0.
   piledriver). build_tables `throw_timing` -> `gthrow_tm[fighter][TM_*]` {dmg, hand, kind} -> fighter.c throw_start
   (fighter_t slam / eject / ejk). No entry: the rule as before.
 - `roster[].throws.events` {`forward` | `back` | `hold_b` | `run`: {`impacts`: [{`frame`: N, `damage`?: %, `spark`?,
-  `sound`?, `shake`?: bool}, ...], `held`?: N, `launch`: {`frame`: N, `dir` "up" | "away" | "none", `size`? "small" |
+  `sound`?, `shake`?: bool}, ...], `held`?: N, `launch`: {`frame`: N, `dir` "up" | "away" | "back" | "none", `size`? "small" |
   "medium" | "big"}, `from`}} (THE THROW EVENTS; THE THROW REVIEW round 2, Bruno 2026-10-16 after 0.10.142: "define WHEN
   THE IMPACT occurs (the visual + the sound), and separately WHEN THE ACTUAL LAUNCH occurs [...] Separate these
   concerns"; brawler-lab/review.html?q=throws2, written by `tools/brawler/throw_answers.py apply2` from set "throws2").
@@ -364,9 +365,11 @@ each), scenario.py lint 0.
   3. HELD: the victim follows the grab motion until that frame, then stays where it is, in its pose (a slammed victim
      lying at the spot) until the launch; default: the launch frame;
   4. the RELEASE and its TRAJECTORY, `launch`: on that frame the engine takes the victim over and sends it: `dir` up (a
-     pop: vy up, a little vx away), away (away from the thrower: a thrown body until it lands), none (where it is: on the
-     floor it lies down, in the air it falls); `size` picks game.json `throw_launch[dir][size]` {vy, vx} px a frame
-     (default medium). Every impact is on or before it.
+     pop: vy up, a little vx away), away (away from the thrower: a thrown body until it lands), back (away's flight the
+     opposite horizontal way, toward the thrower's side, also a thrown body; notes 20261016-140504-8a04 / 140505-8a05:
+     SS2 Hanzo's throws, whose victim ends behind him so `away` flew the way he faces / moves; fighter.c TE_BACK), none
+     (where it is: on the floor it lies down, in the air it falls); `size` picks game.json `throw_launch[dir][size]`
+     {vy, vx} px a frame (default medium; back takes `away`'s speeds). Every impact is on or before it.
   The thrower plays its whole animation (THE THROW'S END); its follow-ups: C / D from its first impact frame, a lone A
   from the launch on. `hold_b` = the paired hold + B throw (`throws.b`) or the grab special on hold + B
   (`throws.extra.b`: SS2 Hanzo's Mozu Otoshi), `run` = the run grab's special (`throws.run.special`), their frames from
