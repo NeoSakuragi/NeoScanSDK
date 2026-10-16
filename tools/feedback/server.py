@@ -839,7 +839,39 @@ def roster_clean(req):
     return out, None
 
 
-SECTIONS = {'levels': levels_clean, 'game': game_clean, 'roster': roster_clean}
+THROW_ROW = re.compile(r'^[a-z0-9_]{1,40}-(fwd|back|holdb|run)$')     # (tools/brawler/throwcfg.py ROW_ID)
+
+
+def throws_clean(req):
+    """the Throws draft {throws: {<fighter>-<fwd | back | holdb | run>: {impacts: [{frame, damage?, spark?, sound?, shake?}]
+    (1-3), held?, launch: {frame, dir, size?}}}} (only the throws that differ from the game); the real checks against
+    the game (build_tables throw_events + the throw's length): tools/brawler/throwcfg.py merge"""
+    T = req.get('throws')
+    if not isinstance(T, dict) or len(T) > 96: return None, 'throws: {fighter-throw: events}'
+    fr = lambda x: isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 400
+    out = {}
+    for k, e in T.items():
+        if not isinstance(k, str) or not THROW_ROW.match(k): return None, '%s: not a throw (fighter-fwd | back | holdb | run)' % str(k)[:60]
+        if not isinstance(e, dict) or not set(e) <= {'impacts', 'held', 'launch'}: return None, '%s: {impacts, held?, launch}' % k
+        I = e.get('impacts')
+        if not isinstance(I, list) or not 1 <= len(I) <= 3: return None, '%s: 1-3 impacts' % k
+        imps = []
+        for x in I:
+            if not isinstance(x, dict) or not set(x) <= {'frame', 'damage', 'spark', 'sound', 'shake'} or not fr(x.get('frame')) or \
+               not (isinstance(x.get('damage', 0), int) and not isinstance(x.get('damage', 0), bool) and 0 <= x.get('damage', 0) <= 100) or \
+               not all(isinstance(x.get(f, True), bool) for f in ('spark', 'sound', 'shake')):
+                return None, '%s: an impact {frame 1-400, damage 0-100 %%?, spark? sound? shake?: true | false}' % k
+            imps.append(dict(x))
+        L = e.get('launch')
+        if not isinstance(L, dict) or not set(L) <= {'frame', 'dir', 'size'} or not fr(L.get('frame')) or L.get('dir') not in ('up', 'away', 'none') or \
+           L.get('size', 'medium') not in ('small', 'medium', 'big'):
+            return None, '%s: launch {frame 1-400, dir up | away | none, size? small | medium | big}' % k
+        if 'held' in e and e['held'] is not None and not fr(e['held']): return None, '%s: held: a frame 1-400' % k
+        out[k] = {'impacts': imps, 'launch': dict(L), **({'held': e['held']} if e.get('held') is not None else {})}
+    return {'throws': out}, None
+
+
+SECTIONS = {'levels': levels_clean, 'game': game_clean, 'roster': roster_clean, 'throws': throws_clean}
 
 
 # THE BRAWLER APP (docs/feedback.md "Roles and the two apps"): the regular app (android flavor "brawler") plays the
