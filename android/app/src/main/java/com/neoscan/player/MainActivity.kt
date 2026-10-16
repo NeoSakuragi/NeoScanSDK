@@ -33,7 +33,13 @@ class MainActivity : Activity() {
 
     /** P1 = touch + the first gamepad, P2 = the second gamepad (a third one also drives P2) */
     private fun pushPads() { Native.setPad(0, touchMask or padMask[0]); Native.setPad(1, padMask[1]) }
-    private fun slot(dev: Int) = padSlot.getOrPut(dev) { minOf(padSlot.size, 1) }
+    /** 0.0.45: the lowest free player (a pad plugged again after a disconnect is P1 again, not P2) */
+    private fun slot(dev: Int) = padSlot.getOrPut(dev) { if (0 in padSlot.values) 1 else 0 }
+    /** a controller gone: its player slot freed, its buttons released */
+    private fun unplug(dev: Int) {
+        val p = padSlot.remove(dev) ?: return
+        if (p !in padSlot.values) { padMask[p] = 0; if (game != null) pushPads() }
+    }
     private fun bitFor(code: Int): Int = when (code) {
         KeyEvent.KEYCODE_BUTTON_A -> Pad.A; KeyEvent.KEYCODE_BUTTON_B -> Pad.B             // bottom, right
         KeyEvent.KEYCODE_BUTTON_X -> Pad.C; KeyEvent.KEYCODE_BUTTON_Y -> Pad.D             // left, top
@@ -43,18 +49,45 @@ class MainActivity : Activity() {
         KeyEvent.KEYCODE_DPAD_LEFT -> Pad.LEFT; KeyEvent.KEYCODE_DPAD_RIGHT -> Pad.RIGHT
         else -> 0
     }
+    /** a controller alone (0.0.45): MODE (the guide button, when the phone lets it through) = the profile menu (Brawler
+     *  Dev: Settings, as before); SELECT + START = the profile menu, SELECT + A held = the Feedback mic ([Combos]). Before
+     *  the game, and while the note sheet or the first tip is up, the buttons go to the views: the D-pad moves the
+     *  focus, A presses (Android's DPAD_CENTER fallback), B goes back. */
+    private val combos = Combos()
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
-        if (e.keyCode == KeyEvent.KEYCODE_BUTTON_MODE) { if (e.action == KeyEvent.ACTION_UP) openSettings(); return true }
+        val gpKey = KeyEvent.isGamepadButton(e.keyCode) || e.isFromSource(InputDevice.SOURCE_GAMEPAD)
+        if (gpKey) seen(e.deviceId, e.device, true, false)
+        if (e.keyCode == KeyEvent.KEYCODE_BUTTON_MODE) {
+            if (e.action == KeyEvent.ACTION_UP && game != null) { if (BuildConfig.DEV) openSettings() else openList() }; return true }
         val bit = bitFor(e.keyCode)
-        if (bit == 0 || e.repeatCount > 0 && e.action == KeyEvent.ACTION_DOWN) return bit != 0 || super.dispatchKeyEvent(e)
+        if (bit == 0 || game == null) return super.dispatchKeyEvent(e)
+        if (e.repeatCount > 0 && e.action == KeyEvent.ACTION_DOWN) return true
+        val down = e.action == KeyEvent.ACTION_DOWN
+        when (combos.key(bit, down)) {
+            Combos.Act.PROFILE -> { openList(); return true }
+            Combos.Act.FEEDBACK_ON -> { onFeedback(true); return true }
+            Combos.Act.FEEDBACK_OFF -> { onFeedback(false); if (bit != Pad.COIN) return true }   // SELECT's release still reaches the game
+            Combos.Act.NONE -> return true
+            Combos.Act.PASS -> {}
+        }
         val p = slot(e.deviceId)
-        if (e.action == KeyEvent.ACTION_DOWN) padMask[p] = padMask[p] or bit
-        else if (e.action == KeyEvent.ACTION_UP) padMask[p] = padMask[p] and bit.inv()
+        if (!down) padMask[p] = padMask[p] and bit.inv()               // a release always: no button stuck after the sheet
+        if (noteOpen || tipOpen) { pushPads(); return super.dispatchKeyEvent(e) }
+        if (down) padMask[p] = padMask[p] or bit
         pushPads(); return true
+    }
+    /** a dialog took the keys (the profile menu ...): every controller button is up for the game */
+    override fun onWindowFocusChanged(focus: Boolean) {
+        super.onWindowFocusChanged(focus)
+        if (focus) return
+        padMask.fill(0); if (game != null) pushPads()
+        if (combos.reset() == Combos.Act.FEEDBACK_OFF) onFeedback(false)
     }
     override fun dispatchGenericMotionEvent(e: MotionEvent): Boolean {
         if (e.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK || e.action != MotionEvent.ACTION_MOVE)
             return super.dispatchGenericMotionEvent(e)
+        seen(e.deviceId, e.device, false, true)
+        if (game == null) return super.dispatchGenericMotionEvent(e)
         val x = e.getAxisValue(MotionEvent.AXIS_HAT_X).let { if (it != 0f) it else e.getAxisValue(MotionEvent.AXIS_X) }
         val y = e.getAxisValue(MotionEvent.AXIS_HAT_Y).let { if (it != 0f) it else e.getAxisValue(MotionEvent.AXIS_Y) }
         var d = 0
@@ -65,11 +98,43 @@ class MainActivity : Activity() {
         pushPads(); return true
     }
 
+    /** CONTROLLERS (0.0.45, [Gamepads]): every input device checked at start and on each add / change / removal
+     *  (InputManager), and the input itself; the touch pad hides while one is connected (the touch controls setting:
+     *  Auto), shows again when the last one goes */
+    private val gamepads = Gamepads()
+    private var touchMode = "auto"
+    private val devices = object : android.hardware.input.InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(id: Int) = check(id)
+        override fun onInputDeviceChanged(id: Int) = check(id)
+        override fun onInputDeviceRemoved(id: Int) { unplug(id); if (gamepads.removed(id)) controllersChanged() }
+    }
+    private fun check(id: Int) {
+        val d = InputDevice.getDevice(id) ?: return
+        if (Gamepads.isPad(d.sources, d.isVirtual)) android.util.Log.i("NeoScanPlayer", "controller: ${d.name} (device $id)")
+        if (gamepads.device(id, d.sources, d.isVirtual)) controllersChanged()
+    }
+    private fun seen(id: Int, d: InputDevice?, key: Boolean, stick: Boolean) {
+        if (gamepads.input(id, d?.isVirtual ?: true, key, stick)) { android.util.Log.i("NeoScanPlayer", "controller by its input: ${d?.name} (device $id)"); controllersChanged() }
+    }
+    private fun controllersChanged() {
+        android.util.Log.i("NeoScanPlayer", "controllers: ${gamepads.count}")
+        if (updateControls() && !pad.controls) notice(getString(R.string.pad_controller), 5000)
+    }
+    /** the pad's buttons + stick shown or not: true when that changed */
+    private fun updateControls(): Boolean {
+        if (!::pad.isInitialized) return false
+        val show = Gamepads.visible(touchMode, gamepads.connected)
+        if (pad.controls == show) return false
+        pad.controls = show; return true
+    }
+
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         Session.init(this)                                         // 0.0.41: the play session goes to the developers
         if (!Auth.signedIn(this)) { toLogin(); return }                // Player 0.0.15: the Oros login first
         Auth.onSignedOut = { runOnUiThread { toLogin() } }
+        getSystemService(android.hardware.input.InputManager::class.java).registerInputDeviceListener(devices, null)
+        for (id in InputDevice.getDeviceIds()) check(id)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -229,6 +294,7 @@ class MainActivity : Activity() {
         if (q.isNotEmpty() && !inLab) items.add(getString(R.string.menu_test_queue, q.size) to { testMode?.start(q); Unit })
         if (admin) items.add(getString(if (inLab) R.string.menu_lab_faces else R.string.menu_lab) to { openLab() })   // 0.0.28
         items.add(getString(R.string.menu_reset_save) to { confirmResetSave(); Unit })   // 0.0.38: any .neo game
+        items.add(getString(R.string.menu_touch, getString(touchLabels[Gamepads.MODES.indexOf(touchMode)])) to { chooseTouch(); Unit })   // 0.0.45
         items.add("Language / Langue" to { chooseLanguage(); Unit })   // 0.0.44: the app restarts in it
         items.add(getString(R.string.menu_logout) to {
             android.app.AlertDialog.Builder(this).setTitle(getString(R.string.logout_title, Auth.user(this) ?: ""))
@@ -603,6 +669,19 @@ class MainActivity : Activity() {
             .setOnDismissListener { if (!restarting) emu?.paused = held() }.show()
     }
 
+    /** the profile menu's "Touch controls" (0.0.45, both apps): Auto (hidden while a controller is connected) / Always
+     *  show / Hide; saved to the account's settings (SettingsSync) */
+    private val touchLabels = intArrayOf(R.string.touch_auto, R.string.touch_show, R.string.touch_hide)
+    private fun chooseTouch() {
+        emu?.paused = true
+        val opts = arrayOf(getString(R.string.touch_auto_long), getString(R.string.touch_show), getString(R.string.touch_hide))
+        android.app.AlertDialog.Builder(this).setTitle(getString(R.string.touch_title))
+            .setSingleChoiceItems(opts, Gamepads.MODES.indexOf(touchMode)) { d, i ->
+                d.dismiss(); val m = Gamepads.MODES[i]
+                if (m != touchMode) { val p = Prefs(this); p.touch = m; Prefs.dirty = false; SettingsSync.touched(this); applySettings() } }
+            .setOnDismissListener { emu?.paused = held() }.show()
+    }
+
     @Volatile private var gameNewer = false
     /** the update button (0.0.21): the game pauses and a list says what is newer, "Player 0.0.x" (the in-app install)
      *  and / or "Game 0.0.x" (download + restart on it); nothing newer = "Up to date" with a Check now */
@@ -678,6 +757,7 @@ class MainActivity : Activity() {
             renderer.dark = p.scanlines / 100f
         }
         if (::pad.isInitialized) { pad.opacity = p.opacity / 100f; pad.size = p.size / 100f; pad.vibrate = p.vibrate }   // size: relayout
+        touchMode = p.touch; updateControls()
     }
 
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
@@ -686,7 +766,7 @@ class MainActivity : Activity() {
         PlayerUpdate.resume(this)                                  // back from "Install unknown apps"
         if (admin) localTest()
         TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
-    override fun onDestroy() { polling = false; lab?.stop(); EmuThread.release(this); super.onDestroy() }
+    override fun onDestroy() { getSystemService(android.hardware.input.InputManager::class.java).unregisterInputDeviceListener(devices); polling = false; lab?.stop(); EmuThread.release(this); super.onDestroy() }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {

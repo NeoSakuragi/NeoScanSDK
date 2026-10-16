@@ -53,10 +53,16 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
      *  a newer game build or app waiting (it blinks) or downloading; THE BRAWLER (TESTER) APP (BuildConfig.DEV false):
      *  no gear (no settings page) */
     private fun shown(b: Btn) = when {
+        !controls && (b in btns || b === coin || b === start || b === rst) -> false
         b === gear -> BuildConfig.DEV
         b === upd -> updateReady || updateText != null
         else -> true
     }
+    /** 0.0.45: the buttons + stick (the d-pad, A B C D, COIN, START, reset) drawn and live; false = a controller plays
+     *  (MainActivity: Gamepads.visible) and only the small buttons stay, faded: the profile, the Feedback mic, the
+     *  update (when needed), the gear (Brawler Dev). A touch where the pad was does nothing. */
+    var controls = true
+        set(v) { if (field == v) return; field = v; if (!v && mask != 0) { mask = 0; onMask(0) }; relayout() }
     var size = 1f                                                      // settings: button size factor
         set(v) { field = v; if (width > 0) onSizeChanged(width, height, width, height); invalidate() }
     var vibrate = true
@@ -135,7 +141,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
      *  against them */
     fun rects(): List<Pair<String, android.graphics.Rect>> {
         fun box(cx: Float, cy: Float, r: Float) = android.graphics.Rect((cx - r).toInt(), (cy - r).toInt(), (cx + r).toInt() + 1, (cy + r).toInt() + 1)
-        val l = mutableListOf("dpad" to box(dx, dy, dr * 1.5f))
+        val l = if (controls) mutableListOf("dpad" to box(dx, dy, dr * 1.5f)) else mutableListOf()
         val names = listOf("A", "B", "C", "D", "COIN", "START", "gear", "upd", "rst", "mic", "list")
         (btns + coin + start + gear + upd + rst + mic + fbl).forEachIndexed { i, b -> if (shown(b)) l += names[i] to box(b.x, b.y, b.r * 1.35f) }
         return l
@@ -151,8 +157,14 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
     override fun onDraw(c: Canvas) {
         if (FrameStats.show && FrameStats.line.isNotEmpty()) { c.drawText(FrameStats.line, 16f, 40f, dbg); postInvalidateDelayed(500) }
         if (portrait) { paint.alpha = 255; paint.color = Color.rgb(18, 18, 24); c.drawRect(0f, panelTop, width.toFloat(), height.toFloat(), paint) }
-        if (!portrait) c.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), (opacity * 255).toInt())
-        paint.style = Paint.Style.FILL; paint.color = Color.rgb(45, 45, 55); c.drawCircle(dx, dy, dr, paint)
+        if (!portrait || !controls) c.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(),
+            ((if (controls) opacity else FADED) * 255).toInt())               // a controller plays: the small buttons, faded
+        paint.style = Paint.Style.FILL
+        if (controls) dpad(c)
+        buttons(c)
+    }
+    private fun dpad(c: Canvas) {
+        paint.color = Color.rgb(45, 45, 55); c.drawCircle(dx, dy, dr, paint)
         paint.color = Color.rgb(70, 70, 84)
         val arm = dr * 0.3f
         c.drawRect(dx - arm, dy - dr * 0.9f, dx + arm, dy + dr * 0.9f, paint); c.drawRect(dx - dr * 0.9f, dy - arm, dx + dr * 0.9f, dy + arm, paint)
@@ -161,6 +173,8 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         if (mask and Pad.DOWN != 0) c.drawRect(dx - arm, dy + arm, dx + arm, dy + dr * 0.9f, paint)
         if (mask and Pad.LEFT != 0) c.drawRect(dx - dr * 0.9f, dy - arm, dx - arm, dy + arm, paint)
         if (mask and Pad.RIGHT != 0) c.drawRect(dx + arm, dy - arm, dx + dr * 0.9f, dy + arm, paint)
+    }
+    private fun buttons(c: Canvas) {
         val holding = rstSince != 0L
         for (b in (btns + coin + start + gear + rst).filter { shown(it) }) {
             val on = mask and b.bit != 0 || (b === rst && holding)
@@ -183,7 +197,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             paint.color = if (fblHit) fbl.color else Color.WHITE; paint.textSize = fbl.r * 0.95f; paint.isFakeBoldText = true
             c.drawText(initial, fbl.x, fbl.y + paint.textSize * 0.36f, paint); paint.isFakeBoldText = false
         }
-        if (!portrait) c.restore()
+        if (!portrait || !controls) c.restore()
         micLabel(c)
         if (badge > 0 && !tester) {                                               // the count, always opaque (like the update button)
             val br = fbl.r * 0.42f; val bx = fbl.x + fbl.r * 0.72f; val by = fbl.y - fbl.r * 0.72f; val t = if (badge > 99) "99+" else "$badge"
@@ -241,7 +255,7 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
             if (e.actionMasked == MotionEvent.ACTION_CANCEL) continue
             val x = e.getX(i); val y = e.getY(i)
             val d = hypot(x - dx, y - dy)
-            if (d < dr * 1.5f) {                                        // d-pad: 8 sectors outside a dead zone
+            if (controls && d < dr * 1.5f) {                                        // d-pad: 8 sectors outside a dead zone
                 if (d > dr * 0.22f) {
                     val a = Math.toDegrees(atan2((y - dy).toDouble(), (x - dx).toDouble()))   // 0 = right, 90 = down
                     val s = ((a + 360 + 22.5) % 360 / 45).toInt()
@@ -279,5 +293,5 @@ class PadView(ctx: Context, private val onSettings: () -> Unit, private val onUp
         if (m != mask) { mask = m; onMask(m); invalidate() }
         return true
     }
-    companion object { const val RESET_MS = 700L; const val BLINK_MS = 600L }
+    companion object { const val RESET_MS = 700L; const val BLINK_MS = 600L; const val FADED = 0.5f }
 }

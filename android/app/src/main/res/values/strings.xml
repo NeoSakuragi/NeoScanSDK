@@ -337,4 +337,11 @@
     <string name="voice_play">▶ Voice</string>
     <string name="with_voice">(with your voice)</string>
     <string name="your_note">Your note: %1$s</string>
+    <string name="menu_touch">Touch controls: %1$s</string>
+    <string name="touch_title">Touch controls</string>
+    <string name="touch_auto">Auto</string>
+    <string name="touch_auto_long">Auto (hidden while a controller is connected)</string>
+    <string name="touch_show">Always show</string>
+    <string name="touch_hide">Hide</string>
+    <string name="pad_controller">Controller connected: touch controls hidden.\nSELECT + START = menu, SELECT + A (hold) = Feedback</string>
 </resources>

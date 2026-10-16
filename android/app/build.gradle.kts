@@ -20,8 +20,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 44
-        versionName = "0.0.44"
+        versionCode = 45
+        versionName = "0.0.45"
         // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDevDebug -PplayerCode=22 -PplayerName=0.0.22
         (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
         (project.findProperty("playerName") as String?)?.let { versionName = it }
@@ -89,3 +89,6 @@ android {
     androidResources { noCompress += listOf("zip", "neo") }
     buildFeatures { buildConfig = true }
 }
+
+// the pure logic's unit tests (0.0.45: Gamepads / Combos): ./gradlew testBrawlerReleaseUnitTest
+dependencies { testImplementation("junit:junit:4.13.2") }
