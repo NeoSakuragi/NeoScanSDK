@@ -117,7 +117,7 @@
         if (!NAME_RE.test(n)) throw new Error('its name: 1-10 characters A-Z 0-9 _, a letter first (EN_' + n + ' in the C tables)');
         const hud = e.hud === undefined ? n : e.hud;
         if (hud !== 'fighter' && !HUD_RE.test(hud)) throw new Error('HUD name 1-10 characters (A-Z 0-9 _ . ! -)');
-        for (const k of Object.keys(e)) if (!['name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud'].includes(k)) throw new Error(`unknown field ${k}`);
+        for (const k of Object.keys(e)) if (!['name', 'base', 'pool', 'stand_in', 'life', 'power', 'ai', 'attract_ai', 'ai_over', 'palette', 'moves', 'hud', 'damage_out', 'damage_about'].includes(k)) throw new Error(`unknown field ${k}`);
         let base, pl;
         if (e.base === 'pool') {
           pl = (e.pool || []).map(x => { if (!idx.has(x)) throw new Error(`pool: no fighter ${x}`); return idx.get(x); });
@@ -140,9 +140,11 @@
         if (ti !== null && !tints.includes(ti)) throw new Error(`no tint ${ti}`);
         if (!(st === GE_SPAWN || (Number.isInteger(st) && st >= 0 && st < 255))) throw new Error(`palette set ${st}`);
         const power = e.power === undefined ? 0 : e.power;
+        const dout = 8 - Math.round((e.damage_out === undefined ? 1 : e.damage_out) * 8);   // (build_tables.py: genemy_t flags GE_DOUT)
+        if (!(dout >= 0 && dout <= 7)) throw new Error('damage_out 0.125-1 in eighths');
         if (!(Number.isInteger(e.life) && e.life >= 1 && e.life <= 32767 && Number.isInteger(power) && power >= 0 && power <= 255)) throw new Error('life 1-32767, power 0-255');
         rows.push({ name: n, base, pool: pl, ai: row(n, e.ai, over), attract_ai: row(n, e.attract_ai === undefined ? e.ai : e.attract_ai, over), power,
-                    set: st, tint: ti === null ? GE_SPAWN : tints.indexOf(ti), flags: hud === 'fighter' ? GE_FIGHTER_NAME : 0, life: e.life,
+                    set: st, tint: ti === null ? GE_SPAWN : tints.indexOf(ti), flags: (hud === 'fighter' ? GE_FIGHTER_NAME : 0) | dout << 1, life: e.life,
                     hud: hud === 'fighter' ? null : hud.replace(/_/g, ' '), pal: cu, moves: enemyTree(e, X, chain, idx) });
       } catch (err) { errors.push(`${E}: ${err.message}`); }
     }
