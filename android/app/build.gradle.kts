@@ -20,8 +20,8 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 36
-        versionCode = 41
-        versionName = "0.0.41"
+        versionCode = 42
+        versionName = "0.0.42"
         // a test build of the self-update (PlayerUpdate.kt): ./gradlew assembleDevDebug -PplayerCode=22 -PplayerName=0.0.22
         (project.findProperty("playerCode") as String?)?.let { versionCode = it.toInt() }
         (project.findProperty("playerName") as String?)?.let { versionName = it }
@@ -33,16 +33,20 @@ android {
     // TWO APPS, ONE CODE BASE (docs/feedback.md "Roles and the two apps"), both behind an Oros login with a brawler role:
     //  - dev ("Brawler Dev", com.neoscan.player, the house Player as before): brawler admins only (Oros tag
     //    brawler_admin). The Character lab / Fighter Lab, the Assembly WebView + JS bridge, the live configs and pack
-    //    swaps pushed into the running game, the APK self-install (REQUEST_INSTALL_PACKAGES): src/dev, compiled into this
-    //    flavor only. May be flagged by antivirus apps (Bruno accepts that). Builds from /brawler/download/ (admins).
-    //    Signed with the build machine's debug key, as every house Player so far.
+    //    swaps pushed into the running game: src/dev, compiled into this flavor only. Builds from /brawler/download/
+    //    (admins), its app updates from player.json there. Signed with the build machine's debug key, as every house
+    //    Player so far.
     //  - brawler ("Brawler", com.neoscan.brawler, for testers; an admin may sign in too and gets the same app): the game,
     //    the pad, the Feedback button, the builds up to the account's allowed one (share/latest.json). src/brawler: inert
-    //    stubs of the lab and the Assembly, and a PlayerUpdate that only shows "a new version of the app is available"
-    //    and opens the download link in the browser (Android's installer does the rest); its manifest drops the install
-    //    permissions, the notification permission and the update receivers. Release: not debuggable, no minify /
-    //    obfuscation / packer, signed v1 + v2 + v3 with its own key /data/brawler-share/shared-release.jks
-    //    (SHARE_SIGNING = its properties file; never the Oros key).
+    //    stubs of the lab and the Assembly, the icon, a manifest without the settings page. Its app updates: GET me's
+    //    app {version, code, url (24 h ticket), size, sha256}. Release: not debuggable, no minify / obfuscation /
+    //    packer, signed v1 + v2 + v3 with its own key /data/brawler-share/shared-release.jks (SHARE_SIGNING = its
+    //    properties file; never the Oros key), so an update installs over the installed app only with that key.
+    //  BOTH (0.0.42, one path: src/main PlayerUpdate.kt): the app downloads its own update (progress, size + sha256
+    //  checked) and installs it through a PackageInstaller session (REQUEST_INSTALL_PACKAGES, the Status / Restart
+    //  receivers, POST_NOTIFICATIONS); the first time the user turns on "Install unknown apps" for it (Android's screen,
+    //  opened with one line). May be flagged by antivirus apps (Bruno accepts that). The Brawler app keeps the ticket
+    //  link as a fallback in the browser.
     //    ./gradlew assembleBrawlerRelease -> app/build/outputs/apk/brawler/release/app-brawler-release.apk
     val shareSigning = file(System.getenv("SHARE_SIGNING") ?: "/data/brawler-share/signing.properties")
     signingConfigs {

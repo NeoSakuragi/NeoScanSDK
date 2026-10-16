@@ -30,9 +30,9 @@ ROLES (docs/feedback.md "Roles and the two apps"): the Oros account's tags, from
 = everything; brawler_tester = upload / transcribe / reply / his own /mine (no decisions, no test states), me, his allowed
 build (share/); anything else = 403 on every player call. Admin only: /dlauth (the dev builds), /test, /review, the Lab
 (lab/ and api/lab/), the signed-in API (api/, also behind nginx's brawler-admin gate).
-  GET  /me           {user, role, build, app {version, code, url}} (the Brawler app: its role + the app update link)
+  GET  /me           {user, role, build, app {version, code, url, size, sha256}} (the Brawler app: its role + its update)
   GET  /share/latest.json, /share/build/brawler-<V>.neo   the account's allowed build (the Brawler app's RomFetch)
-  GET  /app/brawler-<name>-<code>.apk?t=<ticket>          the Brawler APK for the phone's browser (the ticket from /me)
+  GET  /app/brawler-<name>-<code>.apk?t=<ticket>          the Brawler APK (the app's self-update / browser; ticket from /me)
 Signed in (nginx /brawler-lab/feedback-api/ behind the Oros login, the Brawler Lab's Feedback tab; or over ssh on
 localhost: tools/feedback/fb.py, pull.py):
   GET  /api/list[?status=&category=]        the tracker rows, newest first
@@ -848,7 +848,8 @@ SECTIONS = {'levels': levels_clean, 'game': game_clean, 'roster': roster_clean}
 # /data/brawler/builds/brawler-<V>.neo, which publish_vps.sh prunes to the last 3). The accounts = the Oros users tagged
 # brawler_admin / brawler_tester, read from the Oros DB (read only). Its own APK: SHARE/app/brawler-<name>-<code>.apk
 # (tools/brawler/publish_app.sh), offered by GET me as a link with a ticket (HMAC with SHARE/secret, 24 h, the user in
-# it) that the phone's browser opens: GET app/<file>?t=<ticket>; Android's own installer does the rest.
+# it): GET app/<file>?t=<ticket>. Since app 0.0.42 the app downloads it itself (size + sha256 from me) and installs it
+# (PlayerUpdate.kt); the same link is its fallback in the phone's browser.
 SHARE = os.path.join(DATA, 'share')
 SHARE_SECRET = os.path.join(SHARE, 'secret')
 SHARE_BUILDS = os.path.join(SHARE, 'builds')
@@ -1444,13 +1445,15 @@ class H(http.server.BaseHTTPRequestHandler):
 
     # ---- the Brawler app (nginx /brawler/feedback/me, share/, app/; X-Public; "THE BRAWLER APP" above) -----------------
     def me(self):
-        """GET me: {user, role admin | tester, build (the VERSION the Brawler app plays), app {version, code, url} (the
-        newest Brawler APK, its link with a 24 h ticket)}; 401 no sign-in, 403 an Oros account without a brawler role"""
+        """GET me: {user, role admin | tester, build (the VERSION the Brawler app plays), app {version, code, url, size,
+        sha256} (the newest Brawler APK, its link with a 24 h ticket; the app downloads and checks it, PlayerUpdate.kt)}; 401 no sign-in, 403 an Oros account without a brawler role"""
         user, role = account_role(self.headers)
         if not user: return self.reply(401, {'error': 'sign in with your Oros account'})
         if role == 'none': return self.reply(403, {'error': 'this account has no access to the brawler: ask Bruno', 'user': user, 'role': 'none'})
         a = app_latest()
-        app = {'version': a[0], 'code': a[1], 'url': 'app/%s?t=%s' % (a[2], app_ticket(user, a[2]))} if a else None
+        f = os.path.join(SHARE_APP, a[2]) if a else None
+        app = {'version': a[0], 'code': a[1], 'url': 'app/%s?t=%s' % (a[2], app_ticket(user, a[2])),
+               'size': os.path.getsize(f), 'sha256': sha_of(f)} if a else None
         self.reply(200, {'user': user, 'role': role, 'build': share_build_for(user, role)[0], 'app': app})
 
     def app_get(self, f, q):

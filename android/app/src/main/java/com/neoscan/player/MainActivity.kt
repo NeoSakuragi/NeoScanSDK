@@ -86,7 +86,7 @@ class MainActivity : Activity() {
             // the brawler role, asked again at every start (Auth.recheck): a role this app refuses = the sign-in screen
             // with the reason (Brawler Dev: admins only; both: no role = no access); offline = the last known role
             if (Auth.recheck(this) != Auth.Result.OK) { runOnUiThread { toLogin() }; return@Thread }
-            if (!BuildConfig.DEV) PlayerUpdate.check(this)            // the Brawler app: is a newer APK offered (GET me)
+            PlayerUpdate.offer(this)                                   // is a newer app offered (no download here: the poll thread's)
             val ok = if (Prefs(this).autoUpdate) RomFetch.update(this, rom) { t -> runOnUiThread { msg.text = t } } else rom.exists()
             RomFetch.loaded(this)                                      // the ROM's version (hashes a new file): off the UI thread
             if (ok) SaveSync.pull(this, save, rom)                     // 0.0.39: the account's cloud save, before the core loads
@@ -95,7 +95,7 @@ class MainActivity : Activity() {
             runOnUiThread {
                 // replaced meanwhile (after a reinstall the update receiver and the launcher both start one: TODO #183)
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                val pu = PlayerUpdate.ready(this)
+                val pu = PlayerUpdate.ready(this) ?: PlayerUpdate.available()
                 if (ok && pu != null) updateBanner(launch, pu) { startGame(sys, save, rom) }
                 else if (ok) startGame(sys, save, rom)
                 else msg.text = if (!BuildConfig.DEV) "No game yet.\n\nCheck the connection, or ask Bruno for a build." else
@@ -104,15 +104,22 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    /** the launch screen (the title, before any fight): a newer player already downloaded = "Player 0.0.x is ready",
-     *  Update (the in-app install) or Play */
+    /** the launch screen (the title, before any fight): a newer app downloaded ("App 0.0.x is ready") or offered ("A new
+     *  version of the app is available"): Update (the in-app download with its progress here, then the install) or Play */
     private fun updateBanner(launch: android.widget.LinearLayout, pu: PlayerUpdate.Info, play: () -> Unit) {
         val dp = resources.displayMetrics.density
         val box = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER
             val m = (16 * dp).toInt(); setPadding(m, m, m, m)
             background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.BLACK); setStroke((3 * dp).toInt(), android.graphics.Color.WHITE) } }
-        box.addView(TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; setTextColor(android.graphics.Color.WHITE)
-            text = PlayerUpdate.readyText(pu) })
+        val line = TextView(this).apply { textSize = 18f; gravity = Gravity.CENTER; setTextColor(android.graphics.Color.WHITE) }
+        box.addView(line)
+        object : Runnable { override fun run() {                     // the line follows the download while the banner shows
+            if (!line.isAttachedToWindow && line.text.isNotEmpty()) return
+            val r = PlayerUpdate.ready(this@MainActivity)
+            line.text = when { r != null -> PlayerUpdate.readyText(r)
+                PlayerUpdate.progress >= 0 -> "Downloading ${PlayerUpdate.available()?.version ?: pu.version}: ${PlayerUpdate.progress} %"
+                else -> PlayerUpdate.offerText(PlayerUpdate.available() ?: pu) }
+            line.postDelayed(this, 300) } }.run()
         val row = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER }
         row.addView(android.widget.Button(this).apply { text = PlayerUpdate.ACTION; setOnClickListener { PlayerUpdate.install(this@MainActivity) } })
         row.addView(android.widget.Button(this).apply { text = "Play"; setOnClickListener { play() } })
@@ -560,15 +567,15 @@ class MainActivity : Activity() {
         val items = ArrayList<Pair<String, () -> Unit>>()
         val pu = PlayerUpdate.ready(this); val pa = PlayerUpdate.available()
         if (pu != null) items += PlayerUpdate.readyText(pu) + ": " + PlayerUpdate.ACTION to { PlayerUpdate.install(this) }
-        else if (pa != null) items += "Player ${pa.version}: downloading ${maxOf(0, PlayerUpdate.progress)} %" to {
-            Thread { PlayerUpdate.check(this) }.start(); toast("Downloading Player ${pa.version}") }
+        else if (pa != null) items += (if (PlayerUpdate.progress >= 0) "App ${pa.version}: downloading ${PlayerUpdate.progress} %"
+            else PlayerUpdate.offerText(pa) + ": " + PlayerUpdate.ACTION) to { PlayerUpdate.install(this) }
         if (gameNewer) items += "Game ${RomFetch.latestVersion ?: "?"}: download and restart" to { downloadLatest() }
         val b = android.app.AlertDialog.Builder(this).setOnDismissListener { emu?.paused = held() }
         if (items.isEmpty()) b.setTitle("Up to date").setMessage("Player ${BuildConfig.VERSION_NAME}, game ${RomFetch.installed(this)}")
             .setPositiveButton("Check now") { _, _ -> Thread {
                 val r = PlayerUpdate.check(this); val g = RomFetch.latest(this); gameNewer = RomFetch.newer(this, g)
                 runOnUiThread { pad.updateReady = gameNewer || PlayerUpdate.available() != null
-                    toast(if (r != null) "Player ${r.version} is ready" else if (gameNewer) "A new game build is ready" else "Up to date") } }.start() }
+                    toast(if (r != null) PlayerUpdate.readyText(r) else if (gameNewer) "A new game build is ready" else "Up to date") } }.start() }
             .setNegativeButton("Back", null)
         else b.setTitle("Update").setItems(items.map { it.first }.toTypedArray()) { _, i -> items[i].second() }.setNegativeButton("Back", null)
         b.show()
@@ -630,6 +637,7 @@ class MainActivity : Activity() {
     /** the game pauses (picture, sound, emulation) whenever the activity is not in front: settings, home, screen off */
     override fun onPause() { super.onPause(); emu?.paused = true; lab?.paused = true; if (::gl.isInitialized) gl.onPause() }
     override fun onResume() { super.onResume(); applySettings(); if (game != null && !isFinishing && !restarting) claimEmu(); emu?.paused = held() || testMode?.active == true || lab?.facesShown == true; lab?.paused = false; if (::gl.isInitialized) gl.onResume(); refreshBadge()
+        PlayerUpdate.resume(this)                                  // back from "Install unknown apps"
         if (admin) localTest()
         TestQueue.pending?.let { q -> TestQueue.pending = null; testMode?.let { if (it.active) it.end(); it.start(q) } } }
     override fun onDestroy() { polling = false; lab?.stop(); EmuThread.release(this); super.onDestroy() }

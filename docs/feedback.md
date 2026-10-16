@@ -147,7 +147,7 @@ pad and the Feedback button.
   checked). Nothing pops up during play.
 - **Shown:** the update button on the game screen (portrait: top row; landscape: left of START) pulses (a white ring
   on / off every 600 ms, not colour-only) whenever a newer player or game build is on the server; still and grey = up to
-  date. A tap pauses the game and lists "Player 0.0.x is ready: Update" and / or "Game 0.0.x: download and restart"
+  date. A tap pauses the game and lists "App 0.0.x is ready: Update" (0.0.42: was "Player ...") and / or "Game 0.0.x: download and restart"
   ("Up to date" + Check now otherwise). The launch screen shows "Player 0.0.x is ready" (Update / Play) when one is
   already downloaded; Settings > Updates has the same Update button.
 - **Install:** a PackageInstaller session. The first time Android needs "Install unknown apps" for the player (a dialog
@@ -514,10 +514,10 @@ from stdin, so it never shows in ps or a shell history).
 | Package | `com.neoscan.player` (the house Player: updates in place) | `com.neoscan.brawler` (installs beside it) |
 | Who signs in | brawler admins only (a tester: "Brawler Dev is for brawler admins") | admins and testers; an admin gets the same app as a tester |
 | What it has | everything as before: Character lab, Assembly WebView + JS bridge, live configs and pack swaps pushed into the game, test queue, decisions, notes list | the game, the pad, the Feedback button (mic) |
-| Code only in it | `src/dev/`: `CharacterLab.kt`, `Assembly.kt`, `PlayerUpdate.kt` (PackageInstaller self-install) | `src/brawler/`: inert stubs of the first two, and a `PlayerUpdate` without any install code |
-| Permissions | + REQUEST_INSTALL_PACKAGES, UPDATE_PACKAGES_WITHOUT_USER_ACTION, POST_NOTIFICATIONS | INTERNET, RECORD_AUDIO, VIBRATE only; no cleartext HTTP |
+| Code only in it | `src/dev/`: `CharacterLab.kt`, `Assembly.kt` | `src/brawler/`: inert stubs of both, the icon, a manifest without the settings page |
+| Permissions | INTERNET, RECORD_AUDIO, VIBRATE + the self-update's REQUEST_INSTALL_PACKAGES, UPDATE_PACKAGES_WITHOUT_USER_ACTION, POST_NOTIFICATIONS | the same (since 0.0.42); no cleartext HTTP |
 | Builds | `/brawler/download/` (the newest) | `share/latest.json`: the newest build up to the account's allowed one |
-| App updates | downloads and installs itself (may be flagged by antivirus apps: accepted) | "A new version of the app is available": Download opens the link in the browser, Android's own installer does the rest |
+| App updates | the same code (`src/main` `PlayerUpdate.kt`, 0.0.42): downloads and installs itself; may be flagged by antivirus apps (accepted). Offer: `player.json` | offer: `GET me` app {version, code, url, size, sha256}; the ticket link is also the browser fallback |
 | Signing | the build machine's debug key, as before | `/data/brawler-share/shared-release.jks` (`signing.properties`), never the Oros key |
 | Build | `./gradlew assembleDevDebug` | `./gradlew assembleBrawlerRelease` |
 | Publish | `tools/brawler/publish_vps.sh --apk-only <app-dev-debug.apk> <version>` | `tools/brawler/publish_app.sh <app-brawler-release.apk>` |
@@ -531,7 +531,22 @@ from stdin, so it never shows in ps or a shell history).
   `/data/brawler/feedback/share/builds/` so publish_vps.sh's keep-3 pruning never removes them.
 - **The Brawler APK:** `/data/brawler/feedback/share/app/brawler-<name>-<code>.apk` (last 3 kept). `GET me` offers the
   newest as `app/<file>?t=<ticket>`: an HMAC ticket (`share/secret`, 24 h, the user in it), because the phone's browser
-  has no Oros token. Without a valid ticket: 404. The APK carries the BIOS, so it is never public.
+  has no Oros token. Without a valid ticket: 404. The APK carries the BIOS, so it is never public. `me` also gives its
+  `size` and `sha256` (0.0.42), which the app checks after its own download.
+- **The app's self-update (both apps, 0.0.42; one path: `src/main` `PlayerUpdate.kt`, as Brawler Dev since 0.0.21, see
+  "Self-update" below).** The launch screen shows "A new version of the app is available (0.0.x)" (Update / Play) as
+  soon as `me` offers a higher versionCode, or "App 0.0.x is ready" once the background download (launch + every hour)
+  finished. Update = the download in the app if it has not finished (progress on the banner; size + sha256 checked), then
+  Android's installer (PackageInstaller session). The first time: one line ("Android asks once: turn on 'Allow from
+  this source' for Brawler, then come back; the update goes on by itself") and Android's "Install unknown apps" screen
+  for the app; back with it on, the install continues by itself. Android 12+ may install without a prompt; 10 / 11
+  show Android's confirmation. If anything fails (download, Android's refusal), a dialog says why and offers **Open in
+  the browser** (the ticket link: the old path) and Try again. Same release key as the installed app, so the update
+  installs over it; app data (sign-in, save, notes, the game build) stays. Testers on 0.0.41 or older still get 0.0.42
+  through the old browser link; from 0.0.42 on it is in-app. Proof 2026-10-16 (AVD NeoPhoneP40, Android 10, local
+  stand-in Oros + server.py): `/data/brawler-share/proof_0042/` (0.0.41 -> offer -> Update -> download checked ->
+  "Allow updates" -> Install unknown apps -> back -> Android's install prompt -> 0.0.42 installed, still signed in;
+  a broken 0.0.43 -> INSTALL_PARSE_FAILED_NOT_APK -> the fallback dialog -> the browser).
 - **Notes:** stored with user = the Oros account; `fb.py list` shows `Wael [tester]`, `fb.py list --user Wael` filters.
   `FB_LOCAL=1 FB_BASE=http://127.0.0.1:<port>/api/ fb.py ...` talks to a local service (proofs).
 - **Proof builds:** `-PorosBase=http://10.0.2.2:<port>/ -PfeedbackBase=http://10.0.2.2:<port>/ [-PromBase=...]`

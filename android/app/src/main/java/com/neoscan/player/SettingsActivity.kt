@@ -68,7 +68,7 @@ class SettingsActivity : Activity() {
              "START = start, HOME / MODE = these settings.")
 
         section("Updates")
-        run {                                                            // Brawler Dev: the self-install; the Brawler app: a download link
+        run {                                                            // the self-install (PlayerUpdate)
         val pl = TextView(this).apply { textSize = 15f; setPadding(0, (10 * dp).toInt(), 0, 0) }
         col.addView(pl)
         val upd = Button(this).apply { setOnClickListener { PlayerUpdate.install(this@SettingsActivity) } }
@@ -76,7 +76,7 @@ class SettingsActivity : Activity() {
         val show = {
             val r = PlayerUpdate.ready(this); val a = PlayerUpdate.available()
             pl.text = "Player ${BuildConfig.VERSION_NAME}" + (if (PlayerUpdate.channel(this) != "live") "  (channel ${PlayerUpdate.channel(this)})" else "") + ": " +
-                when { r != null -> PlayerUpdate.readyText(r); a != null -> "Player ${a.version} " + (if (PlayerUpdate.progress >= 0) "downloading ${PlayerUpdate.progress} %" else "not downloaded yet")
+                when { r != null -> PlayerUpdate.readyText(r); a != null -> "App ${a.version} " + (if (PlayerUpdate.progress >= 0) "downloading ${PlayerUpdate.progress} %" else "not downloaded yet")
                        PlayerUpdate.error.isNotEmpty() -> PlayerUpdate.error; PlayerUpdate.latest != null -> "up to date"; else -> "not checked yet" }
             upd.text = if (r != null) "${PlayerUpdate.ACTION} ${r.version}" else ""; upd.visibility = if (r != null) View.VISIBLE else View.GONE
         }
@@ -85,9 +85,7 @@ class SettingsActivity : Activity() {
             b.isEnabled = false; pl.text = "Checking..."
             Thread { PlayerUpdate.check(this@SettingsActivity); runOnUiThread { b.isEnabled = true; show() } }.start() } },
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = (8 * dp).toInt() })
-        note(if (!BuildConfig.DEV) "The app checks at launch and every hour. A new version opens in your browser as a download; " +
-             "Android installs it over this one and keeps the login, settings, notes and the game." else
-             "The player checks at launch and every hour and downloads a new version in the background; the launch " +
+        note("The player checks at launch and every hour and downloads a new version in the background; the launch " +
              "screen then offers it" + (if (Auth.admin(this)) " and the update button on the game screen blinks" else "") +
              ". The update keeps the login, settings, notes and the game.")
         }
@@ -139,6 +137,8 @@ class SettingsActivity : Activity() {
         col.addView(Switch(this).apply { text = title; textSize = 16f; isChecked = cur; gravity = Gravity.CENTER_VERTICAL
             setPadding(0, (12 * dp).toInt(), 0, 0); setOnCheckedChangeListener { _, v -> set(v) } }, ViewGroup.LayoutParams(-1, -2))
     }
+
+    override fun onResume() { super.onResume(); PlayerUpdate.resume(this) }
 
     /** the notification OK asked before the self-update (PlayerUpdate): granted or not, the install goes on */
     override fun onRequestPermissionsResult(code: Int, perms: Array<out String>, res: IntArray) {

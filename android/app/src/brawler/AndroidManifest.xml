@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- THE BRAWLER APP (flavor "brawler", docs/feedback.md "Roles and the two apps"): merged over src/main's manifest. No
-     self-install (no install permissions, no PlayerUpdate receivers: a new version opens in the browser as a download),
-     HTTPS only (cleartext only in a -PorosBase / -PfeedbackBase=http://... proof build). What stays: INTERNET (sign-in,
-     the build, the notes), RECORD_AUDIO (the Feedback button's voice note, asked at its first use), VIBRATE (the pad). -->
+<!-- THE BRAWLER APP (flavor "brawler", docs/feedback.md "Roles and the two apps"): merged over src/main's manifest. Since
+     0.0.42 it updates itself as Brawler Dev does (src/main PlayerUpdate.kt: REQUEST_INSTALL_PACKAGES, the PackageInstaller
+     session's Status receiver, Restart on MY_PACKAGE_REPLACED, POST_NOTIFICATIONS for "installed: tap to play"; all from
+     src/main's manifest). HTTPS only (cleartext only in a -PorosBase / -PfeedbackBase=http://... proof build). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" tools:node="remove" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
     <!-- 0.0.37: the NEO·GEO icon (res/mipmap-*, tools/brawler/make_tester_icon.py); no settings page (Prefs: fixed) -->
     <application android:usesCleartextTraffic="${cleartext}" android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round" tools:replace="android:usesCleartextTraffic">
@@ -14,7 +11,5 @@
         <!-- landscape only: the game (Prefs fixed) and My tickets, so the phone never turns between them -->
         <activity android:name=".MainActivity" android:screenOrientation="sensorLandscape" tools:replace="android:screenOrientation" />
         <activity android:name=".FeedbackListActivity" android:screenOrientation="sensorLandscape" />
-        <receiver android:name=".PlayerUpdate$Status" tools:node="remove" />
-        <receiver android:name=".PlayerUpdate$Restart" tools:node="remove" />
     </application>
 </manifest>
