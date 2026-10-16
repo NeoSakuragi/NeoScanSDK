@@ -66,6 +66,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        Session.init(this)                                         // 0.0.41: the play session goes to the developers
         if (!Auth.signedIn(this)) { toLogin(); return }                // Player 0.0.15: the Oros login first
         Auth.onSignedOut = { runOnUiThread { toLogin() } }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

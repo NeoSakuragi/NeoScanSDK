@@ -37,6 +37,10 @@ object Native {
     /** a test scenario's save state in place of the game (0.0.22); emu thread, between frames; 0 = loaded, 1 unreadable,
      *  2 another core build (size), 3 refused */
     @JvmStatic external fun loadState(path: String): Int
+    /** session recording (Player 0.0.41, [Session]): emu thread, before each frame; mode 0 = off, 1 = the chunk once
+     *  ~5 s old, 2 = the chunk so far (a pause) -> the closed chunk (u64 start, u32 frames, u32 state size, the pads, the
+     *  state at its start; little endian) or null */
+    @JvmStatic external fun sessionChunk(mode: Int): ByteArray?
     /** the last frame's picture as opaque ARGB, rows of [width]; returns the pixels written */
     @JvmStatic external fun screenshot(out: IntArray): Int
     /** the BIOS the core boots: mvs / aes / uni */

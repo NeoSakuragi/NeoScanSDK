@@ -39,7 +39,7 @@
   if (col) col.append(rbox, lbox);
 
   // ---- replay -------------------------------------------------------------------------------------------------------
-  const cores = {}, roms = {};                          // rom sha + memory card -> the wasm core with that build loaded; rom sha -> the build
+  const cores = window.labCores = window.labCores || {}, roms = window.labRoms = window.labRoms || {};   // (shared with sessions.js)                          // rom sha + memory card -> the wasm core with that build loaded; rom sha -> the build
   let bios = null, R = null, raf = 0, playing = false, speed = 1, acc = 0, last = 0, ac = null, at = 0, startState = null, img = null;
   const get = async (url, what) => { const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw new Error(what + ': HTTP ' + r.status); return new Uint8Array(await r.arrayBuffer()); };
   function stopLoop() { playing = false; cancelAnimationFrame(raf); }

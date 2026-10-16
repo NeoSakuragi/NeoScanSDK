@@ -110,6 +110,9 @@ size, saved_at} + r<rev>.json (each revision in full; the last SAVE_KEEP kept as
                         updated, deleted} (the Player: newest wins; the older one is sent with ?backup=1: stored as a
                         backup revision, the current one unchanged) -> {rev, updated, current}; files <= MAX_SAVE bytes
   DELETE saves/<game>   the current save goes (its revision file stays as a backup), state deleted = now -> {rev 0, deleted}
+Session recording (Player 0.0.41, docs/feedback.md "Session recording"): POST sessions/chunk = a ~5 s chunk of the
+play session (state + pads), files on the storage box SESSIONS/<session>/, the index in the sessions / session_chunks
+tables; the Lab reads them through /api/sessions, /api/session/<id>[/inputs | /state/<seq>] (sessions_api).
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
@@ -219,7 +222,15 @@ def db_init():
             answer_origin TEXT DEFAULT '');
         CREATE TABLE IF NOT EXISTS review_history (
             review_id INTEGER, at TEXT, by TEXT, kind TEXT, text TEXT DEFAULT '', audio TEXT DEFAULT '');
-        CREATE INDEX IF NOT EXISTS review_history_id ON review_history(review_id);''')
+        CREATE INDEX IF NOT EXISTS review_history_id ON review_history(review_id);
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY, user TEXT, install_id TEXT, started TEXT, first_at REAL, last_at REAL, chunks INTEGER DEFAULT 0,
+            frames INTEGER DEFAULT 0, bytes INTEGER DEFAULT 0, rom_sha TEXT, rom_version TEXT, rom_build TEXT, system TEXT,
+            memcard TEXT, app TEXT, app_version TEXT, device TEXT, android TEXT, ip TEXT, paused INTEGER DEFAULT 0);
+        CREATE INDEX IF NOT EXISTS sessions_last ON sessions(last_at);
+        CREATE TABLE IF NOT EXISTS session_chunks (
+            session TEXT, seq INTEGER, start_frame INTEGER, frames INTEGER, state INTEGER, state_size INTEGER,
+            state_sha TEXT, bytes INTEGER, at REAL, paused INTEGER, inputs BLOB, PRIMARY KEY (session, seq));''')
         cols = {r[1] for r in c.execute('PRAGMA table_info(feedback)')}
         for col in ('user', 'install_id', 'marked', 'title', 'todo', 'fix_commit', 'fix', 'rca'):   # 0.0.15: the account, its install, a scribble;
                                                                       # title: my one-liner; todo: the TODO item(s); fix_commit;
@@ -412,8 +423,9 @@ def archive_rom(sha):
     import gzip, hashlib, shutil
     if not SHA.match(sha or '') or os.path.exists(os.path.join(ROMS, sha + '.neo.gz')): return
     os.makedirs(ROMS, exist_ok=True)
-    for f in sorted(os.listdir(BUILDS)):
-        p = os.path.join(BUILDS, f)
+    dirs = [d for d in (BUILDS, os.path.join(DATA, 'share', 'builds')) if os.path.isdir(d)]   # (the testers' assigned builds too)
+    for p in [os.path.join(d, f) for d in dirs for f in sorted(os.listdir(d))]:
+        f = os.path.basename(p)
         if not f.endswith('.neo') or os.path.islink(p): continue
         h = hashlib.sha256()
         with open(p, 'rb') as i:
@@ -1147,6 +1159,65 @@ def save_delete(d):
         return st
 
 
+# ---- session recording (Player 0.0.41) ----------------------------------------------------------------------------
+# docs/feedback.md "Session recording": the Player sends its play session in ~5 s chunks (Session.kt): the state at the
+# chunk's start (gzip) + the pads of its frames (NSIN v1). Files on the storage box (the VPS root disk is near full):
+# SESSIONS/<session>/meta.json + <seq>.nsin + <seq>.state.gz; the index (+ the pads, zlib'd: ~200 bytes a chunk) in the
+# tracker DB (sessions, session_chunks). Kept for good for now.
+SESSIONS = os.environ.get('FEEDBACK_SESSIONS', '/mnt/storagebox/brawler-sessions')
+SESSIONS_MOUNT = os.environ.get('FEEDBACK_SESSIONS_MOUNT', '/mnt/storagebox')   # must be mounted ('' = no check: proofs)
+SESSION_ID = re.compile(r'^[0-9a-f]{8}-\d{8}-\d{6}$')                          # <install 8 hex>-<UTC start yyyymmdd-hhmmss>
+MAX_CHUNK = 1 << 20                                                            # the POST (a chunk is ~35 KB)
+MAX_CHUNK_FRAMES = 1200
+MAX_STATE = 2 << 20                                                            # the state unpacked (Geolith v3: ~220 KB)
+LIVE_S = 15                                                                    # a chunk this recent = the session is LIVE
+FPS = 59.185606
+
+
+def parse_chunk(b):
+    """the POST body (Session.kt): "NSCK", u32 1, u32 n + JSON meta, u32 n + inputs (NSIN v1), u32 n + gzip'd state
+    (n 0 = none) -> (meta, inputs, state_gz, state_raw); ValueError when anything is off"""
+    import struct, zlib
+    if len(b) < 12 or b[:4] != b'NSCK' or struct.unpack_from('<I', b, 4)[0] != 1: raise ValueError('not a chunk (NSCK v1)')
+    o = 8; parts = []
+    for _ in range(3):
+        if o + 4 > len(b): raise ValueError('truncated')
+        n = struct.unpack_from('<I', b, o)[0]; o += 4
+        if o + n > len(b): raise ValueError('truncated')
+        parts.append(b[o:o + n]); o += n
+    if o != len(b): raise ValueError('trailing bytes')
+    meta, inputs, gz = json.loads(parts[0]), parts[1], parts[2]
+    if not isinstance(meta, dict) or not SESSION_ID.match(str(meta.get('session', ''))): raise ValueError('session id')
+    seq, start, frames = meta.get('seq'), meta.get('start_frame'), meta.get('frames')
+    if not all(isinstance(x, int) and not isinstance(x, bool) for x in (seq, start, frames)): raise ValueError('seq / start_frame / frames')
+    if not (0 <= seq < 10 ** 7 and start >= 0 and 1 <= frames <= MAX_CHUNK_FRAMES): raise ValueError('seq / start_frame / frames out of range')
+    if len(inputs) != 24 + 4 * frames or inputs[:4] != b'NSIN' or struct.unpack_from('<IQQ', inputs, 4) != (1, start, start + frames):
+        raise ValueError('inputs: not NSIN v1 for these frames')
+    if not SHA.match(str(meta.get('rom_sha256', ''))): raise ValueError('rom_sha256')
+    if not SKEY.match(str(meta.get('system', ''))): raise ValueError('system')
+    raw = b''
+    if gz:
+        try: d = zlib.decompressobj(16 + zlib.MAX_WBITS); raw = d.decompress(gz, MAX_STATE + 1)
+        except zlib.error: raise ValueError('state: not gzip')
+        if len(raw) > MAX_STATE or not d.eof: raise ValueError('state: too big or truncated')
+        if len(raw) != meta.get('state_size') or hashlib.sha256(raw).hexdigest() != meta.get('state_sha256'): raise ValueError('state: size / sha256')
+    return meta, inputs, gz, raw
+
+
+def write_atomic(path, data):
+    tmp = path + '.part'
+    with open(tmp, 'wb') as f: f.write(data)
+    os.replace(tmp, path)
+
+
+def session_row(r, t=None):
+    d = row_dict(r); t = t or time.time()
+    d['seconds'] = round((d.get('frames') or 0) / FPS, 1)
+    d['live'] = bool(d.get('last_at') and t - d['last_at'] < LIVE_S)
+    d['last_ago'] = round(t - (d.get('last_at') or t), 1)
+    return d
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -1179,6 +1250,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if lab is not None: return self.lab_get(lab)
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
+        if parts and parts[0] in ('sessions', 'session'): return self.sessions_api(parts, q)
         if len(parts) == 2 and parts[0] == 'decisions' and re.match(r'^[a-z0-9_-]{1,40}$', parts[1]):
             p = os.path.join(DATA, 'decisions', parts[1] + '.json')
             return self.reply(200, json.load(open(p)) if os.path.exists(p) else {})
@@ -1684,6 +1756,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/reply': return self.post_reply()
         if self.path == '/test': return self.post_test()
         if self.path == '/review': return self.post_review_answer()
+        if self.path == '/sessions/chunk': return self.session_chunk()
         lab = self.lab_route()
         if lab is not None: return self.lab_write(lab)
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
@@ -2024,6 +2097,92 @@ class H(http.server.BaseHTTPRequestHandler):
         log('test', fid, user, res, aid or 'no replay')
         self.reply(200, {'test': out})
 
+    # ---- session recording (Player 0.0.41) -------------------------------------------------------------------------
+    def session_chunk(self):
+        """POST sessions/chunk (the Player, signed in: a brawler admin or tester): one ~5 s chunk of his play session"""
+        import zlib
+        user = self.player()
+        if not user: return
+        body = self.body(MAX_CHUNK)
+        if body is None: return self.reply(413, {'error': 'empty or too big'})
+        try: meta, inputs, gz, raw = parse_chunk(body)
+        except (ValueError, KeyError, TypeError) as e:
+            log('session chunk refused:', user, e); return self.reply(400, {'error': 'bad chunk: %s' % e})
+        if SESSIONS_MOUNT and not os.path.ismount(SESSIONS_MOUNT):
+            log('session chunk: the storage box is not mounted'); return self.reply(503, {'error': 'storage unavailable'})
+        sid, seq = meta['session'], meta['seq']; w = self.who(user); t = time.time()
+        with lock, db() as c:
+            r = c.execute('SELECT user FROM sessions WHERE id=?', (sid,)).fetchone()
+            if r and r['user'] != user: return self.reply(403, {'error': "another account's session"})
+            new = not r
+            if new:
+                st = meta.get('started')
+                c.execute('INSERT INTO sessions (id, user, install_id, started, first_at, last_at, rom_sha, rom_version, rom_build, system, memcard, app, '
+                          'app_version, device, android, ip) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                          (sid, user, w['install_id'] or '',
+                           time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(st / 1000)) if isinstance(st, (int, float)) and st > 0 else now(),
+                           t, t, meta['rom_sha256'], str(meta.get('rom_version') or '')[:20], str(meta.get('rom_build') or '')[:20], meta['system'],
+                           str(meta.get('memcard') or '')[:4], str(meta.get('app') or '')[:10], str(meta.get('app_version') or '')[:20],
+                           str(meta.get('device') or '')[:80], str(meta.get('android') or '')[:40], w['ip'] or ''))
+        d = os.path.join(SESSIONS, sid)
+        try:
+            os.makedirs(d, exist_ok=True)
+            if new or not os.path.exists(os.path.join(d, 'meta.json')): write_json(os.path.join(d, 'meta.json'), dict(meta, user=user, received=now()))
+            write_atomic(os.path.join(d, '%06d.nsin' % seq), inputs)
+            if gz: write_atomic(os.path.join(d, '%06d.state.gz' % seq), gz)
+        except OSError as e:
+            log('session chunk: write failed', sid, seq, e); return self.reply(503, {'error': 'storage write failed'})
+        with lock, db() as c:
+            old = c.execute('SELECT frames, bytes FROM session_chunks WHERE session=? AND seq=?', (sid, seq)).fetchone()   # a retry: replaced
+            c.execute('INSERT OR REPLACE INTO session_chunks VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                      (sid, seq, meta['start_frame'], meta['frames'], 1 if gz else 0, len(raw), meta.get('state_sha256') if gz else '',
+                       len(body), t, 1 if meta.get('paused') else 0, zlib.compress(inputs[24:], 9)))
+            c.execute('UPDATE sessions SET last_at=?, chunks=chunks+?, frames=frames+?, bytes=bytes+?, paused=? WHERE id=?',
+                      (t, 0 if old else 1, meta['frames'] - (old['frames'] if old else 0), len(body) - (old['bytes'] if old else 0),
+                       1 if meta.get('paused') else 0, sid))
+        if new:
+            jobs.put('rom:' + meta['rom_sha256'])                     # the Lab's player loads that build: archived
+            log('session', sid, 'starts:', user, meta.get('rom_version'), meta['system'], meta.get('device'), meta.get('app_version'))
+        self.reply(200, {'ok': True, 'session': sid, 'seq': seq})
+
+    def sessions_api(self, parts, q):
+        """the Lab's Sessions tab (feedback-api/, brawler admins): every player's sessions
+          GET sessions[?limit=N]                    newest first, + the storage totals and the MB per hour
+          GET session/<id>[?after=SEQ]              its row + its chunks (seq > after)
+          GET session/<id>/inputs[?from=SEQ]        the pads of its chunks from SEQ on: per chunk u32 seq + NSIN v1
+          GET session/<id>/state/<seq>              that chunk's start state (gzip; Content-Encoding gzip)"""
+        import struct, zlib
+        t = time.time()
+        num = lambda k, dflt: int(q[k][0]) if q.get(k) and q[k][0].lstrip('-').isdigit() else dflt
+        with db() as c:
+            if parts == ['sessions']:
+                rows = [session_row(r, t) for r in c.execute('SELECT * FROM sessions ORDER BY last_at DESC LIMIT ?', (num('limit', 300),))]
+                tot = c.execute('SELECT COUNT(*) n, COALESCE(SUM(bytes), 0) b, COALESCE(SUM(frames), 0) f FROM session_chunks').fetchone()
+                hours = tot['f'] / FPS / 3600
+                return self.reply(200, {'sessions': rows, 'now': t, 'live_s': LIVE_S, 'fps': FPS,
+                                        'storage': {'chunks': tot['n'], 'bytes': tot['b'], 'hours': round(hours, 3),
+                                                    'mb_per_hour': round(tot['b'] / 1e6 / hours, 1) if hours else None}})
+            if len(parts) < 2 or parts[0] != 'session' or not SESSION_ID.match(parts[1]): return self.reply(404, {'error': 'not found'})
+            r = c.execute('SELECT * FROM sessions WHERE id=?', (parts[1],)).fetchone()
+            if not r: return self.reply(404, {'error': 'no such session'})
+            if len(parts) == 2:
+                ch = [row_dict(x) for x in c.execute('SELECT seq, start_frame, frames, state, state_size, state_sha, bytes, at, paused '
+                                                     'FROM session_chunks WHERE session=? AND seq>? ORDER BY seq', (parts[1], num('after', -1)))]
+                return self.reply(200, {'session': session_row(r, t), 'chunks': ch, 'now': t})
+            if len(parts) == 3 and parts[2] == 'inputs':
+                out = io.BytesIO()
+                for x in c.execute('SELECT seq, start_frame, frames, inputs FROM session_chunks WHERE session=? AND seq>=? ORDER BY seq', (parts[1], num('from', 0))):
+                    out.write(struct.pack('<I4sIQQ', x['seq'], b'NSIN', 1, x['start_frame'], x['start_frame'] + x['frames'])); out.write(zlib.decompress(x['inputs']))
+                return self.reply(200, body=out.getvalue(), ctype='application/octet-stream')
+        if len(parts) == 4 and parts[2] == 'state' and parts[3].isdigit():
+            p = os.path.join(SESSIONS, parts[1], '%06d.state.gz' % int(parts[3]))
+            if not os.path.exists(p): return self.reply(404, {'error': 'no state for that chunk'})
+            b = open(p, 'rb').read()
+            self.send_response(200); self.send_header('Content-Type', 'application/octet-stream'); self.send_header('Content-Encoding', 'gzip')
+            self.send_header('Cache-Control', 'private, max-age=31536000, immutable'); self.send_header('Content-Length', str(len(b))); self.end_headers()
+            self.wfile.write(b); return
+        self.reply(404, {'error': 'not found'})
+
     def log_message(self, fmt, *a): pass
 
 
@@ -2038,6 +2197,6 @@ if __name__ == '__main__':
     threading.Thread(target=worker, daemon=True).start()
     with db() as c:                                          # transcripts missed while down
         for r in c.execute("SELECT id FROM feedback WHERE audio_path != '' AND raw_transcript = ''"): jobs.put(r['id'])
-        for r in c.execute("SELECT DISTINCT rom_sha FROM feedback"): jobs.put('rom:' + r['rom_sha'])
+        for r in c.execute("SELECT DISTINCT rom_sha FROM feedback"): jobs.put('rom:' + (r['rom_sha'] or ''))   # (a row without one: NULL)
     log('listening on 127.0.0.1:%d, data %s' % (PORT, DATA))
     Server(('127.0.0.1', PORT), H).serve_forever()

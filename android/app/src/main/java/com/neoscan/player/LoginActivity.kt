@@ -69,6 +69,8 @@ class LoginActivity : Activity() {
         col.addView(err, LinearLayout.LayoutParams(-1, -2))
         col.addView(go, LinearLayout.LayoutParams(-1, -2).apply { topMargin = (16 * dp).toInt() })
         col.addView(busy)
+        col.addView(TextView(this).apply {                         // 0.0.41: Session (the session recording)
+            text = "Your play sessions are recorded for the developers."; textSize = 13f; alpha = 0.75f; setPadding(0, (16 * dp).toInt(), 0, 0) })
         col.addView(TextView(this).apply {
             text = (if (BuildConfig.DEV) "Brawler Dev " else "Brawler ") + BuildConfig.VERSION_NAME; textSize = 12f; alpha = 0.5f; setPadding(0, (24 * dp).toInt(), 0, 0)
         })

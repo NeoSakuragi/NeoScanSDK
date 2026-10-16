@@ -574,3 +574,64 @@ A game's save follows the Oros account: sign in on another phone (or after a rei
 - **Proven 2026-10-15** in AVD NeoPhoneP40 against local services (test accounts cs-a / cs-b): cs-a played, the app
   data was wiped, cs-a signed in again and got his save back byte for byte; cs-b on the same device got a fresh save;
   Reset game save deleted the server's copy. `/data/brawler-share/proof_0039/`.
+
+## Session recording (Player 0.0.41)
+
+Every play session of the game build is recorded and sent to the server while it is played, so a tester's whole
+session can be replayed in the Lab, or watched live, a few seconds behind. Both apps, one code path. The sign-in screen
+says so under the Sign in button: "Your play sessions are recorded for the developers."
+
+- **In the player** (`player.c` `Native.sessionChunk`, `Session.kt`, called by `EmuThread` before every frame and while
+  paused):
+  - A **chunk** = the save state at its start (taken before its first frame, as the feedback snaps) + the pads of its
+    ~300 frames (~5 s), the same pads as inputs.bin (bit 15 of port 0 = a soft reset before that frame). A pause closes
+    the chunk so far (a short chunk). A chunk is taken before a soft reset asked for that frame, so the reset is the next
+    chunk's first frame's RESET bit.
+  - The state is gzip'd (222 789 bytes raw, ~30 KB packed while fighting, 4 KB at boot). Measured in the AVD:
+    **~31 KB per chunk, 20.8 MB per hour of play** (the server's own total over a 6.5-min session).
+  - **A session** = `<install id, 8 hex>-<UTC start yyyymmdd-hhmmss>`. A new one starts when the next chunk comes more
+    than 60 s after the last (a pause > 60 s), with another ROM / system (another EmuThread) and in a new process.
+  - Only the game build (`files/brawler.neo`, RomFetch.romFile) and only signed in; never the Character lab's shell.
+  - Never stalls the emulation: the emulation thread copies the chunk out of the core (JNI, one memcpy); the gzip runs
+    on one worker (bounded queue of 6, the oldest dropped), the upload on another (up to 240 chunks waiting, ~20 min, the
+    oldest dropped). Offline / server down / 5xx: retried with a growing wait (5 s doubling to 2 min), in order; a 4xx
+    (not 401 / 408 / 429) drops the chunk. Memory only: a chunk not sent when the app is killed is lost.
+  - The POST body (little endian): `"NSCK"`, u32 1, u32 n + JSON meta (session, seq, start_frame, frames, paused,
+    state_size, state_sha256, started (ms), rom_sha256, rom_version, rom_build, system key (`mvs-mvs` / `uni-aes`),
+    hw, system_type, memcard, app (dev / brawler), app_version, app_code, device, android, install_id, user), u32 n +
+    inputs (NSIN v1: `"NSIN"`, u32 1, u64 W, u64 P, the pads), u32 n + the gzip'd state (n = 0: none; the page and the
+    server take chunks without a state, the player always sends one).
+- **Server** (`server.py`, nginx `location = /brawler/feedback/sessions/chunk`, 1 MB body cap, zone `brawler_sess`
+  60 r/min + burst 120 per address):
+  - `POST sessions/chunk`: signed in, a brawler admin or tester. Checked: NSCK v1, the session id, seq / frames
+    (1..1200), the inputs = NSIN v1 for exactly those frames, the ROM sha, the system key, the state gunzips to its
+    size and sha256. A session belongs to the account that sent its first chunk (another account: 403). A chunk sent
+    again (a retry) replaces itself. The storage box must be mounted (else 503: the player retries).
+  - **Files on the storage box** (the VPS root disk is near full): `/mnt/storagebox/brawler-sessions/<session>/meta.json`
+    + `<seq>.nsin` + `<seq>.state.gz`. **Index** in the tracker DB: `sessions` (id, user, install, started, first / last
+    chunk time, chunks, frames, bytes, ROM sha + version + build, system, memcard, app, app version, device, Android, IP,
+    paused) and `session_chunks` (seq, start frame, frames, state y/n, state size + sha256, bytes, time, paused, the pads
+    zlib'd: ~200 bytes a chunk, so the inputs list never reads the storage box).
+  - The first chunk of a session archives its build (`roms/<sha>.neo.gz`, from the published builds or the testers'
+    assigned builds `share/builds`), so the Lab can load it after publish_vps.sh's keep-3 pruning.
+  - Admin API (`/brawler-lab/feedback-api/`, brawler admins): `GET sessions` (newest first, `live` = a chunk in the last
+    15 s, + the storage totals and MB per hour), `GET session/<id>[?after=SEQ]`, `GET session/<id>/inputs[?from=SEQ]`
+    (per chunk u32 seq + NSIN v1), `GET session/<id>/state/<seq>` (Content-Encoding gzip).
+  - **Retention:** everything is kept for now. At 20.8 MB per hour of play: 100 h = ~2 GB, 1000 h = ~21 GB (the box has
+    623 GB free); the DB grows ~150 KB per hour.
+- **The Lab's Sessions tab** (`chainlab/sessions.js` + `sessreplay.js`; `brawler-lab/game.html#sessions`,
+  `#sess=<id>` opens one): one row per session (● LIVE, player, build, start, length; device on wide screens), the
+  list refreshed every 5 s. A tap = the player: the session's build (`feedback-api/rom/<sha>`) + the Lab's BIOS in the
+  wasm core (one core per build, shared with the Feedback tab), seek bar, Play / Pause, ×1 (sound) / ×2 / ×4. A seek
+  loads the chunk's state and runs at most one chunk silently. A live session opens on its newest chunk and plays the
+  chunks as they arrive (polled every 2.5 s): measured 4.3-5.3 s behind the player. Where a chunk follows the one
+  played, the replay's state is compared byte for byte with the recorded one ("N chunk joins checked: all
+  byte-identical to the recording"; a difference is shown and the recorded state taken). Console sessions (`uni-aes`)
+  need UniBIOS, which the Lab's BIOS file lacks (testers play arcade only).
+- **Determinism, proven 2026-10-16** (AVD NeoPhoneP40, x86_64, the Brawler app 0.0.41 built against local services: a
+  stand-in Oros + server.py, account role tester; build 0.10.139): a 3 min 14 s session (39 chunks: boot, title, select,
+  fights, a 10 s pause = a 70-frame chunk, a soft reset at frame 9002) replayed in Node
+  (`tools/feedback/session_replay_node.js SESSION_DIR [ROM]`): 38 / 38 chunk joins byte-identical, the last chunk's state
+  SHA-256 7c2d6c04... = the recorded one. Headless Chrome on the page: live view, seek, ×4, 390 px. A pause of 70 s
+  started a new session (replayed too: 18 / 18 joins identical); a 40 s server outage was bridged by the retries, the 8 chunks held back arrived in order, none lost. Files:
+  `/data/tmp/sess_proof/` (screens, scripts). Not proven: an arm64 device (same open point as the feedback replays).

@@ -52,6 +52,14 @@ static uint64_t frame_no;
 static int reset_pending;
 static struct { uint64_t frame; uint8_t *data; int valid; } snaps[NSNAP];
 static size_t snap_size;
+/* SESSION RECORDING (Player 0.0.41, docs/feedback.md "Session recording"): the play session goes to the server in chunks
+ * of ~5 s: the state at the chunk's start (taken before its first frame runs, as the snaps) + the pads of its frames.
+ * Native.sessionChunk, called by the emulation thread before every frame, closes the chunk that is CHUNK frames old (or
+ * any non-empty one when asked to flush: a pause), hands it over and opens the next with a fresh state. */
+#define CHUNK 300                      /* ~5 s */
+static uint8_t *ck_state;
+static uint64_t ck_start;
+static int ck_valid;
 
 static void log_cb(enum retro_log_level level, const char *fmt, ...) {
     va_list ap; va_start(ap, fmt);
@@ -156,9 +164,10 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_load(JNIEnv *env, jclass c
     retro_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
     retro_get_system_av_info(&av);
     loaded = 1;
-    frame_no = 0; reset_pending = 0;
+    frame_no = 0; reset_pending = 0; ck_valid = 0;
     {   int i; snap_size = retro_serialize_size();
-        for (i = 0; i < NSNAP; i++) { free(snaps[i].data); snaps[i].data = malloc(snap_size); snaps[i].valid = 0; } }
+        for (i = 0; i < NSNAP; i++) { free(snaps[i].data); snaps[i].data = malloc(snap_size); snaps[i].valid = 0; }
+        free(ck_state); ck_state = malloc(snap_size); }
     __android_log_print(ANDROID_LOG_INFO, TAG, "loaded %s: %ux%u, %.3f fps, %.0f Hz", rom, av.geometry.base_width,
                         av.geometry.base_height, av.timing.fps, av.timing.sample_rate);
     return (jint)av.timing.sample_rate;
@@ -352,7 +361,7 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_loadState(JNIEnv *env, jcl
     fclose(f);
     if (!r && !retro_unserialize(buf, snap_size)) r = 3;
     free(buf);
-    if (!r) { frame_no = 0; reset_pending = 0; for (i = 0; i < NSNAP; i++) snaps[i].valid = 0; }
+    if (!r) { frame_no = 0; reset_pending = 0; ck_valid = 0; for (i = 0; i < NSNAP; i++) snaps[i].valid = 0; }   /* a session chunk restarts here */
     __android_log_print(ANDROID_LOG_INFO, TAG, "loadState: %s", r ? "FAILED" : "loaded");
     return r;
 }
@@ -372,3 +381,34 @@ JNIEXPORT jint JNICALL Java_com_neoscan_player_Native_screenshot(JNIEnv *env, jc
 JNIEXPORT jstring JNICALL Java_com_neoscan_player_Native_systemType(JNIEnv *env, jclass cls) { (void)cls; return (*env)->NewStringUTF(env, systype); }
 /* "on" / "off": the memory card the core was told about (geolith_memcard; the feedback bundle's meta.json "memcard") */
 JNIEXPORT jstring JNICALL Java_com_neoscan_player_Native_memcard(JNIEnv *env, jclass cls) { (void)cls; return (*env)->NewStringUTF(env, strcmp(hw, "aes") ? "off" : "on"); }
+
+/* Session recording (Player 0.0.41): emulation thread, BEFORE each frame (before a soft reset asked for it: the reset is
+ * then the next chunk's first frame's RESET_BIT, as in inputs.bin). mode 0 = not recording (the open chunk dropped);
+ * 1 = close the open chunk once it holds CHUNK frames; 2 = close it now if it holds any (a pause). Returns the closed
+ * chunk or null: u64 start frame, u32 frames, u32 state size, then frames x (u16 port0, u16 port1) as the ring holds
+ * them, then the raw state at the start (all little endian); a new chunk is opened at the current frame. */
+JNIEXPORT jbyteArray JNICALL Java_com_neoscan_player_Native_sessionChunk(JNIEnv *env, jclass cls, jint mode) {
+    jbyteArray out = NULL; uint64_t n, f; uint8_t *buf, *q; size_t len;
+    (void)cls;
+    if (!mine() || !ck_state) return NULL;
+    if (mode == 0) { ck_valid = 0; return NULL; }
+    if (ck_valid) {
+        n = frame_no - ck_start;
+        if (n < (mode == 2 ? 1u : (uint64_t)CHUNK)) return NULL;
+        if (n <= RING) {
+            len = 16 + n * 4 + snap_size;
+            if ((buf = malloc(len))) {
+                uint32_t nn = (uint32_t)n, ss = (uint32_t)snap_size;
+                memcpy(buf, &ck_start, 8); memcpy(buf + 8, &nn, 4); memcpy(buf + 12, &ss, 4);   /* little endian: arm64, x86_64 */
+                for (q = buf + 16, f = ck_start; f < frame_no; f++, q += 4) memcpy(q, ring[f % RING], 4);
+                memcpy(q, ck_state, snap_size);
+                out = (*env)->NewByteArray(env, (jsize)len);
+                if (out) (*env)->SetByteArrayRegion(env, out, 0, (jsize)len, (const jbyte *)buf);
+                free(buf);
+            }
+        }
+    }
+    ck_valid = retro_serialize(ck_state, snap_size) ? 1 : 0;
+    ck_start = frame_no;
+    return out;
+}

@@ -3,6 +3,7 @@
  * Lab's Feedback tab (feedback.js) and by tools/feedback/replay_node.js (the same proof in Node).
  *   const r = await FeedbackReplay.create(GeoCore, { bios, rom, systype, hw }, bundle)
  *   bundle = { inputs: Uint8Array (inputs.bin), snaps: {frame: Uint8Array}, press: Uint8Array }
+ *   (a session replay, sessreplay.js, passes { snaps: {} } and sets W / P / pads chunk by chunk)
  *   r.seek(frame)            fast-forward (silent) from the latest kept state at or before frame; checkpoints checked
  *   r.step()                 one frame of the log: picture in r.core's fb, audio frames returned (Int16Array, stereo)
  *   r.check()                at the press: the state now vs press.state -> { same, sha, want } (SHA-256, hex) */
@@ -41,7 +42,7 @@
     }
     constructor(core, bundle) {
       this.core = core;
-      Object.assign(this, parseInputs(bundle.inputs));
+      Object.assign(this, bundle.inputs ? parseInputs(bundle.inputs) : { W: 0, P: 0, pads: new Uint16Array(0) });   // (none: sessreplay.js sets W / P / pads per chunk)
       this.snaps = bundle.snaps; this.pressState = bundle.press;
       this.size = core._wc_state_size();
       this.buf = core._malloc(this.size);
@@ -97,5 +98,6 @@
     }
   }
   FeedbackReplay.sha256 = sha256;
+  FeedbackReplay.parseInputs = parseInputs;
   if (typeof module !== 'undefined' && module.exports) module.exports = FeedbackReplay; else root.FeedbackReplay = FeedbackReplay;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -85,6 +85,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
             stateReq?.let { (f, done) -> stateReq = null; done(Native.loadState(f.absolutePath)) }   // a test scenario (0.0.22)
             hook?.invoke(this)                                          // the Character lab (0.0.28): RAM loads, pack swaps
             if (paused && !stepOne) {
+                Session.tick(this, 2)                                   // 0.0.41: the session chunk so far goes now (a pause)
                 if (!flushed) { Native.flushSaves(); SaveSync.flushed(saveDir, rom); flushed = true }   // Android may kill the app any time now
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) { track.pause(); track.flush(); written = 0; started = false }
                 sleep(20); continue
@@ -94,6 +95,7 @@ class EmuThread private constructor(private val sysDir: String, private val save
             if (System.nanoTime() - lastSync > SYNC_MS * 1_000_000L) { lastSync = System.nanoTime(); Native.flushSaves(); SaveSync.flushed(saveDir, rom) }
             val vsync = VsyncPacer.next()                               // waits for the display (100 ms timeout)
             if (vsync < 0) continue
+            Session.tick(this, 1)                                       // 0.0.41 session recording: a ~5 s chunk (before a reset: the reset is its first frame)
             if (resetReq) { resetReq = false; Native.reset() }
             val r0 = System.nanoTime()
             val n = Native.runFrame(back, audio)

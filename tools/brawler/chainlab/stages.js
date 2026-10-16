@@ -44,7 +44,7 @@
   // the Game tools' tabs (game.html, game.js): Stages, Enemies (enemies.js) ... share the game column; "chain" is no tab
   // any more (the old Chain Lab tab): the route-tree editor and its readout, opened by the Enemies tab's move-list editor
   let active = false;
-  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], quirks: ['tabQuirks', ['quirkcol']], expose: ['tabExpose', ['exposecol']], decide: ['tabDecide', ['decidecol']],
+  const TABS = { chain: ['tabChain', ['treecol', 'clhead', 'readout']], stages: ['tabStages', ['stagecol']], enemies: ['tabEnemies', ['enemycol']], chars: ['tabChars', ['charcol']], select: ['tabSelect', ['selcol']], feedback: ['tabFeedback', ['fbcol']], sessions: ['tabSessions', ['sesscol']], quirks: ['tabQuirks', ['quirkcol']], expose: ['tabExpose', ['exposecol']], decide: ['tabDecide', ['decidecol']],
                  impacts: ['tabImpacts', ['impactcol']], sounds: ['tabSounds', ['soundcol']] };
   window.labTab = name => {
     for (const [k, [b, els]] of Object.entries(TABS)) {
