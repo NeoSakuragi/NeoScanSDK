@@ -382,7 +382,7 @@
    "voices": "kof",
    "hit_sfx": {"A": "SLASH", "B": "SLASH", "CD": "SLASH"},
    "variant": {"623K": "C", "6321S": "A"},
-   "throws": {"extra": {"u": "623K"}, "super": "623K"}
+   "throws": {"extra": {"b": "623K"}, "super": "623K"}
   },
   {
    "name": "kim",

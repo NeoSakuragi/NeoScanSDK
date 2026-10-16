@@ -1,4 +1,18 @@
 {
+ "20261016-043416-e03d": {
+  "title": "Hanzo (SS2) Mozu Otoshi: B in the grab, no longer up + A",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 30,
+   "x": 150
+  },
+  "do": "Walk into Ryo to grab him, then press B alone (Mozu Otoshi). Grab him again and press up + A.",
+  "expect": "B in the grab plays the Mozu Otoshi (the leap with Ryo, the head-first slam with the fire columns and his shout), as up + A did before. Up + A in the grab is now a plain hold hit, like A. Forward / back + A still throw, C still plays the special.",
+  "do_keys": "20:R,3:b,2:-",
+  "proof": 180
+ },
  "20261016-040850-e03d": {
   "title": "Robert: after the air down,down + A dive, his follow-ups hit the launched enemies",
   "setup": {
@@ -4699,9 +4713,9 @@
    "gap": 30,
    "x": 150
   },
-  "do": "Walk into Ryo to grab him, then press up + A (Mozu Otoshi).",
+  "do": "Walk into Ryo to grab him, then press B (Mozu Otoshi).",
   "expect": "Ryo stays on Hanzo the whole time, where SS2 draws its victim: over him as he grabs, hunched over his shoulders in the crouch, and in the RISING leap carried right above him, a little ahead of him (no longer shifted back, to the left when he faces right); then head down right on top of him through the fall as before, slammed head first with the fire columns and his shout; then the leap back. The same facing the other way (mirrored). Same heights and shouts as before.",
-  "do_keys": "20:R,3:Ua,2:U",
+  "do_keys": "20:R,3:b,2:-",
   "proof": 180
  },
  "20261015-212313-e03d": {

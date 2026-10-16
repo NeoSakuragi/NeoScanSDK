@@ -1329,6 +1329,8 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
  *     B alone; forward / back + B adds a travel of (pad - 1) x 2 px that way, spread evenly over the script's airborne
  *     rows (from the first row the thrower leaves the floor to its landing row bthrow_t.land; FF measured: the same
  *     piledriver, carried 95 / 94 px at a steady 1.77 px a frame from take-off to the slam). 0: B does nothing (as before).
+ *     Or (pad bit 7 XT_PAD_SPEC, game.json roster[].throws.extra.b; note 20261016-043416-e03d, SS2 Hanzo's Mozu Otoshi):
+ *     B alone plays a grab special, as up / down + A's extra throw (role BS_THROW, at any time in the hold).
  *   The walk in the hold (note 20261014-171133-5d29, Final Fight's Haggar: "he can walk in the grab position with the
  *     victim in his hand"; game.json roster[].hold_walk, gamedata ghold_walk; none: the holder stands, KOF's and FF's Guy /
  *     Cody): the stick moves the holder and its victim together at hold_walk.speed x its walk on both axes, the facing kept
@@ -2464,7 +2466,13 @@ static void hold_update(fighter_t *f, const intent_t *in) {
                                                                     time (a hold hit playing too) */
         return;
     }
-    if ((in->press & IN_B) && bm_xthr[f->ch->id].pad && bm_xthr[f->ch->id].x && !f->srow) {   /* B: the jump throw (the
+    if ((in->press & IN_B) && (bm_xthr[f->ch->id].pad & XT_PAD_SPEC)) {   /* B: a grab special (throws.extra.b, note
+                                                                    20261016-043416-e03d: SS2 Hanzo's Mozu Otoshi), as
+                                                                    up / down + A's, at any time (a hold hit playing too) */
+        uint8_t e = bm_xthr[f->ch->id].pad & (uint8_t)~XT_PAD_SPEC;
+        if (e < f->ch->nspec) { hold_special(f, BS_THROW, 1, e); return; }
+    }
+    if ((in->press & IN_B) && bm_xthr[f->ch->id].pad && !(bm_xthr[f->ch->id].pad & XT_PAD_SPEC) && bm_xthr[f->ch->id].x && !f->srow) {   /* B: the jump throw (the
                                                                     throws comment, "B in the hold"); the stick its travel */
         int16_t t = (int16_t)(bm_xthr[f->ch->id].pad - 1) << 1;
         pend_jdx = !in->dx ? 0 : in->dx == f->facing ? t : -t;
