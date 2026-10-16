@@ -409,10 +409,11 @@ extern const gbonus_t gbonus;
  * front and speaks; the window held `hold` ticks after its last letter (a button ends it from then) */
 typedef struct {
     uint8_t mark, from; uint16_t hold;
-    uint8_t fury_dx, knock_vx;    /* the D quirk (game.json referee.hit_text, note 20261015-221208-e03d round 2): while his
-                                     message is held, D: the fighter runs to fury_dx px from him and fires his fury; its first
-                                     strike on him: Kuroko's knockdown, flying knock_vx px a tick away, knock_vy (8.8) up */
-    int16_t knock_vy; uint16_t down_ticks;   /* ... lying down_ticks, then up: his window again with hit_text */
+    uint8_t fury_dx, fighter;     /* the D quirk (game.json referee.hit_text, note 20261015-221208-e03d round 2): while his
+                                     message is held, D: the fighter runs to fury_dx px from him and fires his fury; as it
+                                     fires he becomes bm_chars[fighter] (referee.fighter, note 20261016-045652-e03d: Kuroko's
+                                     export), a victim that never acts, with life: the whole fury lands on him as on any enemy */
+    uint16_t life;                /* ... then up again: his window with hit_text */
     uint8_t hit;                  /* hit_text given: the quirk on */
     const char *const *hit_text;  /* [3] his lines after it ("" = none) */
 } gref_t;

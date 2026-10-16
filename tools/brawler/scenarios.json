@@ -4948,15 +4948,15 @@
   "proof": 160
  },
  "20261016-045652-e03d": {
-  "title": "Posts bonus, referee's D quirk: no stray graphics when his window opens again, text inside the box with a margin",
+  "title": "Posts bonus, referee's D quirk: the whole fury lands on the referee (Kuroko), clean window, text inside the box",
   "setup": {
    "mode": "bonus",
    "fighter": "robert",
    "game": "posts",
    "after": 1
   },
-  "do": "Break the 4 posts. When the referee has written his whole message, press D: Robert runs at him and fires his fury, the referee is knocked down and gets up. Watch his window opening again.",
-  "expect": "The window opens clean both times: no pieces of other graphics under or beside it while it grows. His lines sit centred inside the box with a gap to its border on both sides: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D!, then HORRIBLE / ATMOSPHERE. on two lines.",
+  "do": "Break the 4 posts. When the referee has written his whole message, press D: Robert runs at him and fires his fury. Watch every hit of the fury, the referee going down and getting up, then his window opening again. Then try it with other fighters (Terry, Haggar, Hanzo, Haohmaru, Kim).",
+  "expect": "The fury plays start to finish on the referee exactly as on any enemy: every hit connects (Robert's 14, Haggar's jabs, finishers, spin and piledriver), with Kuroko's own Samurai Shodown II hit, knockdown and get-up reactions. He has no life bar and never fights back. Once he is up, his window opens clean (no pieces of other graphics while it grows) above him and he says HORRIBLE ATMOSPHERE. inside the box with a gap to its border on both sides; then stage 2 starts. Before D: FURY UNLOCKED! / WHEN YOU BLINK / PRESS D! as before.",
   "do_keys": "60:-,20:R,3:a,6:-,3:a,6:-,3:a,6:-,3:a",
   "proof": 150
  },

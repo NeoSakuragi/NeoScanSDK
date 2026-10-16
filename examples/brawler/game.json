@@ -618,23 +618,26 @@
    "unlock": "always",
    "voices": "kof",
    "from_lab": true
+  },
+  {
+   "name": "kuroko",
+   "about": "SS2's Kuroko (the hidden referee): not on the select screen nor an enemy wave's; the posts bonus's referee in the D quirk (game.json referee.fighter, main.c \"the referee\", note 20261016-045652-e03d): the fury's victim with his own SS2 reactions. Out of the roster before (TODO #212, Bruno 2026-10-07: 'Remove Kuroko for now').",
+   "selectable": false,
+   "bank": "samsho2:kuroko",
+   "damage": 3,
+   "watch": {"frame": 0, "step": 0},
+   "routes": "default",
+   "archetype": "balanced",
+   "specials": {"D": "63214A", "fD": "61236A", "dD": "6ABC", "uD": "126BC", "dfD": "214161BC", "ufD": "CCCCC"},
+   "fury": "RAGE",
+   "flash_pose": "rage",
+   "unlock": "always",
+   "voices": "kof"
   }
  ],
  "roster_benched": {
-  "about": "Fighters out of the roster for now (not exported, not on the select screen); their data, exporters and scenarios stay. Moving an entry back into roster (and select_layout) brings it back. Kuroko: TODO #212 (Bruno 2026-10-07: 'Remove Kuroko for now'); his select_layout entry was {x 249, y 183, z 20, facing left, pose [0, 0], slot 7}, now Cheng-Fu's place.",
+  "about": "Fighters out of the roster for now (not exported, not on the select screen); their data, exporters and scenarios stay. Moving an entry back into roster (and select_layout) brings it back. Kuroko (TODO #212, Bruno 2026-10-07: 'Remove Kuroko for now'; his select_layout entry was {x 249, y 183, z 20, facing left, pose [0, 0], slot 7}, now Cheng-Fu's place) is back in the roster, not selectable: the referee's victim (referee.fighter).",
   "fighters": [
-    {
-     "name": "kuroko",
-     "bank": "samsho2:kuroko",
-     "damage": 3,
-     "watch": {"frame": 0, "step": 0},
-     "routes": "default",
-     "specials": {"D": "63214A", "fD": "61236A", "dD": "6ABC", "uD": "126BC", "dfD": "214161BC", "ufD": "CCCCC"},
-     "fury": "RAGE",
-     "flash_pose": "rage",
-     "unlock": "always",
-     "voices": "kof"
-    },
     {
      "name": "guy",
      "about": "Final Fight's Guy (CPS1, 2026-10-14): a Lab-only fighter (tools/ffight: ROM decoder, export, special program, throws; study /data/study/ffight/REPORT.md). FF's chain jab > jab > link 3 > link 4 > finisher (knockdown; back on the last press = the chain's back throw), FF's damages as the chain's weights, FF's 6-frame hit-stop on every link; the special = attack + jump (A+B = the neutral C slot); the hold: A = knee (x3), forward / back + A = his throw toward the held side.",
@@ -1646,8 +1649,8 @@
  "referee": {
   "about": "SS2's referee delivers a message (note 20261015-221208-e03d; main.c 'the referee', gamedata.h gref_t): Samurai Shodown II's Kuroko as SS2 brings him to the front after certain one-player matches (KURO-SYS state 12, decoded in tools/samsho2/referee_ss2.py, study /data/neogeo_dict/samsho2/README.md 'The referee's speech'): sidesteps on the back lane (24 px behind the floor, 1 px a frame, SS2's sidestep animations), one frame standing, the jump (Kuroko's own jump: vy -2432 / 256, gravity 96 / 256, behind the fighters rising, in front falling), the landing 8 px nearer the camera with his shadow, then SS2's message window opening and his lines typed a letter every 2 frames (SS2's pace), held `hold` ticks after the last letter (a button ends it from then), the window closing. He enters from the screen edge farther from the player, `from` px outside it, and jumps at `mark` px from it. Used by a bonus game with won_by referee (its won_text = his 1-3 lines, 18 characters each: centred inside the window with 6 px to its border, note 20261016-045652-e03d)",
   "mark": 96, "from": 48, "hold": 124,
-  "hit_text": ["HORRIBLE ATMOSPHERE."], "fury_dx": 56, "knock_vx": 1, "knock_vy": -1024, "down_ticks": 40,
-  "hit_about": "note 20261015-221208-e03d round 2 (Bruno: 'after the referee's message is shown, if the player presses D, the fury gets triggered into the referee and the referee gets hit; after that the referee wakes up and says HORRIBLE ATMOSPHERE'): while his message is held, D (the only thing the player can do then) closes the window, the fighter runs at him to fury_dx px and fires his fury (gauge filled); its first strike touching the referee knocks him down: Kuroko's own SS2 reactions (his table 17: the flight 220, landing / lying 222, the get-up 138), flying away at knock_vx px a tick, knock_vy (8.8) up, his jump's gravity; lying down_ticks; up, his window opens again with hit_text (SS2's own line: $206FDC message 0, on one line: 20 letters a line inside the window widened to 13 columns, note 20261016-045652-e03d), held hold ticks, closed. Without D the speech ends as before"
+  "hit_text": ["HORRIBLE ATMOSPHERE."], "fury_dx": 56, "fighter": "kuroko", "life": 999,
+  "hit_about": "note 20261015-221208-e03d round 2 (Bruno: 'after the referee's message is shown, if the player presses D, the fury gets triggered into the referee and the referee gets hit; after that the referee wakes up and says HORRIBLE ATMOSPHERE'): while his message is held, D (the only thing the player can do then) closes the window, the fighter runs at him to fury_dx px (and onto his lane) and fires his fury (gauge filled). Note 20261016-045652-e03d reopen (Bruno: 'the fury is triggered, but somehow it doesn't connect: all the hits are not done... include the Kuroko package and have the real fury play start to finish'): as the fury fires, the drawn referee becomes `fighter` (a roster fighter: SS2's Kuroko, samsho2:kuroko) where he stands, an enemy-like victim that never acts (no AI, no attack) with `life` (never KO'd): the whole fury lands on him as on any enemy, with his own hit / knockdown / juggle reactions and get-up; up again (idle), his window opens with hit_text (SS2's own line: $206FDC message 0, on one line: 20 letters a line inside the window widened to 13 columns, note 20261016-045652-e03d), held hold ticks, closed. A fury that never touches him: the speech ends as without D. Without D the speech ends as before"
  },
  "portraits": {
   "mr_big": "kof96:mr_big",
