@@ -7,12 +7,13 @@
 <!-- The old URL (review.html?f=X[&q=<set>], or #f=X): the Fighter Lab's Review tab is the one template now (lab.html +
      fighterlab.js load review.js; Bruno 2026-10-10). Without a fighter: the first of the review index, as before.
      review.html?q=throws: the THROW REVIEW (note 20261016-045300-e03d round 2), a page of its own: review.js's throw mode
-     in #rev here (no fighter: every throw of the beta's playable fighters; data tools/brawler/throw_review.py). -->
+     in #rev here (no fighter: every throw of the beta's playable fighters; data tools/brawler/throw_review.py).
+     review.html?q=throws2: round 2 (impact / launch / held as separate events; data throw_review.py --set throws2). -->
 <script>
 (function () {
   var q = new URLSearchParams(location.search), m = /^#f=(\w+)/.exec(location.hash);
-  if (q.get('q') === 'throws') {
-    document.title = 'Throw Review';
+  if (q.get('q') === 'throws' || q.get('q') === 'throws2') {
+    document.title = q.get('q') === 'throws2' ? 'Throw Review 2' : 'Throw Review';
     document.addEventListener('DOMContentLoaded', function () {
       ['micnote.js', 'review.js'].reduce(function (p, src) {
         return p.then(function () { return new Promise(function (ok) { var s = document.createElement('script'); s.src = src; s.onload = s.onerror = ok; document.body.append(s); }); });

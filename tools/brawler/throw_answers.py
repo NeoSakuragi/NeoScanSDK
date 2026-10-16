@@ -17,7 +17,22 @@ SLAM: glue_row, else the throw_handoff rule). A throw with no answer keeps the 0
     python3 tools/brawler/throw_answers.py pull [OUT.json]                 the set from the VPS (default: stdout)
     python3 tools/brawler/throw_answers.py apply GAME_DIR SITE_DIR [ANSWERS.json] [--dry]
         SITE_DIR: where throw_review.py wrote review/throws/ (the capture the answers were given on); ANSWERS.json: a
-        pulled set (default: pulled now). Prints each throw's mapping and the game.json diff; --dry writes nothing."""
+        pulled set (default: pulled now). Prints each throw's mapping and the game.json diff; --dry writes nothing.
+
+ROUND 2 (review.html?q=throws2, Bruno 2026-10-16 after 0.10.142: "define WHEN THE IMPACT occurs (the visual + the
+sound), and separately WHEN THE ACTUAL LAUNCH occurs [...] Separate these concerns"): set "throws2", one answer per
+throw: choice 0 = these events / 1 = "None of these" (the note says), flags impact-N, launch-N, dir-up | dir-away |
+dir-none, size-small | size-medium | size-big (optional), held-N (optional), N = the throw's frame as the page shows it
+(1 = its first frame: the engine's throw frame clock, no row mapping). -> game.json roster[].throws.events.<forward |
+back | hold_b> = {impact, launch: {frame, dir, size?}, held?, from} (build_tables throw_events: the data model); the
+throw's throws.timing entry (and for SS2 Hanzo's hold + B, special_grab_timing "623K") removed: one path.
+    python3 tools/brawler/throw_answers.py pull2 [OUT.json]             set "throws2" from the VPS
+    python3 tools/brawler/throw_answers.py propose [OUT.json]           round 1 -> round 2's proposal (as the page
+        pre-fills it: damage -> impact; an IMPACT's eject (else damage) / a SLAM's glue (else damage) -> launch; IMPACT
+        -> away, SLAM -> up), in set "throws2"'s format (throw_regress.py --events reads it)
+    python3 tools/brawler/throw_answers.py apply2 GAME_DIR SITE_DIR [ANSWERS2.json] [--dry]
+        SITE_DIR: throw_review.py --set throws2's OUT (its index: the rows). Refused (only --dry) until the engine plays
+        the events (build_tables ENGINE_PLAYS_EVENTS)."""
 import datetime, difflib, json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -30,8 +45,8 @@ KIND = {0: 'impact', 1: 'slam'}
 KEY = {'fwd': 'forward', 'back': 'back', 'holdb': 'hold_b'}   # the page's row id -> throws.timing key (gamedata.h TM_*)
 
 
-def pull():
-    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', VPS, f'curl -s -S --max-time 30 {BASE}decisions/{SET}'], capture_output=True, text=True)
+def pull(st=SET):
+    r = subprocess.run(['ssh', '-o', 'BatchMode=yes', VPS, f'curl -s -S --max-time 30 {BASE}decisions/{st}'], capture_output=True, text=True)
     if r.returncode: raise SystemExit('ssh/curl: ' + r.stderr.strip())
     return json.loads(r.stdout or '{}')
 
@@ -79,6 +94,25 @@ def entries(answers, site):
     return out, skipped
 
 
+def set_field(out, f, field, val):
+    """only fighter f's roster field rewritten (build_tables' layout at its depth; None: removed): the rest of game.json
+    stays byte for byte"""
+    at = out.index(f'"name": "{f}"')
+    a = out.rindex('\n  {', 0, at) + 3; b = out.index('\n  }', at) + 4
+    obj = out[a:b]
+    m = re.search(r'\n   "%s": ' % re.escape(field), obj)
+    if m:
+        _, end = json.JSONDecoder().raw_decode(obj, m.end())
+        if val is None:
+            end += 1 if obj[end:end + 1] == ',' else 0
+            obj = obj[:m.start()] + obj[end:]
+        else: obj = obj[:m.end()] + BT.fmt(val, 3) + obj[end:]
+    elif val is not None:
+        nl = obj.index('\n', obj.index(f'"name": "{f}"'))
+        obj = obj[:nl] + f'\n   "{field}": ' + BT.fmt(val, 3) + ',' + obj[nl:]
+    return out[:a] + obj + out[b:]
+
+
 def apply(game, answers, site, dry=False):
     path = os.path.join(game, 'game.json')
     text = open(path).read(); g = json.loads(text)
@@ -100,22 +134,88 @@ def apply(game, answers, site, dry=False):
             hand = max(e.get('eject_row', e['damage_row']), e.get('glue_row', 0)) if e['kind'] == 'impact' else e.get('glue_row')
             if f2 == f and hand is None and how['damage'].startswith('past'):
                 print(f'{rid}: WARNING: its damage frame is after the victim is let go now (no glue): it lands at the hand-off')
-        # only that fighter's "throws" value rewritten (build_tables' layout at its depth): the rest stays byte for byte
-        at = out.index(f'"name": "{f}"')
-        a = out.rindex('\n  {', 0, at) + 3; b = out.index('\n  }', at) + 4
-        obj = out[a:b]
-        val = BT.fmt(t, 3)
-        m = re.search(r'\n   "throws": ', obj)
-        if m:
-            _, end = json.JSONDecoder().raw_decode(obj, m.end())
-            obj = obj[:m.end()] + val + obj[end:]
-        else:
-            assert not had
-            nl = obj.index('\n', obj.index(f'"name": "{f}"'))
-            obj = obj[:nl] + '\n   "throws": ' + val + ',' + obj[nl:]
-        out = out[:a] + obj + out[b:]
+        out = set_field(out, f, 'throws', t)
     assert json.loads(out) == g, 'the patched file does not read back as the edited game'
     diff = ''.join(difflib.unified_diff(text.splitlines(True), out.splitlines(True), path, path + ' (throw review)'))
+    if not dry and out != text: open(path, 'w').write(out)
+    return diff
+
+
+# ---- round 2: the events ----
+SET2 = 'throws2'
+SPECIAL_KEY = {'hanzo_ss2': '623K'}                 # a grab special on hold + B: its special_grab_timing entry (replaced)
+
+
+def parse2(a):
+    o = {}
+    for f in a.get('flags') or []:
+        m = re.match(r'^(impact|launch|held)-(\d+)$', f)
+        if m: o[m.group(1)] = int(m.group(2))
+        m = re.match(r'^(dir|size)-(\w+)$', f)
+        if m: o[m.group(1)] = m.group(2)
+    return o
+
+
+def propose(old):
+    """round 1's answers -> round 2's proposal (review.js throwReview2 propose(): the same rule)"""
+    out = {}
+    for rid, a in old.items():
+        p = flags(a)
+        if 'dmg' not in p: continue
+        imp = a.get('choice') == 0
+        e = {'impact': p['dmg'], 'launch': (p.get('eject') or p['dmg']) if imp else (p.get('glue') or p['dmg']), 'dir': 'away' if imp else 'up'}
+        out[rid] = {'choice': 0, 'proposed': True, 'flags': [f"impact-{e['impact']}", f"launch-{e['launch']}", f"dir-{e['dir']}"],
+                    'label': f"proposed from round 1 ({a.get('label') or ', '.join(a.get('flags') or [])})"}
+    return out
+
+
+def entries2(answers, site):
+    IX = json.load(open(os.path.join(site, 'review', SET2, 'index.json')))
+    rows = {r['id']: r for r in IX['rows']}
+    out, skipped = [], []
+    for rid, a in sorted(answers.items()):
+        r = rows.get(rid)
+        if not r: skipped.append((rid, 'not a row of this capture')); continue
+        if a.get('choice') != 0: skipped.append((rid, f"{a.get('label') or 'no answer'}: not written" + (f" (note: {a['note']})" if a.get('note') else ''))); continue
+        p = parse2(a)
+        miss = [k for k in ('impact', 'launch', 'dir') if k not in p]
+        if miss: skipped.append((rid, f"no {' / '.join(miss)} yet")); continue
+        e = {'impact': p['impact'], 'launch': dict({'frame': p['launch'], 'dir': p['dir']}, **({'size': p['size']} if p.get('size') else {}))}
+        if p.get('held'): e['held'] = p['held']
+        e['from'] = (f"throw review round 2 {a.get('at', '')[:10] or datetime.date.today()} (review.html?q=throws2, build {IX['game_version']}): "
+                     + a.get('label', '') + (f"; note: {a['note']}" if a.get('note') else ''))
+        out.append((r['fighter'], KEY[r['throw']], e, r['kind'], rid))
+    return out, skipped
+
+
+def apply2(game, answers, site, dry=True):
+    if not dry and not BT.ENGINE_PLAYS_EVENTS:
+        raise SystemExit('apply2: the engine does not play throws.events yet (build_tables ENGINE_PLAYS_EVENTS): --dry only')
+    path = os.path.join(game, 'game.json')
+    text = open(path).read(); g = json.loads(text)
+    es, skipped = entries2(answers, site)
+    for rid, why in skipped: print(f'{rid}: skipped: {why}')
+    for f, k, e, kind, rid in es:
+        print(f"{rid}: {f} throws.events.{k} = {json.dumps({x: y for x, y in e.items() if x != 'from'})}")
+    out = text
+    for f in sorted({f for f, *_ in es}):
+        r = next(x for x in g['roster'] if x['name'] == f)
+        t = r.setdefault('throws', {})
+        ev = t.setdefault('events', {})
+        for f2, k, e, kind, rid in es:
+            if f2 != f: continue
+            ev[k] = e
+            (t.get('timing') or {}).pop(k, None)             # one path: the events replace the timing
+            if kind == 'special' and SPECIAL_KEY.get(f) and SPECIAL_KEY[f] in (r.get('special_grab_timing') or {}):
+                del r['special_grab_timing'][SPECIAL_KEY[f]]
+                if not r['special_grab_timing']: del r['special_grab_timing']
+                out = set_field(out, f, 'special_grab_timing', r.get('special_grab_timing'))
+        t['events'] = {k: ev[k] for k in BT.TIMING_KEYS if k in ev}
+        if 'timing' in t and not t['timing']: del t['timing']
+        BT.throw_events(r, g)                                 # the data model's own checks
+        out = set_field(out, f, 'throws', t)
+    assert json.loads(out) == g, 'the patched file does not read back as the edited game'
+    diff = ''.join(difflib.unified_diff(text.splitlines(True), out.splitlines(True), path, path + ' (throw review round 2)'))
     if not dry and out != text: open(path, 'w').write(out)
     return diff
 
@@ -128,6 +228,14 @@ if __name__ == '__main__':
         s = json.dumps(pull(), indent=1, ensure_ascii=False)
         if len(a) > 1: open(a[1], 'w').write(s)
         else: print(s)
+    elif a[0] in ('pull2', 'propose'):
+        d = pull(SET2) if a[0] == 'pull2' else propose(pull())
+        s = json.dumps(d, indent=1, ensure_ascii=False)
+        if len(a) > 1: open(a[1], 'w').write(s)
+        else: print(s)
+    elif a[0] == 'apply2':
+        ans = json.load(open(a[3])) if len(a) > 3 else pull(SET2)
+        print(apply2(a[1], ans, a[2], dry) or '(no change)')
     elif a[0] == 'apply':
         ans = json.load(open(a[3])) if len(a) > 3 else pull()
         print(apply(a[1], ans, a[2], dry) or '(no change)')

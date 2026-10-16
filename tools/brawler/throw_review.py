@@ -9,9 +9,13 @@ Rows per fighter: forward + A (the forward throw), back + A (the back throw) and
 (game.json roster[].throws.b: Haggar's piledriver, the extra paired throw BT_XTHROW; throws.extra.b: SS2 Hanzo's Mozu
 Otoshi, a grab special). Each is played from the hold (P1 walks into the dummy standing 40 px ahead, facing right).
 
-    python3 tools/brawler/throw_review.py OUT GAME_DIR [FIGHTER ...]     (default: the beta's playable fighters)
+    python3 tools/brawler/throw_review.py OUT GAME_DIR [FIGHTER ...] [--set SET] [--prev PREV_INDEX.json]
+        (default: the beta's playable fighters, set "throws"). --set throws2 (the THROW REVIEW v2, review.html?q=throws2:
+        Bruno 2026-10-16 "back to the drawing board": impact / launch / held as separate events) writes OUT/review/throws2/
+        and links each row to the capture he judged before (--prev: that set's index.json, e.g. 0.10.130's
+        review/throws/index.json: row.prev = its sheet / data / frames, served next to it).
 
--> OUT/review/throws/index.json   {set, fps, game_version, rows: [{id, fighter, display, throw, label, input, kind,
+-> OUT/review/<set>/index.json   {set, fps, game_version, rows: [{id, fighter, display, throw, label, input, kind,
                                    frames, w, h, cols, sheet, now: {damage, impacts, release, handoff, ...}}]}
    OUT/review/throws/<id>.json    per frame: rows [victim row, thrower row], states, victim hp lost, height
    OUT/review/throws/<id>.webp    the frames as one sheet (cols x rows of w x h, frame k at (k % cols, k // cols))
@@ -130,14 +134,16 @@ def now_of(data, sc):
     return out
 
 
-def build(out, game, names=None):
+def build(out, game, names=None, set_=SET, prev=None):
     from labdrive import Lab
     G = json.load(open(os.path.join(game, 'game.json')))
     order = [r['name'] for r in G['roster']]
     names = names or beta(G)
-    od = os.path.join(out, 'review', 'throws'); os.makedirs(od, exist_ok=True)
+    od = os.path.join(out, 'review', set_); os.makedirs(od, exist_ok=True)
     L = Lab(game=game)
     rows = []
+    PV = {r['id']: r for r in json.load(open(prev))['rows']} if prev else {}
+    pver = json.load(open(prev))['game_version'] if prev else None
     for n in names:
         fi = order.index(n); di = order.index(DUMMY)
         L.start(fi, di); L.b.run(30)
@@ -161,20 +167,28 @@ def build(out, game, names=None):
             sheet.save(os.path.join(od, rid + '.webp'), lossless=True, quality=100, method=4)
             now = now_of(data, sc)
             per = {'id': rid, 'rows': [[d['vrow'], d['trow']] for d in data], 'states': [[d['t'], d['v']] for d in data],
-                   'hp': [d['hp'] for d in data], 'vy': [d['vy'] for d in data], 'held': [d['vheld'] for d in data]}
+                   'hp': [d['hp'] for d in data], 'vy': [d['vy'] for d in data], 'held': [d['vheld'] for d in data], 'sx': [d['sx'] for d in data]}
             json.dump(per, open(os.path.join(od, rid + '.json'), 'w'), separators=(',', ':'))
             inp = {'fwd': 'forward + A in the hold', 'back': 'back + A in the hold', 'holdb': 'B in the hold'}[opt[0]]
             row = {'id': rid, 'fighter': n, 'display': R.get('display') or n.upper().replace('_', ' '), 'throw': opt[0], 'label': opt[1],
                    'input': inp, 'kind': 'paired' if sc else 'special', 'script': sname, 'frames': len(frames), 'w': w, 'h': h, 'cols': COLS,
-                   'sheet': f'review/throws/{rid}.webp', 'data': f'review/throws/{rid}.json', 'now': now,
+                   'sheet': f'review/{set_}/{rid}.webp', 'data': f'review/{set_}/{rid}.json', 'now': now,
                    'speed': sc['speed'] if sc else None, 'nrows': sc['nrows'] if sc else None}
+            if rid in PV:                                          # the capture he judged (its frames match this one's up
+                p = PV[rid]                                        # to the first difference: same setup, same inputs)
+                row['prev'] = {k: p[k] for k in ('game_version', 'frames', 'w', 'h', 'cols', 'sheet', 'data', 'now') if k in p}
+                row['prev']['game_version'] = pver
             rows.append(row)
             print(f"{rid:16s} {len(frames):3d} frames {w}x{h}  damage at {now['damage']} ({now['damage_hp']})  impacts {now.get('impacts')}  "
                   f"release {now.get('release')}  hand-off {now['handoff']} ({now['handoff_state']})", flush=True)
     ver = open(os.path.join(game, 'VERSION')).read().strip()
-    json.dump({'set': SET, 'fps': 59.18, 'game_version': ver, 'dummy': DUMMY, 'rows': rows}, open(os.path.join(od, 'index.json'), 'w'), indent=1)
+    json.dump({'set': set_, 'fps': 59.18, 'game_version': ver, 'dummy': DUMMY, 'rows': rows}, open(os.path.join(od, 'index.json'), 'w'), indent=1)
     return rows
 
 
 if __name__ == '__main__':
-    build(sys.argv[1], sys.argv[2], sys.argv[3:] or None)
+    a = sys.argv[1:]
+    kw = {}
+    for o, k in (('--set', 'set_'), ('--prev', 'prev')):
+        if o in a: i = a.index(o); kw[k] = a[i + 1]; del a[i:i + 2]
+    build(a[0], a[1], a[2:] or None, **kw)
