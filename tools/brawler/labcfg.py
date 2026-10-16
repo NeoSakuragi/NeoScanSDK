@@ -15,8 +15,9 @@ SERVICE ships with no agent (docs/character_lab.md "Ship service"):
         the VPS untouched before the checks pass): reset + git pull --ff-only origin brawler, VERSION +1, arb_compile.py F
         (his sheet -> game.json, built, every linked slot checked; "nothing changed" ends here, no new version), each
         draft section asked for (SECTIONS: "levels" -> levels.py merge, stage names / backgrounds / songs; "game" ->
-        gamecfg.py merge, the game-wide numbers and texts; "roster" -> roster.py merge, who is selectable + the select layout),
-        rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK, regress.py --bleed-only True / True, git commit
+        gamecfg.py merge, the game-wide numbers and texts; "roster" -> roster.py merge, who is selectable + the select layout;
+        "throws" -> throwcfg.py merge, the throw events), rm build/*.o + make -C sdk + make -jN, bank_proof ALL OK,
+        regress.py --bleed-only True / True (+ throw_regress.py ALL OK when throws are shipped), git commit
         (game.json, VERSION, docs/brawler_gold.md), make publish-vps, scenario.py publish, labpub.py all --if-changed,
         push origin HEAD:brawler -> done "shipped 0.10.N". One log per request: <logs>/<id>.log.
     labcfg.py ship-pending                          the requests waiting: id, fighter, revision, who, when
@@ -80,9 +81,9 @@ FOOTER = ('\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n'
 # the Factory's draft sections (the feedback service lab/<name>, server.py SECTIONS): name -> its tool, whose `merge GAME
 # DRAFT.json` checks the draft against the game and writes it into game.json ("<name>: ..." change lines, or REFUSED) and
 # whose `state GAME` is what the page shows of the game (reported after each ship: lab/<name>_game)
-SECTIONS = {'levels': 'levels.py', 'game': 'gamecfg.py', 'roster': 'roster.py'}
-PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'game': 'compile', 'roster': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
-         'regress bleed': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
+SECTIONS = {'levels': 'levels.py', 'game': 'gamecfg.py', 'roster': 'roster.py', 'throws': 'throwcfg.py'}
+PHASE = {'reset': 'pull', 'git pull': 'pull', 'arb_compile': 'compile', 'levels': 'compile', 'game': 'compile', 'roster': 'compile', 'throws': 'compile', 'make sdk': 'build', 'make': 'build', 'bank_proof': 'checks',
+         'regress bleed': 'checks', 'throw_regress': 'checks', 'commit': 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', 'labpub': 'Lab packs', 'push': 'push'}
 STATE = {'state': 'idle'}                                # what the heartbeat says (ship_one updates it)
 
 
@@ -162,6 +163,8 @@ def ship_one(c, fighters, row):
         run('bank_proof', py('bank_proof.py', game), ok=lambda o: 'ALL OK' in o)
         run('regress bleed', py('regress.py', game, os.path.join(c['logs'], f'{row["id"]}_regress.json'), '--bleed-only'),
             ok=lambda o: re.search(r'bleed: .*: True frame-exact: True', o))
+        if 'throws' in secs:                             # the Throws tab's events: every throw played whole, each event on its frame
+            run('throw_regress', py('throw_regress.py', '--game', game), ok=lambda o: 'ALL OK' in o)
         paths = ['examples/brawler/game.json', 'examples/brawler/VERSION', 'docs/brawler_gold.md']
         what = (', '.join(fighters) + ' shipped from the Assembly' + (f' (rev {row["rev"]})' if row.get('rev') else '')) if fighters else 'rebuild (no data change)'
         if secs: what = (what + ' + ' if fighters else '') + ', '.join(f'{n} (draft rev {row[n]})' for n in secs) + ' shipped from the Factory'

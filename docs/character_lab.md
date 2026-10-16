@@ -371,6 +371,26 @@ fighter's feet, x 40-728 on the three rows; its slot after the fighter before it
 selectable`, `select: moriya at place 10 of 25 (x 728, y 210)`. C ROM / P bank room: the ship's build + `bank_proof.py`
 (the page shows the room left from the last build: `roster.py state`).
 
+### The Factory's Throws (2026-10-16)
+
+`/brawler-factory/?tab=throws[&t=<fighter>-<fwd|back|holdb|run>]` (`factory/throws.js`, `tools/brawler/throwcfg.py`, the
+fourth shipped draft section `throws`): Bruno edits the throw events himself, no token. One row per playable fighter
+(unlocks: starters + rungs) x throw (forward, back, hold + B, the run grab) with its events as the game plays them
+(`I28(40%)+34 H40 L45→b`: impacts with their share, held, launch frame + direction + size; "old timing" = the throw
+still on `throws.timing` / `special_grab_timing`). Tap a row: the throw review's capture (`review/throws2/<id>.webp`,
+throw_review.py: frame k of the strip = throw frame k) with the marks on the strip and the picture, and the editor:
+each impact − / + / here / ✕ and its share (the last takes the rest), "+ Impact at frame N" (3 at most), held until
+(✕ = the launch), launch − / + / here, direction UP / AWAY / NONE, size S / M / B. Checked inline as build_tables
+`throw_events` / `event_impacts` check them, plus the throw's length (the paired script's rows / speed; a grab special
+400): Save is off while a check fails. Save = the draft (`POST lab/throws {throws: {row id: events}}`, only the throws
+that differ from the game; "Back to the game's" drops one). **Ship throws to testers** (or the Build tab's Ship pending
+changes) queues `ship_batch {throws: true}`: the ship service runs `throwcfg.py merge` (REFUSED = `failed` "throws:
+REFUSED: ..."; events replace the throw's `throws.timing` / `special_grab_timing`: one path), builds, bank_proof,
+regress bleed, **throw_regress.py ALL OK** (only when throws ship), commits, publishes, pushes; then posts `throwcfg.py
+state` to `lab/throws_game`. The new build reaches admins at once; testers get it when the Players tab assigns it.
+Desktop dry run: `throwcfg.py pull D.json && throwcfg.py merge examples/brawler D.json [--dry-run]`, make, throw_regress.
+Proof: `factory/throws_proof.js STATE SITE OUT` (headless, 390 px, stub service keeping the draft across a reload).
+
 ## The server API
 
 The pages and the Player talk to the feedback service (`tools/feedback/server.py`, unit `brawler-feedback`): the pages

@@ -12,6 +12,8 @@
 //                         the ship service plays in our emulator (/brawler-factory/songs/). Waves: not here
 //   ?tab=chars (the cast) also carries Roster & select (roster.js, tools/brawler/roster.py): the Selectable switches and
 //                         the select layout editor, the "roster" draft section (lab/roster), shipped by Ship pending changes
+//   ?tab=throws           every playable fighter's throw events (throws.js, tools/brawler/throwcfg.py): the "throws" draft
+//                         section (lab/throws), shipped by its own "Ship throws to testers" or Ship pending changes
 //   ?tab=players         the brawler Oros accounts (admins, testers) and the build each gets (players.js, the "players" section, live)
 //   ?tab=game             the game-wide numbers and texts (game.js, tools/brawler/gamecfg.py): the "game" draft section
 //                         (lab/game), shipped by Ship pending changes
@@ -25,9 +27,10 @@
     .then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; });
   const Q = new URLSearchParams(location.search);
   const F = Q.get('f');
-  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild'), levels: document.getElementById('pLevels'), game: document.getElementById('pGame'), players: document.getElementById('pPlayers') };
+  const P = { chars: document.getElementById('pChars'), build: document.getElementById('pBuild'), levels: document.getElementById('pLevels'), game: document.getElementById('pGame'), throws: document.getElementById('pThrows'), players: document.getElementById('pPlayers') };
   const FG = window.FactoryGame;                    // the Game tab (game.js)
   const FR = window.FactoryRoster;                  // Roster & select (roster.js, the cast view)
+  const FT = window.FactoryThrows;                  // the Throws tab (throws.js)
   const tabs = [...document.querySelectorAll('.ftabs button[data-tab]')];
   const daemonEl = document.getElementById('daemon');
   const PHASES = ['pull', 'compile', 'build', 'checks', 'publish', 'Lab packs', 'push'];
@@ -41,16 +44,17 @@
   const revOf = (r, f) => r.revs ? r.revs[f] : r.fighter === f ? r.rev : undefined;
 
   // ---- tabs ----
-  let tab = ['build', 'levels', 'game', 'players'].includes(Q.get('tab')) ? Q.get('tab') : 'chars';
+  let tab = ['build', 'levels', 'game', 'throws', 'players'].includes(Q.get('tab')) ? Q.get('tab') : 'chars';
   function show(k) {
     tab = k;
     for (const [n, el] of Object.entries(P)) el.hidden = n !== k;
     tabs.forEach(b => b.dataset.tab === k ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
     const u = new URL(location.href); u.searchParams.set('tab', k); history.replaceState(null, '', u.pathname + u.search);
-    document.title = ({ build: 'Build', levels: 'Levels', game: 'Game', players: 'Players' }[k] || F || 'Characters') + ' · Brawler Factory';
+    document.title = ({ build: 'Build', levels: 'Levels', game: 'Game', throws: 'Throws', players: 'Players' }[k] || F || 'Characters') + ' · Brawler Factory';
     if (k === 'build') drawBuild();
     if (k === 'game') FG.draw();
     if (k === 'players') window.FactoryPlayers.draw();
+    if (k === 'throws') FT.draw();
     if (k !== 'levels') stopPreview();
     poll();
   }
@@ -60,14 +64,15 @@
   let pollT = null;
   async function poll() {
     clearTimeout(pollT);
-    const [q, cfg, lv, gm, ro] = await Promise.all([getJ(LAB + 'ship'), getJ(LAB + 'config'), getJ(LAB + 'levels'), getJ(LAB + 'game'), getJ(LAB + 'roster')]);
+    const [q, cfg, lv, gm, ro, th] = await Promise.all([getJ(LAB + 'ship'), getJ(LAB + 'config'), getJ(LAB + 'levels'), getJ(LAB + 'game'), getJ(LAB + 'roster'), getJ(LAB + 'throws')]);
     if (q) { S.rows = q.requests || []; S.daemon = q.daemon; if (q.now) S.skew = t(q.now) - Date.now(); }
     if (cfg) S.configs = cfg.configs || [];
     if (lv) S.lv = lv;
     FG.poll(gm, S.rows, tab === 'game');
     FR.poll(ro, S.rows, tab === 'chars' && !F);
+    FT.poll(th, S.rows, tab === 'throws');
     drawDaemon();
-    if (tab === 'build') drawBuild(); else if (tab === 'game') { /* (FG.poll: its marks) */ } else if (tab === 'levels') { if (lvOpenStage < 0) drawLevels(); } else if (tab === 'players') { /* (players.js: drawn on open and on Save) */ } else drawCastTags();   // (an open editor: not redrawn under his fingers)
+    if (tab === 'build') drawBuild(); else if (tab === 'game') { /* (FG.poll: its marks) */ } else if (tab === 'levels') { if (lvOpenStage < 0) drawLevels(); } else if (tab === 'players' || tab === 'throws') { /* (players.js / throws.js: their own redraws) */ } else drawCastTags();   // (an open editor: not redrawn under his fingers)
     pollT = setTimeout(poll, tab === 'build' ? 5000 : 20000);
   }
   function daemonState() {
@@ -178,7 +183,7 @@
     return h('div', { class: 'steps', 'aria-label': 'Steps' }, PHASES.map((p, k) => h('span', {
       class: r.status === 'building' ? (k < i ? 'done' : k === i ? 'now' : '') : r.status === 'done' && /^shipped/.test(r.result || '') ? 'done' : k === failedAt ? 'fail' : k < failedAt ? 'done' : '', text: p })));
   }
-  const STEP_PHASE = { reset: 'pull', 'git pull': 'pull', arb_compile: 'compile', levels: 'compile', game: 'compile', roster: 'compile', 'make sdk': 'build', make: 'build', bank_proof: 'checks', 'regress bleed': 'checks',
+  const STEP_PHASE = { reset: 'pull', 'git pull': 'pull', arb_compile: 'compile', levels: 'compile', game: 'compile', roster: 'compile', throws: 'compile', 'make sdk': 'build', make: 'build', bank_proof: 'checks', 'regress bleed': 'checks', throw_regress: 'checks',
                        commit: 'publish', 'publish-vps': 'publish', 'scenario publish': 'publish', labpub: 'Lab packs', push: 'push' };
   function PHASE_OF(step) { return STEP_PHASE[step] || step; }
   const logs = {};                                  // id -> the log text (a closed ship's is fetched once)
@@ -199,7 +204,7 @@
     const logBtn = h('button', { type: 'button', text: openLog === r.id ? 'Hide log' : 'Log', onclick: () => { openLog = openLog === r.id ? null : r.id; drawBuild(); } });
     return h('div', { class: 'ship' },
       h('span', { class: 'v', text: ver || '#' + r.id }),
-      h('span', { class: 'who', text: (fs.length || r.levels || r.game || r.roster ? fs.concat(['levels', 'game', 'roster'].filter(x => r[x])).join(', ') : 'rebuild (engine as pushed)') }),
+      h('span', { class: 'who', text: (fs.length || r.levels || r.game || r.roster || r.throws ? fs.concat(['levels', 'game', 'roster', 'throws'].filter(x => r[x])).join(', ') : 'rebuild (engine as pushed)') }),
       h('span', { class: 't', text: cur ? dur(end - start) : (r.closed_at ? hm(r.closed_at) + ' · ' + dur(end - start) : hm(r.at)) }),
       cur || r.status === 'failed' ? stepsEl(r) : null,
       (r.changes || []).length ? r.changes.map(c => h('p', { class: 'ch', text: c })) : null,
@@ -210,17 +215,17 @@
   function drawBuild() {
     const d = daemonState();
     const pend = pendingFighters(), lvp = lvPending();
-    const gp = FG.pending(), rp = FR.pending();
-    const all = pend.concat(lvp ? ['levels'] : [], gp ? ['game'] : [], rp ? ['roster'] : []);
+    const gp = FG.pending(), rp = FR.pending(), tp = FT.pending();
+    const all = pend.concat(lvp ? ['levels'] : [], gp ? ['game'] : [], rp ? ['roster'] : [], tp ? ['throws'] : []);
     const building = S.rows.filter(r => r.status === 'building');
     const queued = S.rows.filter(r => r.status === 'pending');
     const hist = S.rows.filter(r => r.status === 'done' || r.status === 'failed').slice(-20).reverse();
     const shipAll = h('button', { type: 'button', class: 'primary', disabled: all.length ? null : '', text: all.length ? `Ship pending changes (${all.join(', ')})` : 'Ship pending changes (none)',
-      onclick: () => ship({ fighters: pend, levels: lvp || undefined, game: gp || undefined, roster: rp || undefined, note: 'Ship pending changes (the Factory)' }, all.join(', ')) });
+      onclick: () => ship({ fighters: pend, levels: lvp || undefined, game: gp || undefined, roster: rp || undefined, throws: tp || undefined, note: 'Ship pending changes (the Factory)' }, all.join(', ')) });
     const rebuild = h('button', { type: 'button', text: 'Rebuild & ship current', title: 'No data change: the game as pushed (e.g. after an engine merge), new version',
       onclick: () => { if (confirm('Rebuild and ship the game as pushed (no data change)?')) ship({ rebuild: true, note: 'Rebuild & ship current (the Factory)' }, 'rebuild'); } });
     const per = all.length > 1 ? h('div', { class: 'pend' }, 'One at a time:', all.map(f => h('button', { type: 'button', text: 'Ship ' + f,
-      onclick: () => ship(f === 'levels' || f === 'game' || f === 'roster' ? { [f]: true, note: 'Ship ' + f + ' (the Factory)' } : { fighters: [f], note: 'Ship ' + f + ' (the Factory)' }, f) }))) : null;
+      onclick: () => ship(f === 'levels' || f === 'game' || f === 'roster' || f === 'throws' ? { [f]: true, note: 'Ship ' + f + ' (the Factory)' } : { fighters: [f], note: 'Ship ' + f + ' (the Factory)' }, f) }))) : null;
     P.build.replaceChildren(...[
       h('div', { class: 'card' }, h('p', { class: 'dline' }, h('span', { class: 'pill ' + d.cls, text: d.text })), h('div', { class: 'btns' }, shipAll, rebuild), per, B.msg),
       building.length ? h('div', { class: 'card cur' }, h('h2', { text: 'Now building' }), building.map(r => shipRow(r, true))) : null,
