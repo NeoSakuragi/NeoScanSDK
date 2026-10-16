@@ -5009,8 +5009,10 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         if (a->pdef && (a->pdef->ppad & 2)) v->jug_n = 0;      /* an object whose hit restarts the juggle (bproj_t.ppad bit 1,
                                                                     game.json roster[].proj_react juggle_reset: SS2 Hanzo's
                                                                     Bakuen Ryuu, note 20261015-213144-e03d) */
-        if (v->y > 0 && (gchain.jreset & JR_C) && o->state == S_SPECIAL && o->sinv) v->jug_n = 0;   /* a C special's air hit:
-                                                                    the juggle counts from 0 again (chain.juggle_reset_button) */
+        if ((gchain.jreset & JR_C) && o->state == S_SPECIAL && o->sinv) v->jug_n = 0;   /* a C special's hit, in the air
+                                                                    or on the ground (its launch: note 20261016-155607-e03d,
+                                                                    Robert's forward + C): the juggle counts from 0 again
+                                                                    (chain.juggle_reset_button) */
         if (!v->team && v->state != S_PROJ) { v->guard = gchain.guard_player; v->guard_by = o; }   /* a player: untouchable
                                                                     to all but this attacker a moment ("guard") */
     }
