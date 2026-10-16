@@ -5011,5 +5011,57 @@
   "expect": "As you answered on the throw review: SLAM, damage frame 24, glued until frame 24. The whole damage lands in one go on that frame, never at the grab.",
   "do_keys": "20:R,2:La",
   "proof": 160
+ },
+ "20261016-140201-7c01": {
+  "title": "Haggar's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haggar walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 22, glued until frame 22. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 200
+ },
+ "20261016-140202-7c02": {
+  "title": "Haggar's back throw (back + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haggar walk into Ryo to grab him, then back + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 22, glued until frame 22. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:La",
+  "proof": 200
+ },
+ "20261016-140203-7c03": {
+  "title": "Haggar's hold + b: piledriver (B in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haggar walk into Ryo to grab him, then B in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 60, glued until frame 60. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:b",
+  "proof": 200
+ },
+ "20261016-140204-7c04": {
+  "title": "Hanzo's forward throw (forward + A in the hold)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Hanzo walk into Ryo to grab him, then forward + A in the hold. Watch Ryo's life bar and when he is let go.",
+  "expect": "As you answered on the throw review: SLAM, damage frame 31, glued until frame 38. The whole damage lands in one go on that frame, never at the grab.",
+  "do_keys": "20:R,2:Ra",
+  "proof": 200
  }
 }
