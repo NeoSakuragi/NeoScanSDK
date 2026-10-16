@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brawler for Android</title>
+<style>
+  :root { --bg:#fff; --ink:#000; --soft:#444; --line:#000; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --ink:#f2f2f2; --soft:#bbb; --line:#f2f2f2; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.5 system-ui, sans-serif; }
+  main { max-width:520px; margin:0 auto; padding:28px 16px 40px; }
+  h1 { margin:0; font-size:34px; letter-spacing:.05em; }
+  .sub { margin:2px 0 22px; color:var(--soft); }
+  a.dl { display:block; padding:18px 14px; border:3px solid var(--line); border-radius:10px; text-align:center;
+         font-weight:800; font-size:20px; color:var(--bg); background:var(--ink); text-decoration:none; }
+  .meta { text-align:center; color:var(--soft); font-size:14px; margin:8px 0 26px; }
+  h2 { font-size:18px; margin:22px 0 8px; }
+  ol { margin:0; padding-left:22px; } li { margin:6px 0; }
+  .box { border:2px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:20px; font-size:15px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BRAWLER</h1>
+  <p class="sub">Neo Geo beat 'em up, Android beta.</p>
+  <a class="dl" href="brawler-@NAME@.apk" download>Download the app</a>
+  <p class="meta">brawler-@NAME@.apk · @SIZE@ MB · Android 8 or newer</p>
+  <h2>Install</h2>
+  <ol>
+    <li>Tap <b>Download the app</b>, then open the downloaded file.</li>
+    <li>If Android asks, allow your browser to install apps, then tap <b>Install</b>.</li>
+    <li>Open <b>Brawler</b> and sign in with the tester account Bruno gave you.</li>
+    <li>The game downloads itself on the first start (about 50 MB, Wi-Fi recommended).</li>
+  </ol>
+  <h2>Updates</h2>
+  <p>New versions of the game arrive by themselves. When a new version of the app exists, the app offers it on its start screen and installs it for you.</p>
+  <div class="box">Found a bug or have an idea? Hold the <b>Feedback</b> button in the game and talk: your note goes straight to the developer with a replay of what just happened.</div>
+</main>
+</body>
+</html>

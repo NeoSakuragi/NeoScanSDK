@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brawler: sign in</title>
+<style>
+  :root { --bg:#fff; --ink:#000; --soft:#444; --line:#000; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --ink:#f2f2f2; --soft:#bbb; --line:#f2f2f2; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:var(--bg); color:var(--ink); font:17px/1.45 system-ui, sans-serif; padding:16px; }
+  form { width:min(360px,100%); border:2px solid var(--line); border-radius:10px; padding:26px 22px; display:grid; gap:12px; }
+  h1 { margin:0; font-size:28px; letter-spacing:.04em; text-align:center; }
+  p.sub { margin:0 0 6px; text-align:center; color:var(--soft); font-size:15px; }
+  input { font:inherit; background:var(--bg); color:var(--ink); border:2px solid var(--line); border-radius:8px; padding:11px 12px; width:100%; }
+  button { font:inherit; font-weight:700; background:var(--ink); color:var(--bg); border:none; border-radius:8px; padding:12px; cursor:pointer; }
+  button:disabled { opacity:.6; }
+  .err { min-height:22px; margin:0; text-align:center; font-weight:600; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>BRAWLER</h1>
+  <p class="sub">Neo Geo beat 'em up, Android beta.<br>Sign in with your tester account.</p>
+  <input id="u" placeholder="Username" autocomplete="username" autocapitalize="none" required>
+  <input id="p" type="password" placeholder="Password" autocomplete="current-password" required>
+  <p class="err" id="e"></p>
+  <button id="go">Sign in</button>
+</form>
+<script>
+(function () {
+  "use strict";
+  const err = document.getElementById("e"), go = document.getElementById("go");
+  // signed in and allowed? straight to the download page; signed in but not a tester: say so
+  async function enter(quiet) {
+    const r = await fetch("./", { credentials: "same-origin", redirect: "manual" });
+    if (r.ok) { location.replace("./"); return true; }
+    if (r.status === 403 && !quiet) err.textContent = "This account has no access to the Brawler beta. Ask Bruno.";
+    return false;
+  }
+  fetch("/oros/api/whoami", { credentials: "same-origin" }).then(r => { if (r.ok) enter(true); }).catch(() => {});
+  document.getElementById("f").addEventListener("submit", async ev => {
+    ev.preventDefault(); err.textContent = ""; go.disabled = true;
+    try {
+      const res = await fetch("/oros/api/login", { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: document.getElementById("u").value.trim(), password: document.getElementById("p").value }) });
+      if (res.ok) { if (!(await enter(false))) go.disabled = false; return; }
+      err.textContent = res.status === 429 ? "Too many tries. Wait a minute." : "Wrong username or password.";
+    } catch (e) { err.textContent = "Can't reach the server."; }
+    go.disabled = false;
+  });
+})();
+</script>
+</body>
+</html>
