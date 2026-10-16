@@ -991,7 +991,8 @@ def share_build_for(name, role='tester', nightly=False):
         v = published_newest()
         if v and v in have: return v, have[v]
     a = (section_load('players').get('draft') or {}).get('assign') or {}
-    want = vkey(a.get('*') if role == 'tester' else a.get(name))   # (Bruno 2026-10-15: every tester gets the same build, '*')
+    want = vkey((a.get(name) or a.get('*')) if role == 'tester' else a.get(name))   # (Bruno 2026-10-15: every tester gets the
+                                                                    # same build, '*'; 2026-10-16: a tester's own row overrides it)
     if not want and role == 'admin' and have: want = max(vkey(v) for v in have)
     if not want: return None, None
     ok = sorted((v for v in have if vkey(v) <= want), key=vkey)
