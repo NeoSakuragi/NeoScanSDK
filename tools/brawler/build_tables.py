@@ -947,28 +947,46 @@ TIMING_KEYS = ('forward', 'back', 'hold_b')             # gamedata.h TM_FWD / TM
 TIMING_KINDS = ('impact', 'slam')
 
 
-def throw_timing(r):
+def slam_bounce(e, dflt, w):
+    """a SLAM's ground bounce (note 20261016-095622-e03d, the tester: "at the moment of the slam (the victim hits the
+    ground), make the victim bounce a bit, so that I can continue juggling a bit"): game.json "slam_bounce" {vy, vx} =
+    every slam's (a paired throw's throws.timing kind slam, a grab special's special_grab_timing); an entry's own
+    "bounce" {vy, vx} | false overrides it. vy px a frame up, vx px a frame away from the thrower (fighter.c
+    slam_bounce) -> (vy, vx) 8.8, (0, 0) none"""
+    b = e.get('bounce', dflt)
+    if b is False or b is None: return (0, 0)
+    assert isinstance(b, dict), f'{w}.bounce: {{vy, vx}} | false'
+    for k in b: assert k in ('about', 'vy', 'vx'), f'{w}.bounce: unknown field {k}'
+    assert isinstance(b.get('vy'), (int, float)) and 0.5 <= b['vy'] <= 12, f'{w}.bounce.vy: 0.5-12 px a frame up'
+    assert isinstance(b.get('vx', 0), (int, float)) and -8 <= b.get('vx', 0) <= 8, f'{w}.bounce.vx: -8..8 px a frame away'
+    return (round(b['vy'] * 256), round(b.get('vx', 0) * 256))
+
+
+def throw_timing(r, g=None):
     """roster[].throws.timing (note 20261016-045300-e03d round 2, Bruno: "throws should be case by case"; written by
     tools/brawler/throw_answers.py from the throw review, review.html?q=throws): per throw {kind impact | slam, damage_row,
     eject_row?, glue_row?, about?, from?} in its script's rows -> [(dmg, hand, kind)] by TM_* (gamedata.h gthrtm_t). dmg = damage_row;
     hand = an IMPACT's eject_row (default its damage_row), not before its glue_row; a SLAM: its glue_row, else none (the
-    throw_handoff rule). No entry: 0xFFFF both (the 0.10.129 rule: fighter.c slam_row)"""
+    throw_handoff rule). No entry: 0xFFFF both (the 0.10.129 rule: fighter.c slam_row). A SLAM also gets its ground
+    bounce (bvy, bvx: slam_bounce below, note 20261016-095622-e03d; 0 0 none)"""
     tm = (r.get('throws') or {}).get('timing') or {}
     assert isinstance(tm, dict), f"roster {r['name']}: throws.timing = {{forward | back | hold_b: {{...}}}}"
     for k in tm: assert k in TIMING_KEYS, f"roster {r['name']}: throws.timing.{k}: one of {', '.join(TIMING_KEYS)}"
     out = []
     for k in TIMING_KEYS:
         e = tm.get(k)
-        if not e: out.append(('0xFFFF', '0xFFFF', 'TK_NONE')); continue
+        if not e: out.append(('0xFFFF', '0xFFFF', 'TK_NONE', 0, 0)); continue
         w = f"roster {r['name']}: throws.timing.{k}"
-        for f in e: assert f in ('kind', 'damage_row', 'eject_row', 'glue_row', 'about', 'from'), f'{w}: unknown field {f}'
+        for f in e: assert f in ('kind', 'damage_row', 'eject_row', 'glue_row', 'bounce', 'about', 'from'), f'{w}: unknown field {f}'
         assert e.get('kind') in TIMING_KINDS, f"{w}.kind: one of {', '.join(TIMING_KINDS)}"
         for f in ('damage_row', 'eject_row', 'glue_row'):
             assert f not in e or (isinstance(e[f], int) and 0 <= e[f] < 0xFFFF), f'{w}.{f}: a script row'
         assert 'damage_row' in e, f'{w}.damage_row: the row its damage lands on'
         assert e['kind'] == 'impact' or 'eject_row' not in e, f'{w}: eject_row is an IMPACT throw\'s'
         hand = max(e.get('eject_row', e['damage_row']), e.get('glue_row', 0)) if e['kind'] == 'impact' else e.get('glue_row', 0xFFFF)
-        out.append((str(e['damage_row']), '0xFFFF' if hand == 0xFFFF else str(hand), 'TK_' + e['kind'].upper()))
+        assert e['kind'] == 'slam' or 'bounce' not in e, f'{w}: bounce is a SLAM throw\'s'
+        bv = slam_bounce(e, (g or {}).get('slam_bounce'), w) if e['kind'] == 'slam' else (0, 0)
+        out.append((str(e['damage_row']), '0xFFFF' if hand == 0xFFFF else str(hand), 'TK_' + e['kind'].upper()) + bv)
     return out
 
 
@@ -1591,6 +1609,7 @@ def tables(g, build):
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
+         'extern const int16_t gsgt_bounce[BC_COUNT][2];   /* a grab special\'s slam bounce (vy, vx 8.8 px a frame; game.json slam_bounce, special_grab_timing.bounce; fighter.c slam_bounce) */',
          'extern const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT];   /* a throw\'s damage row and hand-off row as Bruno judged it (game.json roster[].throws.timing; gamedata.h gthrtm_t, fighter.c throw_start; 0xFFFF: the rule) */',
          'extern const uint8_t gthrow_keep[BC_COUNT];    /* 1: the chain\'s back throw whose thrown body hits another enemy keeps the chain one link in (game.json roster[].throw_keeps_chain, Final Fight Haggar\'s quirk; fighter.c chain_throw) */',
          'extern const uint16_t gclear_walk[BC_COUNT];   /* the stage clear: instead of the win pose he walks to this screen x (game.json roster[].clear_walk.to; 0 = none: the win pose; CLEAR_WALK_OFF = "off": right until his whole picture has left the screen, the screen edges not holding him; main.c win_tick) */',
@@ -1672,7 +1691,7 @@ def tables(g, build):
     for r in g['roster']:                                # roster[].special_grab_timing {input: {kind, damage_frame, glue_frame}}
         for inp, e in (r.get('special_grab_timing') or {}).items():   # (export_bm special_grab_timing, fighter.c vlist_place)
             w = f"roster {r['name']}: special_grab_timing.{inp}"
-            for k in e: assert k in ('kind', 'damage_frame', 'glue_frame', 'from'), f"{w}: unknown field {k}"
+            for k in e: assert k in ('kind', 'damage_frame', 'glue_frame', 'bounce', 'from'), f"{w}: unknown field {k}"
             assert e.get('kind') == 'slam', f"{w}: kind 'slam' (one damage, at the slam)"
             for k in ('damage_frame', 'glue_frame'):
                 assert k not in e or (isinstance(e[k], int) and 1 <= e[k] <= 255), f"{w}.{k}: a program frame 1-255"
@@ -1718,7 +1737,14 @@ def tables(g, build):
         cw.append(str(w['to']))
     c.append('const uint8_t gthrow_air[BC_COUNT] = { ' + ', '.join(ta) + ' };')
     c.append('const gthrtm_t gthrow_tm[BC_COUNT][TM_COUNT] = {\n    ' + ',\n    '.join(
-        '{ ' + ', '.join('{ %s, %s, %s, 0 }' % t for t in throw_timing(r)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
+        '{ ' + ', '.join('{ %s, %s, %s, 0, %d, %d }' % t for t in throw_timing(r, g)) + f' }}   /* {r["name"]} */' for r in g['roster']) + '\n};')
+    sb = []                                              # a grab special's slam bounce (special_grab_timing, slam_bounce)
+    for r in g['roster']:
+        bv = {slam_bounce(e, g.get('slam_bounce'), f"roster {r['name']}: special_grab_timing.{inp}")
+              for inp, e in (r.get('special_grab_timing') or {}).items()}
+        assert len(bv) <= 1, f"roster {r['name']}: special_grab_timing: one bounce for all its grab specials"
+        sb.append('{ %d, %d }' % (bv.pop() if bv else (0, 0)) + f'   /* {r["name"]} */')
+    c.append('const int16_t gsgt_bounce[BC_COUNT][2] = {\n    ' + ',\n    '.join(sb) + '\n};   /* (vy, vx) 8.8 px a frame */')
     c.append('const uint8_t gthrow_keep[BC_COUNT] = { ' + ', '.join(tk) + ' };')
     c.append('const uint16_t gclear_walk[BC_COUNT] = { ' + ', '.join(cw) + ' };')
     ft = []                                              # the fury's closing throw (note 20261014-171937-5d29, Haggar:

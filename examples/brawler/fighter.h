@@ -630,6 +630,10 @@ typedef struct fighter {
                                      a glue): the engine's body from that row (fighter.c victim_rows); 0xFFFF: the rule's */
     uint8_t  ejk;                 /* that hand-off's kind (gamedata.h TK_*): TK_IMPACT launches the victim from the row toward its
                                      script's landing (thrown_release), TK_SLAM hands it over there (on the floor: thrown_land) */
+    int16_t  sbvy, sbvx;          /* a SLAM's victim: its ground bounce at the slam (8.8 px a frame up / away from the thrower;
+                                     game.json slam_bounce, fighter.c slam_bounce; sbvy 0: none) */
+    uint8_t  tbnc, tbpad;         /* a thrower whose slam bounced its victim: any press / stick cuts the rest of his throw / grab
+                                     special (fighter.c slam_bounce; any new state clears it) */
     uint8_t  tb_fl, tb_kind;      /* a thrown body's floor impact (note 20261014-132326-5d29, fighter.c "thrown bodies",
                                      game.json throw_body.floor): bit 7 = it touched the floor, bits 0-6 = frames it still
                                      knocks others down there (0: none, or not landed yet); tb_kind = which throw made

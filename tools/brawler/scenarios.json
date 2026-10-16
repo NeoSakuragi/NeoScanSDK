@@ -5141,5 +5141,18 @@
   "expect": "As you answered on the throw review: SLAM, the whole damage lands in one go on frame 86 (at the slam, never at the grab), and Ryo stays held to Hanzo until frame 100.",
   "do_keys": "20:R,2:b",
   "proof": 220
+ },
+ "20261016-095622-e03d": {
+  "title": "Slam throws: the victim bounces off the floor, juggle him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 34
+  },
+  "do": "As Haggar walk into Ryo to grab him, then back + A (the backdrop). The moment Ryo hits the floor behind you, walk back to him and press A.",
+  "expect": "Ryo bounces up a little off the floor at the slam instead of just lying there, and Haggar can move again at once: your jab hits Ryo in the air before he lands. The same on every slam throw (Terry and Robert back, Haggar forward / back / hold + B, Hanzo forward and his Mozu Otoshi, Haohmaru forward, Kim both ways); impact throws are unchanged.",
+  "do_keys": "20:R,2:La,4:-,14:L,2:a,8:-,2:a",
+  "proof": 120
  }
 }

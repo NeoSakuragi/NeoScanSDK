@@ -167,8 +167,10 @@ extern const gthrow_t gthrow;
  * review.html?q=throws) -> gthrow_tm[fighter][TM_*]. dmg: the script row the whole damage lands on (fighter_t.slam; 0xFFFF:
  * the 0.10.129 rule, fighter.c slam_row); hand: the row the victim becomes the engine's body (fighter_t.eject: an
  * IMPACT (TK_IMPACT) launched from it toward its script's landing row, a SLAM's (TK_SLAM, its glue) on the floor there the
- * landing hand-off, in the air the same launch; 0xFFFF: game.json throw_handoff's rule); kind: TK_* (0: no entry) */
-typedef struct { uint16_t dmg, hand; uint8_t kind, pad; } gthrtm_t;
+ * landing hand-off, in the air the same launch; 0xFFFF: game.json throw_handoff's rule); kind: TK_* (0: no entry);
+ * bvy / bvx: a SLAM's ground bounce (game.json slam_bounce, note 20261016-095622-e03d; 8.8 px a frame up / away from the
+ * thrower, fighter.c slam_bounce; bvy 0: none) */
+typedef struct { uint16_t dmg, hand; uint8_t kind, pad; int16_t bvy, bvx; } gthrtm_t;
 enum { TM_FWD, TM_BACK, TM_HOLD_B, TM_COUNT };
 enum { TK_NONE, TK_IMPACT, TK_SLAM };
 /* ---- layer 2: the thrown body (game.json "throw_body", note 20261014-132326-5d29, Final Fight measured in FBNeo: a thrown

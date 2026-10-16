@@ -462,6 +462,7 @@ static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0;
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
     f->bsl_n = 0;                                                /* (a Blitz's slide: its move only, blitz_slide) */
+    f->tbnc = 0;                                                 /* (a slam's bounce cancel: its throw / special only) */
     if (st != S_AIR_ATTACK) f->jt = 0;                           /* (the jump table: only its own take-off and its air
                                                                     attacks keep it, "jumps"; any other air: gravity) */
     if (st != S_KNOCKDOWN) {                                     /* (the chain core: a juggle and a downed body end when it */
@@ -1688,6 +1689,27 @@ static void thrown_land(fighter_t *v, const bthrow_t *th, uint16_t h) {
     v->y = 0; v->vy = 0; v->kmode = 0; v->kvfr = 0; v->kfloor = 1;   /* on the floor (its impact sounded on the row) */
     v->frame_ovr = 0xFFFF; play(v, BA_KNOCKDOWN_BOUNCE); set_burn(v, 0);
 }
+/* THE SLAM'S BOUNCE (note 20261016-095622-e03d, the tester: "for all characters with slam throws: at the moment of the
+ * slam (the victim hits the ground), make the victim bounce a bit, so that I can continue juggling a bit"): a SLAM's
+ * victim (a paired throw's throws.timing kind slam: its damage row is its hand-off then, throw_start; a grab special's
+ * special_grab_timing: its blow, vlist_place) leaves the floor at once in a short low pop, bvy / bvx 8.8 px a frame up /
+ * away from the thrower (game.json slam_bounce, gthrow_tm / gsgt_bounce): an ordinary airborne knockdown (S_KNOCKDOWN,
+ * the juggle box, its air hits counted toward chain.juggle_cap), which falls, lands and lies as any. Its thrower may cut
+ * the rest of his throw / special short from that frame with any press or stick (tbnc, a player: update's S_THROW / S_SPECIAL), to reach it and hit it
+ * again on the way down. A MAX chain's throw with another to come does not bounce (chain_more) */
+static void bounce_cancel(fighter_t *f) {                       /* the thrower's cut: neutral, facing its victim (the */
+    const fighter_t *v = f->target;                              /* stick still turns him: update's neutral) */
+    if (v && v != f && INT(v->x) != INT(f->x)) f->facing = v->x > f->x ? 1 : -1;
+    to_neutral(f, 0);
+}
+static void slam_bounce(fighter_t *v, fighter_t *by, int16_t bvy, int16_t bvx) {
+    int8_t away = by && by != v ? (v->x >= by->x ? 1 : -1) : -v->facing;
+    if (v->state != S_KNOCKDOWN) enter(v, S_KNOCKDOWN);
+    v->y = 0; v->vy = (int32_t)bvy << 8; v->vx = dir_mul(away, (int32_t)bvx << 8);   /* (8.8 -> 16.16) */
+    v->kfloor = 0; v->kslam = 0; v->kmode = 0; v->kvfr = 0; v->kdelay = 0;
+    v->frame_ovr = 0xFFFF; play(v, BA_BLOWBACK_N);               /* (BA_KNOCKDOWN_FLIGHT on its way down) */
+    if (by && by != v && !by->team) by->tbnc = 1;            /* (a player thrower: AI throws play out) */
+}
 /* the victim's side of rows j..i (passed or reached this frame): postures, impacts (damage, sound, spark, freeze);
  * returns bit 0 when an impact was passed, bit 1 when the victim was released (it is no longer in the script), bit 2
  * when a hold finisher's last impact was passed (its knockdown) */
@@ -1740,7 +1762,10 @@ static uint8_t victim_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_
     if (h != 0xFFFF && i == h) {                                 /* the hand-off: the engine's body from here */
         if (h == v->eject) {                                     /* the throw's own (throws.timing): an IMPACT ejects */
             const bthrow_row_t *r = vrow(v, th, h, &tmp);        /* (a launch that lands where the script did); a SLAM's */
-            if (v->ejk == TK_SLAM && r->ty + r->vy <= 0) thrown_land(v, th, h);   /* glue on the floor: its landing there */
+            if (v->ejk == TK_SLAM && v->sbvy) {                  /* a bouncing SLAM: on the floor at its slam row (SS2 */
+                thrown_land(v, th, h);                           /* Hanzo's forward throw: 12 px above it there), */
+                slam_bounce(v, by, v->sbvy, v->sbvx);            /* bouncing off it (the slam's bounce) */
+            } else if (v->ejk == TK_SLAM && r->ty + r->vy <= 0) thrown_land(v, th, h);   /* glue on the floor: its landing there */
             else thrown_release(v, th, h);
         } else if (gthrow.handoff == TH_LANDING) thrown_land(v, th, h); else thrown_release(v, th, th->rel);
         return hit | 2;
@@ -1796,6 +1821,9 @@ static uint8_t max_glue(fighter_t *f, const bthrow_t *th, uint16_t j) {
     if (!f->mchn || f->ch->id >= BC_COUNT || f->mchn - 1 >= gmax_chain[f->ch->id].n || !IS_THROW(f->throw_id)) return 0;
     li = last_impact(th);
     return li != 0xFFFF && j > li;
+}
+static uint8_t chain_more(const fighter_t *f) {              /* a MAX chain throw with another to come */
+    return f->mchn && f->ch->id < BC_COUNT && f->mchn - 1 < gmax_chain[f->ch->id].n;
 }
 static uint8_t paired_update(fighter_t *f) {
     const bthrow_t *th = thr_of(f, f->throw_id);
@@ -1919,11 +1947,15 @@ static void throw_start(fighter_t *f, uint8_t t, uint8_t dir) {  /* forward+A / 
     f->inv = INV_FURY; f->cthrow = 1;                            /* invincible to its control return (revamp 3: every
                                                                     throw, as the chain's back throw was) */
     v->slam = IS_THROW(t) ? slam_row(th) : 0xFFFF;               /* its damage at its ground impact (slam_row) */
-    v->eject = 0xFFFF;
+    v->eject = 0xFFFF; v->sbvy = v->sbvx = 0;
     if (IS_THROW(t) && f->ch->id < BC_COUNT) {                   /* the throw's own timing, as Bruno judged it (game.json */
         const gthrtm_t *tm = &gthrow_tm[f->ch->id][t == BT_XTHROW ? TM_HOLD_B : dir == TD_BACK ? TM_BACK : TM_FWD];   /* roster[]. */
         if (tm->dmg != 0xFFFF) v->slam = tm->dmg;                /* throws.timing, gamedata.h gthrtm_t): its damage row, */
         v->eject = tm->hand; v->ejk = tm->kind;                  /* its hand-off row (an IMPACT's eject) */
+        if (tm->kind == TK_SLAM && tm->bvy && !chain_more(f)) { /* the slam's bounce: from its damage row (no glue */
+            v->sbvy = tm->bvy; v->sbvx = tm->bvx;                /* after it: the victim leaves the floor there) */
+            if (tm->dmg != 0xFFFF) v->eject = tm->dmg;
+        }
     }
     if (f->team) stat_throws++;
     victim_side(f, v, t);
@@ -3645,7 +3677,7 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     fighter_t *t = f->target;
     const bvlist_t *l;
     const bvent_t *e;
-    uint8_t k;
+    uint8_t k, slam = 0;
     if (!f->vlist || (f->vlist & 0x80) || !t || !(f->pflags & PF_HOLD)) return;   /* (0x80: P_CATCH's, from its routine) */
     l = &sp->vlists[f->vlist - 1];
     if (!l->n) { f->vlist = 0; return; }                         /* (past its last list: n 0 ends the table) */
@@ -3687,7 +3719,7 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
             blow = !f->vtdone && f->srow >= tb;
             if (f->vent == k && !blow) return;
             f->vent = k;
-            if (blow) f->vtdone = 1;
+            if (blow) { f->vtdone = 1; slam = 1; }
         } else {
             if (f->vent == k) return;                            /* (KOF: the flags act when the attacker's step changes) */
             f->vent = k;
@@ -3725,6 +3757,12 @@ static void vlist_place(fighter_t *f, const bspec_t *sp) {
     }                                                            /* posture, as KOF's list sets it (react cleared it:
                                                                     note 20261011-210524-5d29, Iori's MAX on a floored
                                                                     victim showed one standing reel frame per strike) */
+    if (slam && f->ch->id < BC_COUNT && gsgt_bounce[f->ch->id][0]) {   /* the special's slam (special_grab_timing): */
+        f->pflags &= ~PF_HOLD; f->phold = 0; f->vlist = 0;       /* let go there, bouncing (slam_bounce) */
+        t->frame_ovr = 0xFFFF; t->zfront = 0; t->vfly = 0;
+        slam_bounce(t, f, gsgt_bounce[f->ch->id][0], gsgt_bounce[f->ch->id][1]);
+        return;
+    }
 no_blow:
     if ((e->flags & VE_REL) && (l->flags & VL_STAND)) {         /* a release that leaves it standing (TODO #220, KOF98
                                                                     Yamazaki MAX 236236C: 329 until the strike's hold
@@ -4508,10 +4546,20 @@ static void update(fighter_t *f, const intent_t *in) {
         break;
     case S_GRAB: hold_update(f, in); break;
     case S_THROW:
+        if (in && (in->press & IN_A) && f->tbnc && f->y > 0 && f->target && INT(f->target->x) != INT(f->x))   /* (its */
+            f->facing = f->target->x > f->x ? 1 : -1;            /* slam bounced the victim: the air A turned to it) */
         if (in && (in->press & IN_A) && throw_air(f)) goto air;   /* (its leap: the jump's A, game.json keeps_air_attack) */
+        if (f->tbnc && in && (in->press || in->dx || in->dz) && !f->held && f->y <= 0) {   /* its slam bounced the */
+            throw_free(f, 0); f->spec_buf = f->fury_buf = 0; f->cnc_buf = 0;   /* victim: the rest of the throw cut */
+            bounce_cancel(f); goto neutral;                      /* short, the press plays from neutral (slam_bounce) */
+        }
         throw_update(f, in); break;
     case S_THROWN: thrown_update(f); break;                      /* its thrower let go: it plays its rows on alone */
     case S_SPECIAL:
+        if (f->tbnc && in && (in->press || in->dx || in->dz) && !(f->pflags & PF_HOLD) && f->y <= 0) {   /* a grab */
+            carry_drop(f); special_end(f); f->pflags = 0;       /* special's slam bounced its victim: the rest cut */
+            bounce_cancel(f); goto neutral;                      /* short (slam_bounce) */
+        }
         if (lab_cnode && in && !f->idx && !f->team && f->buffered) {   /* a Lab chain press (RF_LAB, lab_node): on a hit the */
             const rnode_t *c = NODE(f, lab_cnode);               /* next link, as a normal's cancel on hit */
             uint8_t nx;
