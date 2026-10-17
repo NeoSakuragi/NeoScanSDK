@@ -138,6 +138,7 @@ def main():
     p = sub.add_parser('set'); p.add_argument('id'); p.add_argument('--category'); p.add_argument('--fighters'); p.add_argument('--notes'); p.add_argument('--title'); p.add_argument('--todo')
     p.add_argument('--fix'); p.add_argument('--rca')
     p = sub.add_parser('timeline'); p.add_argument('id')
+    p = sub.add_parser('note'); p.add_argument('--user', required=True); p.add_argument('--title', required=True); p.add_argument('--text', required=True); p.add_argument('--version', default=''); p.add_argument('--id', default='')
     p = sub.add_parser('review'); rs = p.add_subparsers(dest='rcmd', required=True)
     q = rs.add_parser('add'); q.add_argument('--title', required=True); q.add_argument('--question', required=True)
     q.add_argument('--kind', required=True, choices=('before_after', 'pick', 'single'))
@@ -182,6 +183,9 @@ def main():
             if it.get('replies'):
                 print('  thread:'); print('\n'.join(thread(it['replies'], '    ')))
             print('  timeline:'); print('\n'.join(timeline(it.get('timeline'), '    ')))
+        elif a.cmd == 'note':
+            r = api('note', {'user': a.user, 'title': a.title, 'text': a.text, 'version': a.version, 'id': a.id})['row']
+            print(line(r) if 'line' in globals() else r['id'])
         elif a.cmd == 'timeline':
             print('\n'.join(timeline(api('item/' + a.id).get('timeline'), '')))
         elif a.cmd == 'status':

@@ -1452,6 +1452,28 @@ class H(http.server.BaseHTTPRequestHandler):
                 return self.reply(200, body=open(p, 'rb').read(), ctype=mimetypes.guess_type(p)[0] or 'application/octet-stream')
         self.reply(404, {'error': 'not found'})
 
+    def create_note(self):
+        """a note written from the desktop (fb.py note, ssh = admin): a test case for a player with no voice note behind it
+        (Bruno 2026-10-17: the Geese 1 HP finale test 'assign it to bruno'); status shipped so his TEST IT lists it once its
+        recipe and states are uploaded (scenario.py put / gen --upload)"""
+        b = self.body(1 << 16)
+        try: req = json.loads(b or b'')
+        except ValueError: return self.reply(400, {'error': 'json'})
+        user, title, text = req.get('user', ''), req.get('title', ''), req.get('text', '')
+        if not (user and title and text) or len(title) > 70: return self.reply(400, {'error': 'user, title (<= 70), text'})
+        bid = req.get('id') or time.strftime('%Y%m%d-%H%M%S', time.gmtime()) + '-desk'
+        with lock, db() as c:
+            if c.execute('SELECT 1 FROM feedback WHERE id=?', (bid,)).fetchone(): return self.reply(400, {'error': 'exists: ' + bid})
+            c.execute('INSERT INTO feedback (id, created, apk_version, game_version, rom_sha, device, raw_transcript, final_text, '
+                      'audio_path, bundle_path, status, updated, transcript_model, user, install_id, marked, ip, user_agent, android) '
+                      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                      (bid, now(), '', req.get('version', ''), '', 'desktop', '', text, '', '', 'shipped', now(), '', user, '', '',
+                       '', 'fb.py', None))
+            c.execute('UPDATE feedback SET title=?, release=? WHERE id=?', (title, req.get('version', ''), bid))
+            c.execute('INSERT INTO status_history VALUES (?,?,?,?,?,?)', (bid, now(), '', 'shipped', 'ssh', 'desktop'))
+            out = row_dict(c.execute('SELECT * FROM feedback WHERE id=?', (bid,)).fetchone())
+        self.reply(200, {'row': out})
+
     def change(self, fn):
         b = self.body(1 << 16)
         try: req = json.loads(b or b'')
@@ -1933,6 +1955,7 @@ class H(http.server.BaseHTTPRequestHandler):
         lab = self.lab_route()
         if lab is not None: return self.lab_write(lab)
         if not self.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
+        if self.path == '/api/note': return self.create_note()
         if self.path == '/api/status': return self.change(self.set_status)
         if self.path == '/api/set': return self.change(self.set_fields)
         if self.path == '/api/scenario': return self.change(self.set_scenario)
