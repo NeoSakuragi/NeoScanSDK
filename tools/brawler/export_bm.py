@@ -1180,7 +1180,30 @@ def both_sides(n, sp):
     assert not missing, f'{n}: box_both_sides {sp["input"]}: states {missing} are not in its program ({sp["rom"]["states"]})'
     return {st: 0 for st in e['states']}
 
+def prog_override(n, inp):
+    """game.json roster[].prog_voices[input] (note 20261017-145343-e03d, Terry's MAX = Real Bout Special's Triple Geyser
+    shouts): a ROM special's voices replaced: sends = the voice ids its program's own sends play, in program order (0 or
+    past the list: silent), steps = [[animation index, step, voice id], ...] its step voices (bchar_t.pvox: sent as the
+    program enters that step), its own step voices dropped. Ids = the fighter's voices.json list (a borrowed one too)"""
+    return (roster()[n].get('prog_voices') or {}).get(inp)
+
+def prog_override_ids(ov): return {i for i in ov.get('sends', []) if i} | {s[2] for s in ov.get('steps', [])}
+
 def rom_c(n, k, sp, game, vres=None):
+    """rom_c_ with the roster's prog_voices for this special (prog_override)"""
+    ov = prog_override(n, sp['input']) if vres else None
+    if ov:
+        sends = iter(ov.get('sends', []))
+        vres = lambda ix: (lambda i: i | V.fx_bit(n, i) if i else 0)(next(sends, 0))
+    c = rom_c_(n, k, sp, game, vres)
+    if ov:
+        r = sp['rom']
+        for j, i, v in ov.get('steps', []):
+            assert j < len(r['states']) and i < len(r['anims'][r['states'][j]]['steps']) and 0 < v <= len(V.bank(n)), (n, sp['input'], j, i, v)
+        sp['_pvox'] = [(k, j, i, v | V.fx_bit(n, v)) for j, i, v in ov.get('steps', [])]
+    return c
+
+def rom_c_(n, k, sp, game, vres=None):
     """a special read from the ROM (tools/kof96/handlers98.export_rom) as C: its animations (bstep_t: flags 1 attack box
     live (KOF $0100, the last box loaded), 2 hurt box, 8 event ($0080), 16 same hit ($4000)), its program (bprim_t), its
     objects (bproj_t, projectile_c). Damage: SPECIAL_DAMAGE split over the hits the whiff model opens; the hits of its
@@ -2121,7 +2144,9 @@ def voice_data(ch, n, game, pool, sps):
         throw_rows[t] = (ch['anims'][t]['slot'], rows)
     sug = V.suggest(n, game, slot_of, throw_rows, [(sp['input'], p['keep']) for sp, p in zip(pool, sps)])
     ks = V.keys(MOVES, THROWS, [sp['input'] for sp in pool])
-    pv = {sp['input']: prog_voices(n, game, p) for sp, p in zip(pool, sps) if (kof_prog(p, game) or step_voiced(p))
+    pv = {sp['input']: ([i for i in (prog_override(n, sp['input']) or {}).get('sends', []) if i] +   # (game.json prog_voices:
+                        [s[2] for s in prog_override(n, sp['input'])['steps']] if prog_override(n, sp['input'])   # its ids)
+                        else prog_voices(n, game, p)) for sp, p in zip(pool, sps) if (kof_prog(p, game) or step_voiced(p))
           and not p['rom'].get('voice_frames')}          # (SS2's: the key keeps its frame-timed voice, its step voices
                                                          # are the connect's further ones: handlers_ss2.special)
     for inp, vs in pv.items():                           # a ROM special (KOF's, or WHP's step-voiced programs: TODO #181):
@@ -2650,7 +2675,8 @@ def write_c(chars, outdir):
         c.append(f'static const uint8_t {n}_spmap[BS_COUNT] = {{' + ', '.join(str(spec_index(pool, sp)) for sp in pick_specials(ch, n)) + '};')
         vdata[n] = {'keys': vk, 'suggest': vsug, 'map': vmp, 'nvoice': len(V.bank(n)),
                     'at': {k: v[1] for k, v in vsug.items()}, 'more': vmore,
-                    'prog': sorted({res(ix) & 0x7F for q, sp in zip(pool, sps) if kof_prog(sp, game) or step_voiced(sp)
+                    'prog': sorted({i for q in pool for i in prog_override_ids(prog_override(n, q['input']) or {})} |
+                                   {res(ix) & 0x7F for q, sp in zip(pool, sps) if (kof_prog(sp, game) or step_voiced(sp)) and not prog_override(n, q['input'])
                                     for res in [prog_voice_res(n, game, q['input'], vsug, vmp)]
                                     for ix in [w for w, d in vsends(sp['rom'])] +
                                               [x for st in sp['rom']['states'] for s_ in sp['rom']['anims'][st]['steps'] for x in s_.get('voices', [])]} - {0})}

@@ -8,6 +8,13 @@
                                            -> /data/neogeo_dict/voices/cap/<game>/
     python3 voices.py list [NAME ...]      the listing: tools/brawler/voices.json + one WAV per voice
                                            (/data/neogeo_dict/voices/wav/<name>/<id>.wav)
+    python3 voices.py borrow NAME GAME WORD[,WORD...] [NOTE]
+                                           another game's voice samples for NAME (note 20261017-145343-e03d: Real Bout
+                                           Special's Triple Geyser shouts for Terry's MAX): each driver word played by
+                                           GAME's own driver in the tap core (probe, BLOCK[GAME]) -> a voice appended to
+                                           NAME's list with "game": GAME (its sample copied from that game's V ROM by
+                                           build_snd.py), kept by every later `list`; game.json roster[].prog_voices
+                                           places them in a ROM special
 
 Where a voice comes from (measured 2026-10-05):
 - KOF96 / KOF98 / KOF99 send every sound through one mapper (KOF96 $6AA8, KOF98 $7A98, KOF99 $6352): d0 = a sound
@@ -34,7 +41,7 @@ JSON = os.path.join(HERE, 'voices.json')
 GAME_JSON = os.path.join(TOOLS, '..', 'examples', 'brawler', 'game.json')
 MAPPER = {'kof96': 0x6CAD4, 'kof98': 0xA9BCE, 'kof99': 0xB1B5C}          # index -> driver word
 SCRATCH = {'kof96': 0x10D936, 'kof98': 0x10D93C, 'kof99': 0x10D8F0}       # WLOG: the mapper's scratch word
-BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850, 'lastbld2': 414, 'garou': 431}   # (LB2: its $07 at 413 in the tap core)       # the driver probe: frame after the game's $07 (tap core frames)
+BLOCK = {'kof96': 880, 'kof98': 412, 'kof99': 410, 'samsho4': 877, 'whp': 842, 'samsho2': 850, 'lastbld2': 414, 'garou': 431, 'rbffspec': 878}   # (LB2: its $07 at 413 in the tap core)       # the driver probe: frame after the game's $07 (tap core frames)
 CAST = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAST99}
 NOP = {'lastbld2': 0x48, 'garou': 0x63}       # the byte a blocked command becomes in the probe: Garou's driver line replays a stale ring
                                # slot on $00 (tools/kof98snd/games98.py garou nop); LB2's $48 = a type 0 (ignored) command
@@ -314,7 +321,9 @@ def build_list(names=None):
     for rname, game, name, cid in roster(names): by_game.setdefault(game, []).append((rname, name, cid))
     for game, fs in by_game.items():
         if game in OWN:
-            for rname, name, cid in fs: res['fighters'][rname] = OWN[game]['list'](rname, name, cid)
+            for rname, name, cid in fs:
+                res['fighters'][rname] = OWN[game]['list'](rname, name, cid)
+                keep_borrowed(res['fighters'][rname], old.get('fighters', {}).get(rname))
             continue
         m = mem(game); v = v_rom(game)
         # common words: the static scan of the whole cast (a word several characters' animations use)
@@ -392,15 +401,12 @@ def build_list(names=None):
                 vo['cmds'].sort()
             res['fighters'][rname] = {'game': game, 'cid': cid, 'voices': [{k: vo[k] for k in (
                 'id', 'cmd', 'cmds', 'indices', 'segments', 'level', 'bytes', 'ms', 'uses', 'channel') if k in vo} for vo in lst]}
+            keep_borrowed(res['fighters'][rname], old.get('fighters', {}).get(rname))
             print(rname, len(lst), 'voices', sum(x['bytes'] for x in lst) // 1024, 'KB', flush=True)
     g = json.load(open(GAME_JSON))                   # roster order; a benched fighter's list kept after them (TODO #212:
     order = [r['name'] for r in g['roster'] + g.get('roster_benched', {}).get('fighters', [])]   # Kuroko, out for now)
     res['fighters'] = {k: res['fighters'][k] for k in order if k in res['fighters']}
-    with open(JSON, 'w') as f:
-        f.write('{"about": ' + json.dumps(res['about']) + ',\n "rate": ' + str(RATE) + ',\n "fighters": {\n')
-        f.write(',\n'.join(f'  {json.dumps(n)}: {{"game": "{d["game"]}", "cid": {d["cid"]}, "voices": [\n' +
-                           ',\n'.join('   ' + json.dumps(vo) for vo in d['voices']) + ']}' for n, d in res['fighters'].items()))
-        f.write('\n }\n}\n')
+    save_json(res)
     return res
 
 # ---- Samurai Shodown IV (measured 2026-10-05, our emulator; SNK's driver Ver 1.0, tools/kof98snd) ----
@@ -1066,7 +1072,37 @@ def fx_bit(name, i):
     vs = bank(name) if name else []
     return FX if i and i <= len(vs) and vs[i - 1].get('channel') == 'fx' else 0
 
+# ---- borrowed voices (note 20261017-145343-e03d): another game's samples in a fighter's list ----
+def keep_borrowed(new, old):
+    """a rebuilt list keeps the voices borrowed from other games (entries with "game") after its own, renumbered (ids
+    move only when the fighter's own list grows; game.json prog_voices names them by id: re-check it then)"""
+    for vo in [v for v in (old or {}).get('voices', []) if v.get('game')]:
+        new['voices'].append(dict(vo, id=len(new['voices']) + 1))
+
+def save_json(d):
+    with open(JSON, 'w') as f:
+        f.write('{"about": ' + json.dumps(d['about']) + ',\n "rate": ' + str(d['rate']) + ',\n "fighters": {\n')
+        f.write(',\n'.join(f'  {json.dumps(n)}: {{"game": "{x["game"]}", "cid": {x["cid"]}, "voices": [\n' +
+                           ',\n'.join('   ' + json.dumps(vo) for vo in x['voices']) + ']}' for n, x in d['fighters'].items()))
+        f.write('\n }\n}\n')
+
+def borrow(name, game, words, note=''):
+    """GAME's driver words for NAME: each probed in the tap core (the ADPCM-A sample GAME's own driver keys on), appended
+    to NAME's voices.json list (one per sample) with "game", uses [{"kind": "borrow", "note"}], a WAV each"""
+    d = json.load(open(JSON)); f = d['fighters'][name]
+    hits = probe(game, set(words)); v = v_rom(game)
+    for w in words:
+        h = hits.get(w); assert h, f'{game} ${w:04X}: its driver keys on no ADPCM-A sample'
+        if any(vo.get('game') == game and vo['segments'] == h['segments'] for vo in f['voices']): continue
+        k = len(f['voices']) + 1
+        vo = {'id': k, 'cmd': f'{w:04X}', 'cmds': [f'{w:04X}'], 'indices': [], 'segments': h['segments'], 'level': h['level'],
+              'bytes': len(sample_bytes(v, h['segments'])), 'ms': write_wav(os.path.join(OUT, 'wav', name, f'{k}.wav'), v, h['segments']),
+              'uses': [{'kind': 'borrow', 'note': note}], 'game': game}
+        f['voices'].append(vo); print(name, k, game, f'${w:04X}', h['segments'], vo['bytes'], 'bytes', vo['ms'], 'ms', flush=True)
+    save_json(d)
+
 if __name__ == '__main__':
     cmd, names = sys.argv[1], sys.argv[2:] or None
     if cmd == 'capture': capture(names)
     elif cmd == 'list': build_list(names)
+    elif cmd == 'borrow': borrow(sys.argv[2], sys.argv[3], [int(w, 16) for w in sys.argv[4].split(',')], ' '.join(sys.argv[5:]))

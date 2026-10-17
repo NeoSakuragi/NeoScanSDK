@@ -883,9 +883,10 @@ P1 Terry 110 px away, LEVEL-4).
 
 The campaign = `stages[]` in order without the ones switched off (`"off": true`; build_tables.py `campaign`, every build
 reads the stages through it): since Bruno 2026-10-17 (later that day) THREE are played, Geese last: STAGE 1 (background 1,
-the slum, 4 waves, boss lock 1568), STAGE 2 (background 3, the old STAGE 3, 4 waves 392 px apart, boss lock 1568, power 1;
-background 5, the old STAGE 4, stays off: its banded blue floor reads as water) and STAGE 3 = the final stage (background 4,
-`start` 672, Geese's backdrop at its end), then Geese's `finale` (below); the garage and STAGE 4 off (data kept). The same
+the slum, 4 waves, boss lock 1568), STAGE 2 (Krauser on background 4, 4 waves 392 px apart, boss lock 1568, power 1;
+background 5, the old STAGE 4, stays off: its banded blue floor reads as water) and STAGE 3 = the final stage (Geese on
+background 3, `start` 672; note 20261017-145516-e03d put backgrounds 3 / 4 back where note 20261015-225154-e03d had them:
+Geese in the stage Krauser used to play), then Geese's `finale` (below); the garage and STAGE 4 off (data kept). The same
 morning's 0.10.159 played two (RUGAL, GEESE); the beta (2026-10-15) played 4, the garage off.
 `boss_order.bosses` (`["MR_BIG", "KRAUSER", "GEESE"]`; 0.10.159 `["RUGAL", "GEESE"]`): the n-th stage in play fights the boss block (of any
 stage, on or off) whose `enemy` is bosses[n] (its song, minions, drama, seed, z), at that stage's own boss `lock` / `x`
@@ -1368,6 +1369,13 @@ writes to REG_SOUND, with the stack) and QLOG (KOF98's sound ring $10D940), plus
   first is sent, whatever retiming / hit-stop do and after the move ended (fighter.c `vw_n`; dropped when the fighter
   is hit or starts another special). Haohmaru's tornado (236AB, startup and recovery retimed 0.5x): $1A $90 then
   $1A $91 40 frames later, as SS2 (measured: key-ons +1 / +41 on two channels, the 1023 ms first still sounding).
+- `roster[].prog_voices` = {special input: {"sends": [id, ...], "steps": [[anim, step, id], ...]}} (note
+  20261017-145343-e03d): a ROM special's voices replaced (export_bm `prog_override`): its program's own sends play
+  `sends` in order (0 / past the list: silent), its step voices are `steps` (bchar_t.pvox: as the program enters that
+  step). Ids may be **borrowed** voices: `voices.py borrow NAME GAME WORD,...` probes another game's driver words in the
+  tap core and appends their samples to NAME's list with `"game"` (build_snd copies them from that game's V ROM; `list`
+  keeps them). Terry's MAX 21416C: Real Bout Special's Triple Geyser shouts (voices 22 = rbffspec $1C $C4, 23 = $1C $C6)
+  as it starts and one per geyser; proof `tools/brawler/rbsgeyser_proof.py` (played bytes = RBS's V ROM bytes).
 - Export (`export_bm.voice_data`): `bchar_t.voices` = [voice id, at] per key (VK_* in bm_chars.h: BA_*, VK_THROW +
   BT_*, VK_HIT, VK_KO, VK_SELECT, VK_SPEC + pool index), `nvoice`; build/voice_map.json = the ids each fighter maps.
 - Sound build (`build_snd.py voices`, songs.json `voices`): only the mapped voices' samples, copied from their game's

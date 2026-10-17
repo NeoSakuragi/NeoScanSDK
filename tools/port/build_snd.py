@@ -215,6 +215,7 @@ def voices(t, man, mdir, out):
         codes[f['name']] = [0] * (len(fb['voices']) + 1)
         for i in f['ids']:
             vo = fb['voices'][i - 1]; assert vo['id'] == i
+            game = vo.get('game') or fb.get('game')     # (a voice borrowed from another game: voices.py borrow)
             st, en = vo['segments'][0]
             key = (game, st, en)
             if key not in placed:
@@ -276,7 +277,7 @@ def slot_voices(t, S):
     for i in S['ids']:
         assert 1 <= i <= SLOT_NV, f"the slot ({S['fighter']}): voice id {i}, the shell keeps {SLOT_NV}"
         vo = S['voices']['voices'][i - 1]; assert vo['id'] == i
-        game = S['voices']['game']; st, en = vo['segments'][0]; n = en - st + 1
+        game = vo.get('game') or S['voices']['game']; st, en = vo['segments'][0]; n = en - st + 1
         if game not in srcv: srcv[game] = src_v(game, t)
         if at // MB != (at + n - 1) // MB: at = (at // MB + 1) * MB   # (ADPCM-A: never across 1 MB)
         assert (at + n) << 8 <= (at0 << 8) + SLOT_V, f"the slot ({S['fighter']}): its voices pass the {SLOT_V} bytes kept"

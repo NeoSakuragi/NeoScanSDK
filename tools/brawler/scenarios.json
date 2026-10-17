@@ -6287,5 +6287,46 @@
   "expect": "On impact Ryo is knocked back away from Robert on a low-to-mid arc (the regular fireball knockdown), lands further from Robert and gets up; he no longer flies high back over Robert.",
   "do_keys": "1:Dc,150:-",
   "proof": 60
+ },
+ "20261017-145343-e03d": {
+  "title": "Terry's MAX fury shouts Real Bout Special's Triple Geyser lines, one per geyser",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 60,
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Press down + D (the MAX fury, Triple Geyser) at Ryo and listen.",
+  "expect": "Terry's voice is Real Bout Special's (its Triple Geyser): a shout as the MAX starts, the same shout at the first and the second geyser, and the long final shout at the third geyser. No KOF98 Power Geyser voice in the MAX any more (the plain fury, D, keeps it).",
+  "do_keys": "2:Dd,200:-",
+  "proof": 60
+ },
+ "20261017-145516-e03d": {
+  "title": "Geese back in the stage Krauser used to play (backgrounds of stages 2 and 3 swapped back)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 2,
+   "wave": 5,
+   "wait": 420
+  },
+  "do": "Stage 3's boss (Geese). Then play a new game through stages 2 and 3.",
+  "expect": "Geese is fought at the end of stage 3 in the control-room stage (the stage Krauser was fought in before 2026-10-17, its theme), as you asked on 2026-10-15. Stage 2 is the industrial stage with the highway music, Krauser its boss. Order unchanged: Mr. Big, Krauser, Geese, then Rugal's finale.",
+  "do_keys": "",
+  "proof": 60
+ },
+ "20261017-150157-e03d": {
+  "title": "Stage start: the map stays on while the background fades in",
+  "setup": {
+   "mode": "select",
+   "cursor": "terry"
+  },
+  "do": "Pick Terry (A) and watch the stage start without touching anything.",
+  "expect": "STAGE 1 START and the map show on a fully black screen for 2 seconds, then the stage fades in behind them with the map and the message still on screen; they go as the fade ends, then Terry walks in.",
+  "do_keys": "30:-,3:a,330:-",
+  "proof": 60
  }
 }

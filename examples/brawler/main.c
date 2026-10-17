@@ -3118,9 +3118,10 @@ static uint8_t stage_song(uint8_t s) {
  * levels not cleared yet, so we know the ones left; the one in play blinking"): a stage not cleared = FF's green
  * (map_lit), name palette 0; a cleared one = FF's grey (map_grey), name MAP_FIX_GREY; the stage in play blinking between
  * the two every gmap.blink ticks (FF's page flip), its name too (1 / grey).
- *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over the black stage, its stop blinking, STAGE n
- *              START in the big font when big_text.map_start (Savage Reign's blink, held to the map's end); the stage's
- *              fade-in, then the walk-in, after it (intro_fade_tick)
+ *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over the black stage start_ticks, its stop
+ *              blinking, STAGE n START in the big font when big_text.map_start (Savage Reign's blink, held to the map's
+ *              end); then the stage's fade-in under it, the map closing as the fade ends, then the walk-in
+ *              (intro_fade_tick; note 20261017-150157-e03d)
  *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, gmap.clear_at ticks into the win poses; the win drama after it):
  *              STAGE CLEAR in the big font (big_text.stage_clear), the stage just cleared blinking, the earlier ones
  *              grey, the later ones green; NEXT name / NEXT BONUS GAME / ALL CLEAR! under it
@@ -3338,17 +3339,19 @@ static void intro_fade_tick(void) {                          /* IN_FADE: the gam
     if (map_on) {                                            /* the map over a black stage (note 20261017-114940-e03d
                                                                 reopened, Bruno: "keep the background fully black when
                                                                 showing the map for two seconds, then start the fade-in"):
-                                                                map.start_ticks on black, then the fade from its start */
-        if (!map_tick()) in_t = 0;
-        return;
+                                                                map.start_ticks on black, then the fade with the map still
+                                                                up (note 20261017-150157-e03d: "keep the map on during the
+                                                                fading of the background"), closed as the fade ends */
+        map_tick();
+        if (map_on && map_t < gmap.start_ticks) return;
     }
     in_t++;
     if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
     else if (in_t == gi->fade) stage_fade(16, 0xFF);
     intro_title();
-    if (in_t >= (in_mapped ? gi->fade : gi->walk_at)) intro_walk_start();   /* (the map's STAGE n START was the title:
-                                                                the walk-in as the fade ends, not the title's wait on an
-                                                                empty stage) */
+    if (in_t >= (in_mapped ? gi->fade : gi->walk_at)) { map_close(); intro_walk_start(); }   /* (the map's STAGE n START
+                                                                was the title: the map and it go as the fade ends, then the
+                                                                walk-in, not the title's wait on an empty stage) */
 }
 static void intro_input(void) {                              /* IN_WALK: the script's intents for the players */
     uint8_t p;
@@ -3420,6 +3423,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
         for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
         stage_fade(gi->fade ? 0 : 16, 0xFF);
         if (!lab.active) map_open(MAP_START);               /* the map over the fade-in (game.json map.start_ticks) */
+        if (map_on) map_len = gmap.start_ticks + gi->fade;   /* (on black start_ticks, then on through the fade) */
         in_mapped = map_on;
         if (!map_on) intro_title();
         if (!map_on && !gi->fade && !gi->walk_at) intro_walk_start();

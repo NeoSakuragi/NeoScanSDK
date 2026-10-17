@@ -78,7 +78,7 @@ def main(fighter, dummy, out, game=harness.GAME, pack=None):
             pre = pending[0]; who = by_code.get(pending[1] | (0x100 if pre in TAB and TAB[pre] != 0x484C else 0))
             e = {'frame': pending[2], 'prefix': f'{pre:02X}', 'code': f'{pending[1]:02X}', 'start': st, 'end': en, 'level': reg.get(8 + ch)}
             if who:
-                n, i = who; vo = bank[n]['voices'][i - 1]; src = V.v_rom(bank[n]['game'])
+                n, i = who; vo = bank[n]['voices'][i - 1]; src = V.v_rom(vo.get('game') or bank[n]['game'])
                 s0, e0 = vo['segments'][0]
                 e.update(fighter=n, voice=i, kof_cmd=vo['cmd'], source=[s0, e0], level_kof=vo['level'],
                          bytes_equal=vrom[st << 8:(en + 1) << 8] == src[s0 << 8:(e0 + 1) << 8], nbytes=(en - st + 1) << 8)
