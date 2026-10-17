@@ -493,6 +493,25 @@ def blitz_rows(g, build):
     return out
 
 
+def xthr_cost(g):
+    """gxthr_cost: per roster fighter (bm_chars order) the drive chunks each hold extra costs (note 20261017-015547-e03d, SS2
+    Hanzo's Mozu Otoshi on B in the hold: "make this special throw consume like one meter"): roster[].throws.extra_cost
+    {u / d / b: chunks 0-4} -> (u, d, b); unset 0 = free, as before. fighter.c hold_update: a player's hold extra (up / down
+    + A, B) that costs comes out only with that many chunks in the drive (paid, no flash); short of them
+    the press does nothing and the hold goes on. Enemies pay nothing (the meter is the players')"""
+    out = []
+    for r in g['roster']:
+        t = r.get('throws') or {}
+        e = t.get('extra_cost') or {}
+        w = f"roster {r['name']}: throws.extra_cost"
+        for k, v in e.items():
+            if k == 'about': continue
+            assert k in ('u', 'd', 'b'), f'{w}: key {k!r} (u = hold + up + A, d = hold + down + A, b = hold + B)'
+            assert (t.get('extra') or {}).get(k), f'{w}.{k}: no throws.extra.{k} to pay for'
+            assert isinstance(v, int) and 0 <= v <= 4, f'{w}.{k}: 0-4 drive chunks'
+        out.append((r['name'], tuple(e.get(k, 0) for k in ('u', 'd', 'b'))))
+    return out
+
 def run_grab(g, build):
     """grun_grab: per roster fighter (bm_chars order) its run grab (note 20261016-100735-e03d, SS2 Hanzo's Mozu Otoshi out of
     a run: "performed AUTOMATICALLY if Hanzo is running into an opponent for at least 30 frames; at the moment of the grab,
@@ -1014,7 +1033,10 @@ def c_str(s): return '"' + s.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 METER_KEYS = ('about', 'chunk', 'chunks', 'max_chunks', 'max_chunks_about', 'special', 'breaker', 'life_breaker', 'blink', 'fury_max', 'fury_dealt',
-              'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive', 'refill_pause', 'special_flash')
+              'fury_taken', 'low', 'infinite', 'fury_drive', 'max_drive', 'refill_pause', 'special_flash', 'breaker_when',
+              'breaker_fury', 'breaker_about')
+BREAKER_WHEN = {'hitstun': 1, 'grabbed': 2, 'thrown': 4}           # gamedata.h BK_*: meter.breaker_when / breaker_fury names
+WAKE_KEYS = ('about', 'special', 'fury', 'from', 'ai_chance', 'ai_dx', 'ai_dz')
 REFILL_PAUSE = {'special': 1, 'chain': 2, 'blitz': 4}            # gamedata.h RP_*: meter.refill_pause names
 BLITZ_KEYS = ('about', 'window', 'chord', 'damage')
 BLITZ_SLOTS = ('ff', 'dd', 'du', 'uu')               # fighter.h BZ_*: forward,forward / down,down / down,up / up,up + A
@@ -1363,7 +1385,7 @@ def retime_tables(g, build):
     return c
 
 
-RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank')
+RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank', 'group', 'variety')
 
 # ---- T9 (Bruno 2026-10-15, tougher bosses): ai.guard (the guard's engine rules, fighter.c "guard") and enemies[].boss_ai
 # (a boss's own layer, ai.c "the boss layer"; gamedata.h gbossai_t) ----
@@ -1460,6 +1482,11 @@ def ai_rules(g):
     assert 0 <= rk['start'] <= rk['max'] <= 31, 'ai.rules.rank: 0 <= start <= max <= 31'
     for k in ('death', 'fast', 'clean', 'wait', 'rest', 'damage'): assert 0 <= rk[k] <= 32, f'ai.rules.rank.{k}: 0-32'
     assert 1 <= rk['every'] <= 65535 and 1 <= rk['fast_clear'] <= 65535, 'ai.rules.rank: every / fast_clear 1-65535 frames'
+    gp, vr = r.get('group') or {}, r.get('variety') or {}   # the group's lanes / spacing, the knockdown's variety (note
+    for k in gp: assert k in ('about', 'lane_dz', 'lane_near', 'spacing_dx', 'spacing_dz'), f'ai.rules.group: unknown field {k}'   # 20261017-013009-e03d)
+    for k in vr: assert k in ('about', 'knockdown_dz', 'getup_frames'), f'ai.rules.variety: unknown field {k}'
+    for k, v in list(gp.items()) + list(vr.items()):
+        if k != 'about': assert isinstance(v, int) and 0 <= v <= (64 if k in ('lane_dz', 'knockdown_dz') else 120), f'ai.rules.group / variety.{k}: {v}'
     a2, s2 = pose(rd['fallback'], 'ai.rules.ready.fallback')
     out = [f"const gairules_t gai = {{ .attackers = {r['attackers']}, .approach_max = {r['approach_max']}, .pulse = {rd['pulse']}, "
            f".ready_anim2 = {a2}, .ready_step2 = {s2}, .light_lo = {wu['light'][0]}, .light_hi = {wu['light'][1]}, "
@@ -1467,7 +1494,9 @@ def ai_rules(g):
            f".spec_lo = {wu['special_hold'][0]}, .spec_hi = {wu['special_hold'][1]}, .rank_start = {rk['start']}, .rank_max = {rk['max']}, "
            f".rank_death = {rk['death']}, .rank_fast = {rk['fast']}, .rank_clean = {rk['clean']}, .rank_wait = {rk['wait']}, "
            f".rank_rest = {rk['rest']}, .rank_dmg = {rk['damage']}, .rank_every = {rk['every']}, .fast_clear = {rk['fast_clear']}, "
-           f".wait = {{ {', '.join(map(str, wait))} }} }};"]
+           f".wait = {{ {', '.join(map(str, wait))} }}, "
+           f".lane_dz = {gp.get('lane_dz', 0)}, .lane_near = {gp.get('lane_near', 0)}, .sep_dx = {gp.get('spacing_dx', 0)}, .sep_dz = {gp.get('spacing_dz', 0)}, "
+           f".kd_dz = {vr.get('knockdown_dz', 0)}, .down_var = {vr.get('getup_frames', 0)} }};"]
     rows = [pose(rd.get('by_fighter', {}).get(n, rd['pose']), f'ai.rules.ready ({n})') for n in names]
     out.append('const uint8_t ai_ready[BC_COUNT][2] = { ' + ', '.join(f'{{ {a}, {s} }}' for a, s in rows) + ' };   /* ' + ' '.join(names) + ' */')
     return out
@@ -1885,9 +1914,11 @@ def tables(g, build):
          f'typedef struct {{ uint8_t fast, n; uint16_t rate; uint8_t kind[{MAXC_N}], dmg[{MAXC_N}]; uint16_t hsc[{MAXC_N}]; }} gmaxc_t;   /* the MAX\'s tail (game.json roster[].max_chain; fighter.c "the MAX chain"): its first `fast` pieces at rate (8.8), then n throws: kind 0 forward / 1 back / 2 the hold B throw, damage, height scale (8.8, 0 = 1x) */',
          'extern const gmaxc_t gmax_chain[BC_COUNT];',
          'extern const uint8_t gfury_box[BC_COUNT];     /* the fury\'s and MAX\'s attack boxes: half extents times this (game.json roster[].fury_box_scale; fighter.c strike) */',
+         'extern const uint8_t gfury_back[BC_COUNT];    /* 1: the fury\'s and MAX\'s attack boxes reach back to the fighter\'s body, close range connects (game.json roster[].fury_box_back; fighter.c strike) */',
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
+         'extern const uint8_t gxthr_cost[BC_COUNT][3];   /* the hold extras\' price (game.json roster[].throws.extra_cost, note 20261017-015547-e03d; fighter.c hold_update): drive chunks for [up + A, down + A, B] (0 free) */',
          'extern const uint8_t grun_grab[BC_COUNT][3];   /* the run grab (game.json roster[].throws.run, note 20261016-100735-e03d; fighter.c try_grab): [its grab special\'s pool index (0xFF none), run frames before it, drive chunks it costs] */',
          'extern const int16_t gsgt_bounce[BC_COUNT][2];   /* a grab special\'s slam bounce (vy, vx 8.8 px a frame; game.json slam_bounce, special_grab_timing.bounce; fighter.c slam_bounce) */',
          'extern const gthrev_t gthrow_ev[BC_COUNT][TM_COUNT];   /* THE THROW EVENTS of a paired throw (game.json roster[].throws.events; gamedata.h gthrev_t, fighter.c; imp 0: none) */',
@@ -1927,7 +1958,18 @@ def tables(g, build):
              f".breaker = {m['breaker']}, .life_breaker = {m['life_breaker']}, .blink = {m['blink']}, .infinite = {1 if m.get('infinite') else 0}, "
              f".fury_max = {m['fury_max']}, .fury_dealt = {m['fury_dealt']}, .fury_taken = {m['fury_taken']}, .low = {m['low']}, .fury_drive = {m.get('fury_drive', 0)}, .max_drive = {m.get('max_drive', 0)}, "
              f".sflash = {sf.get('frames', 0)}, .stint = {{ {', '.join(str(x) for x in sf.get('tint', [0, 0, 31]))} }}, "
-             f".pause = {sum(REFILL_PAUSE[k] for k in m.get('refill_pause', []))} }};")
+             f".pause = {sum(REFILL_PAUSE[k] for k in m.get('refill_pause', []))}, "
+             f".brk_in = {sum(BREAKER_WHEN[k] for k in m.get('breaker_when', ['hitstun', 'grabbed']))}, "
+             f".brk_fury = {sum(BREAKER_WHEN[k] for k in m.get('breaker_fury', []))} }};")
+    for k in m.get('breaker_when', []) + m.get('breaker_fury', []):
+        assert k in BREAKER_WHEN, f'meter.breaker_when / breaker_fury: {k!r} ({", ".join(BREAKER_WHEN)})'
+    wk = g.get('wakeup') or {}                           # the wake-up reversal (note 20261017-012714-e03d; gamedata.h gwake_t)
+    for k in wk: assert k in WAKE_KEYS, f'wakeup: unknown field {k}'
+    assert isinstance(wk.get('special', False), bool) and isinstance(wk.get('fury', False), bool), 'wakeup.special / fury: true / false'
+    for k in ('from', 'ai_chance', 'ai_dx', 'ai_dz'):
+        assert isinstance(wk.get(k, 0), int) and 0 <= wk.get(k, 0) <= 255, f'wakeup.{k}: 0-255'
+    c.append(f"const gwake_t gwake = {{ .flags = {(1 if wk.get('special') else 0) | (2 if wk.get('fury') else 0)}, .from = {wk.get('from', 0)}, "
+             f".ai_chance = {wk.get('ai_chance', 0)}, .ai_dx = {wk.get('ai_dx', 0)}, .ai_dz = {wk.get('ai_dz', 0)} }};   /* game.json wakeup */")
     bz = g['blitz']                                      # the Blitz (gamedata.h gblitz_t) and its slots per fighter
     for k in bz: assert k in BLITZ_KEYS, f'blitz: unknown field {k}'
     assert 2 <= bz['window'] <= 60 and 0 <= bz['chord'] <= 8 and 1 <= bz['damage'] < 128, 'blitz values'
@@ -2037,6 +2079,8 @@ def tables(g, build):
     for k in sh: assert k in ('about', 'frames', 'px'), f'throw_shake: unknown field {k}'
     assert isinstance(sh.get('frames'), int) and 0 <= sh['frames'] <= 60 and isinstance(sh.get('px'), int) and 0 <= sh['px'] <= 8, 'throw_shake {frames 0-60, px 0-8}'
     c.append('const gshake_t gthrow_shake = { %d, %d };' % (sh['frames'], sh['px']))
+    c.append('const uint8_t gxthr_cost[BC_COUNT][3] = {\n    ' + ',\n    '.join(
+        '{ %d, %d, %d }' % t + f'   /* {n} */' for n, t in xthr_cost(g)) + '\n};')
     c.append('const uint8_t grun_grab[BC_COUNT][3] = {\n    ' + ',\n    '.join(
         '{ %d, %d, %d }' % t + f'   /* {n} */' for n, t in run_grab(g, build)) + '\n};')
     sb = []                                              # a grab special's slam bounce (special_grab_timing, slam_bounce)
@@ -2063,6 +2107,12 @@ def tables(g, build):
         assert isinstance(v, int) and 1 <= v <= 4, f"roster {r['name']}: fury_box_scale 1-4"   # attack box of his fury
         fb.append(f'{v}   /* {r["name"]} */')            # and MAX, their bodies and objects (fighter.c strike), times it
     c.append('const uint8_t gfury_box[BC_COUNT] = {\n    ' + ',\n    '.join(fb) + '\n};')
+    fk = []                                              # the fury's boxes reach back to its body (note 20261017-012812-e03d,
+    for r in g['roster']:                                # Mr. Big: "if I'm close to Mr. Big, I will not get hit by his super
+        v = r.get('fury_box_back', False)                # special move"): roster[].fury_box_back = every attack box of his
+        assert isinstance(v, bool), f"roster {r['name']}: fury_box_back true / false"   # fury and MAX (body and objects)
+        fk.append(f'{1 if v else 0}   /* {r["name"]} */')   # stretched back to his own body, whoever he fights for
+    c.append('const uint8_t gfury_back[BC_COUNT] = {\n    ' + ',\n    '.join(fk) + '\n};')
     mc = []                                              # the MAX's own tail (Bruno 2026-10-15, Haggar's MAX: "jab, jab,
     for r in g['roster']:                                # finisher x 3, 50 % faster, the spin, back throw x 3, a half-height
         me = r.get('max_chain')                           # piledriver, a piledriver"): roster[].max_chain = the fury's

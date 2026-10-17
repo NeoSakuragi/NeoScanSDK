@@ -670,6 +670,8 @@ typedef struct fighter {
     const gthrev_t *tev;
     uint16_t evf;
     uint8_t  evd, evdm;           /* the next impact (0 to tev->n); a grab special's damage dealt by its impacts so far */
+    uint8_t  dlie;                /* an enemy's extra frames lying before it gets up (gai.down_var, note 20261017-013009-e03d) */
+    int8_t   kdz;                 /* a knocked-down enemy's depth drift in its flight, 1/32 px a frame (gai.kd_dz) */
     int32_t  evx, evy;
 } fighter_t;
 enum { GR_NONE, GR_IMMUNE, GR_COUNTER };   /* fighter_t.grsp: a grab on it holds as usual / does not take (it stands firm) /
@@ -753,7 +755,9 @@ extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by en
 #define PJ_COLS 10                /* the projectile pool's sprites per entity on average: NPJ * PJ_COLS shared by width (main.c block_w) */
 extern fighter_t projectiles[NPJ];
 void projectile_reset(fighter_t *p);
-void projectiles_drop(const fighter_t *owner);   /* every projectile entity of this thrower freed (its slot respawned) */
+void projectiles_drop(const fighter_t *owner);
+uint8_t ai_rnd(void);              /* ai.c's random (one deterministic stream, reseeded at each fight's ai_init): the enemies'
+                                      knockdown / wake-up variety (gai.kd_dz / down_var, fighter.c) */   /* every projectile entity of this thrower freed (its slot respawned) */
 void projectiles_update(int16_t cam_x, uint16_t skip);   /* the independent projectiles' flight, after the fighters' update;
                                      skip: entities not updated, bit k = projectiles[k], bit 8 = in a super flash (the ones alive
                                      when it started, frozen; its attacker's effects born in it run, KOF98's priority $5001 objects) */

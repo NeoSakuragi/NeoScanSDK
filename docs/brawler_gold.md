@@ -684,3 +684,35 @@ Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots 
 ### RALF: sheet round 2026-10-12 (tools/brawler/arb_compile.py, decisions set `ralf-arb`, build 0.10.76)
 Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots whose pick = now not listed.
 - chain timing: hit-stops 6 9 12 (roster chain.hitstop / retime, the build checked)
+
+### Notes of 2026-10-17 on 0.10.154 (seven voice notes; new data fields, proofs in our emulator, /data/tmp/fb1017)
+- **Wake-up reversal** (note 20261017-012714-e03d) — game.json `wakeup` {special, fury, from, ai_chance, ai_dx, ai_dz}
+  (gamedata.h gwake_t; fighter.c S_GETUP, ai.c): from `from` frames into the get-up, C / A+B plays the stick's C special
+  as from neutral (a player: paid, invincible: cspecial), `fury` lets D play the fury too (off); an enemy rising with its
+  player within ai_dx / ai_dz rolls once a get-up, ai_chance / 256, for its neutral C special. Set: special on, fury off,
+  64 / 256 within 72 x 16 px. Factory Game tab knobs.
+- **The breaker's situations** (note 20261017-013140-e03d) — `meter.breaker_when` (C / A+B) and `meter.breaker_fury` (D)
+  list hitstun / grabbed / thrown (BK_* bits; fighter.c brk_ok, brk_free). "thrown" = in a throw's script while the
+  thrower still holds the victim and before the throw's first damage: the throw is dropped there, both free (THE THROW'S
+  END untouched: throw_follow is never reached). Was hitstun + grabbed only; his C came once the enemy's throw had
+  started. Set: C in all three, D (the fury) when grabbed or thrown.
+- **Enemy group and variety** (note 20261017-013009-e03d) — `ai.rules.group` {lane_dz, lane_near, spacing_dx,
+  spacing_dz}: a token holder farther than attack_dx + lane_near walks in on its own depth lane (slot i: 0, +lane, -lane),
+  and an enemy walking with another this close steps away in depth (ai.c spread); `ai.rules.variety` {knockdown_dz,
+  getup_frames}: a knocked-down enemy (not a thrown body) drifts in depth up to knockdown_dz / 32 px a frame, and lies
+  0..getup_frames frames more before it gets up (fighter_t.kdz / dlie; the AI's LFSR, reseeded at each fight: replays
+  exact, no attract bleed). Set 16 / 40 / 36 / 10 and 12 / 30. Factory Game tab knobs.
+- **A fury's boxes reach back to the body** (note 20261017-012812-e03d) — `roster[].fury_box_back` (gfury_back): every
+  attack box of the fury and MAX (body and objects) stretched along x to the fighter's own place, for a player and for
+  the boss alike, its victim sent away from him (not through him). Mr. Big: his blasts land 88-128 px ahead, a victim
+  32 px in front was never hit (the note's replay); now hit and thrown away. (fury_box_scale stays players-only.)
+- **Projectile hit budget on Hanzo** (note 20261017-014428-e03d) — hanzo_ss2 `proj_hits` 6321S {max_hits 5,
+  hits_per_target 1}: the Bakuen Ryuu pierces, each enemy once, gone on its 5th hit (7 Ryos: the first 5 hit).
+- **A hold extra's price** (note 20261017-015547-e03d) — `roster[].throws.extra_cost` {u / d / b: chunks} (gxthr_cost,
+  fighter.c xthr_pay): a player's hold extra comes out only with that many drive chunks (paid; no blue flash: its palette reload
+  cost a frame and moved every judged throw event a frame late, throw_regress), short of them the press does nothing. hanzo_ss2 b (the Mozu Otoshi on B in the hold): 1.
+- **Hanzo's MAX: planted columns** (note 20261017-015819-e03d) — hanzo_ss2 `max` "MAX 6321S", built from library parts
+  by tools/samsho2/handlers_ss2.py PLANTED (data: pose, spawn step, column animation, distances; no engine code): his
+  Bakuen Ryuu's planting pose three times (the wind-up only on the first), each stab spawning his rage flame's column
+  (anim 294) at 16 / 80 / 144 px ahead, KOF98 Terry's MAX Power Geyser spacing. Down + D at low life with the gauge full,
+  2 chunks (the MAX's rules); D alone still plays WFT.

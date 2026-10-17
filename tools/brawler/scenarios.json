@@ -5873,5 +5873,120 @@
   "expect": "The flame at K's fist burns out as his move ends (about a quarter of a second) and nothing is left on screen; it no longer stands there for 4 seconds after he walks off. An enemy K' does the same, and when he is hit or knocked out his flame goes with him.",
   "do_keys": "4:c,150:-",
   "proof": 120
+ },
+ "20261017-012714-e03d": {
+  "title": "Wake-up special: C while getting up, for you and the enemies",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 2,
+   "drive": "full"
+  },
+  "do": "Let an enemy knock you down. As you get up, press C (or A+B), with or without a direction. Then knock an enemy down and stand right next to it as it gets up.",
+  "expect": "Your C special comes out of the get-up motion (one drive chunk, invincible, blue flash) instead of waiting for you to stand. A rising enemy with you close sometimes answers with its own special (about 1 time in 4).",
+  "do_keys": "",
+  "proof": 300
+ },
+ "20261017-012812-e03d": {
+  "title": "Mr. Big's fury and MAX connect at close range",
+  "setup": {
+   "mode": "stage",
+   "fighter": "haggar",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 15,
+   "gap": 32
+  },
+  "do": "Stage 1's boss with little life left, right in front of you. Stay pressed against Mr. Big and wait for his fury (or his MAX).",
+  "expect": "His fury's blasts hit you even when you stand at his side (they used to land only farther out), and you fly away from him, not through him.",
+  "do_keys": "",
+  "proof": 600
+ },
+ "20261017-013009-e03d": {
+  "title": "Enemies spread out: their own lanes, spacing, varied falls and get-ups",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 3
+  },
+  "do": "Fight the wave. Watch how the enemies walk in toward you, then knock several of them down with the same move.",
+  "expect": "Enemies coming at you walk in on different depth lines and keep some space between them instead of running stacked on one line. Knocked down, each lands a bit nearer or farther in depth, and they get up at different times (up to half a second apart).",
+  "do_keys": "",
+  "proof": 600
+ },
+ "20261017-013140-e03d": {
+  "title": "Reversal when grabbed or thrown by an enemy",
+  "setup": {
+   "mode": "stage",
+   "fighter": "robert",
+   "stage": 0,
+   "wave": 2,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Stand still and let an enemy grab you. Press C (or A+B) while it holds you, or as soon as it starts its throw. Another time, press D while held.",
+  "expect": "C plays your reversal special (2 drive chunks, the white blink; no drive: some life) and frees you, even once the throw has started, as long as it has not hurt you yet; the throw is cancelled. D plays your fury when it is ready.",
+  "do_keys": "",
+  "proof": 600
+ },
+ "20261017-014428-e03d": {
+  "title": "Hanzo: Bakuen Ryuu goes through and hits five",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 60,
+   "extra": [
+    90,
+    120,
+    150,
+    180,
+    210,
+    240
+   ],
+   "drive": "full"
+  },
+  "do": "Seven Ryos stand in a row. Press forward + C (Bakuen Ryuu).",
+  "expect": "The fire passes through the Ryos, hitting each once, and vanishes on its fifth hit: the first five are hit, the last two are not.",
+  "do_keys": "2:R,2:Rc,150:-",
+  "proof": 60
+ },
+ "20261017-015547-e03d": {
+  "title": "Hanzo: the hold's B Mozu Otoshi costs one drive chunk",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 50,
+   "drive": 1
+  },
+  "do": "Walk into Ryo to grab him and press B (the Mozu Otoshi). Grab him again with the drive bar now empty and press B.",
+  "expect": "The first Mozu Otoshi comes out and takes one drive chunk (the bar drops by one). With less than a chunk, B does nothing and you keep holding him.",
+  "do_keys": "20:R,4:b,200:-",
+  "proof": 60
+ },
+ "20261017-015819-e03d": {
+  "title": "Hanzo's MAX: three sword plants, three flame columns",
+  "setup": {
+   "mode": "lab",
+   "fighter": "hanzo_ss2",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    100,
+    160
+   ],
+   "drive": "full",
+   "fury": "full",
+   "hp": 10
+  },
+  "do": "Low life, the fury ready: press down + D (the MAX) in front of the three Ryos.",
+  "expect": "Hanzo plants his sword in the ground three times in a row; each stab raises a flame column, one next to the other (about 16, 80 and 144 px ahead), like Terry's triple geyser. The columns knock the Ryos down. D alone still plays his fury.",
+  "do_keys": "2:D,2:Dd,160:-",
+  "proof": 60
  }
 }

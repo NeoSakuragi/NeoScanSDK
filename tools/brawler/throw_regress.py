@@ -120,6 +120,9 @@ def throw_case(R, n, kind, pattern, face, where='mid'):
     else: raise RuntimeError(f'no hold: {b.brief((0, 2))}')
     b.run(2, pre)
     if pattern == 'Dafter': meter_full(b)
+    elif kind == 'holdb':                                 # hold + B's price (game.json throws.extra_cost.b, note
+        cost = ((next(r for r in R.G['roster'] if r['name'] == n).get('throws') or {}).get('extra_cost') or {}).get('b', 0)
+        if cost: b.fset(0, 'drive', METER['chunk'] * cost)   # 20261017-015547-e03d): exactly that, spent by the press
     if kind == 'rungrab': raise RuntimeError('rungrab: own setup')
     tk = {'fwd': fw + 'a', 'back': bk + 'a', 'holdb': 'b'}[kind]
     return play(R, tk, pattern, fw, bk, pre)

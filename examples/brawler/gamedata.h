@@ -70,6 +70,17 @@ typedef struct {
     uint16_t rank_every;          /* rank + 1 every this many frames of fighting without a hit taken */
     uint16_t fast_clear;
     uint8_t wait[32];             /* the ready wait (frames), random & 31 picks one: Final Fight's table $2245E */
+    /* the group (note 20261017-013009-e03d, Bruno: "the enemies are often running bunched up together ... make the AI work
+     * almost like a group, so that the enemies are not walking on the same line"; game.json ai.rules.group, ai.c): a token
+     * holder farther than attack_dx + lane_near px from its player walks in on its own depth lane (enemy slot i: 0, +lane_dz,
+     * -lane_dz px off his line, in turn), then onto his line for the attack; an enemy walking (to its slot, or in from
+     * afar) with another enemy closer than spacing_dx px in x and spacing_dz px in depth steps away from it in depth */
+    uint8_t lane_dz, lane_near, sep_dx, sep_dz;
+    /* the variety (same note: "ejected at different locations, different wake-up time"; game.json ai.rules.variety,
+     * fighter.c S_KNOCKDOWN / S_DOWN; enemies only, the AI's random: replays stay exact): a knocked-down enemy drifts in
+     * depth during its flight, a random speed of up to kd_dz / 32 px a frame either way (about kd_dz px over a 32-frame
+     * flight); it lies 0..down_var frames longer than the 40 before it gets up */
+    uint8_t kd_dz, down_var;
 } gairules_t;
 extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 
@@ -117,7 +128,26 @@ typedef struct {
     uint8_t  sflash;              /* a paid C special's blue flash: frames from its start (Bruno 2026-10-10; 0 none) */
     uint8_t  stint[3];            /* its colour: each channel (0-31) = light x tint / 16 + tint / 4, clamped (fighter.c ovl_pal) */
     uint8_t  pause;               /* the drive's refill pauses (Bruno 2026-10-09, note 20261009-115529-5d29): RP_* bits */
+    uint8_t  brk_in, brk_fury;    /* where the breaker works (game.json meter.breaker_when, BK_* bits): C (or A+B) its neutral C
+                                     special; D (meter.breaker_fury) the fury / down + D the MAX as from neutral, paid as ever */
 } gmeter_t;
+enum { BK_HITSTUN = 1,            /* reeling (a hit stun, a special's hold) */
+       BK_GRABBED = 2,            /* held in a hold (S_GRABBED) */
+       BK_THROWN = 4 };           /* in a throw's script, still in the thrower's hands, before its first damage (note
+                                     20261017-013140-e03d: "we need to be able to do reversal even when we are grabbed"):
+                                     the throw ends there, both free (fighter.c throw_escape) */
+/* ---- layer 2: the wake-up reversal (note 20261017-012714-e03d, Bruno: "allow the special to be triggered during the
+ * wake-up motion so that you can avoid being harassed ... also make this possibility available for AI"; game.json
+ * "wakeup", fighter.c S_GETUP, ai.c): from `from` frames into the get-up, C (A+B) plays the stick's C special (a player:
+ * paid and invincible as any C special) and, with WK_FURY, D the fury (down + D the MAX); an enemy getting up with its
+ * player within ai_dx / ai_dz px rolls once a get-up: ai_chance of 256 it presses C (its neutral C special) ---- */
+typedef struct {
+    uint8_t flags;                /* WK_* */
+    uint8_t from;                 /* frames into the get-up before a press counts */
+    uint8_t ai_chance, ai_dx, ai_dz;
+} gwake_t;
+enum { WK_SPECIAL = 1, WK_FURY = 2 };
+extern const gwake_t gwake;
 enum { RP_SPECIAL = 1, RP_CHAIN = 2, RP_BLITZ = 4 };   /* RP_BLITZ: a Blitz played as the dash entry (S_ATTACK on the tree's dash node; a Blitz that is a special is S_SPECIAL) */   /* in a special (S_SPECIAL: a C special, a Blitz, the breaker, a fury, a MAX, a
                                             throw special); attacking (S_ATTACK / S_AIR_ATTACK: a chain's links) */
 extern const gmeter_t gmeter;

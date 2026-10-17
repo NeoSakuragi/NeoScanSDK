@@ -468,6 +468,42 @@ def han_6321s(v):
     return [E(a, [('set', 'vx', 0)], [(('step', 6), 'next', [('spawn', 0)])], flags={6: 0x80}),
             E(None, conds=[('end', 'end')])], [('bakuen', v)]
 
+# ---- PLANTED COLUMNS: a made-up MAX built from library parts (note 20261017-015819-e03d, Bruno: "a MAX fury for Hanzo
+# where he successively plants the sword in the ground three times, and then there are three columns popping one next to
+# each other, a bit like the triple geyser of Terry"). No new engine code: a program like any decoded special (P_ANIM,
+# P_SPAWN), its parts the fighter's own ROM data. The pattern is KOF98 Terry's MAX Power Geyser's (export: his MAX
+# 21416C's three geysers at 16 / 80 / 144 px ahead, terry_pj19r rows x 128 / 640 / 1152 in 1/8 px: one column a press of
+# the fist, each 64 px further out); the pieces are the fighter's: `pose` the planting animation per button (Hanzo: his
+# Bakuen Ryuu's, anims 206 / 214 / 217, whose step `spawn_step` is the stab into the floor where SS2 spawns the fire),
+# `column` the column's animation (Hanzo: anim 294, his rage move's flame column, attack steps 1 3 5 7; wftflame), one
+# column object per plant at dx[k] px ahead. The first plant plays the pose from its start; each later one from step
+# `again` (the wind-up skipped: a stab after a stab), the last one to the pose's end. A fighter's entry = data:
+PLANTED = {'hanzo': dict(input='MAX 6321S', pose=(206, 214, 217), spawn_step=6, again=2, stab_last=7, column=294,
+                         dx=(16, 80, 144), results=(38, 39, 40))}
+
+def planted(name):
+    d = PLANTED[name]
+    def fn(v):
+        a, s, g, z = d['pose'][v], d['spawn_step'], d['again'], d['stab_last']
+        last = len(ss2.parse_anim(CUR['ch'], a, 400)) - 1
+        ents, n = [], len(d['dx'])
+        for k in range(n):
+            first = 0 if k == 0 else g
+            seg = (a, first, last if k == n - 1 else z)
+            ents += [E(seg, [('set', 'vx', 0)], [(('step', s - first), 'next', [('spawn', k)])], flags={s - first: 0x80}),
+                     E(None, conds=[('end', 'end' if k == n - 1 else 'next')])]
+        return ents, [('column', (name, k)) for k in range(n)]
+    return fn
+
+def column(B, key):
+    """a planted column (PLANTED): the column animation placed dx px ahead of the planter, where it was spawned, played to
+    its end; its attack steps hit (knockdown, away from him)"""
+    name, k = key; d = PLANTED[name]
+    rows = obj_rows(B, CHAR[name], play_anim(CHAR[name], d['column']), d['dx'][k])
+    return {'kind': 3, 'rows': rows, 'loop': None, 'end': [], 'react': 'knockdown', 'hit_kind': 1, 'spawn_row': 0,
+            'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0, 'travel': 0, 'away': True,
+            'name': 'COLUMN%d' % k, 'ss2': {'planted': d['input'], 'anim': d['column'], 'dx': d['dx'][k]}}
+
 def han_wft(v):
     """the rage move, 6 3 2 1 4 6 + D in rage -> result 37 ($36D7E) [code]: entry 0 anim 292 $36D90 (the routine sets 292
     again every frame): velocities 0 ($2B81A), spawn object type 7 (the flame, wftflame), next; entry 1 $36DB0 (param):
@@ -721,7 +757,8 @@ SPECIALS = {
               'j.4123S': (han_j4123s, 3, (48, 49, 50)),      # (j.: an air special, TODO #211: game.json air_special)
               # the rest of his recogniser (Character Lab 2026-10-10): Lab pieces only (LAB_ONLY: not in the game's pool)
               '641236S': (han_641236s, 2, (41, 42)), '63214BCD': (han_63214bcd, 1, (46,)), '6464642BCD': (han_6464642bcd, 1, (51,)),
-              'run 623K': (han_623k_run, 3, (43, 44, 45))},
+              'run 623K': (han_623k_run, 3, (43, 44, 45)),
+              PLANTED['hanzo']['input']: (planted('hanzo'), 3, PLANTED['hanzo']['results'])},   # (made up: PLANTED)
     # (han_sd, the SD pose, 'SD (6464642+A)' result 45: decoded, NOT imported: its drawing uses SS2's palettes 68 / 69
     # (+ 69's flicker), past the 8 the brawler loads per fighter; export_ss2.pack_palettes cannot fold them in)
     # (input = the recogniser's own: commands_ss2.py 17; 2026-10-07: 61236A is result 41 and 214161BC result 46, the
@@ -749,7 +786,7 @@ NAMES = {'haohmaru': {'236S': 'Ougi Senpuu Retsuzan', '623S': 'Ougi Kogetsuzan',
          'hanzo': {'6321S': 'Ninpou Bakuen Ryuu', '623K': 'Ninpou Mozu Otoshi', 'WFT': 'Ninpou Tenma Fukumetsu (rage)',
                    'j.4123S': 'Ninpou Reppuu Shuriken (air)', '641236S': 'Ninpou Kage Bunshin', '63214BCD': 'Ninpou Utsusemi',
                    '6464642BCD': 'Ninpou Kagemai', 'run 623K': 'Ninpou Mozu Otoshi out of a run',
-                   'SD (6464642+A)': 'Super-deformed pose'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
+                   'SD (6464642+A)': 'Super-deformed pose', 'MAX 6321S': 'Bakuen Ryuu planted three times (made up: the MAX)'}}   # SNK's names (snk.fandom.com "Hanzo Hattori/Move List", read through
                                                   # its API 2026-10-10: Bakuenryuu f-hcb... S, Mozu Otoshi close 623 K, Kage
                                                   # Bunshin 641236 A / B (SS II-V), Tenma Fukumetsu hcb-f D (SS II's rage
                                                   # move); the air shuriken, Utsusemi and Kagemai under their later games'
@@ -1238,7 +1275,7 @@ def mozufire(B, k):
             'hit_kind': 1, 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0, 'child': None, 'hits': {}, 'sig': 0, 'follow': 0,
             'travel': 0, 'name': 'MOZUFIRE', 'ss2': {'effect': 14, 'anim': 244}}
 
-OBJECTS = {'fuujin': fuujin, 'kclone': kclone, 'usmoke': usmoke, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
+OBJECTS = {'column': column, 'fuujin': fuujin, 'kclone': kclone, 'usmoke': usmoke, 'shuriken': shuriken, 'bakuen': bakuen,'wftflame': wftflame, 'mozufire': mozufire, 'kboomerang': kboomerang, 'wind': wind, 'wind2': wind2, 'tornado': tornado, 'crescent': crescent, 'cards': cards, 'kparody': kparody, 'kcrescent': kcrescent, 'kghost': kghost}
 
 # ---- a special -> export96 layout --------------------------------------------------------------------------------------
 def rom_steps(B, ch, a, flags, react, catch=False, grab=None, hits=None):

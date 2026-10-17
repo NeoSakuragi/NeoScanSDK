@@ -2637,6 +2637,42 @@ static void hold_walk(fighter_t *f, fighter_t *v, const intent_t *in) {
     hold_fit(f, v);                                              /* the pair inside the view (an edge stops it) */
     place_victim(f, v, f->ch->holds[0].rows, f->facing);         /* the victim carried in its held pose */
 }
+/* a hold extra's price (game.json roster[].throws.extra_cost, note 20261017-015547-e03d: "make this special throw consume
+ * like one meter"): gxthr_cost[fighter][k] drive chunks (k 0 up + A, 1 down + A, 2 B); a player short of them gets
+ * nothing from the press (the hold goes on); enemies and a free extra: always. No blue flash (sfl): its palette reload
+ * at the press cost a frame, every throw event of Bruno's judged hold + B then landed a frame late (throw_regress)
+ * -> 1 it comes out */
+static uint8_t xthr_pay(fighter_t *f, uint8_t k) {
+    uint8_t c = f->ch->id < BC_COUNT ? gxthr_cost[f->ch->id][k] : 0;
+    if (!c || f->team) return 1;
+    if (!drive_has(f, c)) return 0;
+    if (gmeter.infinite) f->drive = DRIVE_FULL; else f->drive -= (uint16_t)(c * gmeter.chunk);
+    return 1;
+}
+/* the breaker's situations (game.json meter.breaker_when / breaker_fury -> BK_* bits; note 20261017-013140-e03d): reeling,
+ * held in a hold, or in a throw's script while its thrower still holds it and before the throw's first damage */
+static uint8_t brk_ok(const fighter_t *f, uint8_t bits) {
+    const fighter_t *a;
+    switch (f->state) {
+    case S_HITSTUN: return bits & BK_HITSTUN;
+    case S_GRABBED: return bits & BK_GRABBED;
+    case S_THROWN:
+        a = f->thr_by;
+        return (bits & BK_THROWN) && a && a->state == S_THROW && f->held == a && a->held == f && !f->throw_dealt && a->team != f->team;
+    }
+    return 0;
+}
+/* out of the hold / the throw for the breaker's move: both free where they stand (release; a throw: its thrower back to
+ * neutral, its script dropped before it dealt anything: THE THROW'S END untouched, throw_follow never reached) */
+static void brk_free(fighter_t *f) {
+    if (f->state == S_GRABBED && f->held) release(f->held);
+    else if (f->state == S_THROWN && f->thr_by) {
+        fighter_t *a = f->thr_by;
+        a->held = 0; a->frame_ovr = 0xFFFF; a->zfront = 0; a->y = 0; a->srow = 0; a->xwait = 0; a->rgrab = 0; to_neutral(a, 0);
+        f->held = 0; f->thr = 0; f->thr_by = 0; f->zfront = 0;
+    }
+    f->frame_ovr = 0xFFFF; f->vx = f->vy = f->vz = 0; f->y = 0;
+}
 static void hold_update(fighter_t *f, const intent_t *in) {
     fighter_t *v = f->held;
     if (f->rgrab) {                                              /* the run grab (run_grab, paid): its special now */
@@ -2684,7 +2720,7 @@ static void hold_update(fighter_t *f, const intent_t *in) {
                                                                     20261016-043416-e03d: SS2 Hanzo's Mozu Otoshi), as
                                                                     up / down + A's, at any time (a hold hit playing too) */
         uint8_t e = bm_xthr[f->ch->id].pad & (uint8_t)~XT_PAD_SPEC;
-        if (e < f->ch->nspec) { hold_special(f, BS_THROW, 1, e); return; }
+        if (e < f->ch->nspec && xthr_pay(f, 2)) { hold_special(f, BS_THROW, 1, e); return; }
     }
     if ((in->press & IN_B) && bm_xthr[f->ch->id].pad && !(bm_xthr[f->ch->id].pad & XT_PAD_SPEC) && bm_xthr[f->ch->id].x && !f->srow) {   /* B: the jump throw (the
                                                                     throws comment, "B in the hold"); the stick its travel */
@@ -2696,8 +2732,8 @@ static void hold_update(fighter_t *f, const intent_t *in) {
     if ((in->press & IN_A) && in->dz) {                          /* up / down + A: the extra throw, when it has one */
         const bxthr_t *x = &bm_xthr[f->ch->id];                  /* (revamp 3; none: the hold hit below) */
         uint8_t e = in->dz < 0 ? x->up : x->down;
-        if (e == XT_PAIRED && x->x) { throw_start(f, BT_XTHROW, TD_ASIS); return; }
-        if (e < f->ch->nspec) { hold_special(f, BS_THROW, 1, e); return; }
+        if (e == XT_PAIRED && x->x && xthr_pay(f, in->dz < 0 ? 0 : 1)) { throw_start(f, BT_XTHROW, TD_ASIS); return; }
+        if (e < f->ch->nspec && xthr_pay(f, in->dz < 0 ? 0 : 1)) { hold_special(f, BS_THROW, 1, e); return; }
     }
     if (f->srow) {                                               /* a hold hit playing (its paired script): an A now */
         if (in->press & IN_A) f->buffered = 1;                   /* is the next hit, as soon as this one ends */
@@ -4559,15 +4595,24 @@ static void update(fighter_t *f, const intent_t *in) {
     if (f->guard && !--f->guard) f->guard_by = 0;                /* a player's untouchable window after a hit ("guard") */
     if (f->chain_t) f->chain_t--;
     if (f->bsl_n) blitz_slide(f);                                /* a Blitz's slide (blitz_slide_arm) */
-    if ((f->state == S_HITSTUN || f->state == S_GRABBED) && (in->press & IN_C) && !dancing(f)) {   /* the breaker (Bruno
-                                                                    2026-10-08): C or A+B while hit (not in a fury's dance)
-                                                                    = ALWAYS the fighter's neutral C special, whatever the
-                                                                    stick; its price: breaker_pay ("the meter") */
+    if ((in->press & IN_D) && brk_ok(f, gmeter.brk_fury) && !dancing(f)) {   /* the fury as an escape (meter.breaker_fury,
+                                                                    note 20261017-013140-e03d): D (down + D its MAX) held or
+                                                                    thrown, paid as from neutral (fury_press) */
+        uint8_t k = fury_press(f, in->dz > 0);
+        if (k != 0xFF) {
+            brk_free(f);
+            lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k);
+            return;
+        }
+    }
+    if ((in->press & IN_C) && brk_ok(f, gmeter.brk_in) && !dancing(f)) {   /* the breaker (Bruno 2026-10-08): C or A+B while
+                                                                    hit (not in a fury's dance) = ALWAYS the fighter's
+                                                                    neutral C special, whatever the stick; its price:
+                                                                    breaker_pay ("the meter"); where: meter.breaker_when */
         uint8_t k = special_pick(f, BS_D);
         if (k != 0xFF) {
             uint8_t how = breaker_pay(f);
-            if (f->state == S_GRABBED && f->held) release(f->held);
-            f->frame_ovr = 0xFFFF; f->vx = f->vy = f->vz = 0; f->y = 0;
+            brk_free(f);
             lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); start_special(f, k);
             if (!f->team) { f->brk = 1; f->brkr = how == 2; f->inv = INV_FURY; }   /* it blinks white (red: paid in life)
                                                                     to its end (pal_overlay), untouchable to its end */
@@ -4806,6 +4851,11 @@ static void update(fighter_t *f, const intent_t *in) {
     case S_KNOCKDOWN:
         if (f->vph && (!f->vph_by || f->vph_by->state != S_SPECIAL)) f->vph = 0;
         if (f->vph) break;                                       /* held by a special's victim phase (vphase) */
+        if (f->state_t == 1)                                     /* an enemy's flight drifts in depth, at random (gai.kd_dz,
+                                                                    note 20261017-013009-e03d; not a thrown body: its
+                                                                    script's flight is the throw's) */
+            f->kdz = f->team && gai.kd_dz && !f->tb_by && !f->kslam ? (int8_t)((int16_t)(ai_rnd() % (uint8_t)(2 * gai.kd_dz + 1)) - gai.kd_dz) : 0;
+        if (f->kdz && f->y > 0) { f->z += (int32_t)f->kdz << 11; clamp(f); }
         if ((f->kmode || f->ksr) && f->kdelay) { f->kdelay--; break; }   /* KOF's shake after the hit-stop: in place */
         if (f->ksr) { if (src_fall(f)) break; }                  /* a source reaction (src_react) */
         else if (f->kmode) kof_fall(f);                          /* a special's hit: KOF98's reaction */
@@ -4827,7 +4877,9 @@ static void update(fighter_t *f, const intent_t *in) {
         } else if (f->vy < 0 && (f->anim == BA_BLOWBACK || f->anim == BA_BLOWBACK_N)) play(f, BA_KNOCKDOWN_FLIGHT);
         break;
     case S_DOWN:
-        if (f->state_t >= DOWN_FRAMES && (!f->dpin || f->state_t >= DOWN_FRAMES + DOWN_PIN)) {   /* (a down attack coming:
+        if (f->state_t == 1) f->dlie = f->team && gai.down_var ? ai_rnd() % (uint8_t)(gai.down_var + 1) : 0;   /* (an enemy:
+                                                                    a few frames more, at random: gai.down_var) */
+        if (f->state_t >= DOWN_FRAMES + f->dlie && (!f->dpin || f->state_t >= DOWN_FRAMES + DOWN_PIN)) {   /* (a down attack coming:
                                                                     it lies on, TODO #218) */
             if (f->hp <= 0) {                                    /* the death: main decides (blink out, a life, or */
                 enter(f, S_DEAD); if (!f->ko_voice) voice_play(f->ch, f->team, VK_KO);   /* continue); its KO voice, once, every death */
@@ -4838,6 +4890,19 @@ static void update(fighter_t *f, const intent_t *in) {
         }
         break;
     case S_GETUP:
+        if (in && (in->press & (IN_C | IN_D)) && f->state_t >= gwake.from &&   /* the wake-up reversal (game.json wakeup,
+                                                                    note 20261017-012714-e03d): C the stick's C special (a
+                                                                    player: paid, invincible: cspecial), D the fury */
+            (in->press & IN_C ? gwake.flags & WK_SPECIAL : gwake.flags & WK_FURY)) {
+            uint8_t k;
+            if (in->dx) f->facing = in->dx; else if (in->face) f->facing = in->face;   /* (turned as from neutral) */
+            if (in->press & IN_C) {
+                k = special_for(f, in);
+                if (k != 0xFF && pay(f, PAY_SPECIAL, 0)) { f->frame_ovr = 0xFFFF; lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k); cspecial(f, k); break; }
+            } else if ((k = fury_press(f, in->dz > 0)) != 0xFF) {
+                f->frame_ovr = 0xFFFF; lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); break;
+            }
+        }
         if (f->anim_done) to_neutral(f, 0);
         break;
     case S_GUARD:                                                /* the guard (T9, "guard"): held; a blocked hit's guard */
@@ -4976,6 +5041,7 @@ static void hit_credit(fighter_t *a, uint8_t hs) {               /* the attacker
     }
     if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
 }
+static uint8_t fury_hit(const fighter_t *a);
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
@@ -5057,8 +5123,11 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
         (a->owner ? a->owner : a)->target = v;                   /* (a hold keeps its caught victim: a crowd hit on the way) */
     lab_note(a->owner ? a->owner : a, LE_HIT, a->state == S_ATTACK || a->state == S_AIR_ATTACK ? a->node : 0xFF, v->idx, damage);
     if (a->dtgt == v) { if (v->dpin) v->dpin--; a->dtgt = 0; }   /* its down attack landed: the target is free (TODO #218) */
-    {   const fighter_t *from = a->pdef && (a->pdef->ppad & 1) && a->owner ? a->owner : a;   /* (an object whose victims fly
-                                                                    away from its thrower: bproj_t.ppad 1, TODO #193) */
+    {   const fighter_t *from = a->pdef && a->owner && ((a->pdef->ppad & 1) ||   /* (an object whose victims fly away from
+                                                                    its thrower: bproj_t.ppad 1, TODO #193; a fury's object
+                                                                    whose box reaches back to its body, roster[].fury_box_back:
+                                                                    its victim close by flies away from him, not through him) */
+                                                (a->ch->id < BC_COUNT && gfury_back[a->ch->id] && fury_hit(a))) ? a->owner : a;
         away = INT(v->x) >= INT(from->x) ? 1 : -1;
         if (a->pdef && (a->pdef->ppad & 4)) away = v->facing;   /* an object whose victims fly the way they face (bproj_t.ppad
                                                                     bit 2, game.json roster[].proj_react dir "facing": Robert's
@@ -5421,6 +5490,18 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
                                                                     Mr. Big x 3: "no way to escape it"); the boss keeps his */
             uint16_t w = (uint16_t)abox.w * gfury_box[a->ch->id], h = (uint16_t)abox.h * gfury_box[a->ch->id];
             abox.w = w > 255 ? 255 : (uint8_t)w; abox.h = h > 255 ? 255 : (uint8_t)h;
+        }
+        if (abox.w && a->ch->id < BC_COUNT && gfury_back[a->ch->id] && fury_hit(a)) {   /* the fury's boxes reach back to
+                                                                    its body (roster[].fury_box_back, note 20261017-012812-
+                                                                    e03d: Mr. Big's blasts land 90 px ahead, a victim at
+                                                                    his side was never hit): the box stretched along x
+                                                                    to the fighter's own place, players and enemies */
+            const fighter_t *o = a->owner ? a->owner : a;
+            int16_t c = box_x(a, abox.x), lo = c - abox.w, hi = c + abox.w, ox = INT(o->x), d;
+            if (ox < lo) lo = ox; else if (ox > hi) hi = ox;
+            c = (lo + hi) >> 1;
+            d = a->facing > 0 ? INT(a->x) - c : c - INT(a->x);  /* (box_x's inverse: sprites face left) */
+            if (d >= -128 && d <= 127) { abox.x = (int8_t)d; d = ((hi - lo) >> 1) + 1; abox.w = d > 255 ? 255 : (uint8_t)d; }
         }
     }
     else return;

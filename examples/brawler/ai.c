@@ -69,6 +69,7 @@ typedef struct {
     uint16_t rtm;
     uint16_t tsig, tst;
     uint8_t aseen, pseen;         /* the situations: his jump / his attack seen (its roll made: once each) */
+    uint8_t wseen;                /* its get-up's wake-up reversal rolled (gwake, once a get-up) */
 } ai_t;
 
 static ai_t AI[MAX_F];
@@ -79,6 +80,7 @@ static uint8_t rnd(void) {                                       /* 16-bit Galoi
     lfsr = (lfsr >> 1) ^ (-(int16_t)(lfsr & 1) & 0xB400);
     return (uint8_t)lfsr;
 }
+uint8_t ai_rnd(void) { return rnd(); }                           /* (fighter.c's enemy variety: the same stream) */
 static int16_t iabs(int16_t v) { return v < 0 ? -v : v; }
 static int8_t sgn(int16_t v) { return v > 0 ? 1 : v < 0 ? -1 : 0; }
 static uint8_t able(const fighter_t *f) { return f->state == S_IDLE || f->state == S_WALK; }
@@ -444,6 +446,20 @@ static void walk_to(intent_t *o, const ai_t *a, int16_t gx, int16_t gz, int16_t 
     if (iabs(gx - ex) > near_x) o->dx = sgn(gx - ex);
     if (iabs(gz - ez) > near_z) o->dz = sgn(gz - ez);
 }
+/* the group's spacing (gai.sep_dx / sep_dz, note 20261017-013009-e03d): walking with another enemy this close, it steps
+ * away from it in depth (the lower slot index keeps its line when both stand on the same one) */
+static void spread(const fighter_t *fs, uint8_t np, uint8_t nf, uint8_t i, int16_t ex, int16_t ez, intent_t *o) {
+    const fighter_t *f = fs + np;
+    uint8_t j;
+    if (!gai.sep_dx) return;
+    for (j = np; j < nf; j++, f++) {
+        int16_t d;
+        if (j == i || f->state == S_OFF || f->state == S_DEAD || f->state == S_DOWN || f->state == S_GETUP) continue;
+        if (iabs(INT(f->x) - ex) >= gai.sep_dx || iabs(d = INT(f->z) - ez) >= gai.sep_dz) continue;
+        if (d) { o->dz = d > 0 ? -1 : 1; return; }
+        if (i > j) { o->dz = ez - 1 < z_back(ex) ? 1 : -1; return; }
+    }
+}
 static void execute(fighter_t *e, ai_t *a, intent_t *o, int16_t dx) {   /* READY's wait is over: the attack's presses */
     const ai_preset_t *P = a->p;
     unpose(e, a);
@@ -555,6 +571,20 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (a->cooldown) a->cooldown--;
         if (a->b) boss_clocks(e, a);
         if (a->target == 0xFF) { if (a->mode != AM_FREE) release(e, a); continue; }   /* nobody to fight */
+        if (e->state != S_GETUP) a->wseen = 0;
+        else if (!a->wseen && gwake.ai_chance && (gwake.flags & WK_SPECIAL) && e->state_t >= gwake.from) {   /* the wake-up
+                                                                    reversal (game.json wakeup, note 20261017-012714-e03d):
+                                                                    its player close as it rises, once a get-up: its
+                                                                    neutral C special, turned to him */
+            int16_t wx = px[a->target] - INT(e->x), wz = pz[a->target] - INT(e->z);
+            a->wseen = 1;
+            if (iabs(wx) <= gwake.ai_dx && iabs(wz) <= gwake.ai_dz && rnd() < gwake.ai_chance) {
+                o->press = IN_C; o->face = sgn(wx);
+                if (a->mode != AM_FREE) release(e, a);
+                rest(a, P->rest_rev);
+                continue;
+            }
+        }
         if (hurt(e)) { if (a->mode != AM_FREE) { release(e, a); if (a->cooldown < P->rest_start) rest(a, P->rest_start); } a->gnear = 0; continue; }
         ex = INT(e->x); ez = INT(e->z); tx = px[a->target]; tz = pz[a->target];
         dx = tx - ex; dz = tz - ez; adx = iabs(dx); adz = iabs(dz); side = dx > 0 ? -1 : 1;   /* side: the enemy's side of him */
@@ -762,18 +792,25 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
                 }
             }
             gx = side > 0 ? tx + P->attack_dx : tx - P->attack_dx; gz = tz;
+            if (gai.lane_dz && adx > P->attack_dx + gai.lane_near) {   /* the group: its own depth lane on the way in */
+                static const int8_t LANE[3] = { 0, 1, -1 };
+                gz = tz + LANE[i % 3] * (int16_t)gai.lane_dz;
+                if (gz < z_back(ex)) gz = tz + (int16_t)gai.lane_dz;
+                if (gz > Z_DEPTH) gz = tz - (int16_t)gai.lane_dz;
+            }
             if ((P->moves & AIM_FLANK) && (ex > tx ? 1 : -1) != side && iabs(ex - tx) < P->attack_dx + 16) {   /* (crossing) */
                 gz = ez <= tz ? tz - 24 : tz + 24;
                 if (gz < z_back(ex)) gz = tz + 24;
                 if (gz > Z_DEPTH) gz = tz - 24;
             }
             walk_to(o, a, gx, gz, ex, ez, 6, 3);
+            if (adx > P->attack_dx + gai.lane_near) spread(fs, np, nf, i, ex, ez, o);   /* (on its way in, not in place) */
             continue;
         }
         slot_goal(P, a->slot, tx, tz, &gx, &gz);                 /* FREE: to its formation slot, walk all the way or stand */
         if (a->moving) { if (iabs(gx - ex) <= 2 && iabs(gz - ez) <= 2) a->moving = 0; }
         else if (iabs(gx - ex) > P->hover_go_dx || iabs(gz - ez) > P->hover_go_dz) a->moving = 1;
-        if (a->moving) walk_to(o, a, gx, gz, ex, ez, 2, 2);
+        if (a->moving) { walk_to(o, a, gx, gz, ex, ez, 2, 2); spread(fs, np, nf, i, ex, ez, o); }
     }
     }
     ai_tokens = held(fs, nf, np);
