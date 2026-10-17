@@ -23,6 +23,7 @@
 #include "bonus.h"
 #include "referee.h"
 #include "bigfont.h"
+#include "map.h"
 #ifdef LAB_SHELL
 #define LABSLOT_NO_REMAP
 #include "labslot.h"
@@ -207,6 +208,7 @@ static uint8_t phase;
 enum { BN_OFF, BN_PICK, BN_PLAY, BN_END, BN_INTRO, BN_CARD };           /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
                                                           game won this credit; sh_n = the entities shadows() handles */
 static uint8_t bonus_on, bn_won, sh_n = NE;
+static uint8_t map_on;                           /* the campaign map is up (main.c "the map"): MAP_START / MAP_CLEAR */
 static uint8_t blk_skip;                         /* a fight's blocks start at SPR_BASE + blk_skip: a bonus pile's trunks take
                                                     the sprites before them (behind the fighter; main.c BN_PILE_SPR) */
 static uint8_t bn_clr[GB_MAX_GAMES];     /* passes of each bonus game this credit (gbonus_game_t.pass_chunks: the reward by clear) */
@@ -1301,7 +1303,7 @@ static void line_guard(void) {
     uint16_t total;
     guard_parity ^= 1;
     guard_hidden = guard_thinned = 0;
-    base = mode == 1 ? BG_N + dr_cols + bt_n + (tfx_on ? TFX_COLS : 0) : 0;
+    base = mode == 1 ? BG_N + dr_cols + bt_n + (tfx_on ? TFX_COLS : 0) + (map_on ? MAP_COLS : 0) : 0;   /* (the map: on its lines) */
     total = base;
     if (land_on) { uint8_t m = 0; for (k = 0; k < BANDS; k++) if (land_band[k] > m) m = land_band[k]; total += m; }
     for (i = 0; i < nf; i++) {                                    /* who is drawn at all; the scene's columns */
@@ -2016,19 +2018,19 @@ static void save_load(void) {
     if (!save_ok(&save)) save_reset();
     difficulty = save.difficulty;
 }
-/* the select screen's cheat (Bruno 2026-10-15, note 20261015-210806-e03d): hold down CHEAT_HOLD frames (a flag), hold up
- * CHEAT_HOLD frames (another flag), either order, either player; both flags = the whole unlock ladder unlocked IN THE
- * SAVE (note 20261015-224121-e03d: 2 s each, "it unlocks the whole ladder and is saved directly, so it's already there;
- * to reset, the player's Reset game save"): save.rungs = every rung, written at once (AES: the memory card; MVS: the
- * backup block, which the BIOS keeps in battery RAM from the next return to it, as the stage clears' rungs) */
-#define CHEAT_HOLD 120
-static uint8_t cheat_flags;
+/* the select screen's cheats (game.json "cheats", CHEAT_HOLD ticks each hold, either player; Bruno 2026-10-17 split the
+ * 2026-10-15 all-in-one cheat, note 20261015-210806-e03d, which unlocked the whole ladder + save.cheat, in two):
+ *   LADDER  hold UP, then hold DOWN: the unlock ladder one rung further, saved as a game clear saves it (save.rungs + 1,
+ *           save_write: AES the memory card; MVS the backup block, kept by the BIOS from its next return); repeatable,
+ *           nothing at the last rung; the select redrawn (the new rung selectable, the next one as silhouettes)
+ *   POWER   hold LEFT, then hold RIGHT: save.cheat (CHEAT_GAME below: the fury free, the drive bar full), saved; no fighter */
+static uint8_t cheat_flags;                      /* bit 0: UP held (LADDER armed), bit 1: LEFT held (POWER armed) */
 /* the cheat's game (note 20261016-100558-e03d, "once activated, I also want the player to automatically have maximum
  * meter and the fury unlocked"): saved with the ladder (save.cheat), every new game then has the drive bar at its most
  * chunks (MAX_CHUNKS, as the gauge games' rewards at their cap), both bars full at each stage's start and the fury never
  * locked (fury_lock off, as after the posts); never the attract demo; the player app's Reset game save clears it */
 #define CHEAT_GAME (!attract && (save.cheat & 1))
-static uint16_t cheat_t[2];
+static uint16_t cheat_t[4];                      /* ticks UP, DOWN, LEFT, RIGHT held alone (select_cheats) */
 static uint8_t rungs_now(void) { return save.rungs; }
 static uint8_t char_locked(uint8_t c) {          /* 0xFF: never picked (a form link's target; with the unlock ladder,
                                                     a fighter off the select screen); $80 + k: the ladder's rung k, until
@@ -2316,6 +2318,9 @@ static void slots_build(void) {
     for (s = 0; s < SEL_NSLOT; s++) slot_ch[s] = sel_fighter[s];
 }
 static uint8_t selectable(uint8_t s) { return s < sel_cnt && slot_ch[s] != 0xFF && !char_locked(slot_ch[s]); }
+/* the cursor may stand on a locked fighter of the next rung (unlocks.show_next, Bruno 2026-10-17: its silhouette, "LOCKED -
+ * BEAT THE GAME FIRST"); never picked (select_tick) */
+static uint8_t hoverable(uint8_t s) { return s < sel_cnt && slot_ch[s] != 0xFF && (UNL_SHOW_NEXT || !char_locked(slot_ch[s])); }
 static uint8_t arrow_col[2] = { 0xFF, 0xFF }, arrow_row[2];
 
 static uint16_t col_dark(uint16_t c) {                      /* its own colour at half brightness: each 5-bit channel
@@ -2361,13 +2366,13 @@ static uint8_t sel_move(uint8_t s, uint16_t pr) {
         for (n = 0; n < SEL_NSLOT; n++) {
             t = sel_stick[sel_lay][t][d];
             if (t == s) break;
-            if (selectable(t)) return t;
+            if (hoverable(t)) return t;
         }
     } else if (d < 4) {
         for (n = 0; n < SEL_NSLOT - 1; n++) {
             t = sel_vert[sel_lay][s][d - 2][n];
             if (t == 0xFF) break;
-            if (selectable(t)) return t;
+            if (hoverable(t)) return t;
         }
     }
     return s;
@@ -2396,16 +2401,29 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
         arrow_col[p] = col[p]; arrow_row[p] = row[p];
     }
 }
+static const char *sel_name_of(uint8_t s) {      /* a locked one's: unlocks.locked_name (only its silhouette shows) */
+    return char_locked(slot_ch[s]) ? UNL_LOCKED_NAME : bm_chars[slot_ch[s]].name;
+}
+static void centre(uint8_t row, const char *t);
+static uint8_t sel_hint_lk = 0xFF;               /* the hint row shows the locked text (1) or the controls (0) */
+static void sel_hint(void) {                     /* the hint row: the controls, or unlocks.locked_text while a cursor is on a locked one */
+    uint8_t lk = (cursor[0] != 0xFF && char_locked(slot_ch[cursor[0]])) || (cursor[1] != 0xFF && char_locked(slot_ch[cursor[1]]));
+    if (lk == sel_hint_lk) return;
+    sel_hint_lk = lk;
+    FIX_print(0, 26, "                                        ", 0);
+    if (lk) centre(26, UNL_LOCKED_TEXT); else FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);
+}
 static void name_at(uint8_t col, uint8_t row, uint8_t right, uint8_t s) {
-    const char *n = s == 0xFF ? "" : bm_chars[slot_ch[s]].name;
+    const char *n = s == 0xFF ? "" : sel_name_of(s);
     uint8_t len = 0;
     while (n[len]) len++;
     FIX_print(right ? 39 - len : col, row, n, 0);
 }
 static void select_name(void) {                             /* top: P1's fighter (centred, or left with P2 in), P2's right */
     FIX_print(0, 2, "                                        ", 0);
-    if (cursor[1] == 0xFF) { const char *n = bm_chars[slot_ch[cursor[0]]].name; uint8_t len = 0; while (n[len]) len++; FIX_print(20 - (len >> 1), 2, n, 0); }
+    if (cursor[1] == 0xFF) { const char *n = sel_name_of(cursor[0]); uint8_t len = 0; while (n[len]) len++; FIX_print(20 - (len >> 1), 2, n, 0); }
     else { name_at(1, 2, 0, cursor[0]); name_at(0, 2, 1, cursor[1]); }
+    sel_hint();
 }
 /* the camera along the street (Bruno 2026-10-09: "make the camera follow the highlighted character"): P1's cursor
  * centred, the two cursors' midpoint once P2 is in (when the two fit on the screen: SEL_BOTH_W apart at most; else the
@@ -2438,9 +2456,12 @@ static void select_start(void) {
     floor_top = SELECT_FLOOR;
     dbg_init();
     FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
-    FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);   /* under the front row's feet (y 206) */   /* keyboard: WASD, U I O P */
+    sel_hint_lk = 0xFF;                                      /* the hint row: select_name -> sel_hint (the controls, under the
+                                                                front row's feet, y 206; or the locked text) */
     for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
-    sel_lay = LAD_N ? (rungs_now() < LAD_RUNGS ? rungs_now() : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers: select_layers) */
+    sel_lay = LAD_N ? (rungs_now() < LAD_RUNGS ? rungs_now() + UNL_SHOW_NEXT : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers:
+                                                                select_layers; show_next: the next rung's layer, its
+                                                                fighters as silhouettes, hoverable, never selectable) */
     sel_cnt = sel_lay_n[sel_lay]; sel_base = sel_lay_base[sel_lay];
     slots_build(); roster_build();
     for (s = 0; s < SEL_NSLOT && !selectable(s); s++) ;
@@ -2767,7 +2788,11 @@ static uint8_t ko_win;                           /* 1: the clear music started b
 static uint8_t ko_rest;                          /* 1: the boss has come to rest, ko_wt counting */
 static uint8_t ko_wt;                            /* frames left to the clear music once at rest */
 static uint8_t win_dr;                           /* PH_CLEAR: 1 once the win drama (DR_WIN) played or was passed */
+static uint8_t win_map;                          /* PH_CLEAR: 1 once the map was opened (or had nothing to show) */
 static uint8_t ko_scream;                        /* 1: the boss's death voice still to come (ghitsnd.scream_delay) */
+static uint8_t fin_st;                           /* the finale (main.c "the finale"): 0 not yet, 1 the first boss down (his
+                                                    bodies blinking out), 2 its boss fighting / beaten */
+static uint8_t fin_due(void) { return gfinale[camp].on && fin_st < 2 && !attract && !lab.active; }
 /* ---- the stage clear's win pose (TODO #184, Bruno 2026-10-07: "a little winning pose here at the end of the stage"):
  * when every enemy is gone (after the boss's death sequence), STAGE CLEAR and the input off as before; each player in
  * play (both in a 2-player game) first finishes what he is doing with no input (an attack, a fall, a landing: until
@@ -2872,7 +2897,7 @@ static void win_input(void) {                    /* the stage clear's walk (WIN_
     uint8_t i;
     for (i = 0; i < 2; i++) if (win_st[i] == WIN_WALK) in[i].dx = 1;
 }
-static void triggers_reset(void) { trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_rest = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
+static void triggers_reset(void) { fin_st = 0; trig_fired = 0; stage_tk = wave_t = 0; wave_on = 0; waves_cleared = 0; trig_held = 0; tq_n = 0; ko_seq = KO_OFF; ko_scream = 0; ko_win = 0; ko_rest = 0; ko_wt = 0; win_st[0] = win_st[1] = WIN_NONE; }
 static void enemies_down(fighter_t *by) {        /* every enemy still up goes down (a boss beaten, TA_END) */
     uint8_t i;
     for (i = 2; i < NF; i++) {
@@ -2903,7 +2928,8 @@ static uint8_t boss_ko_tick(void) {              /* every frame of the sequence;
     uint8_t i;
     for (i = 0; i < 2; i++) if (fighters[i].inv < 2) fighters[i].inv = 2;   /* the players: untouchable to the clear (2: still
                                                              set in combat after their update counted one down) */
-    if (!ko_win) {                               /* the clear music: only once the boss is at rest + rest_music */
+    if (!ko_win && !fin_due()) {                 /* the clear music: only once the boss is at rest + rest_music (a
+                                                    finale to come: none, its boss's song) */
         if (!ko_rest) { if (ko_at_rest(&fighters[BOSS_IDX])) { ko_rest = 1; ko_wt = ghitsnd.rest_music + snd_pending(); } }
         else if (!ko_wt || !--ko_wt) { snd_music(GAME_MUS_CLEAR); ko_win = 1; }
     }
@@ -3007,6 +3033,28 @@ static void boss_start(void) {
     if (k < DR_COUNT && !attract) drama_start(k, gs->boss_song); else snd_music(gs->boss_song);
     hud_wave();
 }
+/* ---- the finale (Bruno 2026-10-17; game.json stages[].boss.finale, gamedata.h gfinale_t): the stage's boss down (his
+ * KO's slow motion played, fin_st 1), the bodies blink out, then in the same stage, no stage clear, a second boss walks
+ * in at x / z (as every boss: the screen's edge) with his minions (walk-ins), his drama and song; they all fight at
+ * once; his KO is every boss's (the minions knocked down with him), then PH_END: the stage clear (the last stage: the
+ * game clear, the ending). The fight's slots as boss_start's: the boss BOSS_IDX, the minions 3.. ---- */
+static void finale_start(void) {
+    const gfinale_t *fz = &gfinale[camp];
+    const genemy_t *be = &genemies[fz->boss];
+    uint8_t k, c = be->base, set = 0;
+    fin_st = 2; ko_seq = KO_OFF; phase_t = 0; ko_win = 0;
+    if (c == pl_ch[0] && !pl_set[0]) set = 1;           /* never in P1's colours */
+    enemy_init(BOSS_IDX, c, set, fz->x, fz->z, 0, be);
+    for (k = 0; k < NF - 3; k++) {
+        if (k >= fz->nmin) { fighters[3 + k].state = S_OFF; continue; }
+        spawn(3 + k, &fz->spawns[k], c);
+    }
+    spawns_ai(fz->seed, fz->spawns, fz->nmin, 3);
+    ai_set(BOSS_IDX, ai_of(be));
+    ai_boss(BOSS_IDX, boss_ai_of(be));
+    if (fz->drama < DR_COUNT) drama_start(fz->drama, fz->song); else snd_music(fz->song);
+    hud_wave();
+}
 static void go_sign(uint8_t on) {                       /* highlighted (palette 1), in the HUD's black band */
     FIX_print(29, 3, on ? "GO -->" : "      ", 1);
     if (on) snd_ssg(SSG_GO);                             /* each time it shows: the SSG buzz (songs.json ssg GO; voice
@@ -3018,6 +3066,113 @@ static void go_sign(uint8_t on) {                       /* highlighted (palette 
 static uint8_t stage_song(uint8_t s) {
     uint8_t m = s == 0 ? roster_music[pl_ch[pl_on[0] ? 0 : 1]] : 0;
     return m ? m : gs->music;
+}
+/* ---- the map (Bruno 2026-10-17; game.json "map", gamedata.h gmap_t; tools/brawler/make_map.py -> map.h): Final
+ * Fight's between-rounds city map (its ROM's picture, FF's place names wiped) over the stage, our stops' names on the
+ * fix layer in our font. One sticky chain of MAP_COLS sprites x MAP_ROWS tiles on the super flash's rays' sprites
+ * (MAP_SPR: never on screen together, sf_reset when it opens), counted by the line guard on every band (map_on). Each
+ * 16 x 16 tile carries its stop's palette (MAP_PAL + 1 + k; + 0 the base, always grey): a stop reached = FF's green
+ * (map_lit), not reached = FF's grey (map_grey), the current stop blinking between the two every gmap.blink ticks
+ * (FF's page flip), its name too (reached names palette 0, the others MAP_FIX_GREY, the blinking one 1 / grey).
+ *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over its fade-in, its stop blinking; the
+ *              intro's title and walk-in wait for it (intro_fade_tick)
+ *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, after the win poses and the win drama): the stage's stop lit, the
+ *              next stop blinking (the bonus when one will be played, else the next stage; none after the last)
+ * Up gmap.start_ticks / clear_ticks; A-D of either player skips it after gmap.skip_after (START is the box viewer's).
+ * Never in the attract demo, the Lab or a continue. ---- */
+#define MAP_SPR SF_RAYS_SPR                      /* 348-363 */
+#define MAP_FIX_GREY 7                           /* fix palette 7: the font in grey (the stops not reached) */
+_Static_assert(MAP_COLS <= 16 && MAP_SPR + MAP_COLS <= SPARK_SPR, "the map: on the super flash rays' 16 sprites");
+_Static_assert(MAP_NSTOPS <= GM_STOPS, "map.h's stops: gamedata.h GM_STOPS");
+_Static_assert(GS_COUNT <= 9, "the map texts: {n} one digit");
+enum { MAP_OFF, MAP_START, MAP_CLEAR };
+static uint8_t map_cur, map_reached, map_blink_lit, map_bt, map_skipped, map_stage;
+static uint16_t map_t, map_len;
+static uint8_t bonus_open(void);
+static uint8_t bn_offered(uint8_t i);
+static void centre(uint8_t row, const char *t);
+static uint8_t map_row0(void) { return (uint8_t)(gmap.y >> 3); }
+static uint8_t map_head_row(void) { return map_row0() - 2; }
+static uint8_t map_foot_row(void) { return map_row0() + (MAP_H_PX >> 3) + 1; }
+static void map_name(uint8_t k, uint8_t pal) {
+    const gmap_stop_t *s = &gmap.stops[k];
+    FIX_print((uint8_t)((gmap.x >> 3) + s->col), map_row0() + s->row, s->name, pal);
+    if (s->sub && s->sub[0]) FIX_print((uint8_t)((gmap.x >> 3) + s->col), map_row0() + s->row + 1, s->sub, pal);
+}
+static void map_text(uint8_t row, const char *t, const char *name) {   /* centred; {n} = the stage's number, {name} */
+    char b[40];
+    uint8_t n = 0;
+    while (*t && n < 39) {
+        if (t[0] == '{' && t[1] == 'n' && t[2] == '}') { b[n++] = '0' + map_stage + 1; t += 3; continue; }   /* (GS_COUNT <= 9) */
+        if (t[0] == '{' && t[1] == 'n' && t[2] == 'a' && t[3] == 'm' && t[4] == 'e' && t[5] == '}') {
+            while (name && *name && n < 39) b[n++] = *name++;
+            t += 6; continue;
+        }
+        b[n++] = *t++;
+    }
+    b[n] = 0;
+    if (n) centre(row, b);
+}
+static void map_show_pal(uint8_t k) {            /* stop k's palette and name as it stands */
+    uint8_t lit = k == map_cur ? map_blink_lit : k < map_reached;
+    PAL_setPalette(MAP_PAL + 1 + k, lit ? map_lit : map_grey);
+    map_name(k, k == map_cur ? (lit ? 1 : MAP_FIX_GREY) : k < map_reached ? 0 : MAP_FIX_GREY);
+}
+static void map_place(void) {                    /* its chain's SCB3 / SCB4, every tick it is up (blocks_layout clears the
+                                                    select's blocks' sprites, 57-356, when a fight's first frame lays its
+                                                    blocks out: the map's 348-356 among them) */
+    uint16_t *y = cmd_run(VRAM_SCB3 + MAP_SPR, MAP_COLS);
+    uint8_t c;
+    y[0] = (uint16_t)((((496 - gmap.y) & 0x1FF) << 7) | MAP_ROWS);
+    for (c = 1; c < MAP_COLS; c++) y[c] = 0x40;
+    cmd_push(VRAM_SCB4 + MAP_SPR, (uint16_t)(gmap.x & 0x1FF) << 7);
+}
+static void map_open(uint8_t kind) {
+    uint8_t c, r, k, s = gmap_stage[camp], nb = gmap_bonus[camp];
+    uint16_t pal[16];
+    if (!GMAP_ON || !(kind == MAP_START ? gmap.start_ticks : gmap.clear_ticks)) return;
+    sf_reset();                                  /* (the rays' sprites: the map's now) */
+    map_on = kind; map_t = 0; map_bt = 0; map_skipped = 0; map_stage = camp; map_blink_lit = 1;
+    if (kind == MAP_START) { map_reached = s; map_cur = s; map_len = gmap.start_ticks; }
+    else {
+        map_reached = s + 1; map_len = gmap.clear_ticks;
+        map_cur = camp + 1 >= GS_COUNT ? 0xFF : nb != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open() ? nb : gmap_stage[camp + 1];
+    }
+    for (k = 0; k < 16; k++) pal[k] = TEXT_PAL[k];   /* fix palette 7: the font's gradient in greys */
+    pal[2] = RGB(20, 20, 21); pal[3] = RGB(17, 17, 18); pal[4] = RGB(14, 14, 15); pal[5] = RGB(11, 11, 12);
+    PAL_setPalette(MAP_FIX_GREY, pal);
+    PAL_setPalette(MAP_PAL, map_grey);
+    for (c = 0; c < MAP_COLS; c++) {
+        uint16_t *w = cmd_run(VRAM_SCB1 + (MAP_SPR + c) * 64, MAP_ROWS * 2);
+        for (r = 0; r < MAP_ROWS * 2; r++) *w++ = map_scb1[c * MAP_ROWS * 2 + r];
+        cmd_push(VRAM_SCB2 + MAP_SPR + c, 0x0FFF);
+    }
+    map_place();
+    for (k = 0; k < gmap.nstops; k++) map_show_pal(k);
+    if (kind == MAP_START) map_text(map_head_row(), gmap.start_text, 0);
+    else {
+        map_text(map_head_row(), gmap.clear_text, 0);
+        if (map_cur == 0xFF) map_text(map_foot_row(), gmap.final_text, 0);
+        else if (map_cur == nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[map_cur].name);
+        else map_text(map_foot_row(), gmap.next_text, gmap.stops[map_cur].name);
+    }
+}
+static void map_close(void) {
+    uint8_t c, r;
+    if (!map_on) return;
+    for (c = 0; c < MAP_COLS; c++) cmd_push(VRAM_SCB3 + MAP_SPR + c, 0);
+    for (r = map_head_row(); r <= map_foot_row(); r++) FIX_print(0, r, "                                        ", 0);
+    map_on = MAP_OFF;
+}
+static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it is gone */
+    if (!map_on) return 0;
+    map_t++; map_place();
+    if (map_cur != 0xFF && ++map_bt >= gmap.blink) { map_bt = 0; map_blink_lit ^= 1; map_show_pal(map_cur); }
+    if (map_t >= map_len || (map_t >= gmap.skip_after && ((JOY_pressed(0) | JOY_pressed(1)) & (JOY_A | JOY_B | JOY_C | JOY_D)))) {
+        map_skipped = map_t < map_len;
+        map_close();
+    }
+    return map_on;
 }
 /* ---- the stage intro (voice note 20261014-192343-5d29: "at the start of the level nobody on the screen: a fade-in of
  * the background with STAGE 1 START, then the hero walks in, scripted, and as soon as he is on the screen the wave can
@@ -3034,7 +3189,7 @@ static uint8_t stage_song(uint8_t s) {
  * motion each tick, added to it. The attract demo and the Lab's starts (no_intro) keep their immediate start. ---- */
 enum { IN_OFF, IN_FADE, IN_WALK, IN_WAIT };
 static void centre(uint8_t row, const char *t);
-static uint8_t in_ph, no_intro, in_at[2];
+static uint8_t in_ph, no_intro, in_at[2], in_faded, in_mt;   /* in_faded: the fade done under the map (in_mt: its ticks) */
 static uint16_t in_t;
 static int32_t in_x[2];
 static const gintro_t *gi;
@@ -3089,9 +3244,21 @@ static void intro_walk_start(void) {
     in_ph = IN_WALK;
 }
 static void intro_fade_tick(void) {                          /* IN_FADE: the game's tick stops here */
+    if (map_on) {                                            /* the map over the fade-in (main.c "the map"): the title and
+                                                                the walk-in wait for it */
+        if (in_mt < gi->fade) { in_mt++; stage_fade(in_mt < gi->fade ? (uint8_t)div16(in_mt << 4, gi->fade) : 16, in_mt < gi->fade ? in_mt & 3 : 0xFF); }
+        if (!map_tick()) {                                   /* gone: the stage as faded in, the title next tick */
+            in_faded = 1; stage_fade(16, 0xFF);
+            in_t = gi->title_at ? gi->title_at - 1 : 0;
+            if (!gi->title_at) intro_title();
+        }
+        return;
+    }
     in_t++;
-    if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
-    else if (in_t == gi->fade) stage_fade(16, 0xFF);
+    if (!in_faded) {                                         /* (faded under the map: done) */
+        if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
+        else if (in_t == gi->fade) stage_fade(16, 0xFF);
+    }
     intro_title();
     if (in_t >= gi->walk_at) intro_walk_start();
 }
@@ -3130,6 +3297,7 @@ static void intro_wait(void) {                               /* IN_WAIT: control
 static void stage_begin(uint8_t s, uint8_t first) {
     uint8_t i;
     if (gd_want) gd_apply();                                 /* a lab's pack */
+    map_close();                                             /* (the clear's map: gone before the stage changes) */
     mode = 1; nf = NE; cam_x = 0; wave = 0; cont_ov = 0; camp = s; phase = PH_WAVE; phase_t = 0; gs = &gstages[s]; bp_keyed = 0;
     triggers_reset(); dr_on = DR_OFF; dr_cols = 0; guard_parity = shadow_parity = 0;      /* a drama cut short (the lab): dbg_init below hides its sprites */
     inputs_reset();
@@ -3158,12 +3326,14 @@ static void stage_begin(uint8_t s, uint8_t first) {
         if (CHEAT_GAME) fighter_meter_fill(&fighters[i]);    /* the cheat: both bars full at each stage's start */
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
-    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0;
+    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0; in_faded = 0; in_mt = 0;
     if (!attract && !no_intro) {                             /* the stage intro: nobody on screen, the stage black */
         in_ph = IN_FADE;
         for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
-        stage_fade(gi->fade ? 0 : 16, 0xFF); intro_title();
-        if (!gi->fade && !gi->walk_at) intro_walk_start();
+        stage_fade(gi->fade ? 0 : 16, 0xFF);
+        if (!lab.active) map_open(MAP_START);               /* the map over the fade-in (game.json map.start_ticks) */
+        if (!map_on) intro_title();
+        if (!map_on && !gi->fade && !gi->walk_at) intro_walk_start();
     } else spawn_wave();
     for (i = 0; i < NF; i++) order[i] = &fighters[i];
     for (i = 0; i < NPJ; i++) { projectiles[i].idx = NF + i; order[NF + i] = &projectiles[i]; }
@@ -3173,6 +3343,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
 static void bonus_off(void);
 static void fight_start(void) {                  /* from the select screen (pl_* set): a new game at camp_from */
     bonus_off();                                 /* (a bonus cut short by the BIOS: its sprites given back) */
+    map_close();
     fury_lock = !attract && gbonus.fury_lock && !(save.cheat & 1);   /* (the cheat: never locked) a new credit: the fury locked until the posts are won (the
                                                         attract demo never: its bot plays as before) */
     bn_won = 0; bonus_on = BN_OFF; bn_clr[0] = bn_clr[1] = bn_clr[2] = 0;
@@ -3577,6 +3748,13 @@ static void bn_msg_show(uint8_t k) {             /* the message box's text: 0 th
 static void bn_frame_show(uint8_t on) {
     if (on) bscr_put(&bscr_frame, bscr_frame_x[bn_slot], bscr_frame.o.y, 0xF, 0xFF); else bn_hide(bscr_frame.spr, bscr_frame.o.w);
 }
+/* a game the pick screen offers (else its slot greyed, the cursor skips it): not one whose reward is the fury while the
+ * fury is free (won this credit, the POWER cheat; note 20261016-132535-e03d), not one already won this credit when
+ * bonus.pick.won is greyed (Bruno 2026-10-17: both games at both stops, each to be won once; bn_won: a credit's, a
+ * continue keeps it, a new game clears it) */
+static uint8_t bn_offered(uint8_t i) {
+    return !(gbonus.games[i].unlock == BU_FURY && !fury_lock) && !(gbonus.pick_won && (bn_won >> i & 1));
+}
 static void bonus_start(void) {                  /* after stage camp: AOF2's BONUS GAME screen */
     uint8_t i;
     mode = 6; bonus_on = BN_INTRO; bn_t = 0; bn_cur = 0; nf = 0; cam_x = 0; bn_shown_clock = 0xFFFF;
@@ -3589,10 +3767,9 @@ static void bonus_start(void) {                  /* after stage camp: AOF2's BON
     bd_set(COLOR_BLACK);
     bscr_pals(bscr_intro_pal, BSCR_INTRO_NPAL);
     for (i = 0; i < 3; i++) bn_slot_game[i] = 0xFF;
-    for (i = 0; i < gbonus.ngames; i++)          /* a game whose reward is the fury, the fury already free (won this
-                                                    credit, the cheat): its slot greyed and skipped like an empty one
-                                                    (note 20261016-132535-e03d) */
-        if (!(gbonus.games[i].unlock == BU_FURY && !fury_lock)) bn_slot_game[gbonus.games[i].slot] = i;
+    for (i = 0; i < gbonus.ngames; i++)          /* a game not offered (bn_offered): its slot greyed and skipped like an
+                                                    empty one */
+        if (bn_offered(i)) bn_slot_game[gbonus.games[i].slot] = i;
 }
 static void bonus_play(uint8_t k);
 static void bn_select_start(void) {
@@ -4192,12 +4369,11 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
 }
 static void unlock_start(uint8_t k);
 static void ending_start(void);
-static uint8_t bonus_open(void) {                /* a game the pick screen would offer (bonus_start's rule: a game whose
-                                                    reward is the fury, the fury already free, is greyed); none: no
-                                                    bonus (Bruno 2026-10-17: the posts alone after stage 1, the fury
-                                                    free by the select cheat = nothing to play) */
+static uint8_t bonus_open(void) {                /* a game the pick screen would offer (bn_offered); none: no bonus at
+                                                    this stop (the posts won and the Ki won, or the posts greyed by the
+                                                    fury already free and the Ki won) */
     uint8_t i;
-    for (i = 0; i < gbonus.ngames; i++) if (!(gbonus.games[i].unlock == BU_FURY && !fury_lock)) return 1;
+    for (i = 0; i < gbonus.ngames; i++) if (bn_offered(i)) return 1;
     return 0;
 }
 static void stage_next(void) {                   /* the stage after camp: a bonus first when the data has one there */
@@ -4231,7 +4407,10 @@ static void campaign(uint8_t left) {
         break;
     case PH_BOSS:                                            /* its death sequence played (boss_ko_tick), or gone */
         if (ko_seq != KO_DONE && fighters[BOSS_IDX].state != S_OFF) break;
+        if (fin_st == 1) { if (!left) finale_start(); break; }   /* the finale: every body gone, then its boss */
         enemies_down(&fighters[BOSS_IDX]);                   /* boss beaten: the minions go down with it */
+        if (fin_due()) { fin_st = 1; tq_n = 0; ko_seq = KO_DONE; break; }   /* (KO_DONE held: the players still, no
+                                                                second KO of the fallen boss) */
         tq_n = 0; waves_cleared = gs->nwaves + 1;
         phase = PH_END; phase_t = 0;
         break;
@@ -4239,7 +4418,7 @@ static void campaign(uint8_t left) {
         if (left) break;
         if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
         if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
-        phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0; lad_new = 0;
+        phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0; win_map = 0; map_skipped = 0; lad_new = 0;
         win_start();                                         /* the players' win poses (#184) */
         if (attract) break;
         if (LAD_N && camp + 1 >= GS_COUNT && save.rungs < LAD_RUNGS) lad_new = ++save.rungs;   /* the game clear: the
@@ -4259,7 +4438,11 @@ static void campaign(uint8_t left) {
                 FIX_print(14, 13, "           ", 0); bt_hide(); drama_start(DR_WIN, 0xFF); break;
             }
         }
-        if (snd_song == GAME_MUS_CLEAR && snd_song_t < GAME_MUS_CLEAR_FRAMES) break;   /* the clear song played to its end
+        if (!win_map) { win_map = 1; if (!attract) map_open(MAP_CLEAR); }   /* then the map over the cleared stage (FF's
+                                                                round clear; main.c "the map") */
+        if (map_on && map_tick()) break;
+        if (!map_skipped && snd_song == GAME_MUS_CLEAR && snd_song_t < GAME_MUS_CLEAR_FRAMES) break;   /* the clear song played to its end
+                                                                (a map skipped by a button: at once)
                                                                 (note 20261015-145350-e03d: a fighter without a big
                                                                 portrait skipped the drama and cut it) */
         for (i = 0; i < 2; i++)
@@ -4371,6 +4554,25 @@ static void cont_tick(void) {                    /* the fight frozen under the o
     }
     cont_draw();
 }
+/* the STAGE CLEAR cheat (game.json cheats.stage_clear_hold; Bruno 2026-10-17, for his testing): P1 holds DOWN + A + B + C
+ * + D together CHEAT_STAGE_HOLD ticks in a campaign stage: the stage's end sequence at once (every enemy and the boss
+ * gone, no boss KO sequence: PH_END's STAGE CLEAR, the win poses, the map, the next screen; the last stage: the game
+ * clear, its ladder rung and save as a real one). flow() runs it: never in the stage intro, a bonus, a drama, the boss's
+ * KO, the attract demo or the Lab */
+static uint16_t stc_t;
+static void stage_cheat(void) {
+    const uint16_t keys = JOY_DOWN | JOY_A | JOY_B | JOY_C | JOY_D;
+    uint8_t i;
+    if (attract || lab.active || phase >= PH_END || ko_seq || (JOY_held(0) & keys) != keys) { stc_t = 0; return; }
+    if (++stc_t < CHEAT_STAGE_HOLD) return;
+    stc_t = 0;
+    for (i = 2; i < NF; i++) fighters[i].state = S_OFF;
+    for (i = 0; i < NPJ; i++) projectile_reset(&projectiles[i]);
+    tq_n = 0; trig_held = 0; go_sign(0);
+    wave = gs->nwaves; waves_cleared = gs->nwaves + 1;
+    phase = PH_END; phase_t = 0;
+    snd_ssg(SSG_UNLOCK);
+}
 static void flow(void) {
     uint8_t i, p, left = 0;
     for (i = 2; i < NF; i++) {
@@ -4406,6 +4608,8 @@ static void flow(void) {
         cont_ov = 1; cont_ft = 0; cont_mus = snd_song; snd_music(GAME_MUS_CONTINUE); cont_box(1); cont_draw();
         return;
     }
+    stage_cheat();
+    if (phase == PH_END) for (left = 0, i = 2; i < NF; i++) if (fighters[i].state != S_OFF) left++;   /* (the cheat: none left) */
     campaign(left);
 }
 
@@ -5065,15 +5269,21 @@ static void select_tick(void) {
     uint8_t a, p, s;
     sel_t++;
     if (sel_phase == SEL_CHOOSE) {
-        if (LAD_N && (save.rungs < LAD_RUNGS || !(save.cheat & 1))) {   /* the cheat: down held 2 s, up held 2 s */
-            uint16_t h = JOY_held(0) | JOY_held(1);
-            uint8_t d = (h & JOY_DIR_MASK) == JOY_DOWN ? 0 : (h & JOY_DIR_MASK) == JOY_UP ? 1 : 2;
-            if (d < 2) { if (++cheat_t[d] == CHEAT_HOLD) cheat_flags |= 1 << d; cheat_t[d ^ 1] = 0; }
-            else cheat_t[0] = cheat_t[1] = 0;
-            if (cheat_flags == 3) {                          /* the whole ladder, saved */
-                cheat_flags = 0; cheat_t[0] = cheat_t[1] = 0;
-                save.rungs = LAD_RUNGS; save.cheat |= 1; save_write();
-                snd_ssg(SSG_CONFIRM); select_start(); return;
+        {                                                    /* the cheats (see "the select screen's cheats") */
+            static const uint16_t DIRS[4] = { JOY_UP, JOY_DOWN, JOY_LEFT, JOY_RIGHT };
+            uint16_t h = (JOY_held(0) | JOY_held(1)) & JOY_DIR_MASK;
+            uint8_t k;
+            for (k = 0; k < 4; k++) if (h == DIRS[k]) { if (cheat_t[k] < 0xFFFF) cheat_t[k]++; } else cheat_t[k] = 0;
+            if (cheat_t[0] == CHEAT_HOLD) cheat_flags |= 1;
+            if (cheat_t[2] == CHEAT_HOLD) cheat_flags |= 2;
+            if (cheat_t[1] == CHEAT_HOLD && (cheat_flags & 1)) {   /* LADDER: one rung, as a game clear */
+                cheat_flags &= ~1;
+                if (LAD_N && save.rungs < LAD_RUNGS) { save.rungs++; save_write(); snd_ssg(SSG_UNLOCK); select_start(); return; }
+                snd_ssg(SSG_CANCEL);
+            }
+            if (cheat_t[3] == CHEAT_HOLD && (cheat_flags & 2)) {   /* POWER: the fury free, the bar full in every game */
+                cheat_flags &= ~2;
+                if (!(save.cheat & 1)) { save.cheat |= 1; save_write(); snd_ssg(SSG_CONFIRM); } else snd_ssg(SSG_CANCEL);
             }
         }
         if ((bios_start & 2) && cursor[1] == 0xFF) {         /* P2 joins: START with a credit (PLAYER_START) */
@@ -5098,16 +5308,18 @@ static void select_tick(void) {
             if (s != was) {                                  /* colours follow the cursor */
                 cursor[p] = s; sel_last = p; snd_ssg(SSG_CURSOR);
                 fighter_pals(actor(slot_act[was]), slot_look(was));
-                fighter_pals(actor(slot_act[s]), 1);
+                fighter_pals(actor(slot_act[s]), slot_look(s));   /* (a locked one stays a silhouette) */
                 select_name();
             }
-            if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p]))
+            if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && char_locked(slot_ch[cursor[p]])) snd_ssg(SSG_CANCEL);   /* locked: refused */
+            else if ((pr & (JOY_A | JOY_B | JOY_C | JOY_D)) && !(picked[p ^ 1] && cursor[p ^ 1] == cursor[p]))
                 sel_pick(p, (pr & JOY_A) ? 0 : (pr & JOY_B) ? 1 : (pr & JOY_C) ? 2 : 3);
         }
         if (sel_time_on() && sel_t >= GAME_SEL_TIME_TICKS)  /* the time limit: the highlighted fighters, colour set A */
             for (p = 0; p < 2; p++) {
                 if (cursor[p] == 0xFF || picked[p]) continue;
-                if (picked[p ^ 1] && cursor[p ^ 1] == cursor[p]) {   /* on the other's pick: the first other selectable one */
+                if ((picked[p ^ 1] && cursor[p ^ 1] == cursor[p]) || !selectable(cursor[p])) {   /* on the other's pick (or a
+                                                                locked one): the first other selectable one */
                     uint8_t was = cursor[p];
                     for (s = 0; s < SEL_NSLOT && (!selectable(s) || s == cursor[p ^ 1]); s++) ;
                     if (s == SEL_NSLOT) continue;
@@ -5183,6 +5395,7 @@ void game_enter(uint8_t request) {
       PAL_setPalette(METER_PAL, TEXT_PAL);
       for (k = 0; k < 10; k++) TEXT_PAL[6 + k] = bar_colours[k]; }   /* fix palettes 2-3: the shown portraits (portrait()) */
     shadow_init();
+    map_on = 0;                                              /* (the map cut short: the BIOS's screens wrote its sprites) */
     blk_key_reset(); bg_ok = 0;                              /* (CPU budget D: the BIOS's screens wrote the sprites) */
     pj_measure();                                            /* the projectile blocks' widths (block_w) */
     dbg_init();

@@ -169,7 +169,11 @@ def unlocks(g):
     the rungs' size when they are all one size, else None."""
     u = g.get('unlocks')
     if not u: return None
-    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'rungs', 'screen'), f'unlocks: unknown field {k}'
+    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'rungs', 'screen', 'show_next', 'locked_name', 'locked_text'), f'unlocks: unknown field {k}'
+    for k in ('locked_name', 'locked_text'):             # (Bruno 2026-10-17: the next rung as silhouettes on the select)
+        v = u.get(k, '')
+        assert isinstance(v, str) and len(v) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in v), f'unlocks.{k}: ASCII, 38 characters at most'
+    assert isinstance(u.get('show_next', False), bool), 'unlocks.show_next: true | false'
     names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
     st = list(u.get('starters') or [])
     assert st, 'unlocks.starters: at least one fighter'
@@ -917,7 +921,18 @@ def model(g, build):
         be = enemies[en_idx[b['enemy']]]
         unl = 1 if be['base'] in idx and g['roster'][idx[be['base']]].get('unlock') == {'boss_of_stage': si + 1} and not g.get('unlocks') else 0
                                                          # (the unlock ladder: no other unlock, no BOSS UNLOCKED)
-        M['stages'].append({'name': s['name'], 'bg': s['background'], 'music': s['music'], 'power': s.get('power', 0), 'waves': wv,
+        fz = b.get('finale')                             # (Bruno 2026-10-17: a second boss fight in the same stage, main.c "the finale")
+        fin = None
+        if fz:
+            for k in fz: assert k in ('about', 'enemy', 'song', 'drama', 'x', 'z', 'seed', 'minions'), f'stage {si + 1}: boss.finale: unknown field {k}'
+            assert fz['enemy'] in en_idx and (not mus or fz['song'] in mus) and (fz.get('drama') is None or fz['drama'] in dr_idx), \
+                f'stage {si + 1}: boss.finale: enemy / song / drama unknown'
+            assert len(fz['minions']) <= MAX_ENEMIES - 1, f'stage {si + 1}: boss.finale: at most {MAX_ENEMIES - 1} minions'
+            assert ww is None or b['lock'] - 24 <= fz['x'] <= b['lock'] + 340, f'stage {si + 1}: boss.finale.x: at the boss lock\'s screen'
+            fin = {'boss': en_idx[fz['enemy']], 'song': fz['song'], 'drama': dr_idx[fz['drama']] if fz.get('drama') else 0xFF,
+                   'x': fz['x'], 'z': fz['z'], 'seed': int(str(fz['seed']), 0),
+                   'spawns': [spawn(d, f'stage {si + 1} finale', b['lock']) for d in fz['minions']]}
+        M['stages'].append({'name': s['name'], 'bg': s['background'], 'music': s['music'], 'power': s.get('power', 0), 'waves': wv, 'finale': fin,
                             'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
                             'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
                             'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song']), 'triggers': trig,
@@ -1588,6 +1603,8 @@ def bonus_check(g, songs_known, sfx_names=None):
         f"bonus.after: stage numbers 1-{n - 1} (a bonus needs a stage after it): {b['after']}"
     assert len(set(b['after'])) == len(b['after']), 'bonus.after: a stage twice'
     p = b['pick']
+    for k in p: assert k in ('seconds', 'music', 'won', 'won_about'), f'bonus.pick: unknown field {k}'
+    assert p.get('won', 'offered') in ('offered', 'greyed'), "bonus.pick.won: offered | greyed (a game won at an earlier stop)"
     assert isinstance(p.get('seconds'), int) and 3 <= p['seconds'] <= 9, "bonus.pick.seconds: 3-9 (AOF2's clock: one digit)"
     for k, v in (('bonus.pick.music', p.get('music')), ('bonus.over_music', b.get('over_music', p.get('music'))),
                  ('bonus.win_music', b.get('win_music', b.get('over_music', p.get('music'))))):
@@ -1729,7 +1746,7 @@ def bonus_tables(g, songs_known, sfx_names):
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "
              f".pick_music = MUS_{b['pick']['music']}, .over_music = MUS_{b.get('over_music', b['pick']['music'])}, "
              f".win_music = MUS_{b.get('win_music', b.get('over_music', b['pick']['music']))}, "
-             f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, "
+             f".fury_lock = {1 if b.get('fury_lock') and b['after'] else 0}, .after = gbonus_after, .pick_won = {1 if b['pick'].get('won') == 'greyed' else 0}, "
              f".intro_music = MUS_{b.get('intro', {}).get('music', b['pick']['music'])}, .intro_voice = 0x{code(b.get('intro', {}).get('voice')):02X}, "
              f".intro_at = {b.get('intro', {}).get('at', 0)}, .intro_ticks = {b.get('intro', {}).get('ticks', 122)}, "
              f".card_ticks = {b.get('card', {}).get('ticks', 186)}, .card_sound = 0x{code(b.get('card', {}).get('sound')):02X}, "
@@ -1755,6 +1772,68 @@ def bonus_tables(g, songs_known, sfx_names):
              f".hit = {1 if ht else 0}, .hit_text = gref_hit_text, .delay = {rv['delay']}, "
              f".jump_sound = 0x{code(r.get('jump_sound')):02X}, .land_sound = 0x{code(r.get('land_sound')):02X} }};   /* game.json referee */")
     return c
+
+
+MAP_DISTRICTS = ('SLUM', 'PARK', 'WEST SIDE', 'INDUSTRIAL AREA', 'BAY AREA', 'UP TOWN')   # make_map.DISTRICTS
+GM_STOPS = 6                                             # gamedata.h GM_STOPS
+MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'skip_after', 'blink', 'start_text', 'clear_text', 'next_text',
+            'next_bonus', 'final_text', 'stops', 'stops_about')
+
+
+def map_tables(g):
+    """game.json "map" (main.c "the map", tools/brawler/make_map.py the picture) -> gmap + the stop of each stage / bonus"""
+    m = g.get('map')
+    n = len(g['stages']); bo = g.get('bonus') or {}; after = bo.get('after', []) if bo.get('games') else []
+    if not m:
+        return ['#define GMAP_ON 0', 'extern const uint8_t gmap_stage[GS_COUNT], gmap_bonus[GS_COUNT];'], ['const gmap_t gmap = { 0 };', 'const uint8_t gmap_stage[GS_COUNT] = { 0 }, gmap_bonus[GS_COUNT] = { 0 };']
+    for k in m: assert k in MAP_KEYS, f'map: unknown field {k}'
+    ok = lambda s, k: isinstance(s, str) and len(s) <= k and all(0x20 <= ord(ch) < 0x7F for ch in s)
+    for k in ('start_text', 'clear_text', 'next_text', 'next_bonus', 'final_text'):
+        assert ok(m.get(k, ''), 38), f'map.{k}: ASCII, 38 characters at most'
+    assert isinstance(m['x'], int) and isinstance(m['y'], int) and m['x'] % 8 == 0 and m['y'] % 8 == 0 and 0 <= m['x'] <= 64 and 16 <= m['y'] <= 120, \
+        'map.x / y: the top left in 8 px steps (x 0-64: the 256 px map on the 320 px screen; y 16-120)'
+    for k in ('start_ticks', 'clear_ticks'): assert isinstance(m[k], int) and 0 <= m[k] <= 900, f'map.{k}: 0-900 ticks (0: not shown then)'
+    assert isinstance(m.get('skip_after', 30), int) and 0 <= m.get('skip_after', 30) <= 600 and 2 <= m.get('blink', 6) <= 60, 'map: skip_after 0-600, blink 2-60'
+    st = m['stops']
+    assert 1 <= len(st) <= GM_STOPS, f'map.stops: 1-{GM_STOPS}'
+    stg, bon = [0xFF] * n, [0xFF] * n
+    for k, s in enumerate(st):
+        for f in s: assert f in ('name', 'kind', 'n', 'district', 'label', 'sub'), f'map stop {k}: unknown field {f}'
+        assert re.fullmatch(r"[A-Z0-9 .!'+-]{0,14}", s.get('sub', '')), f'map stop {k}: sub 0-14 characters'
+        assert re.fullmatch(r"[A-Z0-9 .!'-]{1,14}", s['name']), f'map stop {k}: name 1-14 characters A-Z 0-9 space . ! \' -'
+        assert s['district'] in MAP_DISTRICTS, f'map stop {s["name"]}: district {s["district"]!r} ({" | ".join(MAP_DISTRICTS)})'
+        lc, lr = s['label']
+        assert 0 <= lc and lc + len(s['name']) <= 32 and 0 <= lr <= 10, f'map stop {s["name"]}: label [column, row] inside the 32 x 11 cell map'
+        assert s['kind'] in ('stage', 'bonus') and isinstance(s['n'], int) and 1 <= s['n'] <= n, f'map stop {s["name"]}: kind stage | bonus, n 1-{n}'
+        tab = stg if s['kind'] == 'stage' else bon
+        assert tab[s['n'] - 1] == 0xFF, f'map stop {s["name"]}: {s["kind"]} {s["n"]} twice'
+        tab[s['n'] - 1] = k
+    assert all(v != 0xFF for v in stg), f'map.stops: one stop per stage in play ({n})'
+    for a in after: assert bon[a - 1] != 0xFF, f'map.stops: no bonus stop after stage {a} (bonus.after)'
+    for i, v in enumerate(bon): assert v == 0xFF or i + 1 in after, f'map.stops: a bonus stop after stage {i + 1}, which has no bonus (bonus.after)'
+    order = sorted(range(len(st)), key=lambda k: (st[k]['n'], st[k]['kind'] == 'bonus'))
+    assert order == list(range(len(st))), 'map.stops: in trip order (stage 1, its bonus, stage 2, ...)'
+    rows = ', '.join(f'{{ {c_str(s["name"])}, {s["label"][0]}, {s["label"][1]}, {c_str(s.get("sub", ""))} }}' for s in st)
+    c = [f'const gmap_t gmap = {{ .x = {m["x"]}, .y = {m["y"]}, .start_ticks = {m["start_ticks"]}, .clear_ticks = {m["clear_ticks"]}, '
+         f'.skip_after = {m.get("skip_after", 30)}, .blink = {m.get("blink", 6)}, .nstops = {len(st)}, '
+         f'.start_text = {c_str(m.get("start_text", ""))}, .clear_text = {c_str(m.get("clear_text", ""))}, .next_text = {c_str(m.get("next_text", ""))}, '
+         f'.next_bonus = {c_str(m.get("next_bonus", ""))}, .final_text = {c_str(m.get("final_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map */',
+         'const uint8_t gmap_stage[GS_COUNT] = { ' + ', '.join(map(str, stg)) + ' };   /* the stop of each stage in play */',
+         'const uint8_t gmap_bonus[GS_COUNT] = { ' + ', '.join(map(str, bon)) + ' };   /* the bonus stop after each stage (0xFF none) */']
+    return ['#define GMAP_ON 1', 'extern const uint8_t gmap_stage[GS_COUNT], gmap_bonus[GS_COUNT];'], c
+
+
+def cheat_tables(g):
+    """game.json "cheats" (Bruno's test cheats: main.c select_tick, stage_cheat) + the select's locked rung texts"""
+    ch = g.get('cheats') or {}
+    for k in ch: assert k in ('about', 'hold', 'stage_clear_hold'), f'cheats: unknown field {k}'
+    assert 30 <= ch.get('hold', 120) <= 600 and 30 <= ch.get('stage_clear_hold', 180) <= 600, 'cheats: hold / stage_clear_hold 30-600 ticks'
+    U = g.get('unlocks') or {}
+    return [f'#define CHEAT_HOLD {ch.get("hold", 120)}   /* cheats.hold: each of a select cheat\'s two holds, ticks */',
+            f'#define CHEAT_STAGE_HOLD {ch.get("stage_clear_hold", 180)}   /* cheats.stage_clear_hold */',
+            f'#define UNL_SHOW_NEXT {1 if U.get("show_next") else 0}   /* unlocks.show_next: the next rung as silhouettes on the select */',
+            f'#define UNL_LOCKED_NAME {c_str(U.get("locked_name", ""))}',
+            f'#define UNL_LOCKED_TEXT {c_str(U.get("locked_text", ""))}']
 
 
 def tint_lut(tints):
@@ -1921,7 +2000,7 @@ def tables(g, build):
          'enum { ' + ', '.join(f'AI_{n.upper()}' for n in presets) + ' };',
          'enum { ' + ', '.join(f'EN_{e["name"].upper()}' for e in M['enemies']) + ' };',
          'extern const char *const gstage_names[GS_COUNT];   /* game.json stages[].name: the HUD, GAME OVER */',
-         'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
+         'extern const gstage_t gstages_rom[GS_COUNT];', 'extern const gfinale_t gfinale[GS_COUNT];', 'extern const genemy_t genemies_rom[EN_COUNT];',
          'extern const ai_preset_t ai_presets_rom[AI_COUNT];', 'extern const gbossai_t *const gbossai_rom[EN_COUNT];   /* (T9) a boss\'s own AI layer per enemy, 0 = none (gamedata.h) */', 'extern const gtint_t gtints[TINT_COUNT];',
          'extern const int8_t gtint_lut[TINT_COUNT - 1][1024];   /* fighter.c tint_colour: tint t\'s (l * mix + c) * mul >> shift at [t - 1][l * 32 + c] */',
          'extern const sel_slot_t SEL_SLOT[SEL_NPLACE];', 'extern const int16_t sel_lay_cam[SEL_NLAY][2];', 'extern const uint8_t sel_fighter[SEL_NSLOT];', 'extern const uint8_t sel_palbase[SEL_NSLOT];', 'extern const uint8_t sel_lay_n[SEL_NLAY], sel_lay_base[SEL_NLAY];', 'extern const uint8_t sel_stick[SEL_NLAY][SEL_NSLOT][2];', 'extern const uint8_t sel_vert[SEL_NLAY][SEL_NSLOT][2][SEL_NSLOT - 1];',
@@ -2261,6 +2340,17 @@ def tables(g, build):
                 for t in s['triggers']) + '\n};')
         xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]}, .start = {s["start"]} }},   /* {s["name"]} */')
     c.append('const gstagex_t gstagex_rom[GS_COUNT] = {\n' + '\n'.join(xrows) + '\n};')
+    frows = []                                           # the finales (ROM only: a Lab pack's stages keep the ROM's)
+    for si, s in enumerate(M['stages']):
+        f = s['finale']
+        if not f: frows.append(f'    {{ 0 }},   /* {s["name"]} */'); continue
+        if f['spawns']:
+            c.append(f'static const gspawn_t stage{si}_finale_spawns[] = {{\n    ' + ',\n    '.join(
+                f'{{ .enemy = {d["enemy"]}, .pick = {d["pick"]}, .set = {d["set"]}, .tint = {d["tint"]}, .x = {d["x"]}, .z = {d["z"]}, .flags = 0x{d["flags"]:02X} }}'
+                for d in f['spawns']) + '\n};')
+        frows.append(f'    {{ .on = 1, .boss = {f["boss"]}, .song = MUS_{f["song"]}, .drama = {f["drama"]}, .nmin = {len(f["spawns"])}, '
+                     f'.x = {f["x"]}, .z = {f["z"]}, .seed = 0x{f["seed"]:04X}, .spawns = {f"stage{si}_finale_spawns" if f["spawns"] else 0} }},   /* {s["name"]} */')
+    c.append('const gfinale_t gfinale[GS_COUNT] = {   /* stages[].boss.finale (main.c "the finale") */\n' + '\n'.join(frows) + '\n};')
     drows = []
     for di, (dn, scenes) in enumerate(M['dramas']):
         for k, sc in enumerate(scenes):
@@ -2350,6 +2440,9 @@ def tables(g, build):
     eh, ec = big_tables(g)
     h += eh; c += ec
     c += bonus_tables(g, known, {v.upper(): int(k, 16) for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(build)), 'songs.json')))['sfx']['names'].items()})
+    eh, ec = map_tables(g)
+    h += eh; c += ec
+    h += cheat_tables(g)
     h.append('#endif')
     write_if_changed(os.path.join(build, 'game_tables.h'), '\n'.join(h) + '\n')
     write_if_changed(os.path.join(build, 'game_tables.c'), '\n'.join(c) + '\n')

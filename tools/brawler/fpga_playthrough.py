@@ -83,7 +83,7 @@ ticks = lambda: b.r(gt, 4)
 rd = lambda n: b.r(S[n], 1)
 log = []; faults = []; shots = []; in_tick = {}; tpokes = []
 reached = {'posts_won': False, 'referee': [], 'quirk_hit': False, 'ki_played': False, 'bonus_games': [], 'ending': False,
-           'title_after_ending': False, 'stages': []}
+           'title_after_ending': False, 'stages': [], 'maps': [], 'finale': False, 'bonus_offered': []}
 def shot(tag):
     data, w, h, pitch = b._video
     p = os.path.join(a.out, 'shots', '%06d_%s.png' % (b.frame, tag))
@@ -184,12 +184,19 @@ else:
         face = b.fget(0, 'facing'); face = face - 256 if face > 127 else face
         return (face > 0) == right
     wave_t = 0; cur = None; f = 0; seen_end = False; bn_prev = None; ki_pressed = False; d_sent = False
+    map_prev = 0
     for _ in range(a.max):
         m, ph = rd('mode'), rd('phase'); f += 1; keys = ''
+        mo = rd('map_on') if 'map_on' in S else 0          # (2026-10-17: the map at each stage's start (1) and clear (2))
+        if mo and mo != map_prev: reached['maps'].append([rd('camp'), mo])
+        map_prev = mo
+        if 'fin_st' in S and rd('fin_st') == 2: reached['finale'] = True
         if m == 0 or m == 3: keys = 'a' if f % 20 < 2 else ''
         elif m == 6 or rd('bonus_on'):                   # the bonus screens (mode 6) and games (mode 1, bonus_on)
             bo, cur_g = rd('bonus_on'), rd('bn_cur')
             if bo != bn_prev:
+                if bo == BN_PICK and 'bn_slot_game' in S:
+                    reached['bonus_offered'].append([GAMES[g]['id'] for g in (b.r(S['bn_slot_game'] + k, 1) for k in range(3)) if g < len(GAMES)])
                 if bo == BN_PLAY: reached['bonus_games'].append(GAMES[cur_g]['id'] if cur_g < len(GAMES) else cur_g); ki_pressed = False
                 if bo == BN_END and cur_g == POSTS and rd('bn_left') == 0: reached['posts_won'] = True
                 bn_prev = bo

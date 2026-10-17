@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RELEASE GATE (2026-10-16): the whole game as a real MVS / AES runs it, on BOTH BIOS, in ~1 min. Replaces
+"""RELEASE GATE (2026-10-16): the whole game as a real MVS / AES runs it, on BOTH BIOS, in ~2 min. Replaces
 odd_access_proof.py (which runs this now). Our stock emulator core forgives what the real hardware does not; two
 FPGA / MVS crashes in a day came from that:
   - 0.10.152: a crash ~24 s after power-on, in the attract demo (route trees as byte arrays at odd addresses read as
@@ -17,15 +17,17 @@ FPGA / MVS crashes in a day came from that:
    uni-aes (UniBIOS as an AES) at once: power on, 3 attract loops, coin, START, the select, EVERY stage (a wave the bot
    has not finished in --wave-limit frames cleared by poke, the boss KO'd after --boss-limit), the posts bonus WON
    (walk, A, A, A), SS2's referee's whole speech, the D quirk in his held message (the fury on his body, his
-   HORRIBLE ATMOSPHERE), the Ki training passed when bonus.games has it (benched since 2026-10-17: the run is stage 1,
-   the posts, stage 2 = the final stage), the ending's screens, back to the title.
+   HORRIBLE ATMOSPHERE), the Ki training passed when bonus.games has it (2026-10-17, three stages: stage 1, bonus stop 1
+   = the posts picked and won, stage 2, bonus stop 2 = the posts greyed (won), the Ki training passed, stage 3 = Geese,
+   then his finale: Rugal with Mr. Big and Krauser greyed out, Rugal KO'd), Final Fight's map at every stage's start
+   and clear, the ending's screens, back to the title.
 ALL OK = on both: zero odd-address word / long accesses (a 68000's ADDRESS ERROR); zero CPU exceptions (bus /
 address error, illegal instruction, zero divide, CHK, TRAPV, privilege, line A / F, TRAP); zero WATCHDOG resets and
 the longest stretch without a $300001 kick under half the watchdog's 8 frames (Geolith = MAME = the boards); no reset
 (the game's tick counter never goes back); the stack's high-water mark at least 1 KB above .bss; no fault past the
 BIOS's boot (PC outside ROM / RAM / BIOS, a long stay in the BIOS, ticks stalled); and the run went through all of
-the above (posts won, the referee's phases incl. HOLD and the quirk's WAIT, the referee hit, the Ki game, the
-ending, the title after it). Each failure is listed (an odd access with the symbol its address and PPC fall in,
+the above (every stage, the bonus games posts then Ki, posts won, the referee's phases incl. HOLD and the quirk's
+WAIT, the referee hit, the Ki game, the 6 map screens, the finale, the ending, the title after it). Each failure is listed (an odd access with the symbol its address and PPC fall in,
 build/rom.elf); the runs' logs and screenshots stay in OUT/<sys>/ (run.json, shots/)."""
 import argparse, bisect, json, os, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
@@ -37,8 +39,14 @@ ap.add_argument('--build', default='build'); ap.add_argument('--out', default='/
 ap.add_argument('--attract', type=int, default=8100); ap.add_argument('--max', type=int, default=60000)
 ap.add_argument('--wave-limit', type=int, default=600); ap.add_argument('--boss-limit', type=int, default=900)
 a = ap.parse_args()
-KI_IN = any(x.get('kind') == 'gauge' for x in json.load(open(os.path.join(a.game, 'game.json'))).get('bonus', {}).get('games', []))
-                                                         # (2026-10-17: the posts alone in the run, the Ki training benched: not required)
+_G = json.load(open(os.path.join(a.game, 'game.json')))
+KI_IN = any(x.get('kind') == 'gauge' for x in _G.get('bonus', {}).get('games', []))
+NSTAGES = len([s for s in _G['stages'] if not s.get('off')])
+# (2026-10-17: a bonus stop after each listed stage, the posts won at the first, the Ki training at the second (the posts
+#  greyed there); Final Fight's map at every stage's start and clear; Geese's finale: Rugal with the two greyed bosses)
+BONUS_WANT = (['posts', 'ki'] + ['ki'] * (len(_G['bonus']['after']) - 2))[:len(_G['bonus']['after'])] if KI_IN else ['posts']
+FINALE = any(s['boss'].get('finale') for s in _G['stages'] if not s.get('off'))
+                                                         # (2026-10-17 later: both games at both bonus stops, the Ki training required again)
 WD_MAX = 4.0                                             # frames: half the watchdog's 8
 STACK_MIN = 1024                                         # bytes above .bss's end
 
@@ -89,9 +97,12 @@ for sys_, p in procs.items():
         ((st.get('headroom') or 0) >= STACK_MIN, f'stack: lowest {st.get("lowest")}, {st.get("headroom")} bytes above .bss ({st.get("bss_end")})'),
         (not faults, f'faults past the boot (resets, hangs, PC off the map, BIOS screens): {faults[:5]}'),
         (play and rc_.get('posts_won') and {'WALK', 'HOLD', 'WAIT'} <= set(refs) and rc_.get('quirk_hit')
-         and (rc_.get('ki_played') or not KI_IN) and rc_.get('ending') and rc_.get('title_after_ending'),
-         f'went through: stages {rc_.get("stages")}, bonus games {rc_.get("bonus_games")}, posts won {rc_.get("posts_won")}, '
+         and (rc_.get('ki_played') or not KI_IN) and rc_.get('ending') and rc_.get('title_after_ending')
+         and rc_.get('stages') == list(range(NSTAGES)) and rc_.get('bonus_games') == BONUS_WANT
+         and all([s, k] in rc_.get('maps', []) for s in range(NSTAGES) for k in (1, 2)) and (rc_.get('finale') or not FINALE),
+         f'went through: stages {rc_.get("stages")}, bonus games {rc_.get("bonus_games")} (offered {rc_.get("bonus_offered")}), posts won {rc_.get("posts_won")}, '
          f'the referee {"/".join(refs)}, hit {rc_.get("quirk_hit")}, the Ki game {rc_.get("ki_played")}, '
+         f'the maps (stage, 1 start / 2 clear) {rc_.get("maps")}, the finale {rc_.get("finale")}, '
          f'the ending {rc_.get("ending")}, the title after it {rc_.get("title_after_ending")}'),
     ]
     ok = all(c for c, _ in checks); bad |= not ok

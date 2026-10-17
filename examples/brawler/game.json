@@ -799,10 +799,18 @@
   ]
  },
  "unlocks": {
-  "about": "The unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build). starters: playable from the start. rungs: the fighters earned, a rung each game clear, each rung its own size (Bruno 2026-10-15, the beta: Haggar, then Hanzo (SS2) + Haohmaru, then Kim as the final unlock; the older form ladder + rung_size cuts one list into equal rungs): each game clear (the last stage's boss beaten, boss_order) unlocks the next rung, kept forever in the save (MVS backup RAM / AES memory card: main.c save_t rungs). No other unlock (the roster's boss_of_stage locks are ignored while this block is here). Only these fighters stand on the select screen (select_layout: a place each, taken in ladder order); every other roster fighter is an enemy only. The select screen draws ONLY the unlocked ones (Bruno 2026-10-15: no silhouettes there): n unlocked = the first n of the ladder order, placed for that count by select.auto (spread along the street, no overlap; without it n consecutive places of select_layout, centred; build_tables.select_layers, one cursor graph per count). The ladder screen (main.c 'the unlock ladder') shows them all at full size on ONE line (Bruno 2026-10-15, the select screen's idea: 'make them spaced enough, from left to right; if the characters are too far to the right, just scroll'; screen: feet = their feet's y, pitch = px feet to feet in ladder order, margin = the first's feet from the TV's left edge, a row that fits the TV centred; build_tables.ladder_places), locked ones as dark silhouettes; a row wider than the TV: the camera pans to the rung just unlocked (main.c lad_camera): ONLY after a game clear that unlocked a rung (NEW CHALLENGERS!, the new rung revealed; no title entry, Bruno 2026-10-15). The save is cleared on the title with A+B+C+D held 2 s. Edited in the Factory (Characters: Roster & select, the ladder). Removing the block: every selectable fighter from the start again (and the bosses' own locks), the select layout to be re-placed.",
+  "about": "The unlock ladder (Bruno 2026-10-15, decisions set unlocks: the beta build). starters: playable from the start. rungs: the fighters earned, a rung each game clear, each rung its own size (Bruno 2026-10-15, the beta: Haggar, then Hanzo (SS2) + Haohmaru, then Kim as the final unlock; the older form ladder + rung_size cuts one list into equal rungs): each game clear (the last stage's boss beaten, boss_order) unlocks the next rung, kept forever in the save (MVS backup RAM / AES memory card: main.c save_t rungs). No other unlock (the roster's boss_of_stage locks are ignored while this block is here). Only these fighters stand on the select screen (select_layout: a place each, taken in ladder order); every other roster fighter is an enemy only. The select screen draws the unlocked ones and, with show_next, the NEXT rung as silhouettes (Bruno 2026-10-17, replacing his 2026-10-15 'no silhouettes there' and note 20261016-173135-e03d 'Haggar must stay a surprise'): the next rung's fighters stand in their places of the next count's layout (select_layers: the layer for rungs + 1), in the SILHOUETTE colour (main.c slot_look), the cursor may highlight them (only the silhouette shows; the name row shows locked_name and the hint row locked_text while one is highlighted), A-D on one does nothing but a refuse buzz; never selectable, the time limit's pick skips them; only that rung, no later one: n unlocked = the first n of the ladder order, placed for that count by select.auto (spread along the street, no overlap; without it n consecutive places of select_layout, centred; build_tables.select_layers, one cursor graph per count). The ladder screen (main.c 'the unlock ladder') shows them all at full size on ONE line (Bruno 2026-10-15, the select screen's idea: 'make them spaced enough, from left to right; if the characters are too far to the right, just scroll'; screen: feet = their feet's y, pitch = px feet to feet in ladder order, margin = the first's feet from the TV's left edge, a row that fits the TV centred; build_tables.ladder_places), locked ones as dark silhouettes; a row wider than the TV: the camera pans to the rung just unlocked (main.c lad_camera): ONLY after a game clear that unlocked a rung (NEW CHALLENGERS!, the new rung revealed; no title entry, Bruno 2026-10-15). The save is cleared on the title with A+B+C+D held 2 s. Edited in the Factory (Characters: Roster & select, the ladder). Removing the block: every selectable fighter from the start again (and the bosses' own locks), the select layout to be re-placed.",
   "starters": ["terry", "robert"],
   "rungs": [["haggar"], ["hanzo_ss2", "haohmaru"], ["kim"]],
-  "screen": {"feet": 200, "margin": 40, "pitch": 90}
+  "screen": {"feet": 200, "margin": 40, "pitch": 90},
+  "show_next": true,
+  "locked_name": "?????",
+  "locked_text": "LOCKED - BEAT THE GAME FIRST"
+ },
+ "cheats": {
+  "about": "Bruno's test cheats (obscure on purpose: testers never hold a direction or every button that long). On the character select, either player (main.c select_tick): LADDER = hold UP `hold` ticks, then hold DOWN `hold` ticks: the unlock ladder one rung further, saved exactly as a game clear saves it (save.rungs + 1, the select redrawn: the new rung selectable, the next one as silhouettes); repeatable, nothing at the last rung. POWER = hold LEFT `hold` ticks, then hold RIGHT `hold` ticks: the fury unlocked and the drive bar at its most chunks in every new game, both bars full at each stage's start (save.cheat, saved; was the old all-in-one cheat's side effect, Bruno 2026-10-17: split; it unlocks no fighter). In a campaign stage (main.c stage_cheat): STAGE CLEAR = P1 holds DOWN + A + B + C + D together `stage_clear_hold` ticks: the stage's end sequence at once (every enemy and the boss gone, STAGE CLEAR, the win poses, the map, then the next screen; on the last stage the game clear and its ladder rung, as a real clear); not during the stage intro, a bonus, a drama, the boss's KO or the attract demo.",
+  "hold": 120,
+  "stage_clear_hold": 180
  },
  "select": {
   "time_limit_s": 15, "time_limit_shown": false, "time_limit_mvs_only": true, "time_limit_about": "note 20261016-174702-e03d: the select runs a hidden clock (no timer drawn until it has its font): after `time_limit_s` seconds every joined player who has not picked gets the fighter under his cursor in its first colour set (as A); MVS only (console: no limit). main.c select_tick",
@@ -869,7 +877,8 @@
  "tints": {
   "shade": {"mix": 1, "mul": 11, "shift": 5, "add": [0, 0, 0]},
   "ash": {"mix": 3, "mul": 14, "shift": 6, "add": [-1, 0, 3]},
-  "rust": {"mix": 1, "mul": 12, "shift": 5, "add": [3, 0, -2]}
+  "rust": {"mix": 1, "mul": 12, "shift": 5, "add": [3, 0, -2]},
+  "ghost": {"mix": 15, "mul": 2, "shift": 5, "add": [-2, -2, 0]}
  },
  "ai": {
   "rules": {
@@ -1229,6 +1238,10 @@
     "ready_shift": 1,
     "combos": ["A A A A", "A A A fA", "A C", "A dC", "run A", "jump A A", "A A A uA", "A A fC", "grab", "A A A C D"]
    }},
+  {"name": "GHOST_BIG", "base": "mr_big", "stand_in": "mr_big", "life": 96, "power": 0, "damage_out": 0.5, "ai": "wave_t6", "hud": "fighter",
+   "palette": {"tint": "ghost"}, "damage_about": "Bruno 2026-10-17, the finale (stages[].boss.finale): Mr. Big greyed out beside Rugal, a regular enemy's AI (the strongest wave tier, no boss layer) and life (CHAMPION's 90 + a little); his boss moves at the bosses' half damage"},
+  {"name": "GHOST_KRAUSER", "base": "krauser", "stand_in": "krauser", "life": 96, "power": 0, "damage_out": 0.5, "ai": "wave_t6", "hud": "fighter",
+   "palette": {"tint": "ghost"}, "damage_about": "(as GHOST_BIG)"},
   {"name": "RUGAL", "base": "rugal", "stand_in": "yashiro", "life": 224, "power": 1, "damage_out": 0.5, "ai": "boss", "hud": "fighter",
    "ai_over": {"rest_shift": 4, "rest_random": 15, "bspec_chance": 32, "jump_chance": 6},
    "boss_ai": {
@@ -1345,7 +1358,7 @@
    "background": 1,
    "music": "STAGE_SLUM",
    "power": 0,
-   "length_about": "Bruno 2026-10-17 (two stages, ~30 % less scroll): ends 30 % earlier (the boss lock 2240 -> 1568, its x 2544 -> 1872: lock + 304 as before), 4 waves 392 px apart (THUG's wave, the second MINION-AI pair, dropped: MINION, BRAWLER, VETERAN, ELITE), the boss RUGAL (boss_order)",
+   "length_about": "Bruno 2026-10-17 (two stages, ~30 % less scroll): ends 30 % earlier (the boss lock 2240 -> 1568, its x 2544 -> 1872: lock + 304 as before), 4 waves 392 px apart (THUG's wave, the second MINION-AI pair, dropped: MINION, BRAWLER, VETERAN, ELITE), the boss RUGAL (boss_order; since 2026-10-17's three stages MR_BIG again)",
    "waves": [
     {
      "lock": 0,
@@ -1508,6 +1521,108 @@
   },
   {
    "name": "STAGE 2",
+   "background": 3,
+   "music": "THEME_KIM",
+   "power": 1,
+   "length_about": "Bruno 2026-10-17 (three stages, Geese last): the old STAGE 3 back as stage 2 (background 3: its floor a road, then concrete; background 5, the old STAGE 4, has a banded blue floor that reads as water, Bruno: 'people walking on water is confusing'), ~30 % less scroll as stage 1 (the boss lock 2240 -> 1568, its x 2544 -> 1872), 4 waves 392 px apart (VETERAN x3, ELITE x3, ELITE x4, CHAMPION x3: between stage 1's MINION .. ELITE and the final stage's BRAWLER .. CHAMPION x4; the old second ELITE x4 wave and the second CHAMPION wave dropped), power 1 (was 2), the boss KRAUSER (boss_order)",
+   "waves": [
+    {
+     "lock": 0,
+     "seed": "0x1D43",
+     "spawns": [
+      {"enemy": "VETERAN", "pick": 3, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "VETERAN", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
+      {"enemy": "VETERAN", "pick": 5, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28}
+     ]
+    },
+    {
+     "lock": 392,
+     "seed": "0x1D44",
+     "spawns": [
+      {"enemy": "ELITE", "pick": 6, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 7, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 8, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28}
+     ]
+    },
+    {
+     "lock": 784,
+     "seed": "0x1D45",
+     "spawns": [
+      {"enemy": "ELITE", "pick": 9, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "ELITE", "pick": 10, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "ELITE", "pick": 11, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
+      {"enemy": "ELITE", "pick": 12, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+     ]
+    },
+    {
+     "lock": 1176,
+     "seed": "0x1D46",
+     "spawns": [
+      {"enemy": "CHAMPION", "pick": 12, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
+      {"enemy": "CHAMPION", "pick": 13, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
+      {"enemy": "CHAMPION", "pick": 14, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28}
+     ]
+    }
+   ],
+   "boss": {
+    "enemy": "RUGAL",
+    "song": "BOSS_RUGAL",
+    "lock": 1568,
+    "x": 1872,
+    "z": 30,
+    "seed": "0x5B08",
+    "minions": [
+     {
+      "enemy": "MINION",
+      "pick": 3,
+      "not_boss": true,
+      "set": 3,
+      "walk_in": {"side": "right", "rank": 0},
+      "z": 6,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 6,
+      "not_boss": true,
+      "set": 4,
+      "walk_in": {"side": "left", "rank": 0},
+      "z": 19,
+      "tint": "ash"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 9,
+      "not_boss": true,
+      "set": 5,
+      "walk_in": {"side": "right", "rank": 1},
+      "z": 32,
+      "tint": "rust"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 12,
+      "not_boss": true,
+      "set": 6,
+      "walk_in": {"side": "left", "rank": 1},
+      "z": 45,
+      "tint": "shade"
+     },
+     {
+      "enemy": "MINION",
+      "pick": 15,
+      "not_boss": true,
+      "set": 7,
+      "walk_in": {"side": "right", "rank": 2},
+      "z": 58,
+      "tint": "ash"
+     }
+    ],
+    "drama": "rugal_intro"
+   }
+  },
+  {
+   "name": "STAGE 3",
    "background": 4,
    "music": "STAGE_HIGHWAY",
    "power": 1,
@@ -1599,121 +1714,20 @@
       "tint": "rust"
      }
     ],
-    "drama": "geese_intro"
-   }
-  },
-  {
-   "name": "STAGE 3",
-   "off": true,
-   "background": 3,
-   "music": "THEME_KIM",
-   "power": 2,
-   "waves": [
-    {
-     "lock": 0,
-     "seed": "0x1D43",
-     "spawns": [
-      {"enemy": "VETERAN", "pick": 3, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "VETERAN", "pick": 4, "set": 1, "walk_in": {"side": "right", "rank": 1}, "z": 17},
-      {"enemy": "VETERAN", "pick": 5, "set": 2, "walk_in": {"side": "right", "rank": 2}, "z": 28}
-     ]
-    },
-    {
-     "lock": 448,
-     "seed": "0x1D44",
-     "spawns": [
-      {"enemy": "ELITE", "pick": 6, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "ELITE", "pick": 7, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "ELITE", "pick": 8, "set": 3, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "ELITE", "pick": 9, "set": 4, "walk_in": {"side": "left", "rank": 1}, "z": 39}
-     ]
-    },
-    {
-     "lock": 896,
-     "seed": "0x1D45",
-     "spawns": [
-      {"enemy": "ELITE", "pick": 9, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "ELITE", "pick": 10, "set": 3, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "ELITE", "pick": 11, "set": 4, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "ELITE", "pick": 12, "set": 5, "walk_in": {"side": "left", "rank": 1}, "z": 39}
-     ]
-    },
-    {
-     "lock": 1344,
-     "seed": "0x1D46",
-     "spawns": [
-      {"enemy": "CHAMPION", "pick": 12, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "CHAMPION", "pick": 13, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "CHAMPION", "pick": 14, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "CHAMPION", "pick": 15, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
-     ]
-    },
-    {
-     "lock": 1792,
-     "seed": "0x1D47",
-     "spawns": [
-      {"enemy": "CHAMPION", "pick": 15, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "CHAMPION", "pick": 16, "set": 5, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "CHAMPION", "pick": 17, "set": 6, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "CHAMPION", "pick": 18, "set": 7, "walk_in": {"side": "left", "rank": 1}, "z": 39}
+    "drama": "geese_intro",
+    "finale": {
+     "about": "Bruno 2026-10-17: the run's finale, in the same stage right after this boss falls (no stage clear, no break): once his KO's slow motion is over and the bodies have blinked out (main.c 'the finale'), RUGAL BERNSTEIN walks in from the screen's right edge (x / z, as every boss enters: his KOF98 data has no teleport or jump-in entry the brawler plays) with his intro drama and song, and the minions with him, here MR_BIG and KRAUSER greyed out (enemies GHOST_BIG / GHOST_KRAUSER: tint ghost, AI wave_t6 = the strongest regular enemies', no boss layer). They all fight at once; RUGAL down = the boss's KO as every boss's (the others knocked down with him) and the stage clear = the game clear (the ending). Fields as a boss block's (enemy, song, drama, x, z, seed, minions)",
+     "enemy": "RUGAL",
+     "song": "BOSS_RUGAL",
+     "drama": "rugal_intro",
+     "x": 2544,
+     "z": 30,
+     "seed": "0x5B0A",
+     "minions": [
+      {"enemy": "GHOST_BIG", "walk_in": {"side": "left", "rank": 0}, "z": 12},
+      {"enemy": "GHOST_KRAUSER", "walk_in": {"side": "right", "rank": 1}, "z": 48}
      ]
     }
-   ],
-   "boss": {
-    "enemy": "RUGAL",
-    "song": "BOSS_RUGAL",
-    "lock": 2240,
-    "x": 2544,
-    "z": 30,
-    "seed": "0x5B08",
-    "minions": [
-     {
-      "enemy": "MINION",
-      "pick": 3,
-      "not_boss": true,
-      "set": 3,
-      "walk_in": {"side": "right", "rank": 0},
-      "z": 6,
-      "tint": "shade"
-     },
-     {
-      "enemy": "MINION",
-      "pick": 6,
-      "not_boss": true,
-      "set": 4,
-      "walk_in": {"side": "left", "rank": 0},
-      "z": 19,
-      "tint": "ash"
-     },
-     {
-      "enemy": "MINION",
-      "pick": 9,
-      "not_boss": true,
-      "set": 5,
-      "walk_in": {"side": "right", "rank": 1},
-      "z": 32,
-      "tint": "rust"
-     },
-     {
-      "enemy": "MINION",
-      "pick": 12,
-      "not_boss": true,
-      "set": 6,
-      "walk_in": {"side": "left", "rank": 1},
-      "z": 45,
-      "tint": "shade"
-     },
-     {
-      "enemy": "MINION",
-      "pick": 15,
-      "not_boss": true,
-      "set": 7,
-      "walk_in": {"side": "right", "rank": 2},
-      "z": 58,
-      "tint": "ash"
-     }
-    ],
-    "drama": "rugal_intro"
    }
   },
   {
@@ -1835,15 +1849,37 @@
  ],
  "boss_order": {
   "about": "The campaign's bosses in play order (Bruno 2026-10-15, beta: 4 stages, stage 2 the garage off): the n-th stage in play (stages[] without \"off\": true) fights the boss of the stage boss block whose enemy is bosses[n] (enemy, song, minions, drama, seed, z from that block, whichever stage holds it; lock and x from the stage's own boss block: its length). One boss per stage in play; the last one's stage clear = the game clear (unlocks).",
-  "bosses": ["RUGAL", "GEESE"],
-  "bosses_about": "Bruno 2026-10-17: two stages in play, STAGE 1 (background 1) fights RUGAL (his block in STAGE 3, off: song, minions, drama), STAGE 2 = the final stage (background 4) fights GEESE; STAGE 3 / STAGE 4 off (their data kept), MR_BIG and KRAUSER out of the run; Geese beaten = the game clear (the ending)"
+  "bosses": ["MR_BIG", "KRAUSER", "GEESE"],
+  "bosses_about": "Bruno 2026-10-17 (three stages, Geese last; was two: RUGAL, GEESE): STAGE 1 (background 1, the slum) fights MR_BIG (his own block), STAGE 2 (background 3, the old STAGE 3) fights KRAUSER (his block in GARAGE, off: song BOSS_KRAUSER, minions, drama krauser_intro), STAGE 3 = the final stage (background 4, from 672 px in, Geese's AOF2 backdrop at its end) fights GEESE, then in the same stage the finale (his block's finale: RUGAL with MR_BIG and KRAUSER greyed out); GARAGE / STAGE 4 off (their data kept), GOENITZ out of the run, RUGAL's own block (stage 2's) unused; Rugal beaten = the game clear (the ending)"
+ },
+ "map": {
+  "about": "The campaign map (Bruno 2026-10-17; study canneji /brawler-admin/reports/ffmap/, tools/ffight/map_ff.py): Final Fight's between-rounds city map from FF's ROM (tools/brawler/make_map.py: FF's map copy 0, its place names and red route dots wiped, the ATLANTIC OCEAN banner cut; 16 sprite columns x 6 tiles, 74 tiles; its own palettes MAP_PAL 240 + 0 the base, + 1 + k stop k), shown over the stage (main.c 'the map'): (a) at the start of each campaign stage, over its fade-in (the stage intro's title and walk-in wait for it), and (b) at the stage clear, after the win poses and the win drama (FF: over the cleared stage), before the next screen (the bonus, the next stage, the ending). Never in the attract demo, the Lab or a continue. stops = the trip in order, each a stage in play (kind stage, its n-th) or a bonus stop (kind bonus, after stage n: bonus.after): name = our name on the fix layer in our font (1-14 characters A-Z 0-9 space . ! - '), sub = a line under it (the Geese stop: FINALE, the run's finale there: stages[].boss.finale), label = its [column, row] in 8 px cells from the map's top left, district = the FF district it lights (SLUM, PARK, WEST SIDE, INDUSTRIAL AREA, BAY AREA, UP TOWN: FF's per-cell progress, each 16 x 16 tile taking the district of most of its cells). Grey = not reached, FF's green = reached, the current stop blinking grey / green every `blink` ticks (FF's 6-frame page flip), its name blinking the same way (reached names white, the others grey). x / y = the map's top left on screen (8 px steps); start_ticks / clear_ticks = how long it shows; any button (A-D, START) of a player in skips it after skip_after ticks. Texts ({n} = the stage's number in play, {name} = the next stop's name): start_text over the map at the start, clear_text at the clear, next_text under it at the clear (next_bonus when the next stop is a bonus, final_text after the last stage).",
+  "x": 32,
+  "y": 88,
+  "start_ticks": 210,
+  "clear_ticks": 330,
+  "skip_after": 30,
+  "blink": 6,
+  "start_text": "STAGE {n}",
+  "clear_text": "STAGE {n} CLEAR!",
+  "next_text": "NEXT  {name}",
+  "next_bonus": "NEXT  BONUS GAME",
+  "final_text": "ALL CLEAR!",
+  "stops": [
+   {"name": "SLUM", "kind": "stage", "n": 1, "district": "SLUM", "label": [4, 4]},
+   {"name": "PARK", "kind": "bonus", "n": 1, "district": "PARK", "label": [12, 6]},
+   {"name": "POLICE HQ", "kind": "stage", "n": 2, "district": "WEST SIDE", "label": [10, 2]},
+   {"name": "FACTORY", "kind": "bonus", "n": 2, "district": "INDUSTRIAL AREA", "label": [18, 7]},
+   {"name": "GEESE TOWER", "kind": "stage", "n": 3, "district": "UP TOWN", "label": [17, 4], "sub": "FINALE"}
+  ],
+  "stops_about": "Bruno 2026-10-17: SLUM (stage 1, FF's first round too) -> PARK (bonus 1: trees and trunks) -> POLICE HQ on the West Side (stage 2, background 3: the police garage) -> FACTORY in the Industrial Area (bonus 2) -> GEESE TOWER on Up Town's skyscrapers (stage 3, Geese: FF's own last round is Up Town); the Bay Area unused (grey)"
  },
  "bonus": {
   "about": "The bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; analysis /data/neogeo_dict/aof/bonus.md): after each stage listed in `after` (1-based) a pick screen offers every game of `games` (AOF2's SELECT BONUS GAME: stick + A, `pick.seconds` on the clock, the cursor's game at 0). A game is a level type the engine reads (main.c 'bonus stages', build_tables.py bonus_tables): scene = an AOF2 scene of tools/brawler/make_bonus.py (tree, posts); kind gauge = one press on a sweeping gauge (power 0-127, + step a frame, wrapping; grade k = the power reached grades[k - 1], AOF2 Spirit Training's table $17EF8 at its default row: 36 68 92 108 120), reward chunks[grade] = drive chunks added to both players' bars for the credit (up to 4); win_grade = the lowest grade that passes (AOF2: only the top, 5; note 20261014-133606-5d29): a pass breaks the tree (AOF2's fall, make_bonus.py fall_seq) and plays win_music (AOF2's $2D), a lower grade fails (the tree stands, TRAINING FAILED, over_music $2E); blows = the blow per grade 0-5 (Bruno results-1014: a jab when the tree holds, the forward finisher when it breaks): jab = his chain's first link (neutral A), finisher = its neutral finisher, forward = its forward finisher (fighter.c fighter_blow; the tree's reaction and timing stay AOF2's); kind break = break `count` objects before `seconds` run out, one at a time, with the move class `breaks_with` (any: every regular strike, `hp` hits an object, the fury staying locked while it plays, note bonus-pillars-normals; fury: only the fury's or the MAX's body or its objects, any other hit only shakes it), `lesson` = the lesson box's 3 lines, all broken = reward unlock (fury: Fury and Fury MAX on D; the first win shows `won_text`'s 3 lines for `won_ticks`). fury_lock true: D's fury and MAX locked from a new game until a game with unlock fury is won; a fail keeps it locked for the credit (a continue keeps it); the attract demo and the Lab are never locked. Before the pick and the game, AOF2's own screens (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14: AOF2's original select screen; tools/brawler/make_bonus.py screens, tools/aof/bonus_rip.py): `intro` = AOF2's BONUS GAME screen (`music` + the announcer `voice`, a songs.json sfx name, at tick `at`; `ticks` long); the pick screen is AOF2's SELECT BONUS GAME (its three pictures; a game takes AOF2's slot `slot`: 0 Spirit Training, 2 Super Death Blow; a slot without a game, 1 Strength Training here, is greyed and the cursor skips it, and so is a game with unlock fury while the fury is free (won this credit, or the select cheat; note 20261016-132535-e03d); `pick.seconds` 3-9 on its clock); then the game's title card (its slot's kanji and name, `card.ticks` long, the game's `voice` + `card.sound`). A game already won shows its bonus only (the game has no score).",
-  "after": [1],
-  "after_about": "Bruno 2026-10-17: ONE bonus in the run, between stage 1 and stage 2: the posts (the fury unlock) alone on the pick screen; the Ki training benched (games_benched, its data kept, not built). The fury already free (the select cheat): nothing to pick, no bonus (main.c bonus_open)",
+  "after": [1, 2],
+  "after_about": "Bruno 2026-10-17 (three stages, Geese last): TWO bonus stops, one between stage 1 and 2 and one between stage 2 and 3, each with the player's CHOICE of both games (the posts / trunk pile = the fury unlock, the Ki training = its meter; the Ki training back from games_benched, where 0.10.159 had put it); pick.won: a game won this credit is greyed (not selectable) at the later stop, so the player has to succeed in both; a failed one stays selectable; won / lost per credit like the fury unlock (a continue keeps it, a new game resets it). Every game greyed (both won, or the posts greyed by the fury already free and the Ki won): no bonus at that stop (main.c bonus_open)",
   "intro": {"music": "BONUS_INTRO", "voice": "AOF2 BONUS GAME", "at": 7, "ticks": 122},
-  "pick": {"seconds": 9, "music": "BONUS_SELECT"},
+  "pick": {"seconds": 9, "music": "BONUS_SELECT", "won": "greyed", "won_about": "Bruno 2026-10-17: a game already won this credit at an earlier stop: greyed on the pick screen, the cursor skips it ('greyed'), or offered again ('offered': it shows its bonus only)"},
   "card": {"ticks": 186, "sound": "AOF2 GONG"},
   "fury_lock": true,
   "over_music": "BONUS_OVER",
@@ -1857,9 +1893,7 @@
      "trunk_h": 64, "reach": 40, "hp": 6, "damage_at": [2, 3, 5],
      "trunks": [[128, 0], [192, 0], [256, 0], [160, 1], [224, 1], [192, 2]],
      "spacing_about": "Bruno 2026-10-17 (he likes the pile; two changes): the trunks of a layer 16 px apart (a third of the 48 px wood: 64 px pitch, they never touch), each upper trunk centred over the gap of its two supports (32 px off each: it rests on both), the pile moved left to stay on the screen (wood 136..312, was 170..314); a hit lands only on the trunk it touches: reach is cut at the bottom of the trunk above (main.c bn_reach), so it works only over a trunk with nothing on it and no two boxes overlap"},
-    "bonus_about": "note 20261015-221208-e03d (tester: 'too many messages'): no name / lesson at the start (just go, the HUD's TIME and POSTS only), posts of 12 hits (were 3 of 4), the win told by SS2's referee (won_by referee: won_text = his speech; the fighter blinks when his fury gauge is full). Round 2 (Bruno: 'let's go with four, easier'): 4 posts (were 5); damage_at = the hits taken at which AOF2's own cracked pictures of the post show (make_bonus.py post 1-3: AOF2's frames 558 / 840 / 1116, the crack growing across the trunk). Note 20261016-101200-e03d ('make the tree trunks 20% easier to destroy'): 10 hits a post (were 12), damage_at kept proportional (3 / 6 / 9 of 12 -> 3 / 5 / 8 of 10)"}
-  ],
-  "games_benched": [
+    "bonus_about": "note 20261015-221208-e03d (tester: 'too many messages'): no name / lesson at the start (just go, the HUD's TIME and POSTS only), posts of 12 hits (were 3 of 4), the win told by SS2's referee (won_by referee: won_text = his speech; the fighter blinks when his fury gauge is full). Round 2 (Bruno: 'let's go with four, easier'): 4 posts (were 5); damage_at = the hits taken at which AOF2's own cracked pictures of the post show (make_bonus.py post 1-3: AOF2's frames 558 / 840 / 1116, the crack growing across the trunk). Note 20261016-101200-e03d ('make the tree trunks 20% easier to destroy'): 10 hits a post (were 12), damage_at kept proportional (3 / 6 / 9 of 12 -> 3 / 5 / 8 of 10)"},
    {"id": "ki", "name": "KI TRAINING", "kind": "gauge", "scene": "tree", "slot": 0, "voice": "AOF2 SPIRIT CARD", "music": "BONUS_KI", "seconds": 10, "step": 2,
     "grades": [36, 64, 80, 90, 96], "grades_about": "note 20261015-144120-e03d (tester: 'too hard; if you are in the top quarter, you succeed'): the top grade (PERFECT, the pass) from 96 = the gauge's top quarter (0-127); the lower grades spread under it (was AOF2's 36 68 92 108 120)", "chunks": [0, 0, 0, 0, 0, 0], "pass_reward": {"chunks": [2, 1], "text": ["METER ALREADY FULL", "1 METER GAINED!", "2 METERS GAINED!"], "about": "notes 20261016-133045-e03d (tester: 'the bonus game with the big tree gives you two extra meter the first time and one extra meter the second time') and 20261016-135212-e03d ('on success a message in the big Savage Reign font saying meter has been gained ... the BONUS 10,000 is useless, the power bar can be removed ... display nothing else'): a pass (grade >= win_grade) adds chunks[k] drive chunks on the credit's (k + 1)-th pass of this game (past the list: none; the bar up to meter.max_chunks, 5: note 20261016-152232-e03d), and its result is text[n] alone (n = the chunks really added: 0 when the bar was already full) in the big font (big_text.bonus_meter, the standard headline), no grade / BONUS line, the gauge bar gone (main.c bn_gauge_flow); a failed grade keeps chunks[grade] and its TRAINING FAILED screen"}, "win_grade": 5, "blows": ["jab", "jab", "jab", "jab", "jab", "forward"],"fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]], "charge": {"about": "AOF2 measured (note 20261014-133606-5d29, tools/aof/ki_fail.py): Ryo stands 7 frames after the press, holds his concentration, punches; his punch lands 99 frames after the press on a failed grade, 159 on the pass: our blow starts 11 ticks before it lands", "stand": 7, "fail": 88, "pass": 148}, "punch_sound": "AOF2 PUNCH", "fail_sounds": [[67, "VOICE HIT"], [71, "AOF2 LEAF A"], [74, "AOF2 LEAF B"], [78, "AOF2 LEAF A"], [81, "AOF2 LEAF A"], [83, "AOF2 LEAF A"], [85, "AOF2 LEAF B"], [87, "AOF2 LEAF B"], [89, "AOF2 LEAF A"], [93, "AOF2 LEAF A"], [95, "AOF2 LEAF A"], [103, "AOF2 LEAF B"], [107, "AOF2 LEAF B"], [119, "AOF2 LEAF B"], [131, "AOF2 LEAF B"]], "fail_result": 239}
   ]

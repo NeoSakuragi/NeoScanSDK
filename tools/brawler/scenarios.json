@@ -4836,9 +4836,9 @@
   "setup": {
    "mode": "select"
   },
-  "do": "On the select screen hold down for 2 seconds, then hold up for 2 seconds.",
-  "expect": "The confirm sound plays and every fighter of the unlock ladder stands on the select screen, selectable. It is written to the save (the unlock ladder's rungs), so after a game over or a power cycle they are all still there; the Player's Reset game save locks them again. Under 2 seconds each nothing happens.",
-  "do_keys": "120:D,120:U",
+  "do": "On the select screen hold up for 2 seconds, then hold down for 2 seconds (the LADDER cheat, 2026-10-17: one rung each time; do it three times for the whole ladder).",
+  "expect": "Each time the unlock sound plays and the next rung of the unlock ladder stands on the select screen, selectable (the rung after it as silhouettes); after the third time every fighter of the ladder is there. It is written to the save (the unlock ladder's rungs), so after a game over or a power cycle they are all still there; the Player's Reset game save locks them again. Under 2 seconds each nothing happens.",
+  "do_keys": "124:U,124:D,40:-,124:U,124:D,40:-,124:U,124:D",
   "proof": 60
  },
  "20261015-210806-e03d": {
@@ -4846,9 +4846,9 @@
   "setup": {
    "mode": "select"
   },
-  "do": "On the select screen hold down for 2 seconds, then hold up for 2 seconds (either order).",
-  "expect": "Both flags raised: the confirm sound and every fighter of the unlock ladder is on the select screen and selectable (since note 20261015-224121-e03d: 2 seconds each, and kept in the save).",
-  "do_keys": "120:D,120:U",
+  "do": "On the select screen hold up for 2 seconds, then hold down for 2 seconds, three times (the LADDER cheat since 2026-10-17: one rung each).",
+  "expect": "Each time the unlock sound and one more rung of the unlock ladder on the select screen, selectable; after the third every fighter of the ladder (kept in the save).",
+  "do_keys": "124:U,124:D,40:-,124:U,124:D,40:-,124:U,124:D",
   "proof": 60
  },
  "20261015-224745-e03d": {
@@ -5186,9 +5186,9 @@
   "setup": {
    "mode": "select"
   },
-  "do": "On the select screen hold down for 2 seconds, then up for 2 seconds (the confirm sound). Pick a fighter and play: look at the drive bar under your life bar, then press D.",
+  "do": "On the select screen hold left for 2 seconds, then right for 2 seconds (the POWER cheat since 2026-10-17; the confirm sound). Pick a fighter and play: look at the drive bar under your life bar, then press D.",
   "expect": "The drive bar has its 4 chunks, all full, and your fighter blinks (the fury gauge full); D plays the fury at once, without the posts bonus game first. Every new game starts like that (it is kept in the save with the unlocked fighters); the Player's Reset game save turns it off again.",
-  "do_keys": "120:D,120:U,60:-,3:a,600:-",
+  "do_keys": "124:L,124:R,60:-,3:a,600:-",
   "proof": 120
  },
  "20261016-101200-e03d": {
@@ -6001,5 +6001,22 @@
   "expect": "Hanzo drives his sword into the floor with his fury's own planting animation (the D fury's stab), three times in a row; each plant raises one flame column, one after the other further out (about 80, 144 and 208 px ahead), like Terry's triple geyser. The columns knock the Ryos down. D alone still plays his fury.",
   "do_keys": "2:D,2:Dd,160:-",
   "proof": 60
+ },
+ "finale-geese-1hp": {
+  "title": "Finale: Geese at 1 life point, hit him once: Rugal with grey Mr. Big and Krauser",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 2,
+   "wave": 99,
+   "wait": 400,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 60
+  },
+  "do": "Hit Geese once (A; he may block or fire his fury first: keep jabbing). Then fight Rugal: beat him (the grey Mr. Big and Krauser don't need to be beaten).",
+  "expect": "Geese falls in slow motion, but no STAGE CLEAR and no map: his body blinks out, then Rugal walks in from the right with his intro scene and his music, with Mr. Big and Krauser greyed out walking in beside him. All three fight you at once (the grey ones as strong regular enemies). When Rugal falls, the grey ones are knocked down with him, STAGE 3 CLEAR, the map with every stop lit and ALL CLEAR, then the ending.",
+  "do_keys": "4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,4:a,8:-,1500:-",
+  "proof": 300
  }
 }

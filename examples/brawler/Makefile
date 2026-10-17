@@ -93,10 +93,12 @@ $(BUILD)/bm_chars.c $(BUILD)/bm_spec.c $(BUILD)/bm_chars.h $(BUILD)/bm_wins.h $(
 # appended after the fighters' tiles: rom_c1/c2.bin = the C ROM the package takes ---
 # then the ending's staff roll (game.json ending.staff.lines drawn in the S ROM's font as sprite tiles: main.c "the ending")
 # then the big font (Savage Reign's round-call letters completed: main.c "big text"; needs /data/roms/savagere.neo)
-$(BUILD)/rom_c1.bin $(BUILD)/rom_c2.bin $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/bigfont.h &: $(BUILD)/bm_c1.bin game.json $(TOOLS)/brawler/big_portraits.py $(TOOLS)/brawler/staff_roll.py $(TOOLS)/brawler/make_bigfont.py $(BUILD)/font.s1
+# then the campaign map (Final Fight's city map from its ROM, /data/emu/roms/cps1/ffight.zip; game.json map: main.c "the map")
+$(BUILD)/rom_c1.bin $(BUILD)/rom_c2.bin $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/bigfont.h $(BUILD)/map.h &: $(BUILD)/bm_c1.bin game.json $(TOOLS)/brawler/big_portraits.py $(TOOLS)/brawler/staff_roll.py $(TOOLS)/brawler/make_bigfont.py $(TOOLS)/brawler/make_map.py $(TOOLS)/ffight/map_ff.py $(BUILD)/font.s1
 	python3 $(TOOLS)/brawler/big_portraits.py build game.json $(CURDIR)/$(BUILD)
 	python3 $(TOOLS)/brawler/staff_roll.py game.json $(CURDIR)/$(BUILD)
 	python3 $(TOOLS)/brawler/make_bigfont.py $(CURDIR)/$(BUILD)
+	python3 $(TOOLS)/brawler/make_map.py game.json $(CURDIR)/$(BUILD)
 
 # --- S ROM: Kizuna Encounter's outlined font (needs /data/roms/kizuna.neo), life bar glyphs, HUD portraits ---
 $(BUILD)/font.s1 $(BUILD)/hud.h &: $(TOOLS)/brawler/make_hud.py $(BUILD)/roster.json $(wildcard /data/neogeo_dict/portraits/*_square.png)   # (the roster: its portraits, TODO #212; their squares: a re-made face rebuilds it)
@@ -118,7 +120,7 @@ $(BUILD)/%.o: %.c labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stag
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/game_tables.o: $(BUILD)/game_tables.c $(BUILD)/game_tables.h $(BUILD)/bm_chars.h gamedata.h $(BUILD)/snd/songs.h
 	$(CC) $(CFLAGS) -c $< -o $@
-$(BUILD)/main.o: main.c VERSION labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/bonus.h $(BUILD)/referee.h $(BUILD)/bigfont.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h vthrow.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
+$(BUILD)/main.o: main.c VERSION labslot.h $(BUILD)/stage_opt $(BUILD)/bm_chars.h $(BUILD)/stage.h $(BUILD)/bonus.h $(BUILD)/referee.h $(BUILD)/bigfont.h $(BUILD)/map.h $(BUILD)/land.h $(BUILD)/banner.h $(BUILD)/sparks.h $(BUILD)/superflash.h $(BUILD)/throwfx.h $(BUILD)/hud.h $(BUILD)/portraits_big.h $(BUILD)/staff_roll.h $(BUILD)/game_tables.h fighter.h vthrow.h ai.h sound.h gamedata.h $(BUILD)/snd/songs.h $(BUILD)/snd/voices.h VERSION
 	$(CC) $(CFLAGS) -c $< -o $@
 # the fighters' tables: one section per table (-fdata-sections), then tools/brawler/bank_pack.py sends each fighter's
 # bulk (frames, tiles, special scripts and programs, projectile rows) to its P2 bank and keeps what every fighter and

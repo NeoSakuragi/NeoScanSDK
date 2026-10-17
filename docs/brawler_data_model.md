@@ -197,6 +197,12 @@ every other one lighter); ONLY after a game clear that unlocked a rung (the endi
 cheat's included; note 20261016-173135-e03d: Haggar stays a surprise until his rung; main.c roster_build = char_locked). Taking
 the block out: every selectable fighter from the start (the bosses' own locks back) and the select layout to be placed
 again (the full one before the beta: `benched.select_layout_full`). Proof: `tools/brawler/unlock_proof.py`.
+`show_next` (Bruno 2026-10-17, replacing the 2026-10-15 "no silhouettes" rule): the select screen also shows the NEXT rung
+(the layer for rungs + 1) as silhouettes; the cursor may stand on them (main.c `hoverable`), the name row shows
+`locked_name` and the hint row `locked_text`, A-D buzzes (SSG CANCEL); never selectable (`selectable`, the time limit's
+pick, P2's join skip them). Only that rung. Cheats on the select (`cheats`, CHEAT_HOLD ticks each hold): LADDER = UP then
+DOWN, one rung, saved as a game clear (save.rungs + 1, repeatable); POWER = LEFT then RIGHT, save.cheat (the fury free,
+the bar full); the old all-in-one (DOWN + UP = every rung + save.cheat) is gone. Proof: `tools/brawler/stages2_proof.py`.
 
 ROM side of a fighter (`bchar_t`, export_bm.py): name, palettes, frames, animations (`banim_t` / `bstep_t`), physics,
 throws, victim poses, specials (`bspec_t`, rows of a script: its whole pool, `nspec` of them, in build/bm_spec.c, compiled
@@ -872,10 +878,12 @@ P1 Terry 110 px away, LEVEL-4).
 ## Layer 3: stages
 
 The campaign = `stages[]` in order without the ones switched off (`"off": true`; build_tables.py `campaign`, every build
-reads the stages through it): since Bruno 2026-10-17 TWO are played, STAGE 1 (background 1, 4 waves, its end 30 % earlier:
-boss lock 1568) and STAGE 2 = the final stage (background 4, 4 waves, `start` 672: the same end, Geese's backdrop); the
-garage, STAGE 3 and STAGE 4 off (data kept). The beta (2026-10-15) played 4, the garage off.
-`boss_order.bosses` (`["RUGAL", "GEESE"]`; was `["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]`): the n-th stage in play fights the boss block (of any
+reads the stages through it): since Bruno 2026-10-17 (later that day) THREE are played, Geese last: STAGE 1 (background 1,
+the slum, 4 waves, boss lock 1568), STAGE 2 (background 3, the old STAGE 3, 4 waves 392 px apart, boss lock 1568, power 1;
+background 5, the old STAGE 4, stays off: its banded blue floor reads as water) and STAGE 3 = the final stage (background 4,
+`start` 672, Geese's backdrop at its end), then Geese's `finale` (below); the garage and STAGE 4 off (data kept). The same
+morning's 0.10.159 played two (RUGAL, GEESE); the beta (2026-10-15) played 4, the garage off.
+`boss_order.bosses` (`["MR_BIG", "KRAUSER", "GEESE"]`; 0.10.159 `["RUGAL", "GEESE"]`): the n-th stage in play fights the boss block (of any
 stage, on or off) whose `enemy` is bosses[n] (its song, minions, drama, seed, z), at that stage's own boss `lock` / `x`
 (its length); one boss a stage in play; absent: each stage its own boss. The last stage in play's boss = the game clear
 (the ending, the unlock ladder). Kept out of the build but in game.json: `roster_benched` (Goenitz, Lab-only), `benched`
@@ -983,13 +991,14 @@ texts baked into sprites, 43 KB of C ROM; the 4 AOF2 sounds 66 816 bytes of V RO
 
 | field | today | meaning |
 |---|---|---|
-| `after` | `[1]` (was `[1, 3]`) | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
+| `after` | `[1, 2]` (0.10.159 `[1]`, before `[1, 3]`) | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
 | `intro` | `{"music": "BONUS_INTRO", "voice": "AOF2 BONUS GAME", "at": 7, "ticks": 122}` | AOF2's own BONUS GAME screen (notes 20261014-085447 / -085507-5d29): the text zooming in as AOF2's, at tick `at` its jingle ($33) + the announcer (`voice`: a songs.json sfx name, AOF2's $1C $AE), `ticks` long |
 | `pick` | `{"seconds": 9, "music": "BONUS_SELECT"}` | AOF2's original SELECT BONUS GAME (its 3 pictures, title, TIME, message box and texts; song $4E): stick + A, the cursor's frame flickering as AOF2's, the general message until the stick moves or 3 s pass, then the cursor's game's; TIME `seconds` (3-9) counting down, 1 s at 0, then the cursor's game; a pick: the frame steady 1 s |
 | `card` | `{"ticks": 186, "sound": "AOF2 GONG"}` | the picked game's AOF2 title card (white, its kanji + English name), the music off, the game's `voice` + `sound` (AOF2's $1A $20), `ticks` long |
 | games[] `slot` / `voice` | ki 0 / `AOF2 SPIRIT CARD`, posts 2 / `AOF2 SDB CARD` | the game's AOF2 select slot (0 Spirit Training, 2 Super Death Blow: its picture, message, title card); a slot without a game (1 Strength Training) is greyed and the cursor skips it; `voice` = the announcer reading the card (AOF2's $1C $CD / $CE) |
 | `fury_lock` | `true` | Fury and Fury MAX (D, down+D) locked for the players from a new credit until a game with `unlock: fury` is won; a fail keeps the lock, a continue too; the attract demo and the Lab never locked |
-| `games_benched` | the Ki training | games kept as data, out of the build and the pick screen (2026-10-17: the posts alone after stage 1). A pick with no game to offer (the fury already free: the select cheat) skips the bonus (main.c bonus_open) |
+| `games_benched` | (none since 2026-10-17's three stages; 0.10.159: the Ki training) | games kept as data, out of the build and the pick screen. A stop with no game to offer skips the bonus (main.c bonus_open) |
+| `pick.won` | `"greyed"` | a game won this credit is greyed (not selectable) at the later stops (Bruno 2026-10-17: both games at both stops, each to be won once; a failed one stays offered; `bn_won` per credit: a continue keeps it, a new game clears it); `"offered"`: offered again (its bonus only) |
 | `over_music` | `"BONUS_OVER"` | the result's jingle |
 | games[] `kind` `gauge` | Ki training, scene `tree` | one press on a gauge sweeping 0-127 (`step` a tick, wrapping, `seconds` to press); grade = how many of `grades` it reached (AOF2 Spirit Training's table $17EF8, default row 36 68 92 108 120); `chunks[grade]` drive chunks added to both players' bars for the credit (max 4; today [0,0,0,0,0,2]: AOF2's rule, only the top grade rewards) |
 | games[] `kind` `break` | Super Death Blow, scene `posts` | `count` (3) wooden posts, one at a time, in `seconds` (30; the clock holds during a super flash). `breaks_with` `any` (Bruno 2026-10-14, "bonus-pillars-normals"): any regular strike (normals, chain, specials, their objects; fighter.c `fighter_strike_box`) counts a hit each time one starts touching the post, `hp` (4) hits break it: each hit before the last shakes it and a chip flies off, the last splinters it; the fury stays locked while it plays (it is the prize). `fury` (the former rule): only the fury's / MAX's body or its objects break one (class 2), the lock lifted for the game, anything else shakes it. `lesson`: the lesson box's 3 lines (fix rows 20 / 22 / 24, the first highlighted). All broken: `unlock`; the first win shows `won_text` (3 lines: FURY UNLOCKED! PRESS D, the MAX line) under CONGRATULATIONS for `won_ticks` (480; a button ends it after half); a fail: TIME OVER, THE FURY STAYS LOCKED. Factory Levels: Posts + Hits per post. `damage_at` ([3, 6, 9], note 20261015-221208-e03d round 2): the hits taken from which the post shows AOF2's own cracked pictures 1 / 2 / 3 (make_bonus.py post 1-3, AOF2's frames 558 / 840 / 1116); today 4 posts of 12 hits. `won_by` `referee`: SS2's referee says `won_text` (top-level `referee`: mark / from / hold; `hit_text` / `fury_dx` / `fighter` / `life` = the D quirk: D while his message is held runs the fighter to fury_dx px (onto his lane) and fires his fury; as it fires the referee becomes his body, the roster fighter `fighter` (Kuroko, samsho2:kuroko; selectable false) with `life`, a victim that never acts: the whole fury lands on him as on any enemy, his own reactions and get-up, then hit_text, SS2's HORRIBLE ATMOSPHERE. (note 20261016-045652-e03d); proof referee_proof.py GAME OUT FIGHTER auto d: his hits = the same fury's on the practice dummy). Clock fairness: bonus_proof.py --sweep, 4 hits a post, every selectable fighter with A alone: 573 (Hanzo) to 833 ticks (Rugal, 13.9 s) of the 30 s |
@@ -1001,6 +1010,31 @@ Proof: tools/brawler/bonus_screens_proof.py (AOF2 vs brawler side by side, both 
 the cards; the sounds' loudness per frame), tools/brawler/bonus_proof.py (the screens' order and lengths, the pick, every grade, posts win / fail, D locked / unlocked in the next stage;
 `--sweep`: every selectable fighter breaks the 3 posts with his normals inside the clock); scenarios t7-* (scenario.py
 mode `bonus`, lab req 6).
+
+## The map, the finale, the stage cheat (Bruno 2026-10-17)
+
+`map` (main.c "the map", tools/brawler/make_map.py -> build/map.h): Final Fight's between-rounds city map from FF's ROM
+(tools/ffight/map_ff.py; FF's place names and red route dots wiped, the ATLANTIC OCEAN banner cut: 256 x 88 px, one sticky
+chain of 16 sprites x 6 tiles, 74 tiles, sprites 348-363 = the super flash's rays, palettes 240 (base) + 241.. (a stop
+each: FF's grey palette 4 or green palette 3 written per stop), fix palette 7 (the font in grey)), over the stage: at a
+campaign stage's start (over its fade-in; the intro's title and walk-in wait for it) and at its clear (after the win poses
+and the win drama, before the next screen); A-D skips it after `skip_after`. `stops` = the trip in order (`kind` stage /
+bonus, `n` = the stage number / the stage it follows), each `name` (+ `sub`) on the fix layer at `label` ([column, row] in
+8 px cells from the map's top left) and the FF `district` it lights (SLUM, PARK, WEST SIDE, INDUSTRIAL AREA, BAY AREA, UP
+TOWN; each 16 x 16 tile takes the district of most of its 8 x 8 cells). Grey = not reached, green = reached, the current
+stop blinking every `blink` ticks (a start: the stage's stop; a clear: the next one, the bonus when one will be played).
+`x` / `y`, `start_ticks` / `clear_ticks`, texts `start_text` / `clear_text` / `next_text` / `next_bonus` / `final_text`
+({n}, {name}). Never in the attract demo, the Lab or a continue.
+
+`stages[].boss.finale` (main.c "the finale", gamedata.h gfinale_t, ROM only: a Lab pack's stages keep the ROM's): a second
+boss fight in the same stage once this boss's KO is over and the bodies have blinked out: no stage clear, no map; its
+`enemy` (BOSS_IDX) at `x` / `z`, `song`, `drama`, `seed`, `minions` (walk-ins) as a boss block's. Today Geese's: RUGAL with
+GHOST_BIG / GHOST_KRAUSER (Mr. Big and Krauser in the tint `ghost`, AI wave_t6, life 96, no boss layer). His KO = every
+boss's; then the stage clear (the last: the ending). Test case: scenarios.json `finale-geese-1hp`.
+
+`cheats.stage_clear_hold`: P1 holds DOWN + A + B + C + D that many ticks in a campaign stage: the stage's end at once
+(every enemy gone, PH_END: STAGE CLEAR, the win pose, the map, the next screen; the last stage: the game clear). Not in the
+stage intro, a bonus, a drama, the boss's KO, the attract demo or the Lab (main.c stage_cheat).
 
 ## Retiming (revamp phase 1C, 2026-10-08; docs/brawler_feel.md 6 and 8h)
 

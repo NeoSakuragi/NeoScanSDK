@@ -498,6 +498,7 @@ typedef struct {
     uint8_t intro_music, intro_voice, intro_at, intro_ticks;   /* AOF2's BONUS GAME screen: song + sfx code at tick intro_at, its length */
     uint8_t card_ticks, card_sound;   /* the title card's length, its sound (sfx code) with the game's voice */
     const uint8_t *after;         /* [GS_COUNT]: 1 = the pick screen after this stage */
+    uint8_t pick_won;             /* bonus.pick.won greyed: a game won this credit (bn_won) greyed at a later stop */
     gbonus_game_t games[GB_MAX_GAMES];
 } gbonus_t;
 extern const gbonus_t gbonus;
@@ -519,4 +520,24 @@ typedef struct {
     uint16_t delay;               /* ticks after the speech starts before he starts walking in (note 20261016-180759-e03d) */
 } gref_t;
 extern const gref_t gref;
+/* the campaign map (game.json "map", main.c "the map", tools/brawler/make_map.py: Final Fight's city map): the stops of
+ * the trip in order, our names on the fix layer at label (8 px cells from the map's top left); gmap_stage[s] = stage s's
+ * stop, gmap_bonus[s] = the bonus stop after stage s (0xFF none) */
+#define GM_STOPS 6
+typedef struct { const char *name; uint8_t col, row; const char *sub; } gmap_stop_t;   /* sub: a line under the name ("" none) */
+typedef struct {
+    int16_t x, y;                 /* the map's top left on screen (8 px steps) */
+    uint16_t start_ticks, clear_ticks, skip_after;   /* shown at a stage's start / clear (0: not then); a button skips it after */
+    uint8_t blink, nstops;        /* the current stop's grey / lit half period, ticks */
+    const char *start_text, *clear_text, *next_text, *next_bonus, *final_text;   /* {n}: the stage's number, {name}: the next stop's */
+    gmap_stop_t stops[GM_STOPS];
+} gmap_t;
+extern const gmap_t gmap;
+/* the finale (game.json stages[].boss.finale, main.c "the finale"): after the stage's boss falls, a second boss with his
+ * minions in the same stage (Bruno 2026-10-17: Geese, then Rugal with Mr. Big and Krauser greyed out) */
+typedef struct {
+    uint8_t on, boss, song, drama, nmin;  /* boss: its genemies index; song: MUS_*; drama: its scene (0xFF none) */
+    int16_t x; uint8_t z; uint16_t seed;
+    const gspawn_t *spawns;       /* [nmin] */
+} gfinale_t;
 #endif
