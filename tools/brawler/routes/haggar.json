@@ -1,7 +1,7 @@
 {
  "fighter": "haggar",
  "note": "Final Fight's Haggar (tools/ffight, 2026-10-14): his one chain as FF plays it (study /data/study/ffight/REPORT.md): jab, jab, finisher (knockdown); the damages are FF's (18 18 18), the weights routes.py scales to the heavy archetype's total.",
- "entries": {"dash": {"move": "atk_c_close", "weight": "strong", "effect": "blowback", "damage": 18}, "nospecial": {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "damage": 18}, "hold": {"move": "atk_d_close", "weight": "strong", "effect": "none", "damage": 10}},
+ "entries": {"dash": {"move": "atk_c_close", "weight": "strong", "effect": "blowback", "air": "same", "damage": 18}, "nospecial": {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "damage": 18}, "hold": {"move": "atk_d_close", "weight": "strong", "effect": "none", "damage": 10}},
  "routes": [
   [{"move": "atk_a_far", "weight": "strong", "effect": "none", "input": "A", "damage": 18}, {"move": "atk_a_close", "weight": "strong", "effect": "none", "input": "A", "damage": 18}, {"move": "atk_c_close", "weight": "strong", "effect": "knockdown", "input": "A", "damage": 18, "sound": ["C4"]}]
  ]

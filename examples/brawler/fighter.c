@@ -1276,9 +1276,13 @@ void fighter_load_pals(const fighter_t *f) {
 }
 
 static void carry_drop(fighter_t *f);
+#define REACT_SAME 8                                             /* react's reaction | REACT_SAME: an airborne victim takes
+                                                                    the grounded reaction (a node's RF_AIR_SAME) */
 static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   /* away: direction the victim is sent */
+    uint8_t same = reaction & REACT_SAME;                        /* (RF_AIR_SAME: no air rule below, the switch's flight) */
     uint8_t blow = (v->state == S_ATTACK || v->state == S_AIR_ATTACK || v->state == S_SPECIAL)
                    ? BA_BLOWBACK : BA_BLOWBACK_N;               /* KOF98: a counter hit (hit in its own attack) 283, else 285 */
+    reaction &= 7;
     if (v->state == S_SPECIAL) { carry_drop(v); special_end(v); }   /* hit out of a special: its projectiles go, a carried target falls */
     v->frame_ovr = 0xFFFF;                                       /* released from a hold by a special: its held pose ends */
     if (v->state == S_GRAB) release(v);                          /* hit while holding or while held: the hold ends */
@@ -1302,7 +1306,7 @@ static void react(fighter_t *v, int8_t away, uint8_t reaction, int8_t push) {   
                                                                     hit by this projectile, I want it to bounce again") */
         enter(v, S_KNOCKDOWN); v->vy = FIX(9); v->vx = 0; play(v, blow); return;
     }
-    if (v->y > 0) {                                              /* hit in the air (a juggle when falling): sent up again */
+    if (v->y > 0 && !same) {                                     /* hit in the air (a juggle when falling): sent up again */
         enter(v, S_KNOCKDOWN); v->vy = reaction >= R_KNOCKDOWN ? FIX(5) : FIX(4); v->vx = dir_mul(away, FIX(1) + 0x8000);
         play(v, reaction == R_SLAM ? BA_KNOCKDOWN_FLIGHT : BA_BLOWBACK); return;   /* KOF's hit_air ends on standing frames (KOF96: none) */
     }
@@ -5174,8 +5178,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                 away = -a->facing;                               /* (its box reaching behind him, roster[].box_back: a
                                                                     victim behind flies away backward, not through him) */
         }
-        react(v, away, reaction, push);
-        if (a->state == S_ATTACK && is_blitz_node(a) && a->ch->id < BC_COUNT && v->state == S_KNOCKDOWN && v->y <= 0 &&
+        {   uint8_t same = (a->state == S_ATTACK || a->state == S_AIR_ATTACK) && (NODE(a, a->node)->flags & RF_AIR_SAME);
+            react(v, away, reaction | (same ? REACT_SAME : 0), push);   /* (a node's "air": "same": the grounded reaction
+                                                                    on an airborne victim too, note 20261017-141149-e03d) */
+        }
+        if (a->state == S_ATTACK && is_blitz_node(a) && a->ch->id < BC_COUNT && v->state == S_KNOCKDOWN &&
+            (v->y <= 0 || (NODE(a, a->node)->flags & RF_AIR_SAME)) &&
             !v->kmode) {                                         /* its Blitz's own launch (roster[].blitz_hit, note
                                                                     20261017-141149-e03d: Haggar's run + A one size lower) */
             const int32_t *bh = gblitz_hit[a->ch->id][a->node == TREE(a)->dash ? 0 : 1];

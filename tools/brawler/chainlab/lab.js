@@ -224,7 +224,7 @@
         if (!moves.includes(nd.move)) throw new Error(`${where}: unknown move ${nd.move}`);
         if (!(air ? AIR_MOVE_NAMES : MOVE_NAMES).includes(nd.move)) throw new Error(`${where}: ${nd.move} is not an ${air ? 'air' : 'ground'} move`);
         if (has && !air && !has.includes(nd.move)) throw new Error(`${where}: the fighter has no ${nd.move}`);
-        anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.keep ? 4 : 0);
+        anim = moves.indexOf(nd.move); flags = (air ? 2 : 0) | (nd.keep ? 4 : 0) | (nd.air === 'same' ? 64 : 0);   // (64: RF_AIR_SAME, routes.py "air": "same")
         if (nd.throw) {                                   // the chain's back throw (revamp 1A, fighter.c chain_throw)
           if (air || (nd.links && Object.keys(nd.links).length)) throw new Error(`${where}: a throw ends a ground chain`);
           flags |= RF_THROW;

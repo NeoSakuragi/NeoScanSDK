@@ -1,6 +1,6 @@
 {
  "20261017-141149-e03d": {
-  "title": "Haggar: run + A ejects the victim like his forward finisher, then 4 more frames before he moves",
+  "title": "Haggar: run + A ejects the victim the same on the ground and in the air (no air juggle)",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
@@ -8,8 +8,8 @@
    "x": 40,
    "gap": 120
   },
-  "do": "Tap forward, then hold forward to run at Ryo and press A (the run + A Blitz). Compare with jab, jab, forward + A.",
-  "expect": "Ryo flies exactly as from Haggar's forward finisher (jab, jab, forward + A): low and far, away from Haggar (about 28 px high, about 130 px along the floor). After the punch Haggar still holds his pose 4 frames longer before you can move him.",
+  "do": "Tap forward, then hold forward to run at Ryo and press A (the run + A Blitz). Then send Ryo into the air (walk into him to grab him, forward + A throws him up) and run + A him while he is airborne; try to keep running + A him in the air.",
+  "expect": "On the ground and in the air Ryo flies the same way: low and far away from Haggar (about 28 px above where he was hit, about 130 px along), exactly like the forward finisher (jab, jab, forward + A). In the air he no longer pops up in front of Haggar, so a second run + A cannot catch him: the juggle ends and he lands. Haggar still holds his pose 4 frames after the punch.",
   "do_keys": "4:R,4:-,20:R,2:Ra,60:-",
   "proof": 60
  },

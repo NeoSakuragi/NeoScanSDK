@@ -444,7 +444,7 @@ def chain_cfg(g, r):
     a = r.get('archetype')
     assert a in ('fast', 'balanced', 'heavy'), f"roster {r['name']}: archetype {a} (fast / balanced / heavy)"
     fin = r.get('finishers') or {}
-    for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move', 'df_move'), f"roster {r['name']}: finishers.{k}"
+    for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move', 'df_move', 'air', 'air_about'), f"roster {r['name']}: finishers.{k}"
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
     for k in own: assert k in ('links', 'hitstop', 'length', 'keep', 'keep_about'), f"roster {r['name']}: chain.{k} (links / hitstop / length / keep)"   # hitstop: per link + the finisher
     assert isinstance(own.get('keep', False), bool), f"roster {r['name']}: chain.keep true / false"   # keep: every link and
