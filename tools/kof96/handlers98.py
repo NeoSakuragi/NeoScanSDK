@@ -58,14 +58,21 @@ ROUTINES = {0x248A8: 'init', 0x7A98: 'sound', 0x155F4: 'gauge', 0x18C1C: 'stats'
             0x24AA0: 'ownerflag', 0x24FF6: 'chain', 0x25002: 'chain', 0x2500E: 'chain', 0x2501A: 'chain', 0x25026: 'chain',
             0x24F2C: 'stats', 0x24F34: 'stats', 0x24F3C: 'stats', 0x250C6: 'flags', 0x24F52: 'clrinput',
             0x24D80: 'dmcheck', 0x2505A: 'flags', 0x25032: 'place', 0x16034: 'voice', 0x1603A: 'voice', 0x16AC0: 'dist', 0x19AB4: 'trail', 0x19AE0: 'trail', 0x25088: 'trail',
-            0x18092: 'wallfn', 0x1E636: 'floorsnd', 0x250A2: 'wallhold', 0x3662: 'polar'}   # floorsnd (TODO #216): a landing's sound by the
+            0x18092: 'wallfn', 0x1E636: 'floorsnd', 0x250A2: 'wallhold', 0x3662: 'polar', 0x18116: 'layer'}   # floorsnd (TODO #216): a landing's sound by the
             # stage's floor ($27EA -> $7A98); wallhold (TODO #216, Yamazaki 236236C's drag): `$6BE0` holds the attacker at the
             # x KOF's victim-list wall rule ($255B0) gave it while it moves toward that wall (the brawler's vlist_wall
             # places it again every frame); wallfn: the stage-wall test (d0 0 inside, -1 / -2 at x <= 32 / >= 736: TODO #173); trail: the afterimage (handlers98.md 'Super flash': not the flash)
             # polar ($3662, Robert's air 214B / D Hien Ryuujin Kyaku dive): d4 = d0 x cos, d5 = -(d0 x sin) of the angle d1.b
             # (256 a turn), from the BIOS's |sin| table ($C04000: round(65536 |sin|), 1 = 1.0)
 BOOKKEEPING = ('follow', 'inflight', 'release', 'land', 'stats', 'init', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-               'ownerflag', 'flags', 'trail', 'alloc', 'floorsnd', 'wallhold')
+               'ownerflag', 'flags', 'trail', 'alloc', 'floorsnd', 'wallhold', 'layer')
+# layer ($18116, Omega Rugal's EX 624A / C warp): the draw order, its own +$2C = $100 and its opponent's = $101 (the
+# brawler draws by depth). ZOOM: an object's sprite shrink word +$2E ($FFFF = full size; the LSPC's SCB2 zoom), ramped
+# by its routine (Omega Rugal's EX 236A / C Gravity Smash orb: +$2020 a frame from 0 until the carry, 8 frames, later
+# -$0C0C a frame down to $9999). The brawler draws objects at full size: the ramp is cosmetic, its loop is decoded as
+# already finished (the branch of the add's carry / the compare with its limit: not taken = saturated), both of its
+# paths run the same code that frame (measured on $80682 / $80738, 2026-10-17)
+ZOOM = 0x2E
 # KOF96 / KOF99: the same engine family, the same object fields; the routines at their own addresses (found by their
 # code: KOF98's bytes, or the calls in the specials' handlers next to KOF98's)
 ROUTINES96 = {0x1A756: 'init', 0x6AA8: 'sound', 0x12CB0: 'stats', 0x2F34: 'fall', 0x2DF4: 'mulfn', 0x1A88C: 'fricmove',
@@ -497,6 +504,7 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
                 if dec.is_yield(t): yres(a); emit(a, 'br', None, True, 'yieldn' if dec.is_yield(t) == 'n' else 'yield'); a = None; continue
                 a = t; continue
             # condition: concrete flags (cc = ('val', v)) or an abstract one (cc = (name, flag))
+            if cc and cc[0] == 'zoom': a = nx; continue                     # (ZOOM: the ramp saturated, not taken)
             if cc and cc[0] == 'valn':                                      # only bit 7 known (tst.b): N, not Z
                 cc = ('val', cc[1]) if cond in ('mi', 'pl') else (cc[2], 'N')
             if cc and cc[0] == 'val':
@@ -632,6 +640,8 @@ def decode(m, addr, button='C', ex=False, fields=None, dec=None, depth=0, cid=No
             if re.match(r'^%d\d$', dst):
                 D[dst] = v if not isinstance(v, tuple) or v[0] != 'f' else ('f', v[1]); a = nx; continue
             a = nx; continue
+        if base in ('add', 'addq', 'addi', 'sub', 'subq', 'subi', 'cmpi') and len(o) == 2 and field(o[1]) == ZOOM:
+            cc = ('zoom', 'Z'); a = nx; continue                           # the sprite zoom's ramp (ZOOM): cosmetic
         if base in ('add', 'addq', 'addi', 'sub') and len(o) == 2:
             fd = field(o[1]); v = val(o[0], sz)
             if base == 'sub' and fd == 0x58: a = nx; continue
@@ -1155,7 +1165,10 @@ ROM_SPECIALS = {'terry': {'214C', '623C', 'EX 236C', '236C', '214D', '623D', '42
                 'yashiro': {'214B', '214D', '426A', '624C', '624A', '623A', '21426C'}, 'rugal': {'236A', '6426D', '6426B', '624A', '23624C', '6426A', '6426C'},
                 'geese': {'236C', '623C', '623A', '236A', '1632143C', '63214C', '63214A'}, 'mr_big': {'236A', '63214C', '623A', '623C', 'AAAA', '63214D', '23623C'},
                 'krauser': {'214A', '214B', '214C', '214D', '41236B', '41236D', '236D', '641236C', '623B', '623D'},'goenitz': {'41236A', '41236B', '41236C', '41236D', '214B', '214D'},
-                'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'}}
+                'k_dash': {'236C', '214D', '623C', '236B', '623A', '236D', '23624C'},
+                # Omega Rugal (2026-10-17, KOF98 Rugal's EX version: export96.FORMS): every move of his EX command list
+                'omega_rugal': {'EX 236A', 'EX 236C', 'EX air 236A', 'EX air 236C', 'EX 236B', 'EX 236D', 'EX 624A', 'EX 624C',
+                                'EX 623B', 'EX 623D', 'EX 236236A', 'EX 236236B', 'EX 236236C', 'EX 236236D', 'EX 23624A', 'EX 23624C'}}
 # ROM specials on demand (Bruno's first Workshop unlock, 2026-10-10): decoded for the Lab (arb_compile pieces, the Workshop's
 # S- ids) but read by the brawler's export only where a build names them (export96 rom_more = export_bm.rom_wanted: a
 # roster slot, a Lab build's unlocked pieces), so the normal game, whose pool has no place for them, keeps its frames
@@ -1176,7 +1189,7 @@ BODY_OPS = {'anim', 'set', 'mul', 'move', 'fricmove', 'fall', 'nudge', 'dec', 'b
             'spawn', 'fxoff', 'end', 'hitkind', 'adv', 'check', 'part', 'evclr', 'onhit', 'cine', 'place', 'hitclr', 'hold', 'unhold', 'sigclr', 'hitoff',
             'vsig', 'turn', 'add'}
 DROP_OPS = {'kind', 'sound', 'gauge', 'stats', 'flag', 'init', 'land', 'chain', 'face', 'clrinput', 'voice', 'superflash',
-            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig', 'vlater', 'floorsnd', 'wallhold', 'vheld'}
+            'ownerflag', 'flags', 'trail', 'alloc', 'ownersig', 'vlater', 'floorsnd', 'wallhold', 'vheld', 'layer'}
 # ---- voices (TODO #163): every voice the move's code sends, at its place in the program ----
 # KOF96 / KOF98 / KOF99 send a sound through one mapper (index -> driver word, tools/brawler/voices.py MAPPER): the code
 # now ('sound', index), or n frames later ('vlater', index, n: +$1B4 / +$1B6), or the animation as a step starts (its $FC

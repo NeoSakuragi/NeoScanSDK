@@ -20,6 +20,13 @@ Captured in our emulator (`tools/kof96/capture/emu.py`, see the KOF96 README); s
 14 Chin 15 Chizuru 16 Mai 17 King 18 Kim 19 Chang 20 Choi 21 Yashiro 22 Shermie 23 Chris 24 Yamazaki 25 Mary 26 Billy
 27 Iori 28 Mature 29 Vice 30 Heidern 31 Takuma 32 Saisyu 33 Heavy D! 34 Lucky 35 Brian 36 Rugal 37 Shingo.
 38-40 effect / stage tables. The Orochi forms of 21-23 and Omega Rugal are the EX versions of those ids.
+An EX version exported as a fighter of its own (`export96.FORMS`, `export96.py --game kof98 OUT omega_rugal`, 2026-10-17):
+the base id's frames / normals / physics (measured equal on c36 / c36x), its own command list (`commands96.lists` ex=1)
+and specials (the `_ex` capture only), idle state 79, body palettes n = $100 + pal * $40 (EX blocks measured in palette
+RAM: Orochi Yashiro 38, Shermie 39, Chris 40, Omega Rugal 41) and, for Omega Rugal, effect palettes $DE0 + k (block 38;
+Rugal's $DC0 + k). Omega's HUD face: `brawler/portraits.py capture DIR kof98:omega_rugal` (state c36x). Music: KOF98's
+stage-song table ($93020 -> $93046) has no EX entry (id 36 -> $3B, the brawler's BOSS_RUGAL); `$92F56` swaps $3B for $41
+when the game mode byte $10A849 = 6 (that mode not identified: not taken as his theme).
 
 ## Engine differences from KOF96
 | What | KOF98 | KOF96 |

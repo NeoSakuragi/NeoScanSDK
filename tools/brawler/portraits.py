@@ -22,11 +22,12 @@ CASTS = {'kof96': export96.CAST, 'kof98': export96.CAST98, 'kof99': export96.CAS
 
 def words(path): d = open(path, 'rb').read(); return struct.unpack(f'>{len(d) // 2}H', d)
 
-def dump(game, cid, outdir):
+def dump(game, cid, outdir, state=None):
     """VRAM (VRAMDUMP) and the palette bank the 68000 sees ($400000, PALDUMP's frame-list form) at frame 20 of the
-    fighter's state c<id> in our emulator"""
-    v, o = os.path.join(outdir, f'{game}_{cid}_vram.bin'), os.path.join(outdir, f'{game}_{cid}')
-    env = dict(os.environ, LOAD=f'/data/neogeo_dict/ngsdl_sta/{game}/c{cid}.state', SEQ='30:-', VRAMDUMP=f'20:{v}',
+    fighter's state c<id> in our emulator (state: another one, an EX version's c<id>x: export96.form_state)"""
+    tag = state if state and state != f'c{cid}' else str(cid); state = state or f'c{cid}'
+    v, o = os.path.join(outdir, f'{game}_{tag}_vram.bin'), os.path.join(outdir, f'{game}_{tag}')
+    env = dict(os.environ, LOAD=f'/data/neogeo_dict/ngsdl_sta/{game}/{state}.state', SEQ='30:-', VRAMDUMP=f'20:{v}',
                PALDUMP='20', OUT=o)
     subprocess.run([NGSDL, rom96.GAMES[game]['neo'], '--capture'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=300)
     return words(v), words(o + '.pal20')
@@ -69,8 +70,8 @@ def capture(outdir, specs):
     os.makedirs(outdir, exist_ok=True)
     crom = {}
     for spec in specs:
-        game, name = spec.split(':'); cid = CASTS[game].index(name)
-        v, pal = dump(game, cid, outdir)
+        game, name = spec.split(':'); cid = export96.cid_of(game, name, CASTS[game])   # (an EX version: its base id,
+        v, pal = dump(game, cid, outdir, export96.form_state(game, name))                 #  its own state c<id>x)
         cols = p1_portrait(v)
         if not cols: print(spec, 'no portrait found'); continue
         if game not in crom: crom[game] = rom96.load(rom96.GAMES[game]['neo'])[1]

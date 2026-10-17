@@ -74,6 +74,38 @@ MOVES98.update({'hop_up_rise': 15, 'hop_up_fall': 16, 'hop_fwd_rise': 17, 'hop_f
                 'win_a': 336, 'win_a_hold': 337, 'win_b': 338, 'win_b_hold': 339,
                 'win_c': 340, 'win_c_hold': 341, 'win_d': 342, 'win_d_hold': 343})
 
+# KOF98's EX versions that are another character, exported as fighters of their own (Bruno 2026-10-05: the regular Rugal
+# is the brawler's Rugal, Omega Rugal is not more moves of his; 2026-10-17: Omega Rugal joins as his own fighter). An EX
+# version is the base id with the team record's EX bit (object +$1D6; the c<id>x states): the same animation, frame and
+# box tables, the same physics (measured: walk 2.406 px/frame, jump and hop identical on c36 / c36x) and states for every
+# normal, reaction and jump (states logged playing them on c36x), but
+#   - its own command list (recogniser table $B14A2, entry (id * 2 + 1) * 8: commands96.lists ex=1) and so its own
+#     specials: the moves its EX capture (capture/specials98/<id>_ex) plays, all 'EX ...' (form_specials; Omega Rugal
+#     has no 6426 Kaiser Wave / God Press)
+#   - its own idle, state 79 (specials96.END_EX98)
+#   - its own body palettes: n = $100 + pal * $40 + $10 * set + k, pal = the EX block, measured in palette RAM (P1 slot
+#     16 at frame 20 of c<id>x, our emulator, 2026-10-17): Orochi Yashiro 38 ($A80), Orochi Shermie 39 ($AC0), Orochi
+#     Chris 40 ($B00), Omega Rugal 41 ($B40); the effect palettes stay the base id's ($B80 + id * $10)
+#   - (Omega Rugal) his own effect palettes too: palette RAM slots 32-47 of c36x = ROM $DE0 + k (= $B80 + 38 * $10:
+#     'fx'), c36 = $DC0 + k (Rugal's $B80 + 36 * $10); his Gravity Smash orb (palette byte 40) is pale olive in $DC8
+FORMS = {'kof98': {'omega_rugal': {'base': 'rugal', 'pal': 41, 'fx': 38, 'idle': 79}}}
+def form_of(game, name):
+    """the EX-version fighter's entry (FORMS), or None"""
+    return FORMS.get(game, {}).get(name)
+def cid_of(game, name, cast=None):
+    """a fighter's id in its game's tables: its cast index, an EX version's base id"""
+    f = form_of(game, name)
+    cast = cast or {'kof97': CAST97, 'kof98': CAST98, 'kof99': CAST99}.get(game, CAST)
+    return cast.index(f['base'] if f else name)
+def form_state(game, name):
+    """the fighter's prepared emulator state (capture/specials96.prep): c<id>, an EX version's c<id>x"""
+    return f'c{cid_of(game, name)}{"x" if form_of(game, name) else ""}'
+def form_specials(m, cid):
+    """an EX version's specials (FORMS): its own EX capture's (capture/specials98/<id>_ex, every input 'EX ...'), the
+    moves it shares with the base included as its own ('EX 236B'): the EX command list can send the same input to
+    another handler with the same animations (Omega Rugal's 23624A / C: $8144C, Rugal's $7FD1A)"""
+    return specials96.load(m, cid, tags=('_ex',))
+
 # The round win (brawler 'win', TODO #184): the states the winner goes through after the KO, as the game plays them
 # (tools/kof98/capture/wins98.py, GAME=kof96 / kof98 / kof99: A held at the KO, as the brawler's pick): KOF98 / KOF99
 # 336 then 337 (its end) for every fighter; KOF96 209 (slot 65), Geese 209 then 232. One animation: the states' steps
@@ -127,7 +159,7 @@ def win_objects(m, game, cid, sts, add, slot_of):
 
 PAL_ROM = {'kof98': 0x2D77F0, 'kof99': 0x2D77F0, 'kof97': 0x2CFFF0}   # bank 2; KOF97's from its copy of KOF98's loader ($4AD6)
 def pal_rom98(m, n): return [0] + [m.u16(PAL_ROM[m.game] + n * 32 + 2 * i, 2) for i in range(1, 16)]
-def palettes98(m, cid, used):
+def palettes98(m, cid, used, pal=None, fx=None):
     """KOF98: palette n at bank 2 $2D77F0 + n*32 (loader $518A). Sprite palette byte 16+k = body palette k, at
     n = $100 + id*$40 + $10*set + k (four colour sets A-D, chosen at character select, team record +7..9);
     32+k = effect palette k, at n = $B80 + id*$10 + k (one for all sets). Checked against palette RAM in a fight
@@ -136,7 +168,9 @@ def palettes98(m, cid, used):
     # KOF99 (palette RAM dumped in our emulator, bank 1): body n = $100 + id*$20 + $10*set, TWO colour sets
     # (select with B = set 1), effects n = $520 + id*$10
     body, step, sets, eff = (0x100, 0x20, 2, 0x520) if m.game == 'kof99' else (0x100, 0x40, 4, 0xB80)
-    def n(b, s): return body + cid * step + 0x10 * s + (b - 16) if b < 32 else eff + cid * 0x10 + (b - 32)
+    pid = cid if pal is None else pal                   # (an EX version's own body block: FORMS 'pal')
+    fid = cid if fx is None else fx                     # (an EX version's own effect block: FORMS 'fx')
+    def n(b, s): return body + pid * step + 0x10 * s + (b - 16) if b < 32 else eff + fid * 0x10 + (b - 32)
     return [[pal_rom98(m, n(b, s)) for b in used] for s in range(sets)]
 
 PHYS = {'kof98': (0xABFC8, 0xAC060), 'kof99': (0xB51C4, 0xB524C),     # walk table, jump (vy, gravity) table
@@ -448,8 +482,10 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
         if code not in tile_map: tile_map[code] = TILE_BASE + len(tile_map)
         return tile_map[code]
     adders = {}
+    cid_of_ = lambda n: cid_of(game, n, cast)
     for name in names:
-        cid = cast.index(name)
+        cid = cid_of_(name); form = form_of(game, name)
+        mvs = dict(moves, idle=form['idle']) if form else moves   # (an EX version: its own idle)
         frames, index, used, shared_pals = [], {}, [], {}
         def add_frame(fidx, cid=cid, frames=frames, index=index, used=used, tab=None, shared_pals=shared_pals):
             if tab is not None and tab != cid:      # a frame of KOF's shared effects bank (TODO #214: handlers98.SHARED_FX):
@@ -480,12 +516,12 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
                 frames.append({'record': f'{cid}:{fidx}', 'parts': parts})
             return index[fidx]
         anims = {}
-        cmd_def = CMD_NORMALS.get(game, {}).get(name, {})
+        cmd_def = CMD_NORMALS.get(game, {}).get(form['base'] if form else name, {})
         cmds = {k: v[0] for k, v in cmd_def.items() if len(v) < 3}
         for move, v in cmd_def.items():                 # a command normal through several states (a hop): its frames
             if len(v) < 3 or (only is not None and move not in only): continue
             anims[move] = cmd_frames(m, cid, v[2], slot_of, add_frame) | {'state': v[0]}
-        for move, state in list(moves.items()) + list(cmds.items()):
+        for move, state in list(mvs.items()) + list(cmds.items()):
             if only is not None and move not in only: continue
             slot = slot_of(cid, state)
             try: steps, mode = rom96.parse_anim(m, rom96.anim_addr(m, cid, slot))
@@ -558,15 +594,19 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
     # throws for every victim exported here (throwscripts96.py): the thrower's own animation + a per-video-frame script
     have_throws = os.path.exists(os.path.join(HERE, 'capture', throwscripts96.TDIR.get(game, 'throws_' + game), 'tables.json'))
     if only is not None and not (only & {'throw_c', 'throw_d', 'air_throw'}): have_throws = False
-    tv = sorted({cast.index(v) for n in names for v in (throw_victims or {}).get(n, ()) if v in cast} - {cast.index(n) for n in names})
-    found = throwscripts96.all_throws(m, mp, [cast.index(n) for n in names] + tv) if have_throws else {}
+    known = lambda v: v in cast or form_of(game, v)     # (an EX version: its base id's tables)
+    tv = sorted({cid_of_(v) for n in names for v in (throw_victims or {}).get(n, ()) if known(v)} - {cid_of_(n) for n in names})
+    found = throwscripts96.all_throws(m, mp, [cid_of_(n) for n in names] + tv) if have_throws else {}
     if only is None or only & {'throw_c', 'throw_d', 'throw_x'}:   # the pilot's throws read from the ROM (throwrom.py, TODO
         import throwrom                                         # #146): they replace the captured scripts (key by key: a
-        for cid, d in throwrom.all_throws(m, game, [cast.index(n) for n in names], tv).items():   # fighter's extra throw,
+        for cid, d in throwrom.all_throws(m, game, [cid_of_(n) for n in names], tv).items():   # fighter's extra throw,
             found.setdefault(cid, {}).update(d)                 # throw_x, joins its captured ones)
     import throwrom
+    by_cid = {cid_of_(n): n for n in names}               # (an EX version exported alone: its base id's throws)
+    def vnames(v, keep):                                 # the victim names an id's rows serve (its base and EX versions)
+        return [n for n in [cast[v]] + [f for f in FORMS.get(game, {}) if cid_of_(f) == v] if n in keep]
     for cid, d in found.items():
-        name = cast[cid]
+        name = by_cid.get(cid)
         if name not in names: continue
         ch = out['characters'][name]
         for key, b in d.items():
@@ -576,11 +616,11 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
             ch['anims'][key] = {'slot': sl, 'state': st, 'mode': mode, 'steps': [
                 {'frame': adders[name](fi), 'ticks': t, 'dx': dx, 'boxes': {f'{k:02X}': v for k, v in bx.items()}} for t, fi, fl, bx, ri, dx in steps]}
             timeline = [[adders[name](t[0]) if t[0] is not None else -1] + list(t[1:]) for t in b['timeline']]
-            victims = {cast[v]: [[adders[cast[v]](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
-                       for v, rows in b['victims'].items() if cast[v] in adders}
-            vall = {cast[v]: [[-1 if r[0] is None or r[0] < 0 else 0] + list(r[1:]) +
-                              [None if r[0] is None or r[0] < 0 else frame_centre_rom(m, crom, v, r[0])] for r in rows]
-                    for v, rows in b['victims'].items() if cast[v] in (throw_victims or {}).get(name, ())}
+            victims = {vn: [[adders[vn](r[0]) if r[0] is not None else -1] + r[1:] for r in rows]
+                       for v, rows in b['victims'].items() for vn in vnames(v, adders)}
+            vall = {vn: [[-1 if r[0] is None or r[0] < 0 else 0] + list(r[1:]) +
+                         [None if r[0] is None or r[0] < 0 else frame_centre_rom(m, crom, v, r[0])] for r in rows]
+                    for v, rows in b['victims'].items() for vn in vnames(v, (throw_victims or {}).get(name, ()))}
             ch['throws'][key] = {'slot': sl, 'inputs': b['inputs'], 'table': b['lists'], 'hold': b.get('hold', False),
                                  'timeline': timeline, 'victims': victims, 'impacts': b.get('impacts', []), 'victims_all': vall,
                                  'fx': throwrom.throw_fx(m, game, cid, sl)}   # the throw-start effect (TODO #166)
@@ -591,9 +631,9 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
     # (a filtered export takes them when `only` names 'specials'; each then carries frame_boxes: the boxes of every frame
     #  of its own state animations, so a player of the script knows when the fighter's body hits)
     for name in (names if only is None or 'specials' in only else []):
-        cid = cast.index(name); add = adders[name]; sps = []
+        cid = cid_of_(name); add = adders[name]; sps = []
         pdefs = projectiles96.definitions(game, cid)     # capture/projectiles.py: the move's projectile, by identity
-        for sp in specials96.load(m, cid):
+        for sp in (form_specials(m, cid) if form_of(game, name) else specials96.load(m, cid)):   # (an EX version: its own)
             e = special_entry(m, cid, sp, add, slot_of, game)
             if sp['input'] in pdefs: e['projectiles'] = [projectile_entry(m, cid, d, add, slot_of) for d in pdefs[sp['input']]]
             t0 = 0; starts = []                                      # the super flash its animations start (a DM's;
@@ -629,12 +669,12 @@ def export(names, outdir, game='kof96', only=None, extra=None, shared_fx=None, a
         out['characters'][name]['specials'] = sps
         try:                                            # the decoded command list (inputs), captured or not
             out['characters'][name]['commands'] = [commands96.notation(p) for k, p in
-                                                   enumerate(commands96.patterns(m, commands96.lists(m, cid)[1])) if p and k >= 3]
+                                                   enumerate(commands96.patterns(m, commands96.lists(m, cid, 1 if form_of(game, name) else 0)[1])) if p and k >= 3]
         except Exception: pass
         print(f'{name}: {len(sps)} specials', flush=True)
     for name in names:                              # palettes last: KOF98 lists the palette bytes the frames use
-        ch = out['characters'][name]; cid = cast.index(name)
-        sets = palettes98(m, cid, ch['palette_bytes'] or [16]) if k98 else list(palettes(m, cid))
+        ch = out['characters'][name]; cid = cid_of_(name)
+        sets = palettes98(m, cid, ch['palette_bytes'] or [16], (form_of(game, name) or {}).get('pal'), (form_of(game, name) or {}).get('fx')) if k98 else list(palettes(m, cid))
         ch.update({'palette': sets[0][0], 'palette_mirror': sets[min(1, len(sets) - 1)][0], 'block_palettes': sets})
         if k98: ch['palette_sets'] = [st[ch['palette_bytes'].index(16) if 16 in ch['palette_bytes'] else 0] for st in sets]
     out['tiles'] = len(tile_map)
