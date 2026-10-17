@@ -1461,7 +1461,7 @@ class H(http.server.BaseHTTPRequestHandler):
         except ValueError: return self.reply(400, {'error': 'json'})
         user, title, text = req.get('user', ''), req.get('title', ''), req.get('text', '')
         if not (user and title and text) or len(title) > 70: return self.reply(400, {'error': 'user, title (<= 70), text'})
-        bid = req.get('id') or time.strftime('%Y%m%d-%H%M%S', time.gmtime()) + '-desk'
+        bid = time.strftime('%Y%m%d-%H%M%S', time.gmtime()) + '-' + secrets.token_hex(2)   # the tracker's id pattern (ID): the app fetches states by it
         with lock, db() as c:
             if c.execute('SELECT 1 FROM feedback WHERE id=?', (bid,)).fetchone(): return self.reply(400, {'error': 'exists: ' + bid})
             c.execute('INSERT INTO feedback (id, created, apk_version, game_version, rom_sha, device, raw_transcript, final_text, '

@@ -2977,7 +2977,7 @@
    "wave": 0
   },
   "do": "Stage 2 from its start. Listen to the music while the first wave walks in.",
-  "expect": "Kizuna Encounter's highway stage music (\u9ad8\u901f\u9053\u8def, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
+  "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
   "do_keys": "",
   "proof": 900
  },
@@ -3330,7 +3330,7 @@
    "wave": 0
   },
   "do": "Stage 3 from its start. Listen to the music while the first wave walks in.",
-  "expect": "Kizuna Encounter's harbour-market stage music (\u88cf\u6c34\u8def Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
+  "expect": "Kizuna Encounter's harbour-market stage music (裏水路 Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
   "do_keys": "",
   "proof": 900
  },
@@ -3343,7 +3343,7 @@
    "wave": 0
   },
   "do": "Stage 1 from its start with Robert. Listen to the music while the first wave walks in. Then try stage 1 with Rosa or Cheng-Fu (no theme).",
-  "expect": "KOF96's Art of Fighting team stage music (\u30ab\u30df\u30ad\u30ea\u30e0\u30b7 Kamikirimushi) plays instead of Fatal Fury 3's stage music. With a fighter who has no theme (Rosa, Cheng-Fu, Billy Lee, WHP Hanzo, Rugal, Goenitz), stage 1 keeps Fatal Fury 3's music.",
+  "expect": "KOF96's Art of Fighting team stage music (カミキリムシ Kamikirimushi) plays instead of Fatal Fury 3's stage music. With a fighter who has no theme (Rosa, Cheng-Fu, Billy Lee, WHP Hanzo, Rugal, Goenitz), stage 1 keeps Fatal Fury 3's music.",
   "do_keys": "",
   "proof": 900
  },
@@ -3966,7 +3966,7 @@
    "after": 1
   },
   "do": "After the BONUS GAME screen, pick a bonus game with A.",
-  "expect": "A white card with the game's kanji and English name (\u6c17\u529b\u935b\u932c\u306e\u884c / \u8d85\u5fc5\u6bba\u6280\u4f1d\u6388), the announcer reads it, then the gong.",
+  "expect": "A white card with the game's kanji and English name (気力鍛錬の行 / 超必殺技伝授), the announcer reads it, then the gong.",
   "do_keys": "140:-,4:a",
   "proof": 360
  },
@@ -6064,7 +6064,7 @@
   "do_keys": "2:D,2:Dd,160:-",
   "proof": 60
  },
- "finale-geese-1hp": {
+ "20261017-105302-1232": {
   "title": "Finale: Geese at 1 life point, hit him once: Rugal with grey Mr. Big and Krauser",
   "setup": {
    "mode": "stage",
