@@ -70,7 +70,8 @@
     rows.map(r => h("tr", {}, r.map((x, i) => h("td", { class: nums && nums[i] ? "n" : null }, x)))));
 
   const deep = /^#s=([0-9a-f]{8}-\d{8}-\d{6})/.exec(location.hash);    // #s=<session id>: that session opened (a link)
-  let tab = deep ? "sessions" : (location.hash.slice(1) || "sessions"), data = null, agg = null, who = "", opened = false;
+  const deepG = /^#(players|builds)=(.+)$/.exec(location.hash);          // #players=<name>, #builds=<version>: that one opened
+  let tab = deep ? "sessions" : deepG ? deepG[1] : (location.hash.slice(1) || "sessions"), data = null, agg = null, who = "", opened = false;
   const TABS = [["sessions", "Sessions"], ["players", "Players"], ["builds", "Builds"]];
   function tabs() {
     $("tabs").textContent = "";
@@ -196,6 +197,7 @@
         tr.classList.add("on"); const c = h("div", { class: "dw" }); tr.after(h("tr", { class: "det" }, h("td", { colspan: 6 }, c))); groupDetail(c, g, label);
       };
       t.append(tr);
+      if (deepG && decodeURIComponent(deepG[2]) === k && !opened) { opened = true; setTimeout(() => tr.onclick()); }
     }
     v.append(t);
   }
@@ -206,9 +208,10 @@
       ["Session ends", Object.entries(g.ends).map(([k, n]) => k + " ×" + n).join(", ")],
       g.mismatch_sessions ? ["Replay drift in", g.mismatch_sessions + " sessions"] : null]));
     c.append(h("h3", {}, "PER WAVE (MEDIAN TIME, DEATHS, WHERE SESSIONS ENDED)"),
-      table(["Wave", "Plays", "Median", "Min–max", "Deaths", "/play", "Hurt", "Ended here"],
-        Object.entries(g.segments).map(([k, s]) => [k + (s.won ? " (won " + s.won + ")" : ""), s.n, mmss(s.median_s), mmss(s.min_s) + "–" + mmss(s.max_s), s.deaths, s.deaths_per_play, s.dmg_taken, s.ended_here || ""]),
-        [0, 1, 1, 1, 1, 1, 1, 1]));
+      table(["Wave", "Plays", "Median", "Deaths", "/play", "Hurt", "Ended"],
+        Object.entries(g.segments).map(([k, s]) => [k + (s.won ? " (won " + s.won + ")" : ""), s.n, s.n > 1 ? h("span", { title: "min " + mmss(s.min_s) + " · max " + mmss(s.max_s) }, mmss(s.median_s)) : mmss(s.median_s),
+          s.deaths, s.deaths_per_play, s.dmg_taken, s.ended_here || ""]),
+        [0, 1, 1, 1, 1, 1, 1]));
     if (g.hotspots.length) c.append(h("h3", {}, "DEATH HOTSPOTS"), h("p", {}, g.hotspots.map(([k, n]) => k + ": " + n).join(" · ")));
     c.append(h("h3", {}, "MOVES USED (FIGHTS)"), g.moves.length ? table(["Fighter: role input", "Uses"], g.moves.slice(0, 30), [0, 1]) : h("p", {}, "None."));
     if (g.unused.length) c.append(h("h3", {}, "NEVER USED"), h("p", {}, g.unused.join(" · ")));
