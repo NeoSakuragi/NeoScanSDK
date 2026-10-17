@@ -1,19 +1,20 @@
 {
  "20261017-141149-e03d": {
-  "title": "Haggar: run + A knocks down lower, then 4 more frames before he moves again",
+  "title": "Haggar: run + A ejects the victim like his forward finisher, then 4 more frames before he moves",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
    "dummy": "ryo",
+   "x": 40,
    "gap": 120
   },
-  "do": "Tap forward, then hold forward to run at Ryo and press A (the run + A Blitz).",
-  "expect": "Haggar's strong punch knocks Ryo down on a lower, shorter arc than before (one size down: about half the height). After the punch Haggar holds his pose a moment longer (4 frames) before you can move him again.",
+  "do": "Tap forward, then hold forward to run at Ryo and press A (the run + A Blitz). Compare with jab, jab, forward + A.",
+  "expect": "Ryo flies exactly as from Haggar's forward finisher (jab, jab, forward + A): low and far, away from Haggar (about 28 px high, about 130 px along the floor). After the punch Haggar still holds his pose 4 frames longer before you can move him.",
   "do_keys": "4:R,4:-,20:R,2:Ra,60:-",
   "proof": 60
  },
  "20261017-141432-e03d": {
-  "title": "Haggar's chain: every punch plays to its end before the next",
+  "title": "Haggar's chain: the jabs cancel into each other again (0.10.166's timing)",
   "setup": {
    "mode": "lab",
    "fighter": "haggar",
@@ -21,7 +22,7 @@
    "gap": 40
   },
   "do": "Mash A on Ryo: jab, jab, strong.",
-  "expect": "Still jab, jab, strong (knockdown), but each punch now plays its whole animation (the arm comes back) before the next one starts: no cut right after the impact. The chain feels slower and heavier.",
+  "expect": "Jab, jab, strong (knockdown) at the old quick pace: the first jab is cut into the second as soon as it lands, the second into the strong one; no waiting for each punch's arm to come back (0.10.167's slow 'play to the end' is gone).",
   "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,60:-",
   "proof": 60
  },
@@ -6222,7 +6223,7 @@
   "proof": 60
  },
  "20261017-131927-e03d": {
-  "title": "Stage-clear cheat on DOWN + A + D: the stage just cleared blinks on the map",
+  "title": "Stage clear: STAGE 1 CLEAR / STAGE 2 CLEAR with the stage number, ALL CLEAR on the last stage",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -6230,7 +6231,7 @@
    "wave": 1
   },
   "do": "Stage 2. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch the map.",
-  "expect": "After 3 seconds of DOWN + A + D the stage ends at once: the win pose, STAGE CLEAR and the map: POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). Under the map: NEXT BONUS GAME.",
+  "expect": "After 3 seconds of DOWN + A + D the stage ends at once: the win pose, then STAGE 2 CLEAR in the big Savage Reign letters (the stage number in it) and the map: POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). On the last stage (GEESE TOWER) the headline reads ALL CLEAR. Nothing written under the map.",
   "do_keys": "190:Dad,330:-",
   "proof": 60
  },
@@ -6327,6 +6328,32 @@
   "do": "Pick Terry (A) and watch the stage start without touching anything.",
   "expect": "STAGE 1 START and the map show on a fully black screen for 2 seconds, then the stage fades in behind them with the map and the message still on screen; they go as the fade ends, then Terry walks in.",
   "do_keys": "30:-,3:a,330:-",
+  "proof": 60
+ },
+ "20261017-150524-e03d": {
+  "title": "Haggar: the first jab cancels into the second jab again",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Press A twice quickly on Ryo (jab, jab), then a third time.",
+  "expect": "The second jab starts right after the first one lands (no wait for the first jab's arm to come back): fast jab, jab, then the strong punch, as in 0.10.166.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,60:-",
+  "proof": 60
+ },
+ "20261017-150757-e03d": {
+  "title": "Stage clear: nothing written under the map (no NEXT BONUS GAME)",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 1
+  },
+  "do": "Stage 1. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch the map.",
+  "expect": "STAGE 1 CLEAR in the big letters above the map, SLUM blinking; under the map no line at all (no NEXT BONUS GAME, no NEXT ...). Then the bonus game or the next stage as before.",
+  "do_keys": "190:Dad,330:-",
   "proof": 60
  }
 }

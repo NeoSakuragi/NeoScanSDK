@@ -3123,8 +3123,9 @@ static uint8_t stage_song(uint8_t s) {
  *              end); then the stage's fade-in under it, the map closing as the fade ends, then the walk-in
  *              (intro_fade_tick; note 20261017-150157-e03d)
  *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, gmap.clear_at ticks into the win poses; the win drama after it):
- *              STAGE CLEAR in the big font (big_text.stage_clear), the stage just cleared blinking, the earlier ones
- *              grey, the later ones green; NEXT name / NEXT BONUS GAME / ALL CLEAR! under it
+ *              STAGE n CLEAR (the last stage: ALL CLEAR; clear_head) in the big font (big_text.stage_clear), the stage
+ *              just cleared blinking, the earlier ones grey, the later ones green; nothing under it (note
+ *              20261017-150757-e03d: NEXT BONUS GAME / NEXT name gone, the next screen is not always the one named)
  * Up gmap.start_ticks / clear_ticks; A-D of either player skips it after gmap.skip_after (START is the box viewer's).
  * Never in the attract demo, the Lab or a continue. ---- */
 #define MAP_SPR SF_RAYS_SPR                      /* 348-363 */
@@ -3161,6 +3162,18 @@ static uint8_t map_fmt(char *b, const char *t, const char *name) {   /* b[40] = 
     b[n] = 0;
     return n;
 }
+static void clear_head(char *b) {                /* b[40] = the stage clear's headline (notes 20261017-131927-e03d reopened,
+                                                    Bruno: "STAGE 1 CLEAR with the stage number; for the final stage FINAL
+                                                    STAGE CLEAR or ALL CLEAR"): the last stage map.final_clear_text, else
+                                                    map.clear_text ({n} = this stage's number); neither: STAGE CLEAR
+                                                    (build_tables clear_head checks them in the big font) */
+    static const char dflt[] = "STAGE CLEAR";
+    uint8_t i;
+    map_stage = camp;
+    if (!(camp + 1 >= GS_COUNT && gmap.final_clear_text && map_fmt(b, gmap.final_clear_text, 0)) &&
+        !(gmap.clear_text && map_fmt(b, gmap.clear_text, 0)))   /* (no map: gmap all 0) */
+        for (i = 0; i < sizeof dflt; i++) b[i] = dflt[i];
+}
 static void map_text(uint8_t row, const char *t, const char *name) {   /* centred on the fix layer */
     char b[40];
     if (map_fmt(b, t, name)) centre(row, b);
@@ -3193,7 +3206,7 @@ static void map_place(void) {                    /* its chain's SCB3 / SCB4, eve
     cmd_push(VRAM_SCB4 + MAP_SPR, (uint16_t)(gmap.x & 0x1FF) << 7);
 }
 static void map_open(uint8_t kind) {
-    uint8_t c, r, k, nb = 0, nx = 0xFF;          /* (stop k = stage k in play; nx: the next one, 0xFF none) */
+    uint8_t c, r, k;                             /* (stop k = stage k in play) */
     uint16_t pal[16];
     if (!GMAP_ON || !(kind == MAP_START ? gmap.start_ticks : gmap.clear_ticks)) return;
     sf_reset();                                  /* (the rays' sprites: the map's now) */
@@ -3206,8 +3219,6 @@ static void map_open(uint8_t kind) {
                                                     cleared"; was the next one): FF's green / grey every gmap.blink ticks,
                                                     its name white / grey; the others steady (not cleared green, cleared
                                                     grey) */
-        nx = camp + 1 >= GS_COUNT ? 0xFF : camp + 1;
-        nb = nx != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open();   /* (a bonus before it: NEXT BONUS GAME) */
     }
     for (k = 0; k < 16; k++) pal[k] = TEXT_PAL[k];   /* fix palette 7: the font's gradient in greys */
     pal[2] = RGB(20, 20, 21); pal[3] = RGB(17, 17, 18); pal[4] = RGB(14, 14, 15); pal[5] = RGB(11, 11, 12);
@@ -3225,13 +3236,12 @@ static void map_open(uint8_t kind) {
                                                     font's headline: held until map_close) */
         else map_text(map_head_row(), gmap.start_text, 0);
     } else {
-        if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR);   /* (STAGE CLEAR in the big font with the map, note
+        char b[40];
+        clear_head(b);
+        if (gbig[BIG_STAGE_CLEAR].on) bt_show(b, BIG_STAGE_CLEAR);   /* (STAGE n CLEAR in the big font with the map, note
                                                     20261017-132838-e03d: held until map_close, big_text.stage_clear exit
                                                     false) */
-        else map_text(map_head_row(), gmap.clear_text, 0);
-        if (nx == 0xFF) map_text(map_foot_row(), gmap.final_text, 0);
-        else if (nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[nx].name);
-        else map_text(map_foot_row(), gmap.next_text, gmap.stops[nx].name);
+        else centre(map_head_row(), b);
     }
 }
 static void map_close(void) {
@@ -4516,7 +4526,9 @@ static void campaign(uint8_t left) {
         if (left) break;
         if (attract || !GMAP_ON || !gmap.clear_ticks) {      /* (no map: STAGE CLEAR at once; with the map it comes with
                                                                 it, map.clear_at ticks into the win poses) */
-            if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
+            char b[40];
+            clear_head(b);
+            if (gbig[BIG_STAGE_CLEAR].on) bt_show(b, BIG_STAGE_CLEAR); else centre(13, b);   /* (big_text) */
         }
         if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0; win_map = 0; map_skipped = 0; lad_new = 0;

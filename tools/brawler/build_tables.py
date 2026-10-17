@@ -1811,8 +1811,9 @@ def bonus_tables(g, songs_known, sfx_names):
 
 MAP_DISTRICTS = ('SLUM', 'PARK', 'WEST SIDE', 'INDUSTRIAL AREA', 'BAY AREA', 'UP TOWN')   # make_map.DISTRICTS
 GM_STOPS = 6                                             # gamedata.h GM_STOPS
-MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'clear_at', 'clear_at_about', 'skip_after', 'blink', 'start_text', 'clear_text', 'next_text',
-            'next_bonus', 'final_text', 'stops_about', 'colours_about', 'start_text_about')
+MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'clear_at', 'clear_at_about', 'skip_after', 'blink', 'start_text', 'clear_text',
+            'final_clear_text', 'clear_text_about', 'stops_about', 'colours_about', 'start_text_about')
+# (next_text / next_bonus / final_text, the line under the clear's map: gone, note 20261017-150757-e03d)
 
 
 def map_stops(g):
@@ -1829,7 +1830,7 @@ def map_tables(g):
         return ['#define GMAP_ON 0'], ['const gmap_t gmap = { 0 };']
     for k in m: assert k in MAP_KEYS, f'map: unknown field {k}'
     ok = lambda s, k: isinstance(s, str) and len(s) <= k and all(0x20 <= ord(ch) < 0x7F for ch in s)
-    for k in ('start_text', 'clear_text', 'next_text', 'next_bonus', 'final_text'):
+    for k in ('start_text', 'clear_text', 'final_clear_text'):
         assert ok(m.get(k, ''), 38), f'map.{k}: ASCII, 38 characters at most'
     assert isinstance(m['x'], int) and isinstance(m['y'], int) and m['x'] % 8 == 0 and m['y'] % 8 == 0 and 0 <= m['x'] <= 64 and 16 <= m['y'] <= 120, \
         'map.x / y: the top left in 8 px steps (x 0-64: the 256 px map on the 320 px screen; y 16-120)'
@@ -1849,8 +1850,8 @@ def map_tables(g):
     rows = ', '.join(f'{{ {c_str(s["name"])}, {s["label"][0]}, {s["label"][1]} }}' for s in st)
     c = [f'const gmap_t gmap = {{ .x = {m["x"]}, .y = {m["y"]}, .start_ticks = {m["start_ticks"]}, .clear_ticks = {m["clear_ticks"]}, '
          f'.skip_after = {m.get("skip_after", 30)}, .clear_at = {m.get("clear_at", 0)}, .blink = {m.get("blink", 6)}, .nstops = {len(st)}, '
-         f'.start_text = {c_str(m.get("start_text", ""))}, .clear_text = {c_str(m.get("clear_text", ""))}, .next_text = {c_str(m.get("next_text", ""))}, '
-         f'.next_bonus = {c_str(m.get("next_bonus", ""))}, .final_text = {c_str(m.get("final_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map; stop k = stage k in play */']
+         f'.start_text = {c_str(m.get("start_text", ""))}, .clear_text = {c_str(m.get("clear_text", ""))}, '
+         f'.final_clear_text = {c_str(m.get("final_clear_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map; stop k = stage k in play */']
     return ['#define GMAP_ON 1'], c
 
 
@@ -1936,7 +1937,8 @@ def intro_tables(g):
 
 BIG_USES = {                                   # game.json big_text: the screens whose headline the big font can draw (main.c
     'stage_intro': None,                       # "big text"); text None = the screen's own (stage_intro.title, the bonus's
-    'stage_clear': 'STAGE CLEAR',              # won_text[0], a gauge game's pass_reward.text), else the default here, a
+    'stage_clear': None,                       # won_text[0], a gauge game's pass_reward.text; the stage clear's: map.clear_text /
+                                               # final_clear_text, STAGE CLEAR without them: main.c clear_head), else the default here, a
     'game_over': 'GAME OVER',                  # use's "text" over it
     'time_over': 'TIME OVER',
     'bonus_won': None,
@@ -1946,6 +1948,14 @@ BIG_USES = {                                   # game.json big_text: the screens
     'map_start': None,                         # the map's start_text (STAGE {n}) at a stage's start (note 20261017-114940-e03d)
 }
 BIG_KEYS = ('y', 'pitch', 'text', 'exit', 'still')
+
+
+def clear_head(g, k):
+    """stage k's clear headline (main.c clear_head; notes 20261017-131927-e03d reopened / 20261017-150757-e03d): the last
+    stage map.final_clear_text, else map.clear_text with {n} = k + 1; neither: STAGE CLEAR"""
+    m = g.get('map') or {}
+    t = (m.get('final_clear_text') if k + 1 >= len(g['stages']) else '') or m.get('clear_text', '')
+    return t.replace('{n}', str(k + 1)) or 'STAGE CLEAR'
 BIG_CYCLE = {'shown': 0, 'hidden': 1, 'white': 2}   # main.c BT_SHOWN / BT_HIDDEN / BT_WHITE
 BIG_CYC_N = 6                                  # gamedata.h GBIG_CYC
 
@@ -1975,7 +1985,8 @@ def big_tables(g):
     texts = {'stage_intro': [intro_of(g, si)['title'] for si in range(len(g['stages']))],
              'bonus_won': [b['won_text'][0] for b in (g.get('bonus') or {}).get('games', []) if b.get('won_text')],
              'bonus_meter': [t for x in gauge for t in x['pass_reward']['text']],
-             'map_start': [(g.get('map') or {}).get('start_text', '').replace('{n}', str(k + 1)) for k in range(len(g['stages']))]}
+             'map_start': [(g.get('map') or {}).get('start_text', '').replace('{n}', str(k + 1)) for k in range(len(g['stages']))],
+             'stage_clear': [clear_head(g, k) for k in range(len(g['stages']))]}
     assert not gauge or 'bonus_meter' in B, 'big_text.bonus_meter: a gauge game with pass_reward draws its result in the big font'
     assert not (g.get('max_cancel') or {}).get('on', True) or not g.get('max_cancel') or 'max_cancel' in B, 'big_text.max_cancel: the MAX cancel draws its text in the big font'
     rows = []
