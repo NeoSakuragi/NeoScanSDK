@@ -36,6 +36,7 @@ from PIL import Image, ImageDraw
 ROLES = {'D': '4:c', 'fD': '4:Rc', 'dD': '4:Dc', 'uD': '4:Uc', 'dfD': '4:DRc', 'ufD': '4:URc', 'C': '4:d', 'M': '4:Dd'}   # M: the MAX fury (down+D, TODO #152)   # facing right (C + the stick:
 # 2026-10-06; role 'C' = the fury, button D, game.json roster[].fury, TODO #139)
 KOF = {'kyo': 0, 'terry': 3, 'ryo': 6, 'robert': 7, 'ralf': 10, 'mai': 16, 'yashiro': 21, 'yamazaki': 24, 'billy': 26, 'iori': 27, 'rugal': 36,
+       'omega_rugal': 36,                                # (Rugal's EX version, export96.FORMS: his 'EX ...' inputs on c36x)
        'geese': ('kof96', 24), 'mr_big': ('kof96', 26), 'krauser': ('kof96', 25), 'goenitz': ('kof96', 28), 'k_dash': ('kof99', 0)}   # KOF98 id or (game, id)
 # a follow-up's input in the game, facing right: [(frames from the button press, frames held, keys)]
 FOLLOW_KOF = {('iori', 'again'): [(-4, 2, 'D'), (-2, 2, 'DL'), (0, 3, 'La')],                       # 214A (214A, 623D)
@@ -69,7 +70,8 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
     """follow: [(program frame that must read the press, keys, intent delay)]; facing -1: from the right, keys mirrored;
     held: the button stays down until the program has played `held` frames (its PC_HELD reads it held on those)"""
     mir = (lambda ks: ks.translate(str.maketrans('RL', 'LR'))) if facing < 0 else (lambda ks: ks)
-    b.pick(k, unlock=True)                              # Rugal / Goenitz are unlocked by play
+    if not lab_pick(b, k, hit):
+        b.pick(k, unlock=True)                          # Rugal / Goenitz are unlocked by play
     b.run(10)
     if pool is not None:                                 # fighter:role=INPUT: the slot repointed at another special
         scr = b.syms['lab'] + 400                        # (lab.buf, unused without a Lab tree; spec_tab[fighter] -> it)
@@ -133,6 +135,27 @@ def brawler_run(b, k, role, hit, shots, frames=300, pool=None, meter=None, follo
                      'hp2': b.fget(2, 'hp'), 'proj': pj, 'shot': path,
                      'vx': round((b.fget(2, 'x') - x0) * fc, 2), 'vh': round(b.fget(2, 'y'), 2), 'vst': b.states[b.fget(2, 'state')]})
     return rows[:done] if done is not None else rows, rows
+
+LAB_DUMMY_FIGHTER = 'terry'                              # the Chain Lab dummy of a fighter the select screen does not show
+def lab_pick(b, k, hit):
+    """a fighter that is not on the select screen (game.json roster[].selectable false: Omega Rugal, an enemy only): the
+    Chain Lab training (lab mailbox req 1, main.c lab_start: P1 = fighter k against one standing dummy, slot 2 = the
+    victim this check reads, LAB_DUMMY_FIGHTER) instead of the select screen; the whiff: the dummy off (S_OFF: nothing
+    hits it, the lab's flow only keeps it on screen). False: a selectable fighter (b.pick)"""
+    g = json.load(open(os.path.join(os.path.dirname(b.rom), 'game.json')))   # (the build's game dir)
+    if g['roster'][k].get('selectable', True) and not os.environ.get('LAB_PICK'): return False   # (LAB_PICK=1: every fighter so)
+    names = [r['name'] for r in g['roster']]; lab = b.syms['lab']
+    b.core.retro_reset(); b.frame = 0
+    for _ in range(600): b.core.retro_run()
+    b.frame = 600
+    for i, v in enumerate(b'LAB1'): b.w(lab + i, 1, v)
+    b.w(lab + 5, 1, k); b.w(lab + 6, 1, names.index(LAB_DUMMY_FIGHTER)); b.w(lab + 4, 1, 1)   # fighter, dummy, req 1
+    for _ in range(3000):
+        b.core.retro_run(); b.frame += 1
+        if b.r(lab + 8, 1) == 1: break                  # lab.active
+    else: raise RuntimeError('the game never took the lab request')
+    if not hit: b.run(2); b.fset(2, 'state', b.states.index('OFF'))
+    return True
 
 def live_objs(b, x0, fc):
     """P1's objects now (fighter.c projectiles[]): [(entity, frames alive, frame shown, x from the start (forward +),

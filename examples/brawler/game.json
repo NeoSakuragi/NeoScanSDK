@@ -674,6 +674,23 @@
    "flash_pose": "rage",
    "unlock": "always",
    "voices": "kof"
+  },
+  {
+   "name": "omega_rugal",
+   "about": "KOF98's Omega Rugal (2026-10-17): Rugal's EX version (id 36 + the team record's EX bit) as a fighter of his own, the third final boss to come (Rugal turning into him: not built yet). Rugal's frames, normals and physics; his own idle (state 79), body palettes (block 41), effect palettes (block 38: his orb), HUD face and command list; every special of that list read from KOF98's handlers (tools/kof96/export96.py FORMS, handlers98.ROM_SPECIALS). Not selectable (an enemy only: enemies OMEGA_RUGAL, RUGAL's settings with life 256 for 224; no stage fights him yet: boss_order and stages untouched). In the slots only the moves that play as KOF98 does (romspecials_check.py vs KOF98, 2026-10-17): D Dark Barrier D (EX 236D), down Genocide Cutter D (EX 623D), up Dark Barrier B (EX 236B), down-forward Genocide Cutter B (EX 623B); fury his qcf qcf + C DM (EX 236236C). Left out until decoded (no recorded fallback): the Gravity Smash EX 236A / C / air (its orb pulls and holds the victim in KOF98: the brawler's orb does not hit), the warp EX 624A / C (its strikes at the opponent never hit, x off by ~60 px), his Gigantic Pressure EX 23624C (handler $8144C ends through $51284 and a cine the decoder does not follow: the program waits forever after the drag). Move names are unverified (by eye): the inputs are KOF98's.",
+   "display": "O.RUGAL",
+   "selectable": false,
+   "bank": "kof98:omega_rugal",
+   "watch": {"frame": 343, "step": -1},
+   "routes": "default",
+   "archetype": "heavy",
+   "chain": {"length": 3},
+   "finishers": {"launcher": "up", "down": "slam", "neutral": "cmd_fwd_b", "down_move": "atk_d_far", "forward": "atk_c_far", "up": "body_toss"},
+   "specials": {"D": "EX 236D", "fD": null, "dD": "EX 623D", "uD": "EX 236B", "dfD": "EX 623B", "ufD": null},
+   "blitz": {"ff": "dash"},
+   "fury": "EX 236236C",
+   "unlock": "always",
+   "voices": "kof"
   }
  ],
  "roster_benched": {
@@ -1312,7 +1329,18 @@
    },
    "palette": {"set": 2},
    "moves": "jabs"
-  }
+  },
+  {"name": "OMEGA_RUGAL", "base": "omega_rugal", "stand_in": "yashiro", "life": 256, "power": 1, "damage_out": 0.5, "ai": "boss", "hud": "fighter",
+   "ai_over": {"rest_shift": 4, "rest_random": 15, "bspec_chance": 32, "jump_chance": 6},
+   "boss_ai": {
+    "about": "(as RUGAL; Omega Rugal, roster omega_rugal)",
+    "guard": {"chance": 136, "dx": 96, "dz": 12, "hold": 16, "max": 4, "rest": 26},
+    "run": {"chance": 190, "from": 110, "stop": 40},
+    "grab": {"immune": 96, "counter": 96, "delay": 8},
+    "red": {"low": 30, "rest": 420, "dx": 130, "max": 1},
+    "ready_shift": 2,
+    "combos": ["A A A", "A A fA", "A dC", "run A", "jump A A", "A A uA", "A uC", "A A dA", "grab", "A A C D"]
+   }}
  ],
  "stage_intro": {
   "about": "Every campaign stage's start (voice note 20261014-192343-5d29; main.c 'the stage intro'): black, the background fades in (palette fade over `fade` ticks, nobody on screen, no HUD), `title` on the fix layer from `title_at` for `title_hold` ticks ({name} = the stage's name), at `walk_at` the players walk in (`gait` walk | run, their own speed, input locked) from `from` px outside the `side` edge to their `marks` ([x px from that edge, z] P1, P2), the HUD back, then control and `wave_delay` ticks later the first wave. Ticks from the stage's start (60 a second). A stage's own `intro` (same fields) overrides these. A new game, stage 2+, after a bonus game, a new game from CONTINUE on the title: all play it; the attract demo and the Lab's starts do not. Edited in the Factory's Levels tab (levels.py intro).",

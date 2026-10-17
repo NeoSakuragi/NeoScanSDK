@@ -87,7 +87,7 @@ def roster(names=None):
     for r in g['roster'] + [y for y in (g.get('roster_benched') or {}).get('fighters', []) if y.get('lab')]:   # (+ Lab-only)
         game, name = r['bank'].split(':')
         if names and r['name'] not in names: continue
-        if game in MAPPER: out.append((r['name'], game, name, CAST[game].index(name)))
+        if game in MAPPER: out.append((r['name'], game, name, export96.cid_of(game, name, CAST[game])))   # (an EX version: its base id)
         elif game in OWN: out.append((r['name'], game, name, OWN[game]['cast'][name]))
     return out
 
@@ -247,12 +247,13 @@ print(json.dumps(out))
     return {int(k): v for k, v in json.loads(r.stdout.strip().split('\n')[-1]).items()}
 
 # ---- the listing ----
-def specials_of(game, cid):
-    """[(try, special entry or None, g0)]: the captured specials of the voices pass, by the bank's own rules (specials96.load)"""
+def specials_of(game, cid, tags=('', '_max', '_sdm', '_close', '_ex')):
+    """[(try, special entry or None, g0)]: the captured specials of the voices pass, by the bank's own rules (specials96.load;
+    an EX version, export96.FORMS: its EX pass only, as its export reads them)"""
     import specials96 as S, analyze as A
     m = mem(game); d = cap_dir(game); out = []
     seen, first_of = set(), {}
-    for tag in ('', '_max', '_sdm', '_close', '_ex'):
+    for tag in tags:
         p = os.path.join(d, f'{cid}{tag}.txt')
         if not os.path.exists(p): continue
         T = json.load(open(os.path.join(d, f'{cid}{tag}.json')))
@@ -328,7 +329,7 @@ def build_list(names=None):
             inv = slot_states(m, cid)
             for slot, step, ix in fc_records(m, cid):
                 uses.append((word(m, ix), ix, {'kind': 'anim', 'slot': slot, 'states': inv.get(slot, [])[:6], 'step': step}))
-            for tag, tr, e, g0, W in specials_of(game, cid):
+            for tag, tr, e, g0, W in specials_of(game, cid, *((('_ex',),) if export96.form_of(game, name) else ())):
                 if e is None or g0 is None: continue
                 s = tr['start']; end = s + tr.get('gap', 220) - 4
                 for f, w, ix, a4 in W:
@@ -362,8 +363,9 @@ def build_list(names=None):
         # a word several characters' animations use (3+ of the cast), or 3+ roster fighters' captures send, is common
         # (the super flash $1D11 / index $8A in KOF98...)
         sent = {}
-        for rname, (cid, us) in per.items():
-            for w, ix, u in us: sent.setdefault(w, set()).add(rname)
+        who = {rn: (export96.form_of(game, n) or {}).get('base', rn) for rn, n, c in fs}   # (an EX version counts as its
+        for rname, (cid, us) in per.items():                                              #  base: one character's words)
+            for w, ix, u in us: sent.setdefault(w, set()).add(who[rname])
         for rname, name, cid in fs:
             cid, uses = per[rname]
             voices = {}
