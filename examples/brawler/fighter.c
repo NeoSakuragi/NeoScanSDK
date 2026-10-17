@@ -3038,6 +3038,11 @@ static fighter_t *proj_alloc(fighter_t *owner) {
     }
     return 0;                                                    /* pool empty: this special shows no objects */
 }
+void projectiles_drop(const fighter_t *owner) {
+    uint8_t i;
+    for (i = 0; i < NPJ; i++) if (projectiles[i].state == S_PROJ && projectiles[i].owner == owner) projectile_reset(&projectiles[i]);
+}
+static void proj_end(fighter_t *p);
 static void special_end(fighter_t *f) {
     uint8_t k;
     if (f->tev) sg_release(f);                                   /* (THE THROW EVENTS: a victim still held is launched) */
@@ -3048,7 +3053,12 @@ static void special_end(fighter_t *f) {
     f->vtgt = 0;
     if (f->target && f->target->zfront < 0) f->target->zfront = 0;   /* its victim list's draw order (VE_BACK) ends with it */
     f->pbd = 0; f->spec_sr = 0; f->pstill = 0;                   /* its screen effect (P_SCREEN), its source reactions */
-    for (k = 0; k < 2; k++) if (f->proj[k]) { projectile_reset(f->proj[k]); f->proj[k] = 0; }
+    for (k = 0; k < 2; k++) if (f->proj[k]) {                    /* its pinned effects go with it; a bound object */
+        fighter_t *p = f->proj[k];                               /* (PJ_BOUND) plays its end rows in place, free */
+        if (p->state == S_PROJ && p->pdef && (p->pdef->air & PJ_BOUND) && !p->pend) proj_end(p);   /* of him */
+        else projectile_reset(p);
+        f->proj[k] = 0;
+    }
     f->frame_ovr = 0xFFFF; f->spec_atk = 0;                      /* height kept: hit out of a rising move = an air hit */
     if (f->fpose) { f->fpose = 0xFF; fpose_pal(f, 0); }       /* the fury over (or ended in its flash pose): its colours
                                                                     back (TODO #195: SS2's rage colours stay through the
@@ -3294,6 +3304,11 @@ static void proj_update(fighter_t *p, int16_t cam_x) {          /* one frame of 
     const bproj_t *d = p->pdef;
     int16_t sx;
     if (d->kind == PK_SEG) return;                               /* a boomerang's pole segment: placed by it */
+    if (p->owner && (p->owner < projectiles || p->owner >= projectiles + NPJ) &&
+        (p->owner->state == S_OFF || p->owner->state == S_DEAD)) { projectile_reset(p); return; }   /* its thrower KO'd /
+                                                                    gone (his slot may be respawned): nothing of his
+                                                                    stays on (note 20261017-012121-e03d; a hit spark of
+                                                                    a projectile's hit keeps playing) */
     if (!p->tick) {                                              /* its first frame: row 0; a step effect takes its */
         p->tick = 1;                                             /* owner's animation and step as they are now, after */
         if ((d->follow & 8) && p->owner) { p->fx_pan = p->owner->pan; p->fx_step = p->owner->pstep; }   /* the owner's code
@@ -3678,7 +3693,11 @@ static void prog_fxoff(fighter_t *f) {                           /* its pinned e
     uint8_t k;                                                   /* or launch: an object with a next phase becomes it */
     for (k = 0; k < 2; k++) {                                    /* where it is (vocabulary object.phase: Billy's fire */
         fighter_t *p = f->proj[k];                               /* ring, pinned, then flying, TODO #152) */
-        if (!p || !p->pdef || !p->pdef->follow) continue;
+        if (!p || !p->pdef || !(p->pdef->follow || (p->pdef->air & PJ_BOUND))) continue;
+        if (p->pdef->air & PJ_BOUND) {                           /* a bound object: freed at once (KOF99 K''s flame on */
+            if (p->pdef->next) p->pend = 4; else projectile_reset(p);   /* +$D1 bit 7, $3929E: the follow-up's own */
+            f->proj[k] = 0; continue;                            /* objects take over) */
+        }
         if (p->pdef->follow & 32) continue;                      /* it never reads the bit: it plays on (KOF98 Kyo's
                                                                     Orochinagi flame $3D83E, TODO #202) */
         if (p->pdef->next) p->pend = 4;                          /* launched from the next frame (proj_launch) */
@@ -3693,8 +3712,13 @@ static void prog_spawn(fighter_t *f, const bproj_t *d) {
     if (!p) return;
     if (f->kn_n) knob_proj(p, f);
     if (d->follow & 8) return;                                   /* a step effect: it ends itself (proj_update) */
-    if (d->follow || d->kind == PK_BOOM) { if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p; }   /* (a
-                                                                    boomerang ends with the special: SS2 $4C434) */
+    if (d->follow || d->kind == PK_BOOM || (d->air & PJ_BOUND)) {   /* held by the special (a boomerang ends with it: SS2
+                                                                    $4C434; a bound object: PJ_BOUND) */
+        if (!f->proj[0]) f->proj[0] = p; else if (!f->proj[1]) f->proj[1] = p;
+        else if ((d->air & PJ_BOUND) || (d->follow && !(d->follow & 14))) projectile_reset(p);   /* (no slot left: one
+                                                                    only its special's end ends is not born, else it
+                                                                    would never end) */
+    }
     else if (!(d->air & PJ_PLACED)) f->shot = p;                 /* (a placed effect: no shot, it ends itself) */
 }
 /* a victim list's release flight (KOF 283, the blowback), sent dir (+1: the attacker's forward): the list's own velocity
@@ -5808,6 +5832,8 @@ static void view_bounds(const fighter_t *f, int16_t *lo, int16_t *hi) {   /* scr
 
 void fighter_init(fighter_t *f, const bchar_t *ch, uint8_t set, uint8_t palbase, uint8_t team, int16_t x, int16_t z) {
     uint8_t i;
+    projectiles_drop(f);                                         /* the slot's last fighter's objects go with him (a wave
+                                                                    respawning the slot: note 20261017-012121-e03d) */
     *f = (fighter_t){ 0 };                                       /* nothing left from the demo or the last fight */
     f->ch = ch; f->set = set; f->palbase = palbase; f->team = team;
     for (i = 0; i < ch->npal && i < MAX_PALS; i++) PAL_setPalette(palbase + i, ch->pals + ((set * ch->npal + i) << 4));

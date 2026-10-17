@@ -867,6 +867,7 @@ class Obj:
         if c == 'sig7c':
             e = bool(self.sig & 0x80); self.sig &= 0x7F; return e
         if c == 'owner_fxoff': return self.owner is not None and self.owner.fxoff
+        if c == 'owner_D1.6': return self.owner is not None and bool(self.owner.sig & 0x40)   # (+$D1 bit 6: owner_bound)
         if c == 'evstep': return self.event           # +$7D bit 7: the step's $0080 unless the code cleared it
         if c == 'window': return self.steps is not None and bool(self.steps[self.step][2] & 0x2000)
         if isinstance(c, str) and c.startswith('link:'): return bool(self.links & int(c[5:]))
@@ -1573,12 +1574,12 @@ def openings(m, cid, prog, frames=300, presses=None, held=0, h=0.0):
         if o.h > top: top, peak = o.h, f
     return per, last, peak, frames
 
-def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None, cycle=False, launch=False):
+def object_rows(m, cid, ob, owner_x=0.0, frames=240, fxoff_at=None, cycle=False, launch=False, sig6_at=None):
     """an object's flight from the model: rows [rom frame, x from the thrower's place at the spawn (forward +),
     height, live attack box (type x y w h) or None, own box (slot 1) or None], loop (row the flight repeats from, None:
     it ends), follow (pinned to its owner: x / height are offsets from it). fxoff_at: the object's frame on which its
     owner sets +$D1 bit 7 (P_FXOFF: a pinned effect that watches it plays its end then, Raging Storm's pillars)"""
-    return _object_rows(m, cid, ob, frames, fxoff_at, cycle, launch)[:3]
+    return _object_rows(m, cid, ob, frames, fxoff_at, cycle, launch, sig6_at)[:3]
 
 def placed_once(m, cid, ob):
     """the object's code calls $24A02 (the owner's x / y / z + its +$D2 / +$D4 offset copied) only as it starts, before
@@ -1589,7 +1590,17 @@ def placed_once(m, cid, ob):
     if not any(op[0] == 'follow' for a, op in ob['ops']): return False
     return not _object_rows(m, cid, ob, 240, None, False, False)[3]
 
-def _object_rows(m, cid, ob, frames, fxoff_at, cycle, launch):
+def owner_bound(ob):
+    """an object whose code reads its owner's flags (+$D1 bits 7 / 6, +$E2 ...: a branch 'owner_*') and is not pinned
+    (no 'follow'); when it also has no end of its own (export_rom: the model's rows reach the cap): its life is its owner's move, it frees itself (or plays its end) on his signal, being hit included,
+    with no end of its own (K' 236A/C Ein Trigger's flame, KOF99 $39250: free on +$D1 bit 6 (the move over, $390E2) or
+    +$E2 bit 2, its end animation 252 on +$D1 bit 7 (a follow-up)). The model has no owner to signal it: its rows run
+    to the 240-frame cap, so the brawler ends it with its thrower's special (bproj_t air PJ_BOUND, note
+    20261017-012121-e03d: the flame stayed 4 s after K''s move)"""
+    return not any(op[0] == 'follow' for a, op in ob['ops']) and \
+        any(op[0] == 'br' and isinstance(op[1], str) and op[1].startswith('owner_') for a, op in ob['ops'])
+
+def _object_rows(m, cid, ob, frames, fxoff_at, cycle, launch, sig6_at=None):
     """object_rows' model run -> rows, loop, follow, late (its $24A02 ran on a frame after its first)"""
     c = Obj(m, cid, ob, x=0.0, h=0.0, vx=ob['vx']); c.resume = 0; c.kind = None; c.rearm = False
     follow = any(op[0] == 'follow' for a, op in ob['ops'])
@@ -1598,9 +1609,11 @@ def _object_rows(m, cid, ob, frames, fxoff_at, cycle, launch):
     # (cycle: a first phase that loops until its owner's signal, object_phases)
     # (one whose program ends it itself, a counter / its animations (Goenitz's Yonokaze), plays to its end)
     if follow: c.owner = Obj(m, cid, {'ops': [], 'objects': []}); c.ofs = (ob['dx'], ob['dy'])
+    elif owner_bound(ob): c.owner = Obj(m, cid, {'ops': [], 'objects': []})   # (not pinned: only its signal is read)
     rows, live, seen = [], None, {}
     for f in range(frames):
-        if follow and fxoff_at is not None and f == fxoff_at: c.owner.fxoff = True
+        if c.owner is not None and fxoff_at is not None and f == fxoff_at: c.owner.fxoff = True
+        if c.owner is not None and sig6_at is not None and f == sig6_at: c.owner.sig |= 0x40   # (its move over)
         if f == 0 and not launch: c.frame(None)       # never off screen: the brawler tests that itself (launch: an
                                                       # object already alive, its animation advanced that frame)
         else: c.tick(None)
@@ -2042,6 +2055,13 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
                     end = [[add(r[0]), 0, 0] for r in rf[FXOFF_AT:]]; follow = int(follow) | 64   # (the release's glow
                                                        # $3D7E6: 243, then 244 to its end; one that only stops following and
                                                        # plays on, Rugal 6426B's $7F1CC, keeps P_FXOFF's end: it ends there)
+        bound = not follow and not ph and loop is None and len(rows) >= 240 and owner_bound(ob)   # no end of its own
+                                                       # in the model (its owner's signal ends it, Mr. Big's 23623C
+                                                       # sticks end themselves): its life is its thrower's move (PJ_BOUND): the end
+        if bound and not end:                          # rows it plays in place once he signals the move over (+$D1 bit
+            rf, _, _ = object_rows(m, cid, ob, sig6_at=FXOFF_AT)   # 6; KOF99 K''s flame: 252, also when he is hit)
+            if len(rf) > FXOFF_AT and [r[0] for r in rf[FXOFF_AT:]] != [r[0] for r in rows[FXOFF_AT:len(rf)]]:
+                end = [[add(r[0]), 0, 0] for r in rf[FXOFF_AT:]]   # (in place)
         placed = bool(follow) and not follow & 64 and placed_once(m, cid, ob)   # placed once at its owner, world-
         if placed: follow = 0                          # anchored: its rows from its spawn place and height (bproj_t air
                                                        # PJ_PLACED), it ends at its last row (KOF frees it at its
@@ -2051,7 +2071,7 @@ def export_rom(m, cid, inp, add, game='kof98', shared=True):
                      'kind': (rows[0][6] if ph and rows and rows[0][6] else ob['kind']) or 3,
                      'follow': int(follow), 'hit_kind': hitkind, 'react': rx or 'knockdown', 'spawn_row': 0, 'spawn_x': 0, 'spawn_y': 0,
                      'state': ob.get('state'), 'sig': se | (sh & ~se & 0xC0) >> 2, 'next': nxt,
-                     'stop': PROJ_STOP3 if nxt else 0, **({'placed': True} if placed else {}),
+                     'stop': PROJ_STOP3 if nxt else 0, **({'placed': True} if placed else {}), **({'bound': True} if bound else {}),
                      'rearm': int(bool(nxt))})   # its re-arming rows (bprow_t flags 4): a phased object's (object.phase)
     step_fx = []                                       # its animations' effect records (anim.step_spawn, TODO #173): an
     fxdefs = {}                                        # object each (deduped by state / offset), spawned as its step starts

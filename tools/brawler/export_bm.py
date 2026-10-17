@@ -1007,10 +1007,11 @@ def projectile_c(n, k, pjs, game, sp):
                 f'{nxt}, {pj.get("phase_hits", 0)}, {pj.get("stop", 0)}, {1 if pj.get("hitnext") else 0}, ' +
                 (f'0, {bm["range"]}, {bm["catch"]}, {bm["seg_min"]}, {bm["hover"]}, {bm["held"]}, {bm["segs"]}, {bm["gap"]}, 0, 0'
                  if bm else   # a boomerang's flight (spawn.boomerang)
-                 f'{(1 if pj.get("away") else 0) | (2 if pj.get("jreset") else 0) | (4 if pj.get("fwd") else 0)}, 0, 0, 0, 0, 0, 0, 0, {(1 if pj.get("air") else 0) | (2 if pj.get("placed") else 0)}, {1 if pj.get("back") else 0}') +
+                 f'{(1 if pj.get("away") else 0) | (2 if pj.get("jreset") else 0) | (4 if pj.get("fwd") else 0)}, 0, 0, 0, 0, 0, 0, 0, {(1 if pj.get("air") else 0) | (2 if pj.get("placed") else 0) | (4 if pj.get("bound") else 0)}, {1 if pj.get("back") else 0}') +
                                                          # ppad 1: its victims sent away from its thrower (TODO #193); air
                                                          # 1: born in the air (TODO #211, SS2 Hanzo's shuriken), 2: placed
-                                                         # (a world-anchored effect, handlers98.placed_once); back 1:
+                                                         # (a world-anchored effect, handlers98.placed_once), 4: bound
+                                                         # (its life its thrower's special, handlers98.owner_bound); back 1:
                                                          # behind its owner (TODO #214)
                 f', {pj_cols(pj)}, {pj.get("vhits", 0) | pj.get("vmax", 0) << 4}' + '}')   # cols: its widest frame (main.c
                                                          # depth_sort's block, TODO #216); vhits: a piercing object's hits

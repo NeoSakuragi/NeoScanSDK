@@ -736,6 +736,11 @@ extern uint8_t hitflash;           /* hit (main.c screen_fx: red 2, 3, 6, 7 fram
                                       once as it starts, $24A02 before its first resume, Kyo's 623A / 623C fires): its rows
                                       from its thrower's place AND height at its spawn, then it stays there whatever he
                                       does; not a shot (KOF: no +$E1 bit 5), it ends itself at its last row */
+#define PJ_BOUND  4                /* its life is its thrower's special (handlers98.owner_bound, note 20261017-012121-e03d:
+                                      KOF's object that reads its owner's +$D1 / +$E2 flags and has no end of its own,
+                                      K' 236A/C Ein Trigger's flame $39250): world-anchored like a shot, but held in the
+                                      thrower's proj[] like a pinned effect: the special's end (its own end, a cancel, its
+                                      thrower hit) plays its end rows in place (none: gone), P_FXOFF (a follow-up) frees it */
 #define FL_HSTOP 128               /* bproj_t follow bit (docs/brawler_gold.md "engine features"): a pinned effect holds on its
                                       owner's hit-stop frames (fighter_t.hs_now): its row, timer and place stay, so it stays in
                                       step with him (SS2's pinned objects, export_ss2.hold_pinned: Tenha's wind); unset: it
@@ -748,6 +753,7 @@ extern uint16_t stat_grabs, stat_specials, stat_throws, stat_escapes;   /* by en
 #define PJ_COLS 10                /* the projectile pool's sprites per entity on average: NPJ * PJ_COLS shared by width (main.c block_w) */
 extern fighter_t projectiles[NPJ];
 void projectile_reset(fighter_t *p);
+void projectiles_drop(const fighter_t *owner);   /* every projectile entity of this thrower freed (its slot respawned) */
 void projectiles_update(int16_t cam_x, uint16_t skip);   /* the independent projectiles' flight, after the fighters' update;
                                      skip: entities not updated, bit k = projectiles[k], bit 8 = in a super flash (the ones alive
                                      when it started, frozen; its attacker's effects born in it run, KOF98's priority $5001 objects) */

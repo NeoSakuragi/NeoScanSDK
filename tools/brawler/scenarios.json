@@ -5860,5 +5860,18 @@
   "expect": "Three enemies (four before), each tougher (78 life, 60 before). They no longer only walk up and jab: they run in (and dash-attack), jump in with an air attack, back-hop, guard some of your attacks (one hit at most, the next one breaks it), fire their projectile, rush in with their forward special from mid range, answer a jump with their anti-air, punish a whiffed attack, and a second one coming at you takes your other side. Every attack still shows its wind-up first (readable).",
   "do_keys": "",
   "proof": 600
+ },
+ "20261017-012121-e03d": {
+  "title": "K': Ein Trigger's flame ends with his move",
+  "setup": {
+   "mode": "lab",
+   "fighter": "k_dash",
+   "dummy": "terry",
+   "gap": 200
+  },
+  "do": "Press C (K's Ein Trigger) and let the move finish without a follow-up, then wait two seconds.",
+  "expect": "The flame at K's fist burns out as his move ends (about a quarter of a second) and nothing is left on screen; it no longer stands there for 4 seconds after he walks off. An enemy K' does the same, and when he is hit or knocked out his flame goes with him.",
+  "do_keys": "4:c,150:-",
+  "proof": 120
  }
 }
