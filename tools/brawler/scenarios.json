@@ -1,4 +1,17 @@
 {
+ "20261017-121458-e03d": {
+  "title": "Super Death Blow bonus: the 3-2-1 pile of full-height trunks, the upper rows above the screen",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Look at the pile at the start, then walk right to it and keep attacking (A, B, C, low or high). Break the bottom trunks and watch the ones above them come down.",
+  "expect": "Six trunks, each as tall as the original post (128 px, not squashed): three on the floor across the bottom, two standing on them reaching above the top of the screen, and the sixth one completely above the screen (not visible at first). Nothing shows up at the bottom of the screen from the off-screen trunks. When the trunks under one are broken it falls into view and lands on what is left under it or on the floor; the top one comes down from above the screen. Your hits land on the trunk you touch (cracks after 2, 3 and 5 hits, broken at 6). POSTS counts 6 down to 0 well within the 40 s clock, then the referee announces the fury unlock.",
+  "do_keys": "60:R,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-",
+  "proof": 240
+ },
  "20261017-114940-e03d": {
   "title": "Map at the stage start: STAGE 1 in the big blinking font, only SLUM / POLICE / GEESE TOWER",
   "setup": {

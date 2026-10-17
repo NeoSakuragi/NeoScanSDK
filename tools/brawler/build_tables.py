@@ -1685,7 +1685,8 @@ def bonus_check(g, songs_known, sfx_names=None):
                     f"bonus game {x['id']}: pile.trunks: 1-{GB_TRUNKS} [x -8..264 (the post's left edge on screen), layer 0-3]"
                 lift = pl.get('lift', 0)
                 assert isinstance(lift, int) and 0 <= lift <= 64, f"bonus game {x['id']}: pile.lift 0-64 px"
-                assert 224 - lift - (max(t[1] for t in tr) + 1) * th >= 16, f"bonus game {x['id']}: pile: its top layer off the screen's top (lift + layers x trunk_h)"
+                assert 224 - lift - (max(t[1] for t in tr) + 1) * th >= -272, \
+                    f"bonus game {x['id']}: pile: its top layer over y -272 (note 20261017-121458-e03d: over the screen's top is fine, the 9-bit sprite Y (496 - y) would wrap it onto the screen's bottom lines at 224 - 512)"
                 for i, (tx, tl) in enumerate(tr):
                     assert all(abs(tx - ux) >= TRUNK_W for j, (ux, ul) in enumerate(tr) if j != i and ul == tl), \
                         f"bonus game {x['id']}: pile.trunks[{i}]: overlaps another trunk of layer {tl} (x {TRUNK_W} px apart at least)"

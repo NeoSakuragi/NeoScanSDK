@@ -4108,7 +4108,11 @@ static int16_t bn_trunk_top(uint8_t k) {         /* its screen y (the floor = th
                                                     pile.lift: note 20261017-063200-e03d reopen, "make them sit 16 px higher") */
     return (int16_t)(bonus_post[0].y + (bonus_post[0].h << 4) - bn_g->trunk_lift - (bn_tr[k].h >> 4) - bn_g->trunk_h);
 }
-static void bn_trunk_show(uint8_t k) {
+static void bn_trunk_show(uint8_t k) {          /* (note 20261017-121458-e03d: full 128 px trunks, the upper rows over
+                                                    the screen's top, top y down to -160: SCB3's 9-bit Y = (496 - y) & 0x1FF
+                                                    puts a sprite there over the screen, it would wrap onto the bottom lines
+                                                    only with its top over y 224 - 512 (build_tables refuses such a pile);
+                                                    a trunk only ever falls, so its top only grows) */
     const bonus_obj_t *o = &bonus_post[bn_tr[k].img];
     int16_t dx = bn_tr[k].thud ? ((bn_tr[k].thud & 2) ? 2 : -2) : 0;
     bn_put(BN_PILE_SPR + k * bonus_post[0].w, o, bn_tr[k].x + o->x - bonus_post[0].x + dx, bn_trunk_top(k), 0, 0xF,
