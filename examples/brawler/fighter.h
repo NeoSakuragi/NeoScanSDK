@@ -114,7 +114,10 @@ enum { RI_A, RI_B, RI_DA, RI_CA, RI_FA, RI_BA, RI_DFA,             /* normal lin
        RI_S = 9, RI_FS, RI_DS, RI_US, RI_DFS, RI_UFS,                      /* special links (enders): C, forward / down / up /
                                                                               down-forward / up-forward + C (slot 8: RI_THEN) */
        RI_N = 15 };
-enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8, RF_HEAVY_SFX = 16, RF_LAB = 32 };   /* RF_LAB (2026-10-10, the
+enum { RF_SPECIAL = 1, RF_AIR = 2, RF_KEEP = 4, RF_THROW = 8, RF_HEAVY_SFX = 16, RF_LAB = 32, RF_AIR_SAME = 64 };   /* RF_AIR_SAME
+                                                         (note 20261017-141149-e03d reopened, routes.py "air": "same"): its reaction
+                                                         hits an airborne victim as a grounded one (react: the same flight from
+                                                         where it is), not the engine's air hit (a low re-launch: a juggle) */   /* RF_LAB (2026-10-10, the
                                                          Character Lab's chain presses, fighter.c lab_node): the node plays the
                                                          LAB ENTRY in its speed word (an animation $NN of the Lab build's
                                                          fighter, LE_SPEC | k a special of his pool) instead of a move, P1

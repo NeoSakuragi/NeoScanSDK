@@ -20,6 +20,9 @@ A routes file (tools/brawler/routes/<fighter>.json, written by hand or by the Ch
             "speed": 1.25,                                   # optional: playback speed, x KOF's timing (0.25-4; 1 left out),
                                                              # 8.8 fixed point in the game (rnode_t.speed)
             "damage": 3, "push": 3,                          # optional (advanced): default from weight / effect
+            "air": "same",                                   # optional: its reaction hits an airborne victim as a grounded
+                                                             # one (RF_AIR_SAME: the same flight, not the engine's air hit,
+                                                             # a low re-launch that juggles; note 20261017-141149-e03d)
             "sound": "heavy",                                # optional: its hits sound as a heavy normal's (RF_HEAVY_SFX), or
             "sound": ["11", "13"],                           # its hits' own sound commands in order (hex; Kim's picks on the
                                                              # Lab sounds page, 2026-10-09), per move in the fighter's ROM
@@ -65,7 +68,7 @@ AIR_MOVE_NAMES = list(AIR_MOVES.values()) + ['atk_a_jump', 'atk_b_jump', 'atk_ab
 ENTRIES = ['dash', 'nospecial', 'hold', 'air_a', 'air_b', 'air_cd']
 WEIGHTS = ['light', 'strong']
 EFFECTS = ['none', 'knockdown', 'launch', 'trip', 'blowback', 'slam']                    # fighter.h RE_* (slam: revamp 1A)
-RF_SPECIAL, RF_AIR, RF_KEEP, RF_THROW, RF_HEAVY_SFX = 1, 2, 4, 8, 16   # (RF_HEAVY_SFX, Kim queue 2026-10-09: "sound": "heavy", its hits sound as a heavy normal's)
+RF_SPECIAL, RF_AIR, RF_KEEP, RF_THROW, RF_HEAVY_SFX, RF_AIR_SAME = 1, 2, 4, 8, 16, 64   # (RF_HEAVY_SFX, Kim queue 2026-10-09: "sound": "heavy", its hits sound as a heavy normal's)
 ARCHETYPES = ['fast', 'balanced', 'heavy']                                               # rt_head_t.arch - 1 (revamp 1A)
 NODE_SIZE, HEAD_SIZE, RI_N, MAX_NODES = 24, 16, 15, 128                                  # tree version 4 (TREE_VERSION)
 TREE_VERSION = 4
@@ -140,7 +143,7 @@ def enemy_preset(name, own):
 # before): routes that start with the same inputs AND the same hits there share those nodes (a trunk); two routes with
 # the same inputs up to a step but a different hit there cannot both be in the game (it picks the next hit by input
 # alone): a conflict, reported (which routes, which step, what differs) and the build refused.
-HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop', 'sound')   # (throw, hitstop: a chain tree's nodes)
+HIT_FIELDS = ('move', 'special', 'weight', 'effect', 'keep', 'speed', 'damage', 'push', 'throw', 'hitstop', 'sound', 'air')   # (throw, hitstop: a chain tree's nodes)
 
 
 def hit_of(nd):
@@ -149,7 +152,7 @@ def hit_of(nd):
     dd, dp = default_damage(nd)
     return {'move': nd.get('move'), 'weight': nd.get('weight', 'light'), 'effect': nd.get('effect', 'none'),
             'keep': bool(nd.get('keep')), 'speed': speed_fx(nd), 'damage': nd.get('damage', dd), 'push': nd.get('push', dp),
-            'sound': nd.get('sound')}
+            'sound': nd.get('sound'), 'air': nd.get('air')}
 
 
 def sound_codes(nd):
@@ -273,6 +276,8 @@ def encode(tree, moves, has=None, specials_have=None):
             assert m in (AIR_MOVE_NAMES if air else MOVE_NAMES), f'{where}: {m} is not an {"air" if air else "ground"} move'
             assert has is None or air or m in has, f'{where}: the fighter has no {m}'
             anim, flags = moves.index(m), (RF_AIR if air else 0) | (RF_KEEP if nd.get('keep') else 0) | (RF_HEAVY_SFX if nd.get('sound') == 'heavy' else 0)
+            assert nd.get('air') in (None, 'same'), f'{where}: air {nd.get("air")}: "same" or left out'
+            if nd.get('air') == 'same': flags |= RF_AIR_SAME
             if nd.get('throw'):                                                         # the chain's back throw (revamp 1A)
                 assert not air and not nd.get('links'), f'{where}: a throw ends a ground chain'
                 flags |= RF_THROW
@@ -439,7 +444,7 @@ def chain_base(base, has):
     out = {}
     for nd in _main_line(base, ok) + [nd for _, nd in _ground_pieces(base)]:
         if ok(nd['move']) and nd['move'] not in out:
-            out[nd['move']] = {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound') if k in nd}
+            out[nd['move']] = {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound', 'air') if k in nd}
     return out
 
 
@@ -467,7 +472,7 @@ def chain_tree(name, base, cfg, has):
     mul = cfg.get('damage', 1)
     ok = lambda m: m in has
     pieces = [(p, nd) for p, nd in _ground_pieces(base) if ok(nd['move'])]
-    clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound') if k in nd}
+    clean = lambda nd: {k: nd[k] for k in ('move', 'weight', 'effect', 'speed', 'push', 'damage', 'sound', 'air') if k in nd}
     noeff = lambda nd: nd.get('effect', 'none') == 'none'
     main = _main_line(base, ok)
     pool = [nd for nd in main if noeff(nd)]
@@ -574,6 +579,12 @@ def chain_tree(name, base, cfg, has):
             while f is not None:                                    # plays to its end, then the buffered press takes its
                 if 'move' in f: f['keep'] = True                    # link (RF_KEEP); the C / fury cancels unchanged
                 f = f.get('then')
+    fkey = {'neutral': 'A', 'forward': 'fA', 'up': 'uA', 'down': 'dA', 'df': 'dfA'}
+    for k, v in (fin.get('air') or {}).items():                    # roster[].finishers.air {finisher: "same"} (note
+        assert k in fkey and fkey[k] in finals and v == 'same', f'{name}: finishers.air.{k} {v}'   # 20261017-141149-e03d):
+        f = finals[fkey[k]] = dict(finals[fkey[k]])                  # its last move's reaction hits an airborne victim as a
+        while f.get('then'): f['then'] = dict(f['then']); f = f['then']   # grounded one (RF_AIR_SAME)
+        f['air'] = 'same'
     finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hs[-1]}
     spl = lambda: {k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}
     def cls(nd, scale):                                              # an entry / jump-cancel: its own damage x the scale,
