@@ -4903,9 +4903,19 @@ static void update(fighter_t *f, const intent_t *in) {
                 f->frame_ovr = 0xFFFF; lab_note(f, LE_SPECIAL, 0, LH_NEUTRAL, k == BS_FORM ? BS_FORM : BS_FURY); start_special(f, k); break;
             }
         }
-        if (f->anim_done) to_neutral(f, 0);
+        if (f->anim_done) {
+            if (f->hp <= 0) {                                    /* its life taken while it got up (main.c enemies_down: a
+                                                                    boss beaten): the death, as S_DOWN's end; standing at 0
+                                                                    life it never died and the stage waited for it forever
+                                                                    (hw_strict_proof 2026-10-17: no finale after Geese) */
+                enter(f, S_DEAD); if (!f->ko_voice) voice_play(f->ch, f->team, VK_KO);
+                f->ko_voice = 0;
+                break;
+            }
+            to_neutral(f, 0);
+        }
         break;
-    case S_GUARD:                                                /* the guard (T9, "guard"): held; a blocked hit's guard */
+    case S_GUARD:                                               /* the guard (T9, "guard"): held; a blocked hit's guard */
         if (in->face) f->facing = in->face;                      /* stun slides it back (vx) and keeps it in the pose */
         if (f->gd_stun) {
             f->gd_stun--; f->x += f->vx; f->vx -= f->vx >> 2; clamp(f);
