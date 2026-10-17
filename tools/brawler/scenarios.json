@@ -40,15 +40,15 @@
   "proof": 240
  },
  "20261017-114940-e03d": {
-  "title": "Stage start: one big message, STAGE 1 START with the map, nothing after",
+  "title": "Stage start: the map 2 s on a black screen, then a slower fade-in",
   "setup": {
    "mode": "select",
    "cursor": "terry"
   },
-  "do": "Pick Terry (A) and watch the map that opens over the stage's fade-in, without touching anything.",
-  "expect": "STAGE 1 START slides in at the top in the big Savage Reign letters, blinks (white flashes), then stays until the map closes. The map shows only the campaign's three stages: SLUM, POLICE and GEESE TOWER, SLUM (the stage in play) blinking. When the map closes, the stage fades in and Terry walks in with NO second big message (no STAGE 1 START again). Every stage's start does the same with its own number.",
-  "do_keys": "30:-,3:a,600:-",
-  "proof": 120
+  "do": "Pick Terry (A) and watch the stage start without touching anything.",
+  "expect": "STAGE 1 START (big letters) and the map show on a fully black screen for 2 seconds: nothing of the stage behind them. Then the map and the message go, the stage fades in from black over about a second (twice as slow as before), and Terry walks in as soon as it is fully in. No second big message.",
+  "do_keys": "30:-,3:a,330:-",
+  "proof": 60
  },
  "20261017-114857-e03d": {
   "title": "Select: LOCKED / BEAT THE GAME / FIRST on three lines over the locked silhouette",
@@ -6119,6 +6119,62 @@
   "do": "Press forward, forward + A; then forward + C, down + C and up + C.",
   "expect": "Forward, forward + A plays his KOF98 forward + A kick (a single hit, no meter), no longer the Hien Senpuu Kyaku. Forward + C plays the Hien Senpuu Kyaku (the old ff + A move, a special: one drive chunk). Down + C = the Ryuugeki Ken fireball, up + C = the dance (Ryuuren Gen'ei Kyaku), C = the Ryuuga as before.",
   "do_keys": "1:R,1:-,1:R,1:Ra,90:-,1:Rc,120:-",
+  "proof": 60
+ },
+ "20261017-132838-e03d": {
+  "title": "Stage clear: the win pose first, 2 s later STAGE CLEAR with the map",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 5,
+   "wait": 150,
+   "alone": true,
+   "foe_hp": 1,
+   "gap": 50
+  },
+  "do": "Stage 1, Mr. Big alone with 1 life point, Terry in front of him. Hit him (A), then watch without pressing anything.",
+  "expect": "Mr. Big falls; no message yet: Terry plays his win pose. 2 seconds later STAGE CLEAR (big letters) and the Final Fight map come up together, SLUM blinking; then the map goes, Terry's big win portrait, then the bonus game screen.",
+  "do_keys": "4:a,760:-",
+  "proof": 60
+ },
+ "20261017-131927-e03d": {
+  "title": "Stage-clear map: the stage just cleared blinks",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 1
+  },
+  "do": "Stage 2. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat), then watch the map.",
+  "expect": "After the win pose, STAGE CLEAR and the map: POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). Under the map: NEXT BONUS GAME.",
+  "do_keys": "190:Dabcd,330:-",
+  "proof": 60
+ },
+ "20261017-132400-e03d": {
+  "title": "The map at every stage clear, also with the stage-clear cheat",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 0,
+   "wave": 1
+  },
+  "do": "Stage 1. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat) and watch without pressing anything. Then play on: clear stages 2 and 3 the same way.",
+  "expect": "Every stage clear shows the map, 2 seconds into the win pose, with STAGE CLEAR: stage 1 SLUM blinking (NEXT BONUS GAME), stage 2 POLICE blinking (NEXT BONUS GAME), the last stage GEESE TOWER blinking with ALL CLEAR!, then the ending. The cheat plays the same sequence as a real clear.",
+  "do_keys": "190:Dabcd,330:-",
+  "proof": 60
+ },
+ "20261017-132507-e03d": {
+  "title": "Map: no green bleeding into SLUM",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 1
+  },
+  "do": "Stage 2. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat) and look at the SLUM part of the map (left) while POLICE blinks.",
+  "expect": "SLUM (cleared) is all grey: no green squares at its top edge next to POLICE, whatever POLICE's blink shows; each district's green stops at its own outline, as in Final Fight.",
+  "do_keys": "190:Dabcd,330:-",
   "proof": 60
  }
 }

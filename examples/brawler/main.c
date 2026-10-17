@@ -3107,16 +3107,18 @@ static uint8_t stage_song(uint8_t s) {
  * Fight's between-rounds city map (its ROM's picture, FF's place names wiped) over the stage, our stops' names on the
  * fix layer in our font. One sticky chain of MAP_COLS sprites x MAP_ROWS tiles on the super flash's rays' sprites
  * (MAP_SPR: never on screen together, sf_reset when it opens), counted by the line guard on every band (map_on). Each
- * 16 x 16 tile carries its stop's palette (MAP_PAL + 1 + k; + 0 the base, always grey). Stop k = the campaign's
+ * 16 x 16 tile carries its stop's palette (MAP_PAL + 1 + k; + 0 the base, always grey), a tile across two districts a
+ * split palette (MAP_PAL + 1 + MAP_NSTOPS + j: each district's pens in their own slots, map_show_pal). Stop k = the campaign's
  * stage k in play (stages[].map; no bonus stop: note 20261017-114940-e03d). Bruno's colours (same note: "colour the
  * levels not cleared yet, so we know the ones left; the one in play blinking"): a stage not cleared = FF's green
  * (map_lit), name palette 0; a cleared one = FF's grey (map_grey), name MAP_FIX_GREY; the stage in play blinking between
  * the two every gmap.blink ticks (FF's page flip), its name too (1 / grey).
- *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over its fade-in, its stop blinking, STAGE n in
- *              the big font when big_text.map_start (Savage Reign's blink, held to the map's end); the intro's title
- *              and walk-in wait for it (intro_fade_tick)
- *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, after the win poses and the win drama): the stage's stop grey, the
- *              next stage blinking (none after the last); NEXT BONUS GAME under it when a bonus comes first
+ *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over the black stage, its stop blinking, STAGE n
+ *              START in the big font when big_text.map_start (Savage Reign's blink, held to the map's end); the stage's
+ *              fade-in, then the walk-in, after it (intro_fade_tick)
+ *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, gmap.clear_at ticks into the win poses; the win drama after it):
+ *              STAGE CLEAR in the big font (big_text.stage_clear), the stage just cleared blinking, the earlier ones
+ *              grey, the later ones green; NEXT name / NEXT BONUS GAME / ALL CLEAR! under it
  * Up gmap.start_ticks / clear_ticks; A-D of either player skips it after gmap.skip_after (START is the box viewer's).
  * Never in the attract demo, the Lab or a continue. ---- */
 #define MAP_SPR SF_RAYS_SPR                      /* 348-363 */
@@ -3128,6 +3130,8 @@ enum { MAP_OFF, MAP_START, MAP_CLEAR };
 static uint8_t map_cur, map_reached, map_blink_lit, map_bt, map_skipped, map_stage;   /* map_reached: the stops cleared
                                                     (0 .. map_reached - 1); map_cur: the one in play (0xFF none) */
 static uint16_t map_t, map_len;
+static uint8_t map_klit[GM_STOPS];               /* each stop's colours as shown: 1 lit (green), 0 grey (the split palettes) */
+_Static_assert(MAP_PAL + 1 + MAP_NSTOPS + MAP_NSPLIT <= SF_RAYS_PAL, "the map's palettes: under the super flash's");
 static uint8_t bonus_open(void);
 static uint8_t bn_offered(uint8_t i);
 static void centre(uint8_t row, const char *t);
@@ -3157,9 +3161,21 @@ static void map_text(uint8_t row, const char *t, const char *name) {   /* centre
 }
 static void map_show_pal(uint8_t k) {            /* stop k's palette and name as it stands: not cleared = lit, cleared =
                                                     grey, the one in play blinking (note 20261017-114940-e03d) */
-    uint8_t lit = k == map_cur ? map_blink_lit : k >= map_reached;
+    uint8_t lit = k == map_cur ? map_blink_lit : k >= map_reached, j, i;
+    uint16_t t[16];
     PAL_setPalette(MAP_PAL + 1 + k, lit ? map_lit : map_grey);
     map_name(k, k == map_cur ? (lit ? 1 : MAP_FIX_GREY) : lit ? 0 : MAP_FIX_GREY);
+    map_klit[k] = lit;
+    for (j = 0; j < MAP_NSPLIT; j++) {           /* the split palettes (make_map.py: a tile across two districts, each
+                                                    district's pens in its own slots, note 20261017-132507-e03d): every
+                                                    slot from its district's colours as they stand now */
+        t[0] = map_grey[0];
+        for (i = 0; i < 15; i++) {
+            uint8_t st = map_split[j][i][0];
+            t[i + 1] = (st != 0xFF && map_klit[st] ? map_lit : map_grey)[map_split[j][i][1]];
+        }
+        PAL_setPalette(MAP_PAL + 1 + MAP_NSTOPS + j, t);
+    }
 }
 static void map_place(void) {                    /* its chain's SCB3 / SCB4, every tick it is up (blocks_layout clears the
                                                     select's blocks' sprites, 57-356, when a fight's first frame lays its
@@ -3171,7 +3187,7 @@ static void map_place(void) {                    /* its chain's SCB3 / SCB4, eve
     cmd_push(VRAM_SCB4 + MAP_SPR, (uint16_t)(gmap.x & 0x1FF) << 7);
 }
 static void map_open(uint8_t kind) {
-    uint8_t c, r, k, nb = 0;                     /* (stop k = stage k in play) */
+    uint8_t c, r, k, nb = 0, nx = 0xFF;          /* (stop k = stage k in play; nx: the next one, 0xFF none) */
     uint16_t pal[16];
     if (!GMAP_ON || !(kind == MAP_START ? gmap.start_ticks : gmap.clear_ticks)) return;
     sf_reset();                                  /* (the rays' sprites: the map's now) */
@@ -3179,8 +3195,13 @@ static void map_open(uint8_t kind) {
     if (kind == MAP_START) { map_reached = camp; map_cur = camp; map_len = gmap.start_ticks; }
     else {
         map_reached = camp + 1; map_len = gmap.clear_ticks;
-        map_cur = camp + 1 >= GS_COUNT ? 0xFF : camp + 1;
-        nb = map_cur != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open();   /* (a bonus before it: NEXT BONUS GAME) */
+        map_cur = camp;                          /* the stage just cleared blinks (note 20261017-131927-e03d, Bruno: "when
+                                                    showing the stage clear and the map, highlight the stage that has been
+                                                    cleared"; was the next one): FF's green / grey every gmap.blink ticks,
+                                                    its name white / grey; the others steady (not cleared green, cleared
+                                                    grey) */
+        nx = camp + 1 >= GS_COUNT ? 0xFF : camp + 1;
+        nb = nx != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open();   /* (a bonus before it: NEXT BONUS GAME) */
     }
     for (k = 0; k < 16; k++) pal[k] = TEXT_PAL[k];   /* fix palette 7: the font's gradient in greys */
     pal[2] = RGB(20, 20, 21); pal[3] = RGB(17, 17, 18); pal[4] = RGB(14, 14, 15); pal[5] = RGB(11, 11, 12);
@@ -3198,10 +3219,13 @@ static void map_open(uint8_t kind) {
                                                     font's headline: held until map_close) */
         else map_text(map_head_row(), gmap.start_text, 0);
     } else {
-        map_text(map_head_row(), gmap.clear_text, 0);
-        if (map_cur == 0xFF) map_text(map_foot_row(), gmap.final_text, 0);
-        else if (nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[map_cur].name);
-        else map_text(map_foot_row(), gmap.next_text, gmap.stops[map_cur].name);
+        if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR);   /* (STAGE CLEAR in the big font with the map, note
+                                                    20261017-132838-e03d: held until map_close, big_text.stage_clear exit
+                                                    false) */
+        else map_text(map_head_row(), gmap.clear_text, 0);
+        if (nx == 0xFF) map_text(map_foot_row(), gmap.final_text, 0);
+        else if (nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[nx].name);
+        else map_text(map_foot_row(), gmap.next_text, gmap.stops[nx].name);
     }
 }
 static void map_close(void) {
@@ -3209,7 +3233,8 @@ static void map_close(void) {
     if (!map_on) return;
     for (c = 0; c < MAP_COLS; c++) cmd_push(VRAM_SCB3 + MAP_SPR + c, 0);
     for (r = map_head_row(); r <= map_foot_row(); r++) FIX_print(0, r, "                                        ", 0);
-    if (bt_n && bt_s == &gbig[BIG_MAP_START]) bt_hide();   /* (its big STAGE n) */
+    if (bt_n && (bt_s == &gbig[BIG_MAP_START] || bt_s == &gbig[BIG_STAGE_CLEAR])) bt_hide();   /* (its big STAGE n START /
+                                                    STAGE CLEAR) */
     map_on = MAP_OFF;
 }
 static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it is gone */
@@ -3237,7 +3262,7 @@ static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it
  * motion each tick, added to it. The attract demo and the Lab's starts (no_intro) keep their immediate start. ---- */
 enum { IN_OFF, IN_FADE, IN_WALK, IN_WAIT };
 static void centre(uint8_t row, const char *t);
-static uint8_t in_ph, no_intro, in_at[2], in_faded, in_mt;   /* in_faded: the fade done under the map (in_mt: its ticks) */
+static uint8_t in_ph, no_intro, in_at[2];
 static uint8_t in_mapped;                                    /* the map opened over this start: its STAGE n START is the
                                                                 stage's one headline, the intro's title is not shown
                                                                 (note 20261017-114940-e03d reopened, Bruno: "STAGE 1 START
@@ -3296,25 +3321,20 @@ static void intro_walk_start(void) {
     in_ph = IN_WALK;
 }
 static void intro_fade_tick(void) {                          /* IN_FADE: the game's tick stops here */
-    if (map_on) {                                            /* the map over the fade-in (main.c "the map"): the title and
-                                                                the walk-in wait for it */
-        if (in_mt < gi->fade) { in_mt++; stage_fade(in_mt < gi->fade ? (uint8_t)div16(in_mt << 4, gi->fade) : 16, in_mt < gi->fade ? in_mt & 3 : 0xFF); }
-        if (!map_tick()) {                                   /* gone: the stage as faded in, the title next tick */
-            in_faded = 1; stage_fade(16, 0xFF);
-            in_t = gi->title_at ? gi->title_at - 1 : 0;
-            if (in_mapped && gi->walk_at > in_t) in_t = gi->walk_at - 1;   /* (the map's headline was the title: the
-                                                                walk-in next tick, not the title's wait on an empty stage) */
-            if (!gi->title_at) intro_title();
-        }
+    if (map_on) {                                            /* the map over a black stage (note 20261017-114940-e03d
+                                                                reopened, Bruno: "keep the background fully black when
+                                                                showing the map for two seconds, then start the fade-in"):
+                                                                map.start_ticks on black, then the fade from its start */
+        if (!map_tick()) in_t = 0;
         return;
     }
     in_t++;
-    if (!in_faded) {                                         /* (faded under the map: done) */
-        if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
-        else if (in_t == gi->fade) stage_fade(16, 0xFF);
-    }
+    if (in_t < gi->fade) stage_fade((uint8_t)div16(in_t << 4, gi->fade), in_t & 3);
+    else if (in_t == gi->fade) stage_fade(16, 0xFF);
     intro_title();
-    if (in_t >= gi->walk_at) intro_walk_start();
+    if (in_t >= (in_mapped ? gi->fade : gi->walk_at)) intro_walk_start();   /* (the map's STAGE n START was the title:
+                                                                the walk-in as the fade ends, not the title's wait on an
+                                                                empty stage) */
 }
 static void intro_input(void) {                              /* IN_WALK: the script's intents for the players */
     uint8_t p;
@@ -3380,7 +3400,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
         if (CHEAT_GAME) fighter_meter_fill(&fighters[i]);    /* the cheat: both bars full at each stage's start */
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
-    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0; in_faded = 0; in_mt = 0; in_mapped = 0;
+    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0; in_mapped = 0;
     if (!attract && !no_intro) {                             /* the stage intro: nobody on screen, the stage black */
         in_ph = IN_FADE;
         for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
@@ -4476,7 +4496,10 @@ static void campaign(uint8_t left) {
         break;
     case PH_END:                                             /* every enemy gone: STAGE CLEAR, the save */
         if (left) break;
-        if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
+        if (attract || !GMAP_ON || !gmap.clear_ticks) {      /* (no map: STAGE CLEAR at once; with the map it comes with
+                                                                it, map.clear_at ticks into the win poses) */
+            if (gbig[BIG_STAGE_CLEAR].on) bt_show(0, BIG_STAGE_CLEAR); else FIX_print(14, 13, "STAGE CLEAR", 0);   /* (big_text) */
+        }
         if (!ko_seq) snd_music(GAME_MUS_CLEAR);   /* (a boss KO: boss_ko_tick starts it, at rest) */
         phase = PH_CLEAR; phase_t = 0; unlock_k = 0; win_dr = 0; win_map = 0; map_skipped = 0; lad_new = 0;
         win_start();                                         /* the players' win poses (#184) */
@@ -4487,10 +4510,19 @@ static void campaign(uint8_t left) {
         save_write();
         break;
     case PH_CLEAR:
+        if (!win_map) {                                      /* first the win poses, then map.clear_at ticks into them STAGE
+                                                                CLEAR with the map over the stage (note 20261017-132838-e03d,
+                                                                Bruno: "first the win pose of the character, then two seconds
+                                                                after the STAGE CLEAR message plus the Final Fight map with
+                                                                the blink"; FF's round clear; main.c "the map") */
+            if (!attract && GMAP_ON && gmap.clear_ticks && phase_t < gmap.clear_at) break;
+            win_map = 1; if (!attract) map_open(MAP_CLEAR);
+        }
+        if (map_on && map_tick()) break;
         if (phase_t < 200 || (!win_done() && phase_t < WIN_MAX) || (ko_seq && !ko_win)) break;   /* the win poses played (and a
                                                                 boss KO's clear music started), then the next screen: a
                                                                 cut (no fades) */
-        if (!win_dr) {                                       /* first the winner's big portrait, KOF's win screen in drama
+        if (!win_dr) {                                       /* then the winner's big portrait, KOF's win screen in drama
                                                                 mode (game.json win_drama; note 20261009-230403-b3f3): its
                                                                 scenes skip a player whose fighter has none (if_portrait) */
             win_dr = 1;                                      /* (the last stage: none, the ending shows the portrait) */
@@ -4498,9 +4530,6 @@ static void campaign(uint8_t left) {
                 FIX_print(14, 13, "           ", 0); bt_hide(); drama_start(DR_WIN, 0xFF); break;
             }
         }
-        if (!win_map) { win_map = 1; if (!attract) map_open(MAP_CLEAR); }   /* then the map over the cleared stage (FF's
-                                                                round clear; main.c "the map") */
-        if (map_on && map_tick()) break;
         if (!map_skipped && snd_song == GAME_MUS_CLEAR && snd_song_t < GAME_MUS_CLEAR_FRAMES) break;   /* the clear song played to its end
                                                                 (a map skipped by a button: at once)
                                                                 (note 20261015-145350-e03d: a fighter without a big

@@ -529,6 +529,7 @@ typedef struct { const char *name; uint8_t col, row; } gmap_stop_t;
 typedef struct {
     int16_t x, y;                 /* the map's top left on screen (8 px steps) */
     uint16_t start_ticks, clear_ticks, skip_after;   /* shown at a stage's start / clear (0: not then); a button skips it after */
+    uint16_t clear_at;            /* the clear's map (and STAGE CLEAR): ticks after the clear, into the win poses */
     uint8_t blink, nstops;        /* the current stop's grey / lit half period, ticks */
     const char *start_text, *clear_text, *next_text, *next_bonus, *final_text;   /* {n}: the stage's number, {name}: the next stop's */
     gmap_stop_t stops[GM_STOPS];
