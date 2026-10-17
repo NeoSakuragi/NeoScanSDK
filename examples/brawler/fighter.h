@@ -656,7 +656,9 @@ typedef struct fighter {
     /* a Blitz's slide (fighter.c blitz_slide, game.json roster[].blitz_slide; note 20261014-192939-5d29): bsl_v = this
      * frame's glide (16.16 px), bsl_dv = what it loses a frame, bsl_n = frames left (0: none) */
     int32_t  bsl_v, bsl_dv;
-    uint8_t  bsl_n, bsl_pad;
+    uint8_t  bsl_n;
+    uint8_t  bsl_rec;              /* frames its Blitz's last pose has been held after its animation (roster[].blitz_hit
+                                      recovery, fighter.c S_ATTACK; 0 again on every state) */
     /* T9 (Bruno 2026-10-15, tougher bosses; fighter.c "guard", "grab response"): gd_stun = the guard stun frames left (a
      * blocked hit: it slides back in its guard pose, vx), gd_n = hits blocked in this guard, gd_max = the hits its guard
      * holds (0: never breaks; the next one lands: the guard break), set by the AI; grsp = what a grab on it does now

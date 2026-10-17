@@ -510,6 +510,24 @@ static void off_clocks(ai_t *a) {                                /* a tick it do
         if (a->pulse_t + 1 < gai.pulse) a->pulse_t++;            /* (show_ready wraps it) */
     } else if ((a->mode == AM_APPROACH || a->mode == AM_ACT) && a->tm < 0xFE) a->tm++;   /* (0xFF: a hold's mark) */
 }
+/* ONE SPECIAL AT A TIME (note 20261017-141933-e03d, Bruno: "at most ONE regular enemy performing a special move at a time;
+ * the bosses don't check; it doesn't stop one enemy attacking normally while another does a special"; game.json
+ * ai.rules.one_special): a shared token over this tick's intents, after every enemy has decided. A regular enemy (not a
+ * `token` preset: the boss) may press C (a special, its cancels, a grab special) or D (a fury) only while no other
+ * regular enemy is in a special or has one buffered (spec_buf / fury_buf: pressed, not started yet); the first such
+ * press in slot order this tick takes it, the later ones lose their C / D (their walk, A and grabs kept). Deterministic:
+ * the fighters' state and the slot order only (replays exact). */
+static uint8_t in_special(const fighter_t *f) { return f->state == S_SPECIAL || f->spec_buf || f->fury_buf; }
+static void one_special(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
+    uint8_t i, taken = 0xFF;
+    for (i = np; i < nf; i++)                                    /* who holds it now (a regular enemy in its special) */
+        if (fs[i].state != S_OFF && !(AI[i].p->flags & AIF_TOKEN) && in_special(&fs[i])) { taken = i; break; }
+    for (i = np; i < nf; i++) {
+        if (fs[i].state == S_OFF || (AI[i].p->flags & AIF_TOKEN) || !(in[i].press & (IN_C | IN_D))) continue;
+        if (taken == 0xFF) taken = i;                             /* the first one this tick: it takes the token */
+        else if (taken != i) in[i].press &= (uint8_t)~(IN_C | IN_D);   /* another holds it (its own: its cancels go) */
+    }
+}
 static uint8_t twice(uint8_t c, uint8_t on) { return !on ? c : c > 127 ? 255 : c << 1; }   /* a chance rnd() < c */
 static uint8_t halve(uint8_t m, uint8_t on) { return on ? m >> 1 : m; }                    /* a chance !(rnd() & m) */
 void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
@@ -813,6 +831,7 @@ void ai_update(fighter_t *fs, uint8_t nf, uint8_t np, intent_t *in) {
         if (a->moving) { walk_to(o, a, gx, gz, ex, ez, 2, 2); spread(fs, np, nf, i, ex, ez, o); }
     }
     }
+    if (gai.one_special) one_special(fs, nf, np, in);
     ai_tokens = held(fs, nf, np);
 }
 

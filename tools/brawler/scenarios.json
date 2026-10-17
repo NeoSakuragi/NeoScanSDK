@@ -1,4 +1,87 @@
 {
+ "20261017-141149-e03d": {
+  "title": "Haggar: run + A knocks down lower, then 4 more frames before he moves again",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 120
+  },
+  "do": "Tap forward, then hold forward to run at Ryo and press A (the run + A Blitz).",
+  "expect": "Haggar's strong punch knocks Ryo down on a lower, shorter arc than before (one size down: about half the height). After the punch Haggar holds his pose a moment longer (4 frames) before you can move him again.",
+  "do_keys": "4:R,4:-,20:R,2:Ra,60:-",
+  "proof": 60
+ },
+ "20261017-141432-e03d": {
+  "title": "Haggar's chain: every punch plays to its end before the next",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40
+  },
+  "do": "Mash A on Ryo: jab, jab, strong.",
+  "expect": "Still jab, jab, strong (knockdown), but each punch now plays its whole animation (the arm comes back) before the next one starts: no cut right after the impact. The chain feels slower and heavier.",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,60:-",
+  "proof": 60
+ },
+ "20261017-141535-e03d": {
+  "title": "Haggar's fury: jab, jab, strong twice, then the spin and the piledriver",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "drive": "full",
+   "fury": "full"
+  },
+  "do": "Press D (the fury) next to Ryo and watch.",
+  "expect": "Jab, jab, strong, jab, jab, strong (twice, was three times), then the spinning lariat and the piledriver at the end.",
+  "do_keys": "10:-,2:d,400:-",
+  "proof": 60
+ },
+ "20261017-141652-e03d": {
+  "title": "Haggar: jab, finisher and run + A reach 8 px less",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 84
+  },
+  "do": "Ryo stands just at the jab's old tip. Press A once.",
+  "expect": "The jab now misses Ryo at this distance (it used to just touch him): its reach is 8 px shorter. Step one step closer and it hits. The strong finisher and the run + A punch are 8 px shorter too.",
+  "do_keys": "10:-,2:a,40:-",
+  "proof": 40
+ },
+ "20261017-141826-e03d": {
+  "title": "Haggar: the jab and the finisher no longer hit someone right behind him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    -20
+   ]
+  },
+  "do": "One Ryo in front, one standing right behind Haggar. Press A, A, A (jab, jab, strong).",
+  "expect": "Only the Ryo in front is hit. The Ryo behind Haggar is never touched by the jabs or the strong finisher (16 px cut off the back of their hit boxes).",
+  "do_keys": "2:a,4:-,2:a,4:-,2:a,4:-,2:a,4:-,2:a,60:-",
+  "proof": 60
+ },
+ "20261017-141933-e03d": {
+  "title": "Enemies: never two regular enemies doing a special at the same time",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 2
+  },
+  "do": "Stage 2, its third wave (several enemies who throw specials). Stand still and let them come for about 20 seconds (you can block).",
+  "expect": "At most one regular enemy is in a special move (a fireball, a rush, an uppercut...) at any moment; the others keep punching, walking and grabbing normally. A boss can still do his special whenever he wants.",
+  "do_keys": "1200:-",
+  "proof": 60
+ },
  "20261017-122233-e03d": {
   "title": "Terry: C is the A Rising Tackle, its hits also reach a body just behind him",
   "setup": {
@@ -46,7 +129,7 @@
    "cursor": "terry"
   },
   "do": "Pick Terry (A) and watch the stage start without touching anything.",
-  "expect": "STAGE 1 START (big letters) and the map show on a fully black screen for 2 seconds: nothing of the stage behind them. Then the map and the message go, the stage fades in from black over about a second (twice as slow as before), and Terry walks in as soon as it is fully in. No second big message.",
+  "expect": "STAGE 1 START (big letters) and the map show on a fully black screen for 2 seconds: nothing of the stage behind them, not even the neon pillar on the left (its colour cycle now stays at the fade's level). Then the map and the message go, the stage fades in from black over about a second, and Terry walks in as soon as it is fully in.",
   "do_keys": "30:-,3:a,330:-",
   "proof": 60
  },
@@ -6139,29 +6222,29 @@
   "proof": 60
  },
  "20261017-131927-e03d": {
-  "title": "Stage-clear map: the stage just cleared blinks",
+  "title": "Stage-clear cheat on DOWN + A + D: the stage just cleared blinks on the map",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
    "stage": 1,
    "wave": 1
   },
-  "do": "Stage 2. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat), then watch the map.",
-  "expect": "After the win pose, STAGE CLEAR and the map: POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). Under the map: NEXT BONUS GAME.",
-  "do_keys": "190:Dabcd,330:-",
+  "do": "Stage 2. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch the map.",
+  "expect": "After 3 seconds of DOWN + A + D the stage ends at once: the win pose, STAGE CLEAR and the map: POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). Under the map: NEXT BONUS GAME.",
+  "do_keys": "190:Dad,330:-",
   "proof": 60
  },
  "20261017-132400-e03d": {
-  "title": "The map at every stage clear, also with the stage-clear cheat",
+  "title": "Stage-clear cheat on DOWN + A + D: the full clear sequence and the map",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
    "stage": 0,
    "wave": 1
   },
-  "do": "Stage 1. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat) and watch without pressing anything. Then play on: clear stages 2 and 3 the same way.",
-  "expect": "Every stage clear shows the map, 2 seconds into the win pose, with STAGE CLEAR: stage 1 SLUM blinking (NEXT BONUS GAME), stage 2 POLICE blinking (NEXT BONUS GAME), the last stage GEESE TOWER blinking with ALL CLEAR!, then the ending. The cheat plays the same sequence as a real clear.",
-  "do_keys": "190:Dabcd,330:-",
+  "do": "Stage 1. Hold down + A + D together for 3 seconds (the stage-clear cheat) and watch without pressing anything. Then play on: clear stages 2 and 3 the same way.",
+  "expect": "DOWN + A + D held 3 seconds clears the stage (no need for B and C any more): the win pose, then 2 seconds later STAGE CLEAR and the map with stage 1 SLUM blinking (NEXT BONUS GAME), then the bonus. Clear stages 2 and 3 the same way: POLICE blinks, then GEESE TOWER with ALL CLEAR!, then the ending.",
+  "do_keys": "190:Dad,330:-",
   "proof": 60
  },
  "20261017-132507-e03d": {
@@ -6172,9 +6255,9 @@
    "stage": 1,
    "wave": 1
   },
-  "do": "Stage 2. Hold down + A + B + C + D together for 3 seconds (the stage-clear cheat) and look at the SLUM part of the map (left) while POLICE blinks.",
+  "do": "Stage 2. Hold down + A + D together for 3 seconds (the stage-clear cheat) and look at the SLUM part of the map (left) while POLICE blinks.",
   "expect": "SLUM (cleared) is all grey: no green squares at its top edge next to POLICE, whatever POLICE's blink shows; each district's green stops at its own outline, as in Final Fight.",
-  "do_keys": "190:Dabcd,330:-",
+  "do_keys": "190:Dad,330:-",
   "proof": 60
  },
  "20261017-133338-e03d": {

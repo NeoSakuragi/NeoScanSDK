@@ -296,16 +296,21 @@ static const stage_t *stg = &stages[STAGE];
 int16_t floor_top = SELECT_FLOOR, world_w;
 
 static uint8_t cyc_t, cyc_k;                    /* the stage's palette cycle: frames left on this step, the step */
+static uint8_t stg_fade = 16;                    /* the stage's palettes' level now, k / 16 (stage_fade; 16 = as they are) */
+static void stage_cyc_faded(void);
 static void stage_pals(void) {                               /* the stage's palettes */
     uint8_t p;
     for (p = 0; p < stg->npal; p++) PAL_setPalette(STAGE_PAL + p, stg->pal + p * 16);
-    cyc_t = stg->cyc_ticks; cyc_k = 0;
+    cyc_t = stg->cyc_ticks; cyc_k = 0; stg_fade = 16;
     if (stg->cyc_pal != 0xFF) PAL_setPalette(STAGE_PAL + stg->cyc_pal, stg->cyc);
 }
 static void stage_cycle(void) {      /* Robo Army's palette cycle (make_stage_ra.py cycles, TODO #159): the next step */
     if (stg->cyc_pal == 0xFF || --cyc_t) return;
     cyc_t = stg->cyc_ticks;
     if (++cyc_k == stg->cyc_n) cyc_k = 0;
+    if (stg_fade < 16) { stage_cyc_faded(); return; }   /* at the fade's level (note 20261017-114940-e03d, 2nd reopen:
+                                                                the cycled palette written at full colour showed the neon
+                                                                pillar on the black screen under the stage start's map) */
     PAL_setPalette(STAGE_PAL + stg->cyc_pal, stg->cyc + cyc_k * 16);
 }
 static uint8_t bd_on, bd_t;                      /* screen_fx: the stage hidden for a special's effect; its frames */
@@ -3283,6 +3288,7 @@ static void stage_fade(uint8_t k, uint8_t part) {            /* the stage's pale
     uint16_t t[16];
     uint8_t p, c;
     for (c = 0; c < 32; c++) fade_lut[c] = (uint8_t)((c * k) >> 4);
+    stg_fade = k;                                                /* (stage_cycle's steps follow it) */
     for (p = 0; p < stg->npal; p++) {
         if (part != 0xFF && (p & 3) != part) continue;
         const uint16_t *src = p == stg->cyc_pal ? stg->cyc + cyc_k * 16 : stg->pal + p * 16;   /* (the cycle's step) */
@@ -3291,6 +3297,14 @@ static void stage_fade(uint8_t k, uint8_t part) {            /* the stage's pale
         PAL_setPalette(STAGE_PAL + p, t);
     }
     bd_set(k >= 16 ? stg->backdrop : col_scale(stg->backdrop));
+}
+static void stage_cyc_faded(void) {                         /* the cycle's step at stg_fade (stage_cycle) */
+    uint16_t t[16];
+    uint8_t c;
+    const uint16_t *src = stg->cyc + cyc_k * 16;
+    for (c = 0; c < 32; c++) fade_lut[c] = (uint8_t)((c * stg_fade) >> 4);
+    for (c = 0; c < 16; c++) t[c] = col_scale(src[c]);
+    PAL_setPalette(STAGE_PAL + stg->cyc_pal, t);
 }
 static int16_t in_mark(uint8_t p) { return gi->side ? 320 - gi->mark_x[p] : gi->mark_x[p]; }   /* screen x */
 static void intro_title(void) {                              /* the title's line: shown, then cleared */
@@ -4643,14 +4657,15 @@ static void cont_tick(void) {                    /* the fight frozen under the o
     }
     cont_draw();
 }
-/* the STAGE CLEAR cheat (game.json cheats.stage_clear_hold; Bruno 2026-10-17, for his testing): P1 holds DOWN + A + B + C
- * + D together CHEAT_STAGE_HOLD ticks in a campaign stage: the stage's end sequence at once (every enemy and the boss
+/* the STAGE CLEAR cheat (game.json cheats.stage_clear_hold / stage_clear_keys; Bruno 2026-10-17, for his testing): P1 holds
+ * CHEAT_STAGE_KEYS (DOWN + A + D since note 20261017-131927-e03d: four buttons at once are out of a touchscreen's reach)
+ * together CHEAT_STAGE_HOLD ticks in a campaign stage: the stage's end sequence at once (every enemy and the boss
  * gone, no boss KO sequence: PH_END's STAGE CLEAR, the win poses, the map, the next screen; the last stage: the game
  * clear, its ladder rung and save as a real one). flow() runs it: never in the stage intro, a bonus, a drama, the boss's
  * KO, the attract demo or the Lab */
 static uint16_t stc_t;
 static void stage_cheat(void) {
-    const uint16_t keys = JOY_DOWN | JOY_A | JOY_B | JOY_C | JOY_D;
+    const uint16_t keys = CHEAT_STAGE_KEYS;
     uint8_t i;
     if (attract || lab.active || phase >= PH_END || ko_seq || (JOY_held(0) & keys) != keys) { stc_t = 0; return; }
     if (++stc_t < CHEAT_STAGE_HOLD) return;

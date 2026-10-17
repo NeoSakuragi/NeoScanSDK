@@ -6,7 +6,7 @@
   20261017-132838-e03d  stage clear: the win pose first, STAGE CLEAR + the map map.clear_at (2 s) later
   20261017-131927-e03d  the clear's map: the stage JUST CLEARED blinks (was the next one)
   20261017-132400-e03d  the map at every stage clear (stages 1, 2 and the last: ALL CLEAR!, then the ending), here
-                        reached with the stage-clear cheat (P1 holds down + A + B + C + D)
+                        reached with the stage-clear cheat (P1 holds cheats.stage_clear_keys)
   20261017-132507-e03d  no green in SLUM: make_map.py's split palettes (zoom, before = BEFORE_ROM if given)
 
     map5_proof.py [OUT] [--before ROM]     sheet OUT/map5_sheet.png, zoom OUT/map5_zoom.png, OUT/map5.json"""
@@ -60,7 +60,8 @@ def clear_run(b, stage, cells, log, picks, zoom=None):
     S.setup(b, {'setup': {'mode': 'stage', 'fighter': 'terry', 'stage': stage, 'wave': 1}})
     b.run(20)
     t = 0
-    while u8(b, 'phase') < 3 and t < 400: b.run(1, p1='Dabcd'); t += 1      # PH_END = 3 (main.c enum)
+    keys = H.stage_clear_keys(b.game)
+    while u8(b, 'phase') < 3 and t < 400: b.run(1, p1=keys); t += 1      # PH_END = 3 (main.c enum)
     c0 = b.frame; rows = []; got = {}
     for k in range(1500):
         b.run(1)

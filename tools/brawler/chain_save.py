@@ -35,8 +35,12 @@ def apply(game_path, entry, fighter, dry=False):
     assert r, f'{fighter}: not in the roster'
     bad = set(entry) - set(KEYS)
     assert not bad, f'entry keys {sorted(bad)}: only {KEYS}'
+    old_chain = dict(r.get('chain') or {})
     for k in ('archetype', 'finishers', 'chain'):               # the chain changed: all three come with it
         if 'chain' in entry and k in entry: r[k] = entry[k]
+    if 'chain' in entry and isinstance(r.get('chain'), dict):   # (the tool saves links / hitstop / length: the fighter's
+        for k in ('keep', 'keep_about'):                        # chain.keep quirk, note 20261017-141432-e03d, stays)
+            if k in old_chain and k not in r['chain']: r['chain'] = dict(r['chain'], **{k: old_chain[k]})
     if 'retime' in entry:                                     # the fighter's whole retime map ({} = none)
         if entry['retime']: r['retime'] = entry['retime']
         else: r.pop('retime', None)

@@ -568,6 +568,12 @@ def chain_tree(name, base, cfg, has):
             for j, x in enumerate(seq):
                 x['damage'] = dm[-1] // len(seq) if j < len(seq) - 1 else dm[-1] - dm[-1] // len(seq) * (len(seq) - 1)
                 x['hitstop'] = hs[-1]; x.setdefault('weight', 'strong')
+    if cfg.get('keep'):                                             # roster[].chain.keep (note 20261017-141432-e03d,
+        for b in builders: b['keep'] = True                         # Haggar: "the animations are played all the way through
+        for f in finals.values():                                   # each time"): no cut at the hit, each link / finisher
+            while f is not None:                                    # plays to its end, then the buffered press takes its
+                if 'move' in f: f['keep'] = True                    # link (RF_KEEP); the C / fury cancels unchanged
+                f = f.get('then')
     finals['bA'] = {'move': neutral['move'], 'throw': 'back', 'weight': 'strong', 'effect': 'knockdown', 'damage': 0, 'hitstop': hs[-1]}
     spl = lambda: {k: {'special': SLOT_OF[k]} for k in SPECIAL_INPUTS}
     def cls(nd, scale):                                              # an entry / jump-cancel: its own damage x the scale,

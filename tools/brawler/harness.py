@@ -67,6 +67,13 @@ OPTIONS = {'geolith_system_type': 'uni', 'geolith_unibios_hw': 'mvs', 'geolith_r
            'geolith_disable_adpcm_wrap': 'off'}             # = emu/neogeo_sdl.c environ_cb
 # Neo Geo A..D = retro B A Y X; s = START, o = coin (SELECT); same letters as neogeo_sdl's capture SEQ
 KEYS = {'U': 4, 'D': 5, 'L': 6, 'R': 7, 'a': 0, 'b': 8, 'c': 1, 'd': 9, 's': 3, 'o': 2}
+JOY_KEY = {'UP': 'U', 'DOWN': 'D', 'LEFT': 'L', 'RIGHT': 'R', 'A': 'a', 'B': 'b', 'C': 'c', 'D': 'd'}
+
+
+def stage_clear_keys(game=GAME):
+    """the stage-clear cheat's keys as harness letters (game.json cheats.stage_clear_keys; main.c stage_cheat)"""
+    ch = json.load(open(os.path.join(game, 'game.json'))).get('cheats') or {}
+    return ''.join(JOY_KEY[k] for k in ch.get('stage_clear_keys', ['DOWN', 'A', 'B', 'C', 'D']))
 
 LAB_FIELDS = ['tnow', 'lstat', 'qpos', 'cur', 'tblob']   # lab_t's "Try in game" fields (fighter.h, chainlab/tryit.js)
 
@@ -133,6 +140,7 @@ class Brawler:
 
     def __init__(self, rom=None, game=GAME, tick_sync=False, options=None, build='build'):
         self.rom = rom or os.path.join(game, 'brawler.neo')
+        self.game = game
         self.layout, self.fsize, self.states, self.syms = _layout(game, build)   # (build: build_lab_<f> for a Lab build)
         m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
         self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)

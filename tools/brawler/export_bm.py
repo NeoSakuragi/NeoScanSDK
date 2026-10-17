@@ -217,6 +217,32 @@ def boxes(bx, reach=0):
         else: a = (x, y, w, hh)
     return h, a
 
+def box_trims(n, ch):
+    """game.json roster[].box_trim {move: {front: px, back: px}} (notes 20261017-141652-e03d / 20261017-141826-e03d, Haggar:
+    'reduce his reach by 8 px' / 'chop 16 px off his back so it doesn't touch people behind him'): each listed normal's
+    attack boxes cut that many px at their front edge (its reach) and at their back edge (toward / behind the body), every
+    step; the move gets its own step array (a move sharing its source animation keeps the uncut boxes) -> {move: (front, back)}"""
+    t = (roster().get(n) or {}).get('box_trim') or {}
+    out = {}
+    for m, v in t.items():
+        if m == 'about': continue
+        assert m in MOVES and m in ch['anims'], f'{n}: box_trim.{m}: not one of its moves'
+        assert isinstance(v, dict) and set(v) <= {'front', 'back', 'about'}, f'{n}: box_trim.{m}: {{front, back}} px'
+        f, b = v.get('front', 0), v.get('back', 0)
+        assert all(isinstance(x, int) and 0 <= x <= 64 for x in (f, b)) and (f or b), f'{n}: box_trim.{m}: front / back 0-64 px'
+        out[m] = (f, b)
+    return out
+
+
+def trim_box(ab, front, back, where=''):
+    """an attack box (x, y, w, h: centre from the feet, half extents; forward = negative x, sprites face left) cut by
+    front px at its forward edge and back px at its rear edge"""
+    x, y, w, h = ab
+    lo, hi = x - w + front, x + w - back                  # (forward edge, rear edge)
+    assert hi - lo >= 2, f'{where}: box_trim leaves no box ({ab} -> {lo}..{hi})'
+    return ((lo + hi) // 2, y, (hi - lo + 1) // 2, h)
+
+
 THROWS = ['throw_c', 'throw_d']                         # BT_* order: ground throws, close, forward+C / forward+D in KOF
 LE_THROWS = ['throw_c', 'throw_d', 'hold_hit', 'hold_fin', 'throw_x']   # the Lab's throw entries (LE_THROW | k: fighter.c
                                                          # BT_* ids: the forward / back throws, the extra paired throw)
@@ -2469,13 +2495,16 @@ def write_c(chars, outdir):
         c.append(f'static const bframe_t {n}_frames[] = {{' + ', '.join(
             f'{{{len(fr["parts"])}, {sum(len(p["tiles"]) for p in fr["parts"])}, {n}_f{fi}}}' for fi, fr in enumerate(ch['frames'])) + '};')
         arr = {}                                                 # one step array per source animation: a move the
-        for m in MOVES + win_more(ch):                           # fighter lacks shares its fallback's (idle)
+        trims = box_trims(n, ch)                                 # fighter lacks shares its fallback's (idle); a trimmed
+        akey = lambda m: (id(source(ch, m)), m) if m in trims else id(source(ch, m))   # move its own (roster[].box_trim)
+        for m in MOVES + win_more(ch):
             a = source(ch, m)
-            if id(a) in arr: continue
-            arr[id(a)] = f'{n}_{m}'
+            if akey(m) in arr: continue
+            arr[akey(m)] = f'{n}_{m}'
             steps, live, prev_act, prev_chain = [], None, False, False
             for s in a['steps']:
                 hb, ab = boxes(s['boxes'], REACH)
+                if ab and m in trims: ab = trim_box(ab, *trims[m], where=f'{n} {m}')
                 # KOF step flags: $0100 = attack active (the last attack box stays live on every active step, a box command
                 # only comes when it changes), $4000 = the next active step continues this hit. An active step after an
                 # inactive one, or after one without $4000, opens a new hit: Terry / Chang close C, Yamazaki close D hit
@@ -2632,7 +2661,7 @@ def write_c(chars, outdir):
                                       for o in (ch['anims'].get(m) or {}).get('objects', ())]   # only); the poses' step
         if wm or objs:                                           # effects, pose 0 = 'win' (BA_WIN) too (note 20261011-
                                                                  # 225104-5d29: Kyo's hand fire, Terry's cap)
-            c.append(f'const banim_t {n}_wan[] = {{' + (', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[id(source(ch, m))]}}}' for m in wm) or '{0, 0, 0}') + '};')
+            c.append(f'const banim_t {n}_wan[] = {{' + (', '.join(f'{{{len(source(ch, m)["steps"])}, 1, {arr[akey(m)]}}}' for m in wm) or '{0, 0, 0}') + '};')
             wv = [(k + 1, at, v) for k, m in enumerate(wm) for at, v in win_voices(ch, n, game, m)]
             WVOX[n] = {v & 0x7F for _, _, v in wv}               # (their samples in the V ROM: voice_map below; note
                                                                  #  20261016-133259-e03d: poses 1+ were silent, no sample)
@@ -2652,7 +2681,7 @@ def write_c(chars, outdir):
         c.append(f'static const uint16_t {n}_flk[{16 * len(ch["block_palettes"]) if fk else 1}] = {{' +
                  (', '.join(f'0x{v:04X}' for row in fk['sets'] for v in row) if fk else '0') + '};')
         c.append(f'static const banim_t {n}_anims[BA_COUNT] = {{' + ', '.join(
-            f'{{{len(source(ch, m)["steps"])}, {anim_hold(source(ch, m))}, {arr[id(source(ch, m))]}}}' for m in MOVES) + '};')
+            f'{{{len(source(ch, m)["steps"])}, {anim_hold(source(ch, m))}, {arr[akey(m)]}}}' for m in MOVES) + '};')
     lab = {'ba': MOVES, 'route_moves': R.MOVE_NAMES, 'inputs': R.INPUTS, 'fighters': []}
     for ci, (game, n, ch, off) in enumerate(chars):           # chain routes: tools/brawler/routes/<n>.json or the default
         has = {m for m in MOVES if any(k in ch['anims'] for k in SOURCES.get(m, [m]))}

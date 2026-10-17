@@ -12,7 +12,7 @@ of 0.10.159 (its name kept: the gates and the docs call it).
                pick: the posts GREYED (won), the Ki training offered; passed) -> stage 3 (from stages[].start; GEESE;
                then the finale: RUGAL with the two greyed bosses, all three on screen; RUGAL down) -> the clear's map
                (all lit, ALL CLEAR) -> the ending                                                        -> run_*.png
-      cheat    a new game: P1 holds DOWN + A + B + C + D cheats.stage_clear_hold ticks in stage 1's first wave: the
+      cheat    a new game: P1 holds cheats.stage_clear_keys (DOWN + A + D) cheats.stage_clear_hold ticks in stage 1's first wave: the
                stage's end sequence at once (STAGE CLEAR, the win pose, the map, the bonus next)           -> cheat_*.png
       select   a fresh save: the next rung (HAGGAR) as a silhouette, the cursor on it: LOCKED - BEAT THE GAME FIRST,
                A refused; the LADDER cheat (hold UP, then DOWN) once, twice: one rung each, saved; the POWER cheat
@@ -194,14 +194,14 @@ class P(bonus_proof.Proof):
         self.check(k >= 0, f'the ending after {fz["enemy"]} ({k} ticks after the map)')
 
     def cheat(self, G):
-        b = self.b; hold = G['cheats']['stage_clear_hold']
+        b = self.b; hold = G['cheats']['stage_clear_hold']; keys = H.stage_clear_keys(b.game)
         b.core.retro_reset(); b.seq('600:-,4:o,100:-,4:s,100:-,4:a,100:-')
         self.until(lambda: self.r('in_ph') == 0 and self.r('mode') == 1, 2000)
         b.run(60); self.shot('cheat_before', 'cheat: stage 1, wave 1 (enemies up)')
-        b.run(hold - 1, p1='Dabcd')
+        b.run(hold - 1, p1=keys)
         self.check(self.r('phase') < 3, f'cheat: not yet after {hold - 1} ticks (phase {self.r("phase")})')
-        b.run(2, p1='Dabcd'); b.run(1)
-        self.check(self.r('phase') >= 3, f'cheat: DOWN + A + B + C + D held {hold} ticks: the stage\'s end (phase {self.r("phase")})')
+        b.run(2, p1=keys); b.run(1)
+        self.check(self.r('phase') >= 3, f'cheat: {keys} held {hold} ticks: the stage\'s end (phase {self.r("phase")})')
         b.run(40); self.shot('cheat_clear', 'cheat: STAGE CLEAR at once')
         self.map_shots(MAP_CLEAR, 'cheat_map', 'cheat: the clear\'s map')
         k = self.until(lambda: self.r('mode') == 6, 2000)

@@ -446,7 +446,9 @@ def chain_cfg(g, r):
     fin = r.get('finishers') or {}
     for k in fin: assert k in ('launcher', 'down', 'neutral', 'forward', 'up', 'down_move', 'df_move'), f"roster {r['name']}: finishers.{k}"
     own = r.get('chain') or {}                     # (revamp 5, the chain tool's save) links: the moves before the finisher,
-    for k in own: assert k in ('links', 'hitstop', 'length'), f"roster {r['name']}: chain.{k} (links / hitstop / length)"   # hitstop: per link + the finisher
+    for k in own: assert k in ('links', 'hitstop', 'length', 'keep', 'keep_about'), f"roster {r['name']}: chain.{k} (links / hitstop / length / keep)"   # hitstop: per link + the finisher
+    assert isinstance(own.get('keep', False), bool), f"roster {r['name']}: chain.keep true / false"   # keep: every link and
+                                                     # finisher plays to its end on hit (routes.py 'keep', RF_KEEP)
     air = air_of(r)                                  # its three air attacks (Bruno 2026-10-08): forward jump + A, straight
     for k in air: assert k in AIR_DEFAULT or k == 'back', f"roster {r['name']}: air.{k} (forward / straight / down / back)"   # jump + A, down + A
                                                      # (back: back + A in any jump, note 20261011-210422-5d29; absent = none)
@@ -457,7 +459,7 @@ def chain_cfg(g, r):
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)
             **({'dash': blitz_normal(r)} if blitz_normal(r) else {}),     # (a normal as a Blitz: the tree's blitz entry plays it)
             'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
-            **({'hitstops': own['hitstop']} if 'hitstop' in own else {})}
+            **({'hitstops': own['hitstop']} if 'hitstop' in own else {}), **({'keep': True} if own.get('keep') else {})}
 
 
 BLITZ_NORMAL = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w+)$')   # a Blitz slot naming a ground normal
@@ -600,6 +602,34 @@ def blitz_slides(g):
     return out
 
 
+def blitz_hits(g):
+    """gblitz_hit: per roster fighter (bm_chars order) its Blitz played as a tree node, [0] the dash entry (a slot 'dash'),
+    [1] a normal's blitz entry (a slot naming a move): [vy, vx, recovery] (roster[].blitz_hit {slot: {launch, recovery}};
+    note 20261017-141149-e03d, Haggar's run + A: "make the bounce not as high: high -> medium, medium -> low; after the
+    impact add four frames of recovery"): launch = a size of game.json throw_launch.up (small / medium / big) for the
+    victim its hit knocks down from the ground (16.16 px a frame up / away; the engine's own knockdown, vy 7 vx 2, is
+    throw_launch.up.big), recovery = frames it holds its last pose after its animation, before control comes back
+    (fighter.c fighter_hit / S_ATTACK); [0, 0, 0] = none (the engine's knockdown, no extra recovery)"""
+    up = g['throw_launch']['up']
+    out = []
+    for r in g['roster']:
+        bz = r.get('blitz') or {'ff': 'dash'}; row = [[0, 0, 0], [0, 0, 0]]
+        for k, v in (r.get('blitz_hit') or {}).items():
+            if k == 'about': continue
+            assert k in BLITZ_SLOTS and k in bz, f"roster {r['name']}: blitz_hit.{k}: not one of its Blitz slots"
+            sl = bz[k]
+            assert sl == 'dash' or (isinstance(sl, str) and BLITZ_NORMAL.match(sl)), \
+                f"roster {r['name']}: blitz_hit.{k}: its Blitz {sl} is a special (blitz_hit: the dash entry or a normal)"
+            assert set(v) <= {'launch', 'recovery', 'about'}, f"roster {r['name']}: blitz_hit.{k}: launch / recovery"
+            L = v.get('launch')
+            assert L is None or L in up, f"roster {r['name']}: blitz_hit.{k}.launch: one of throw_launch.up {' / '.join(up)}"
+            rc = v.get('recovery', 0)
+            assert isinstance(rc, int) and 0 <= rc <= 60, f"roster {r['name']}: blitz_hit.{k}.recovery 0-60 frames"
+            row[0 if sl == 'dash' else 1] = [round(up[L]['vy'] * 65536) if L else 0, round(up[L]['vx'] * 65536) if L else 0, rc]
+        out.append((r['name'], row))
+    return out
+
+
 RUN_KEYS = ('hold_last', 'float', 'last_step', 'mode', 'dash', 'air_buttons', 'speed', 'about')
 def run_bobs(g):
     """grun_bob: per roster fighter its run's float (roster[].run.float {px, period}; Bruno 2026-10-09, note
@@ -692,7 +722,7 @@ def roster_export(g):
              'routes': None if r.get('routes', 'default') == 'default' else os.path.join(REPO, r['routes']),
              'voices': r.get('voices'), 'fury': r.get('fury'), 'hit_sfx': r.get('hit_sfx'), 'throws': r.get('throws'),
              **({'walk_phys': walk_phys(g, r)} if 'walk_rate' in r else {}),
-             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'charge_from', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'hit_react', 'source_flight', 'keeps_air_attack', 'proj_react', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'special_grab_timing', 'box_both_sides', 'run', 'slot_of', 'swing', 'win_fx_off', 'voice_whole') if k in r}} for r in g['roster']]
+             **{k: r[k] for k in ('form', 'stage_end_form', 'display', 'variant', 'scale', 'moves', 'anim_specials', 'fire', 'flash_pose', 'charge_from', 'air_specials', 'blitz', 'down_attack', 'invincible', 'juggle', 'hit_react', 'source_flight', 'keeps_air_attack', 'proj_react', 'together', 'seq_press', 'seq_hit', 'hit_next', 'nopush', 'max', 'proj_hits', 'special_final_area', 'special_grab_timing', 'box_both_sides', 'box_trim', 'run', 'slot_of', 'swing', 'win_fx_off', 'voice_whole') if k in r}} for r in g['roster']]
 
 
 def write_if_changed(path, text):
@@ -1405,7 +1435,7 @@ def retime_tables(g, build):
     return c
 
 
-RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank', 'group', 'variety')
+RULE_KEYS = ('about', 'attackers', 'approach_max', 'ready', 'windup', 'rank', 'group', 'variety', 'one_special', 'one_special_about')
 
 # ---- T9 (Bruno 2026-10-15, tougher bosses): ai.guard (the guard's engine rules, fighter.c "guard") and enemies[].boss_ai
 # (a boss's own layer, ai.c "the boss layer"; gamedata.h gbossai_t) ----
@@ -1516,7 +1546,7 @@ def ai_rules(g):
            f".rank_rest = {rk['rest']}, .rank_dmg = {rk['damage']}, .rank_every = {rk['every']}, .fast_clear = {rk['fast_clear']}, "
            f".wait = {{ {', '.join(map(str, wait))} }}, "
            f".lane_dz = {gp.get('lane_dz', 0)}, .lane_near = {gp.get('lane_near', 0)}, .sep_dx = {gp.get('spacing_dx', 0)}, .sep_dz = {gp.get('spacing_dz', 0)}, "
-           f".kd_dz = {vr.get('knockdown_dz', 0)}, .down_var = {vr.get('getup_frames', 0)} }};"]
+           f".kd_dz = {vr.get('knockdown_dz', 0)}, .down_var = {vr.get('getup_frames', 0)}, .one_special = {1 if r.get('one_special') else 0} }};"]
     rows = [pose(rd.get('by_fighter', {}).get(n, rd['pose']), f'ai.rules.ready ({n})') for n in names]
     out.append('const uint8_t ai_ready[BC_COUNT][2] = { ' + ', '.join(f'{{ {a}, {s} }}' for a, s in rows) + ' };   /* ' + ' '.join(names) + ' */')
     return out
@@ -1824,14 +1854,21 @@ def map_tables(g):
     return ['#define GMAP_ON 1'], c
 
 
+CHEAT_KEYS = ('UP', 'DOWN', 'LEFT', 'RIGHT', 'A', 'B', 'C', 'D')   # neo_input.h JOY_* (cheats.stage_clear_keys)
+
+
 def cheat_tables(g):
     """game.json "cheats" (Bruno's test cheats: main.c select_tick, stage_cheat) + the select's locked rung texts"""
     ch = g.get('cheats') or {}
-    for k in ch: assert k in ('about', 'hold', 'stage_clear_hold'), f'cheats: unknown field {k}'
+    for k in ch: assert k in ('about', 'hold', 'stage_clear_hold', 'stage_clear_keys', 'stage_clear_keys_about'), f'cheats: unknown field {k}'
     assert 30 <= ch.get('hold', 120) <= 600 and 30 <= ch.get('stage_clear_hold', 180) <= 600, 'cheats: hold / stage_clear_hold 30-600 ticks'
+    keys = ch.get('stage_clear_keys', ['DOWN', 'A', 'B', 'C', 'D'])     # (note 20261017-131927-e03d: DOWN + A + D, the
+    assert keys and len(set(keys)) == len(keys) and set(keys) <= set(CHEAT_KEYS) and set(keys) & {'A', 'B', 'C', 'D'}, \
+        f'cheats.stage_clear_keys {keys}: distinct names of {" ".join(CHEAT_KEYS)}, at least one button'   # touchscreen's reach)
     U = g.get('unlocks') or {}
     return [f'#define CHEAT_HOLD {ch.get("hold", 120)}   /* cheats.hold: each of a select cheat\'s two holds, ticks */',
             f'#define CHEAT_STAGE_HOLD {ch.get("stage_clear_hold", 180)}   /* cheats.stage_clear_hold */',
+            '#define CHEAT_STAGE_KEYS (' + ' | '.join('JOY_' + k for k in keys) + ')   /* cheats.stage_clear_keys: held together */',
             f'#define UNL_SHOW_NEXT {1 if U.get("show_next") else 0}   /* unlocks.show_next: the next rung as silhouettes on the select */',
             f'#define UNL_LOCKED_NAME {c_str(U.get("locked_name", ""))}',
             f'#define UNL_LOCKED_LINES {len(U.get("locked_text", []))}   /* unlocks.locked_text: lines over a highlighted silhouette */',
@@ -2018,6 +2055,7 @@ def tables(g, build):
          'extern const uint8_t gfury_wait[BC_COUNT];   /* 1: the fury (D) holds its first frame through the super flash\'s freeze, its move after (roster[].fury_flash, default wait for a sequence fury: fighter.c flash_pose) */',
          'extern const uint8_t gfury_area[BC_COUNT][3];  /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
+         'extern const int32_t gblitz_hit[BC_COUNT][2][3];   /* per fighter its Blitz played as the dash entry [0] / a normal\'s blitz entry [1]: [vy, vx, recovery] (16.16 px a frame, frames; roster[].blitz_hit; fighter.c fighter_hit, S_ATTACK), vy 0 = the engine\'s knockdown */',
          'extern const int32_t gblitz_slide[BC_COUNT][4][3];   /* per fighter per Blitz slot: its slide [frames, first frame\'s glide, its loss a frame] (16.16 px; roster[].blitz_slide; fighter.c blitz_slide), frames 0 = none */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
          'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
@@ -2101,6 +2139,8 @@ def tables(g, build):
     c.append('const uint8_t gfury_wait[BC_COUNT] = {\n    ' + ',\n    '.join(fw) + '\n};')
     c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
+    c.append('const int32_t gblitz_hit[BC_COUNT][2][3] = {\n' + ',\n'.join(
+        '    { ' + ', '.join('{ %d, %d, %d }' % tuple(v) for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_hits(g)) + '\n};')
     c.append('const int32_t gblitz_slide[BC_COUNT][4][3] = {\n' + ',\n'.join(
         '    { ' + ', '.join('{ %d, %d, %d }' % tuple(v) for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_slides(g)) + '\n};')
     import knobs                                         # piece knobs (fighter.c "knobs"): shipped rows + the catalogue

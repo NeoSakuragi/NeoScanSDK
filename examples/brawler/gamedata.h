@@ -81,6 +81,10 @@ typedef struct {
      * depth during its flight, a random speed of up to kd_dz / 32 px a frame either way (about kd_dz px over a 32-frame
      * flight); it lies 0..down_var frames longer than the 40 before it gets up */
     uint8_t kd_dz, down_var;
+    /* one special at a time (note 20261017-141933-e03d; game.json ai.rules.one_special, ai.c one_special): 1 = a regular
+     * enemy starts a special (C) or a fury (D) only while no other regular enemy is in one; the boss (a `token` preset)
+     * never checks nor holds it */
+    uint8_t one_special;
 } gairules_t;
 extern const gairules_t gai;      /* (game_tables.h: ai_ready[BC_COUNT][2], each fighter's ready stance: BA_*, step; 0xFF the tint pulse) */
 

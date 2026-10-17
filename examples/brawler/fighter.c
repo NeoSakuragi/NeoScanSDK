@@ -475,7 +475,7 @@ static void rt_anim(fighter_t *f) {                              /* anim_tick, r
 static int32_t dir_mul(int8_t d, int32_t v) { return d > 0 ? v : d < 0 ? -v : 0; }
 static void enter(fighter_t *f, uint8_t st) {
     f->state = st; f->state_t = 0; f->dizzy = 0;                 /* (a stun strike's dizziness: a new state ends it) */
-    f->bsl_n = 0;                                                /* (a Blitz's slide: its move only, blitz_slide) */
+    f->bsl_n = 0; f->bsl_rec = 0;                                /* (a Blitz's slide / recovery: its move only) */
     f->tbnc = 0;                                                 /* (a slam's bounce cancel: its throw / special only) */
     if (st != S_THROW && st != S_THROWN && st != S_SPECIAL) f->tev = 0;   /* (THE THROW EVENTS: its throw's only) */
     if (st != S_AIR_ATTACK) f->jt = 0;                           /* (the jump table: only its own take-off and its air
@@ -4819,6 +4819,10 @@ static void update(fighter_t *f, const intent_t *in) {
             uint8_t nx = chain_next(f, c, f->buffered);
             if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, c, nx, f->buffered, in, LH_CANCEL); break; }
         }
+        if (f->anim_done && is_blitz_node(f) && f->ch->id < BC_COUNT &&   /* its Blitz's extra recovery (roster[].blitz_hit,
+                                                                    note 20261017-141149-e03d): its last pose held that
+                                                                    many frames more before control comes back */
+            f->bsl_rec < (uint8_t)gblitz_hit[f->ch->id][f->node == TREE(f)->dash ? 0 : 1][2]) { f->bsl_rec++; break; }
         if (f->anim_done && c->next[RI_THEN]) {                  /* (Kim gold) a finisher of several moves: the next one
                                                                     now, back to back, hit or not (RI_THEN) */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
@@ -5171,6 +5175,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     victim behind flies away backward, not through him) */
         }
         react(v, away, reaction, push);
+        if (a->state == S_ATTACK && is_blitz_node(a) && a->ch->id < BC_COUNT && v->state == S_KNOCKDOWN && v->y <= 0 &&
+            !v->kmode) {                                         /* its Blitz's own launch (roster[].blitz_hit, note
+                                                                    20261017-141149-e03d: Haggar's run + A one size lower) */
+            const int32_t *bh = gblitz_hit[a->ch->id][a->node == TREE(a)->dash ? 0 : 1];
+            if (bh[0]) { v->vy = bh[0]; v->vx = dir_mul(away, bh[1]); }
+        }
     }
     bvx = v->vx; bvy = v->vy;
     if (a->state == S_SPECIAL) {                                 /* a special's body hit: KOF98's reaction (its reel's */
