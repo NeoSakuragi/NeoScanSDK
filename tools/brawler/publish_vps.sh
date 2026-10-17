@@ -48,6 +48,14 @@ if python3 "$(dirname "$0")/chainlab/ramsyms.py" "$RS" "$(dirname "$ROM")" "$ROM
   ssh -o BatchMode=yes "$HOST" "mkdir -p /data/brawler-lab/ramsyms" && rsync -q --chmod=F644 "$RS/$SHA.json" "$HOST:/data/brawler-lab/ramsyms/" && echo "ramsyms/$SHA.json sent to the Lab"
 else echo "WARNING: no ramsyms for this build (the Sessions page shows only what the HUD shows)"; fi
 rm -rf "$RS"
+# the build's analysis pack for the replay worker (analysis/pack.py: layout, symbols, pools, stages; the VPS unit
+# brawler-analysis replays every session of this build with it, token-free): /data/brawler/analysis/builds/<VER>/pack.json
+PK=$(mktemp -d /data/tmp/pack.XXXXXX)
+if python3 "$(dirname "$0")/analysis/pack.py" "$PK" "$(dirname "$ROM")" "$ROM" >/dev/null && [ -f "$PK/$VER/pack.json" ]; then
+  ssh -o BatchMode=yes "$HOST" "mkdir -p /data/brawler/analysis/builds/$VER" && rsync -q --chmod=F644 "$PK/$VER/pack.json" "$HOST:/data/brawler/analysis/builds/$VER/pack.json.part" \
+    && ssh -o BatchMode=yes "$HOST" "mv /data/brawler/analysis/builds/$VER/pack.json.part /data/brawler/analysis/builds/$VER/pack.json" && echo "analysis pack $VER sent"
+else echo "WARNING: no analysis pack for this build (its sessions get no statistics until one is sent: analysis/backfill_packs.sh $VER)"; fi
+rm -rf "$PK"
 fi
 if [ -n "$APK" ]; then
   AAPT=$(ls -d "${ANDROID_HOME:-$HOME/Android/Sdk}"/build-tools/*/aapt2 | tail -1)

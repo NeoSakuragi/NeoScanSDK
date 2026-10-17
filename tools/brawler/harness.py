@@ -138,14 +138,20 @@ class _Core:
 class Brawler:
     _core = None                                     # one core per process (libretro cores are global)
 
-    def __init__(self, rom=None, game=GAME, tick_sync=False, options=None, build='build'):
+    def __init__(self, rom=None, game=GAME, tick_sync=False, options=None, build='build', pack=None):
+        """pack: a build's analysis pack (analysis/pack.py: the layout, states, symbols and select counts precomputed),
+        in place of the game's build tree (no m68k compiler needed: the VPS replay worker)"""
         self.rom = rom or os.path.join(game, 'brawler.neo')
         self.game = game
-        self.layout, self.fsize, self.states, self.syms = _layout(game, build)   # (build: build_lab_<f> for a Lab build)
-        m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
-        self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)
-        m = re.search(r'#define SEL_NPLACE (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
-        self.nplace = int(m.group(1)) if m else self.nslot     # SEL_SLOT's places: every layer's, back to back (select_layers)
+        if pack:
+            self.layout = {f: tuple(v) for f, v in pack['layout'].items()}; self.fsize = pack['fsize']
+            self.states = pack['states']; self.syms = dict(pack['syms']); self.nslot = pack['nslot']; self.nplace = pack['nplace']
+        else:
+            self.layout, self.fsize, self.states, self.syms = _layout(game, build)   # (build: build_lab_<f> for a Lab build)
+            m = re.search(r'#define SEL_NSLOT (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
+            self.nslot = int(m.group(1)) if m else 16              # select slots (game.json select.slots)
+            m = re.search(r'#define SEL_NPLACE (\d+)', open(os.path.join(game, build, 'game_tables.h')).read())
+            self.nplace = int(m.group(1)) if m else self.nslot     # SEL_SLOT's places: every layer's, back to back (select_layers)
         os.makedirs(WORK, exist_ok=True)
         self.pad = [set(), set()]; self.frame = 0; self.hits = []; self._video = None
         self._opt = {k.encode(): C.c_char_p(v.encode()) for k, v in dict(OPTIONS, **(options or {})).items()}

@@ -1,0 +1,23 @@
+--- a/src/geo_lspc.c	2026-10-02 21:14:07.406456942 +0200
++++ b/src/geo_lspc.c	2026-10-17 15:54:29.205225339 +0200
+@@ -975,7 +975,7 @@
+ }
+ 
+ static void geo_lspc_scanline(void) {
+-    if (ngsys.cdmode && (!reg_envideo || skip_render))
++    if ((ngsys.cdmode && !reg_envideo) || skip_render)
+         return;
+ 
+     if (lspc.scanline >= LSPC_LINE_BORDER_TOP &&
+--- a/libretro/libretro.c	2026-10-10 01:58:04.766748999 +0200
++++ b/libretro/libretro.c	2026-10-17 15:54:41.003638931 +0200
+@@ -1546,3 +1546,9 @@
+     (void)enabled;
+     (void)code;
+ }
++
++/* NeoScanSDK replay analysis (tools/brawler/analysis): 1 = the LSPC draws no scanline (no picture; the emulated
++   machine runs the same: nothing the CPUs read comes from the line buffers), for headless replays */
++void retro_neoscan_skip_render(int s) {
++    geo_lspc_set_skip_render(s ? 1 : 0);
++}

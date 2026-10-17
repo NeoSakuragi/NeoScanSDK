@@ -87,9 +87,10 @@
     const live = h('b', {}, '● LIVE'), drift = h('span', {}, 'loading…'), lag = h('span', {}, '');
     const bPin = h('button', { onclick: e => { e.stopPropagation(); t.pinned = !t.pinned; bPin.classList.toggle('on', t.pinned); bPin.textContent = t.pinned ? 'Pinned' : 'Pin'; } }, 'Pin');
     const inf = h('div', { class: 'ti' }, '—');
+    const nb = window.SessNotes ? SessNotes.badge(r.id, r.notes || 0, API) : null;   // the notes recorded in it (sessnotes.js)
     const el = h('div', { class: 'tile', title: 'Tap: hear this one · double-tap: full size' },
-      h('div', { class: 'th' }, live, h('b', {}, r.user), h('span', {}, r.rom_version), drift, lag, h('span', { class: 'sp' }), bPin), inf, cv);
-    const t = { row: r, el, cv, inf, live, drift, lag, pinned: false, gone: 0, st: null, worker: null, err: null, lastTap: 0 };
+      h('div', { class: 'th' }, live, h('b', {}, r.user), nb, h('span', {}, r.rom_version), drift, lag, h('span', { class: 'sp' }), bPin), inf, cv);
+    const t = { row: r, el, cv, inf, live, drift, lag, nb, pinned: false, gone: 0, st: null, worker: null, err: null, lastTap: 0 };
     el.onclick = () => {
       const now = performance.now();
       if (now - t.lastTap < 350) { t.lastTap = 0; goFull(t); return; }
@@ -167,6 +168,7 @@
     const now = Date.now(), byId = new Map(j.sessions.map(r => [r.id, r]));
     for (const t of [...tiles.values()]) {                 // ended: leave GONE_MS later (not a pinned one)
       const r = byId.get(t.row.id);
+      if (r && t.nb) SessNotes.set(t.nb, r.notes || 0);
       if (r && r.live) { t.gone = 0; Object.assign(t.row, r); continue; }
       t.gone = t.gone || now;
       if (!t.pinned && now - t.gone > GONE_MS && full !== t) removeTile(t);
