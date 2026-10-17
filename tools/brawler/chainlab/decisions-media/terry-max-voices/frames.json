@@ -1,0 +1,1288 @@
+{
+ "build": "0.10.170",
+ "crop": [
+  0,
+  24,
+  272,
+  216
+ ],
+ "cols": 10,
+ "small": 3,
+ "cases": {
+  "hit": {
+   "n": 147,
+   "frames": [
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    }
+   ],
+   "voice_cmds": [
+    {
+     "frame": 3,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 46,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 68,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 92,
+     "cmd": "1C26"
+    }
+   ],
+   "eruption_starts": [
+    45,
+    46,
+    66,
+    92
+   ],
+   "big": "hit_big.webp",
+   "small": "hit_small.webp"
+  },
+  "whiff": {
+   "n": 147,
+   "frames": [
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 3
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 2
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 1
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "SPECIAL",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    },
+    {
+     "state": "IDLE",
+     "eruptions": 0
+    }
+   ],
+   "voice_cmds": [
+    {
+     "frame": 3,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 46,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 68,
+     "cmd": "1C25"
+    },
+    {
+     "frame": 92,
+     "cmd": "1C26"
+    }
+   ],
+   "eruption_starts": [
+    45,
+    46,
+    66,
+    92
+   ],
+   "big": "whiff_big.webp",
+   "small": "whiff_small.webp"
+  }
+ },
+ "voices": [
+  {
+   "id": 22,
+   "cmd": "1CC4",
+   "ms": 663,
+   "game": "rbffspec",
+   "wav": "voices/22.wav"
+  },
+  {
+   "id": 23,
+   "cmd": "1CC6",
+   "ms": 1244,
+   "game": "rbffspec",
+   "wav": "voices/23.wav"
+  },
+  {
+   "id": 16,
+   "cmd": "1C53",
+   "ms": 801,
+   "game": "kof98",
+   "wav": "voices/16.wav"
+  },
+  {
+   "id": 17,
+   "cmd": "1C54",
+   "ms": 857,
+   "game": "kof98",
+   "wav": "voices/17.wav"
+  },
+  {
+   "id": 18,
+   "cmd": "1C55",
+   "ms": 663,
+   "game": "kof98",
+   "wav": "voices/18.wav"
+  }
+ ]
+}
