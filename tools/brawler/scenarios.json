@@ -1,4 +1,31 @@
 {
+ "20261017-122233-e03d": {
+  "title": "Terry: C is the A Rising Tackle, its hits also reach a body just behind him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "terry",
+   "dummy": "ryo",
+   "gap": 40,
+   "extra": [
+    -24
+   ]
+  },
+  "do": "Terry stands between two Ryos, one in front, one right behind him. Press C (the Rising Tackle).",
+  "expect": "Terry plays the small (A) Rising Tackle, not the big one: a short spinning rise. Its hits land on the Ryo in front AND on the Ryo standing behind him; the one behind flies away backward (to the left), not through Terry. Down-forward + C and up-forward + C play the same A Rising Tackle.",
+  "do_keys": "10:-,3:c,90:-",
+  "proof": 60
+ },
+ "20261017-121711-e03d": {
+  "title": "Select: an empty line between LOCKED / BEAT THE GAME / FIRST and the 1P cursor",
+  "setup": {
+   "mode": "select",
+   "cursor": "haggar"
+  },
+  "do": "The select screen, the cursor on the dark silhouette (the next fighter to unlock). Look above it; then let P2 join (START on the second pad) and put P2 on the silhouette too if you like.",
+  "expect": "Over the silhouette: LOCKED, BEAT THE GAME, FIRST on three lines, then ONE EMPTY LINE, then 1P with its arrow. Same spacing over 2P. Moving off the silhouette clears the three lines.",
+  "do_keys": "40:-,4:L,40:-,4:R,40:-",
+  "proof": 60
+ },
  "20261017-121458-e03d": {
   "title": "Super Death Blow bonus: the 3-2-1 pile of full-height trunks, the upper rows above the screen",
   "setup": {
@@ -13,14 +40,14 @@
   "proof": 240
  },
  "20261017-114940-e03d": {
-  "title": "Map at the stage start: STAGE 1 in the big blinking font, only SLUM / POLICE / GEESE TOWER",
+  "title": "Stage start: one big message, STAGE 1 START with the map, nothing after",
   "setup": {
    "mode": "select",
    "cursor": "terry"
   },
   "do": "Pick Terry (A) and watch the map that opens over the stage's fade-in, without touching anything.",
-  "expect": "STAGE 1 slides in at the top in the big Savage Reign letters, blinks (white flashes), then stays until the map closes. The map shows only the campaign's three stages: SLUM, POLICE and GEESE TOWER (no PARK, no FACTORY, no FINALE). Not cleared yet = coloured (green, white names): POLICE and GEESE TOWER; SLUM, the stage in play, blinks. After a stage clear the cleared ones turn grey and the next stage blinks.",
-  "do_keys": "30:-,3:a,330:-",
+  "expect": "STAGE 1 START slides in at the top in the big Savage Reign letters, blinks (white flashes), then stays until the map closes. The map shows only the campaign's three stages: SLUM, POLICE and GEESE TOWER, SLUM (the stage in play) blinking. When the map closes, the stage fades in and Terry walks in with NO second big message (no STAGE 1 START again). Every stage's start does the same with its own number.",
+  "do_keys": "30:-,3:a,600:-",
   "proof": 120
  },
  "20261017-114857-e03d": {

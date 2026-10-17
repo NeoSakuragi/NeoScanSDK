@@ -706,6 +706,11 @@ Compiled from the sheet without an agent: 0 slot(s) linked, 0 unresolved; slots 
   attack box of the fury and MAX (body and objects) stretched along x to the fighter's own place, for a player and for
   the boss alike, its victim sent away from him (not through him). Mr. Big: his blasts land 88-128 px ahead, a victim
   32 px in front was never hit (the note's replay); now hit and thrown away. (fury_box_scale stays players-only.)
+- **A special's boxes reach behind** (note 20261017-122233-e03d) — `roster[].box_back` = {input: px} (gbox_back,
+  fighter.c box_back: the same stretch, to px behind the fighter's x, the fury's case being px 0): every body attack box
+  of that special; a victim behind him flies away backward. Terry: C / down-forward + C / up-forward + C = the A Rising
+  Tackle (623A, was 623C), box_back 40 (he moves ~25 px forward before its first hit): a Ryo 24 px behind his start is
+  hit 3 times (at 24 px back it never was), one 40 px behind is not.
 - **Projectile hit budget on Hanzo** (note 20261017-014428-e03d) — hanzo_ss2 `proj_hits` 6321S {max_hits 5,
   hits_per_target 1}: the Bakuen Ryuu pierces, each enemy once, gone on its 5th hit (7 Ryos: the first 5 hit).
 - **A hold extra's price** (note 20261017-015547-e03d) — `roster[].throws.extra_cost` {u / d / b: chunks} (gxthr_cost,

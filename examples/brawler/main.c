@@ -2379,7 +2379,7 @@ static uint8_t sel_move(uint8_t s, uint16_t pr) {
 }
 /* the locked text (note 20261017-114857-e03d, Bruno: "put it on three lines over the hidden character: LOCKED / BEAT
  * THE GAME / FIRST, on top of the 1P cursor"): unlocks.locked_text's lines on the fix layer, each centred on the
- * cursor's column, the last one right above its "1P" (the arrow's row - 2 up); cleared when the cursor leaves */
+ * cursor's column, the last one an empty row above its "1P" (the arrow's row - 3 up); cleared when the cursor leaves */
 static const char *const sel_lk_text[UNL_LOCKED_LINES + 1] = UNL_LOCKED_TEXT;
 static uint8_t sel_lk_col[UNL_LOCKED_LINES + 1], sel_lk_row = 0xFF, sel_lk_ch[2] = { 0xFF, 0xFF };
 static void sel_locked_clear(void) {
@@ -2394,7 +2394,9 @@ static void sel_locked_clear(void) {
 static void sel_locked_text(uint8_t col, uint8_t row) {   /* col / row: the arrow's cell */
     uint8_t i, n;
     if (!UNL_LOCKED_LINES) return;
-    sel_lk_row = row >= UNL_LOCKED_LINES + 4 ? row - 1 - UNL_LOCKED_LINES : 3;   /* (under the name row 2 at worst) */
+    sel_lk_row = row >= UNL_LOCKED_LINES + 5 ? row - 2 - UNL_LOCKED_LINES : 3;   /* (one empty row between its last line
+                                                                    and the "1P" / "2P": note 20261017-121711-e03d, Bruno:
+                                                                    "a little separation"; under the name row 2 at worst) */
     for (i = 0; i < UNL_LOCKED_LINES; i++) {
         int16_t c;
         for (n = 0; sel_lk_text[i][n]; n++) ;
@@ -3236,6 +3238,10 @@ static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it
 enum { IN_OFF, IN_FADE, IN_WALK, IN_WAIT };
 static void centre(uint8_t row, const char *t);
 static uint8_t in_ph, no_intro, in_at[2], in_faded, in_mt;   /* in_faded: the fade done under the map (in_mt: its ticks) */
+static uint8_t in_mapped;                                    /* the map opened over this start: its STAGE n START is the
+                                                                stage's one headline, the intro's title is not shown
+                                                                (note 20261017-114940-e03d reopened, Bruno: "STAGE 1 START
+                                                                with the map and nothing after") */
 static uint16_t in_t;
 static int32_t in_x[2];
 static const gintro_t *gi;
@@ -3265,7 +3271,7 @@ static int16_t in_mark(uint8_t p) { return gi->side ? 320 - gi->mark_x[p] : gi->
 static void intro_title(void) {                              /* the title's line: shown, then cleared */
     uint8_t n = 0;
     char sp[40];
-    if (!gi->title[0]) return;
+    if (!gi->title[0] || in_mapped) return;
     if (gbig[BIG_STAGE_INTRO].on) {                          /* in the big font (game.json big_text.stage_intro) */
         if (in_t == gi->title_at) bt_show(gi->title, BIG_STAGE_INTRO);   /* (it leaves by itself: the headline
                                                                 animation's slide out, big_text.headline; title_hold is
@@ -3296,6 +3302,8 @@ static void intro_fade_tick(void) {                          /* IN_FADE: the gam
         if (!map_tick()) {                                   /* gone: the stage as faded in, the title next tick */
             in_faded = 1; stage_fade(16, 0xFF);
             in_t = gi->title_at ? gi->title_at - 1 : 0;
+            if (in_mapped && gi->walk_at > in_t) in_t = gi->walk_at - 1;   /* (the map's headline was the title: the
+                                                                walk-in next tick, not the title's wait on an empty stage) */
             if (!gi->title_at) intro_title();
         }
         return;
@@ -3372,12 +3380,13 @@ static void stage_begin(uint8_t s, uint8_t first) {
         if (CHEAT_GAME) fighter_meter_fill(&fighters[i]);    /* the cheat: both bars full at each stage's start */
         if (first) { lives[i] = 3; cont_t[i] = 0; }
     }
-    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0; in_faded = 0; in_mt = 0;
+    gi = &gintro[s]; in_ph = IN_OFF; in_t = 0; in_faded = 0; in_mt = 0; in_mapped = 0;
     if (!attract && !no_intro) {                             /* the stage intro: nobody on screen, the stage black */
         in_ph = IN_FADE;
         for (i = 0; i < NF; i++) fighters[i].state = S_OFF;
         stage_fade(gi->fade ? 0 : 16, 0xFF);
         if (!lab.active) map_open(MAP_START);               /* the map over the fade-in (game.json map.start_ticks) */
+        in_mapped = map_on;
         if (!map_on) intro_title();
         if (!map_on && !gi->fade && !gi->walk_at) intro_walk_start();
     } else spawn_wave();

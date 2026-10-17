@@ -2029,6 +2029,7 @@ def tables(g, build):
          'extern const gmaxc_t gmax_chain[BC_COUNT];',
          'extern const uint8_t gfury_box[BC_COUNT];     /* the fury\'s and MAX\'s attack boxes: half extents times this (game.json roster[].fury_box_scale; fighter.c strike) */',
          'extern const uint8_t gfury_back[BC_COUNT];    /* 1: the fury\'s and MAX\'s attack boxes reach back to the fighter\'s body, close range connects (game.json roster[].fury_box_back; fighter.c strike) */',
+         'extern const uint8_t *const gbox_back[BC_COUNT];   /* per fighter [special index, px] pairs, 0xFF ends (0 = none): that special\'s body attack boxes reach back to px behind the fighter\'s own x (game.json roster[].box_back; fighter.c strike, reach_back) */',
          'extern const uint8_t gfury_throw[BC_COUNT];   /* the fury closes with the hold B throw on its reeling victim, this damage (game.json roster[].fury_throw; 0 = none; fighter.c fury_throw) */',
          'extern const uint8_t ghold_timeout[BC_COUNT];   /* the holder hold timeout (game.json roster[].hold_timeout): 0 stand (the victim let go on its feet), 1 knockdown (it falls on its back, no damage); fighter.c hold_update */',
          'extern const uint8_t gthrow_air[BC_COUNT];     /* bit BT_*: that throw\'s thrower, airborne after its release (SS2 Hanzo\'s leap back), takes the jump\'s controls on A (game.json roster[].keeps_air_attack "throw_c" / "throw_d"; fighter.c throw_air) */',
@@ -2227,6 +2228,20 @@ def tables(g, build):
         assert isinstance(v, bool), f"roster {r['name']}: fury_box_back true / false"   # fury and MAX (body and objects)
         fk.append(f'{1 if v else 0}   /* {r["name"]} */')   # stretched back to his own body, whoever he fights for
     c.append('const uint8_t gfury_back[BC_COUNT] = {\n    ' + ',\n    '.join(fk) + '\n};')
+    pools = {f['name']: [None if p.get('seq') else p['input'] for p in f['pool']]   # a special's boxes reaching behind
+             for f in json.load(open(os.path.join(build, 'chainlab.json')))['fighters']}   # (note 20261017-122233-e03d,
+    bb = []                                              # Terry's Rising Tackle: "so it also touches the people behind"):
+    for r in g['roster']:                                # roster[].box_back = {input: px}: every body attack box of that
+        e = {k: v for k, v in (r.get('box_back') or {}).items() if k != 'about'}   # special stretched back to px behind
+        if not e: bb.append(f'0   /* {r["name"]} */'); continue   # his own x (fighter.c reach_back; the fury_box_back
+        row = []                                         # stretch is the same with px 0)
+        for inp, px in e.items():
+            assert inp in pools[r['name']], f"roster {r['name']}: box_back {inp}: not in its pool ({' '.join(map(str, pools[r['name']]))})"
+            assert isinstance(px, int) and 0 <= px <= 64, f"roster {r['name']}: box_back {inp}: px 0-64"
+            row += [pools[r['name']].index(inp), px]
+        c.append(f'static const uint8_t gbb_{r["name"]}[] = {{ ' + ', '.join(map(str, row + [0xFF])) + ' };')
+        bb.append(f'gbb_{r["name"]}   /* {r["name"]} */')
+    c.append('const uint8_t *const gbox_back[BC_COUNT] = {\n    ' + ',\n    '.join(bb) + '\n};')
     mc = []                                              # the MAX's own tail (Bruno 2026-10-15, Haggar's MAX: "jab, jab,
     for r in g['roster']:                                # finisher x 3, 50 % faster, the spin, back throw x 3, a half-height
         me = r.get('max_chain')                           # piledriver, a piledriver"): roster[].max_chain = the fury's
