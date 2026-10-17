@@ -6368,5 +6368,47 @@
   "expect": "The stage ends at once: Terry's win pose alone for 3 seconds (no map, no message), then the Final Fight map and STAGE 2 CLEAR (the big Savage Reign letters sliding in) come up at the same moment, POLICE blinking; about 4.5 seconds later both go together, as before (the whole clear lasts as long as before). The stage start is unchanged: the map and STAGE n START together.",
   "do_keys": "190:Dad,480:-",
   "proof": 60
+ },
+ "20261017-173520-e03d": {
+  "title": "Haggar: one finisher only, a low push away (run + A the same)",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "x": 40,
+   "gap": 40
+  },
+  "do": "Jab, jab, then the third press with the stick up, forward, down or neutral. Then run at Ryo and press A (run + A). Try to keep hitting him while he is in the air.",
+  "expect": "Whatever the stick does, the third press plays the same punch: no up, forward or down finisher any more (back + A is still the back throw). Ryo is pushed away low, about 16 px off the floor and about 90 px away (the finisher was about 82 px high, run + A about 28 px). Run + A sends him the same way, and the same in the air: he lands quickly, out of reach, so the juggles stop.",
+  "do_keys": "2:a,10:-,2:a,12:-,2:a,90:-",
+  "proof": 60
+ },
+ "20261017-173728-e03d": {
+  "title": "Haggar: 5 more recovery frames on the finisher and on run + A",
+  "setup": {
+   "mode": "lab",
+   "fighter": "haggar",
+   "dummy": "ryo",
+   "x": 40,
+   "gap": 40
+  },
+  "do": "Jab, jab, jab on Ryo and watch Haggar after the third punch. Then run at Ryo and press A (run + A).",
+  "expect": "After the finisher Haggar holds his last pose 5 frames longer before you can act again (33 frames instead of 28); after run + A too (43 instead of 38, it had +4 already: now +9).",
+  "do_keys": "2:a,10:-,2:a,12:-,2:a,90:-",
+  "proof": 60
+ },
+ "20261017-174059-e03d": {
+  "title": "Stage 2 (Krauser) on a new background without water",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 4,
+   "wait": 420
+  },
+  "do": "Stage 2's boss (Krauser). Then play stage 2 from the start.",
+  "expect": "Stage 2 is the dirt yard with ruins, trucks and the cage (the old garage stage), never water on the floor; same music, same 4 waves, Krauser at the end. The industrial stage with the water is gone from the game. The map still says POLICE.",
+  "do_keys": "",
+  "proof": 60
  }
 }
