@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terry MAX Voices</title>
+<!-- Note 20261017-145343-e03d: Bruno times Terry's MAX (Triple Geyser, MAX 21416C) voices himself. Frames captured in our
+emulator on the current build by tools/brawler/maxvoice_frames.py -> decisions-media/terry-max-voices/ (frames.json, frame
+sheets, the candidate WAVs). Saved to the feedback service: POST feedback-api/decision {set 'terry-max-voices', id 'cues',
+choice 'saved', label, note = JSON {prog_voices: {"MAX 21416C": {frames: [[frame, voice id], ...]}}, text, case, clock}}
+-> DATA/decisions/terry-max-voices.json (GET feedback-api/decisions/terry-max-voices). The prog_voices object is the
+value for game.json roster terry prog_voices as is; frame = the capture's clock (0 = the D press). -->
+<style>
+:root { --fg: #000; --bg: #fff; --mid: #555; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.35 system-ui, sans-serif; }
+main { max-width: 640px; margin: 0 auto; padding: 8px 12px 40px; }
+h1 { font-size: 18px; margin: 4px 0; }
+h2 { font-size: 15px; margin: 14px 0 4px; border-bottom: 2px solid #000; padding-bottom: 2px; }
+p { margin: 4px 0; }
+.small { font-size: 13px; }
+button, select, input { font: inherit; color: #000; background: #fff; border: 2px solid #000; border-radius: 0; }
+button { padding: 4px 8px; cursor: pointer; min-height: 34px; }
+button[aria-pressed="true"] { background: #000; color: #fff; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px dashed #000; outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 4px 0; }
+#view { display: block; width: 100%; max-width: 544px; aspect-ratio: 272 / 192; border: 2px solid #000; image-rendering: pixelated; background: #fff; }
+#pos { font-weight: 700; font-variant-numeric: tabular-nums; }
+#scrub { flex: 1; min-width: 120px; accent-color: #000; }
+#strip { display: flex; overflow-x: auto; gap: 2px; border: 2px solid #000; padding: 2px; scroll-behavior: auto; }
+.fr { flex: 0 0 auto; width: 92px; border: 1px solid #000; padding: 0; background: #fff; min-height: 0; text-align: left; font-size: 12px; }
+.fr .th { width: 90px; height: 64px; display: block; background-repeat: no-repeat; }
+.fr .lab { display: flex; justify-content: space-between; padding: 0 2px; font-variant-numeric: tabular-nums; }
+.fr .snd { height: 16px; padding: 0 2px; white-space: nowrap; overflow: hidden; font-weight: 700; font-size: 11px; }
+.fr .snd.on { border-top: 4px solid #000; }
+.fr.cur { outline: 4px solid #000; outline-offset: -4px; }
+.fr.cur .lab { background: #000; color: #fff; }
+.vbtn { display: flex; gap: 8px; align-items: baseline; text-align: left; width: 100%; }
+.vbtn b { min-width: 2.6em; }
+.fcell { display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; }
+label.chk { display: flex; gap: 6px; align-items: center; font-size: 13px; margin: 4px 0; }
+#sounds { display: grid; grid-template-columns: 1fr; gap: 4px; }
+table { border-collapse: collapse; width: 100%; }
+td, th { border: 1px solid #000; padding: 3px 4px; text-align: left; }
+th { font-size: 13px; }
+td.sel { width: 34px; text-align: center; }
+input[type="number"] { width: 54px; padding: 3px; min-height: 34px; }
+input[type="radio"] { width: 20px; height: 20px; accent-color: #000; }
+tr.selrow td { border-width: 2px 1px; font-weight: 700; }
+#status { min-height: 1.3em; }
+#last { border: 2px solid #000; padding: 6px; font-size: 13px; white-space: pre-wrap; }
+#last:empty { display: none; }
+textarea { font: inherit; border: 2px solid #000; border-radius: 0; padding: 4px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Terry's MAX: voice timing</h1>
+<p class="small">Triple Geyser (MAX 21416C, down + D at low life), build <span id="build">?</span>, our emulator, frame 0 = the D press, 60 fps. Set each sound's frame below and save.</p>
+
+<h2>Animation</h2>
+<div class="row">
+  <span>Version:</span>
+  <button id="c-hit" aria-pressed="true">Hit on dummy</button>
+  <button id="c-whiff" aria-pressed="false">Whiff</button>
+</div>
+<canvas id="view" width="272" height="192" aria-label="Terry's MAX at the current frame"></canvas>
+<div class="row">
+  <button id="b-first" aria-label="First frame">|&#9664;</button>
+  <button id="b-prev" aria-label="Previous frame">&#9664; 1</button>
+  <button id="b-play">&#9654; Play</button>
+  <button id="b-next" aria-label="Next frame">1 &#9654;</button>
+  <button id="b-snd">&#9654; Play with sounds</button>
+</div>
+<div class="row">
+  <span id="pos">Frame 0 / 0</span>
+  <input id="scrub" type="range" min="0" max="0" value="0" aria-label="Frame">
+</div>
+<p class="small">Strip: tap a frame to go there (and move the selected cue, if "Tap sets the cue" is on). Under each frame: the cue starting there, a thick bar while a cue sounds, E = a geyser appears.</p>
+<div id="strip" role="list"></div>
+<label class="chk"><input type="checkbox" id="tapset" checked> Tap sets the cue: a tapped frame becomes the selected (Sel) cue's frame</label>
+
+<h2>Sounds</h2>
+<div id="sounds"></div>
+
+<h2>Cues</h2>
+<table>
+  <thead><tr><th>Sel</th><th>Sound</th><th>Frame</th><th>Del</th></tr></thead>
+  <tbody id="cues"></tbody>
+</table>
+<div class="row">
+  <button id="b-add">+ Add cue</button>
+  <button id="b-reset">Reset to the build's cues</button>
+</div>
+<p class="small">Sounds overlap as in KOF98's driver (a new voice takes a free channel, it does not cut the one sounding).</p>
+
+<h2>Note and save</h2>
+<textarea id="note" rows="3" placeholder="Anything else about the timing"></textarea>
+<div class="row"><button id="b-save"><b>Save cues + note</b></button><span id="status" aria-live="polite"></span></div>
+<div id="last"></div>
+</main>
+<script src="micnote.js"></script>
+<script>
+(function () {
+  const API = 'feedback-api/', SET = 'terry-max-voices', QID = 'cues', INPUT = 'MAX 21416C';
+  const MEDIA = 'decisions-media/terry-max-voices/';
+  const BUILD_CUES = [[3, 22], [46, 22], [68, 22], [92, 23]];     // today's build (0.10.168+: rbsgeyser_proof.py)
+  const NAMES = { 22: 'C4', 23: 'C6', 16: 'K16', 17: 'K17', 18: 'K18' };
+  const LONG = { 22: "RBS $C4 (P.Power start / 1st geyser)", 23: "RBS $C6 (3rd geyser)", 16: 'KOF98 voice 16 (0.10.167 MAX start)',
+                 17: 'KOF98 voice 17 (0.10.167 MAX, +24 f)', 18: 'KOF98 voice 18 (236236 fury start)' };
+  const $ = id => document.getElementById(id);
+  let D, C, kase = 'hit', cur = 0, playing = null, cues = [], sel = null, buffers = {}, actx = null, big = {}, voiceById = {};
+
+  const ac = () => { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; };
+  const nf = id => voiceById[id] ? Math.ceil(voiceById[id].ms * 60 / 1000) : 0;   // the sound's length in frames
+
+  async function init() {
+    D = await (await fetch(MEDIA + 'frames.json', { cache: 'no-cache' })).json();
+    $('build').textContent = D.build || '?';
+    D.voices.forEach(v => voiceById[v.id] = v);
+    for (const v of D.voices) {
+      const b = document.createElement('button'); b.className = 'vbtn';
+      b.innerHTML = `<span>&#9654;</span><b>${NAMES[v.id]}</b><span>${v.ms} ms = ${nf(v.id)} f · ${LONG[v.id]}</span>`;
+      b.onclick = () => playOne(v.id); $('sounds').append(b);
+      fetch(MEDIA + v.wav).then(r => r.arrayBuffer()).then(a => ac().decodeAudioData(a)).then(buf => buffers[v.id] = buf).catch(() => {});
+    }
+    cues = BUILD_CUES.map(([f, id]) => ({ f, id }));
+    await loadSaved();
+    sel = null;                                            // no cue selected: a tap only moves the player until one is picked
+    setCase('hit');
+    renderCues();
+  }
+
+  // ---- frames ----
+  function setCase(k) {
+    kase = k; C = D.cases[k];
+    $('c-hit').setAttribute('aria-pressed', k === 'hit'); $('c-whiff').setAttribute('aria-pressed', k === 'whiff');
+    if (!big[k]) { big[k] = new Image(); big[k].onload = () => draw(); big[k].src = MEDIA + C.big; }
+    $('scrub').max = C.n - 1; cur = Math.min(cur, C.n - 1);
+    buildStrip(); draw();
+  }
+  function buildStrip() {
+    const s = $('strip'); s.replaceChildren();
+    const cw = (D.crop[2] - D.crop[0]) / D.small | 0, ch = (D.crop[3] - D.crop[1]) / D.small | 0;
+    for (let i = 0; i < C.n; i++) {
+      const b = document.createElement('button'); b.className = 'fr'; b.setAttribute('role', 'listitem'); b.dataset.i = i;
+      b.setAttribute('aria-label', 'Frame ' + i);
+      const th = document.createElement('span'); th.className = 'th';
+      th.style.backgroundImage = `url(${MEDIA + C.small})`;
+      th.style.backgroundPosition = `-${(i % D.cols) * cw}px -${Math.floor(i / D.cols) * ch}px`;
+      const lab = document.createElement('span'); lab.className = 'lab';
+      lab.innerHTML = `<span>${i}</span><span>${C.eruption_starts.includes(i) ? 'E' : ''}</span>`;
+      const snd = document.createElement('span'); snd.className = 'snd';
+      b.append(th, lab, snd);
+      b.onclick = () => { stop(); if ($('tapset').checked && sel) { sel.f = i; renderCues(); } go(i); };
+      s.append(b);
+    }
+    marks();
+  }
+  function marks() {                                       // cue labels + sounding bars under the strip's frames
+    const fr = $('strip').children;
+    for (let i = 0; i < fr.length; i++) {
+      const starts = cues.filter(c => c.f === i).map(c => NAMES[c.id]);
+      const on = cues.some(c => i >= c.f && i < c.f + nf(c.id));
+      const s = fr[i].querySelector('.snd'); s.textContent = starts.join('+'); s.classList.toggle('on', on);
+    }
+  }
+  function draw() {
+    const cv = $('view'), g = cv.getContext('2d'), w = D.crop[2] - D.crop[0], h = D.crop[3] - D.crop[1];
+    const im = big[kase];
+    if (im && im.complete && im.naturalWidth) g.drawImage(im, (cur % D.cols) * w, Math.floor(cur / D.cols) * h, w, h, 0, 0, w, h);
+    else { g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.fillStyle = '#000'; g.fillText('loading…', 8, 16); }
+    const starts = cues.filter(c => c.f === cur).map(c => NAMES[c.id]);
+    $('pos').textContent = `Frame ${cur} / ${C.n - 1}` + (starts.length ? ` · ${starts.join('+')}` : '');
+    $('scrub').value = cur;
+    const fr = $('strip').children, old = $('strip').querySelector('.cur');
+    if (old) old.classList.remove('cur');
+    if (fr[cur]) {
+      fr[cur].classList.add('cur');
+      const s = $('strip'), el = fr[cur];
+      if (el.offsetLeft < s.scrollLeft || el.offsetLeft + el.offsetWidth > s.scrollLeft + s.clientWidth) s.scrollLeft = el.offsetLeft - s.clientWidth / 2;
+    }
+  }
+  const go = i => { cur = Math.max(0, Math.min(C.n - 1, i)); draw(); };
+
+  // ---- playback: silent = performance clock, with sounds = the audio clock (cues fire on their frame) ----
+  function stop() {
+    if (!playing) return;
+    cancelAnimationFrame(playing.raf); (playing.srcs || []).forEach(s => { try { s.stop(); } catch (e) {} });
+    playing = null; $('b-play').innerHTML = '&#9654; Play'; $('b-snd').innerHTML = '&#9654; Play with sounds';
+  }
+  function play(withSound) {
+    if (playing) { const was = playing.snd; stop(); if (was === withSound) return; }
+    const f0 = cur >= C.n - 1 ? 0 : cur;
+    const p = playing = { snd: withSound, srcs: [] };
+    let clock;
+    if (withSound) {
+      const ctx = ac(), t0 = ctx.currentTime + 0.08;
+      for (const c of cues) {
+        const buf = buffers[c.id]; if (!buf) continue;
+        const at = t0 + (c.f - f0) / 60;
+        const off = Math.max(0, (f0 - c.f) / 60);           // a cue before the start still sounding: joined in its middle
+        if (off >= buf.duration) continue;
+        const s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination);
+        s.start(Math.max(at, t0), off); p.srcs.push(s);
+      }
+      clock = () => (ctx.currentTime - t0) * 60;
+      $('b-snd').innerHTML = '&#10074;&#10074; Pause';
+    } else {
+      const t0 = performance.now(); clock = () => (performance.now() - t0) * 60 / 1000;
+      $('b-play').innerHTML = '&#10074;&#10074; Pause';
+    }
+    const tick = () => {
+      if (playing !== p) return;
+      const f = f0 + Math.max(0, Math.floor(clock()));
+      if (f >= C.n) { go(C.n - 1); stop(); return; }
+      if (f !== cur) go(f);
+      p.raf = requestAnimationFrame(tick);
+    };
+    go(f0); p.raf = requestAnimationFrame(tick);
+  }
+  let one = null;
+  function playOne(id) {
+    const buf = buffers[id]; if (!buf) return;
+    if (one) { try { one.stop(); } catch (e) {} }
+    const ctx = ac(), s = ctx.createBufferSource(); s.buffer = buf; s.connect(ctx.destination); s.start(); one = s;
+  }
+
+  // ---- cues ----
+  function renderCues() {
+    cues.sort((a, b) => a.f - b.f || a.id - b.id);
+    const tb = $('cues'); tb.replaceChildren();
+    for (const c of cues) {
+      const tr = document.createElement('tr'); if (c === sel) tr.className = 'selrow';
+      const r = document.createElement('input'); r.type = 'radio'; r.name = 'sel'; r.checked = c === sel;
+      r.setAttribute('aria-label', 'Select this cue'); r.onchange = () => { sel = c; renderCues(); };
+      const sl = document.createElement('select'); sl.setAttribute('aria-label', 'Sound');
+      for (const v of D.voices) { const o = document.createElement('option'); o.value = v.id; o.textContent = `${NAMES[v.id]} (${nf(v.id)} f)`; sl.append(o); }
+      sl.value = c.id; sl.onchange = () => { c.id = +sl.value; renderCues(); };
+      const fi = document.createElement('input'); fi.type = 'number'; fi.min = 0; fi.max = C.n - 1; fi.value = c.f; fi.setAttribute('aria-label', 'Frame');
+      fi.onchange = () => { const v = parseInt(fi.value, 10); if (v >= 0 && v < C.n) { c.f = v; sel = c; go(v); } renderCues(); };
+      const mk = (t, lab, fn) => { const b = document.createElement('button'); b.textContent = t; b.setAttribute('aria-label', lab); b.onclick = fn; return b; };
+      const fcell = document.createElement('div'); fcell.className = 'fcell';
+      fcell.append(mk('−', 'One frame earlier', () => { c.f = Math.max(0, c.f - 1); sel = c; go(c.f); renderCues(); }), fi,
+                   mk('+', 'One frame later', () => { c.f = Math.min(C.n - 1, c.f + 1); sel = c; go(c.f); renderCues(); }),
+                   mk('Go', 'Show this frame', () => { sel = c; go(c.f); renderCues(); }));
+      const rm = mk('✕', 'Remove this cue', () => { cues = cues.filter(x => x !== c); if (sel === c) sel = null; renderCues(); });
+      const td = x => { const d = document.createElement('td'); d.append(x); return d; };
+      const t0 = td(r); t0.className = 'sel';
+      tr.append(t0, td(sl), td(fcell), td(rm)); tb.append(tr);
+    }
+    if (!cues.length) { const tr = document.createElement('tr'); tr.innerHTML = '<td colspan="4">No cue: the MAX would be silent.</td>'; tb.append(tr); }
+    if (C) { marks(); draw(); }
+  }
+  $('b-add').onclick = () => { const c = { f: cur, id: 22 }; cues.push(c); sel = c; renderCues(); };
+  $('b-reset').onclick = () => { cues = BUILD_CUES.map(([f, id]) => ({ f, id })); sel = null; renderCues(); };
+
+  // ---- save / load ----
+  const payload = () => {
+    const frames = cues.map(c => [c.f, c.id]);
+    return { prog_voices: { [INPUT]: { frames } }, text: $('note').value.trim(), case: kase,
+             clock: 'frame 0 = the D press (down + D held frames 0-1), 60 fps, maxvoice_frames.py; voice id = voices.json terry',
+             build: D.build || '' };
+  };
+  const summary = fr => fr.map(([f, id]) => `${NAMES[id] || id}@${f}`).join(' ');
+  async function loadSaved() {
+    let a = null;
+    try { const r = await fetch(API + 'decisions/' + SET, { cache: 'no-store', credentials: 'same-origin' }); if (r.ok) a = (await r.json())[QID]; } catch (e) { /* offline */ }
+    if (!a || !a.note) return;
+    try {
+      const n = JSON.parse(a.note), fr = n.prog_voices[INPUT].frames;
+      cues = fr.map(([f, id]) => ({ f, id })); $('note').value = n.text || '';
+      $('last').textContent = `Last saved ${a.at || ''}: ${summary(fr)}${n.text ? '\n' + n.text : ''}\n(loaded into the cues above)`;
+    } catch (e) { $('last').textContent = 'Last saved: ' + a.note; }
+  }
+  $('b-save').onclick = async () => {
+    const p = payload(); $('status').textContent = 'Saving…';
+    try {
+      const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ set: SET, id: QID, choice: 'saved', label: summary(p.prog_voices[INPUT].frames), note: JSON.stringify(p) }) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const a = (await r.json()).answer || {};
+      $('status').textContent = 'Saved ✓';
+      $('last').textContent = `Last saved ${a.at || ''}: ${summary(p.prog_voices[INPUT].frames)}${p.text ? '\n' + p.text : ''}`;
+    } catch (e) { $('status').textContent = 'NOT saved (' + e.message + '): try again'; }
+  };
+
+  // ---- controls ----
+  $('c-hit').onclick = () => { stop(); setCase('hit'); };
+  $('c-whiff').onclick = () => { stop(); setCase('whiff'); };
+  $('b-first').onclick = () => { stop(); go(0); };
+  $('b-prev').onclick = () => { stop(); go(cur - 1); };
+  $('b-next').onclick = () => { stop(); go(cur + 1); };
+  $('b-play').onclick = () => play(false);
+  $('b-snd').onclick = () => play(true);
+  $('scrub').oninput = () => { stop(); go(+$('scrub').value); };
+  document.addEventListener('keydown', e => {
+    if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === 'ArrowLeft') { stop(); go(cur - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { stop(); go(cur + 1); e.preventDefault(); }
+    else if (e.key === ' ') { play(true); e.preventDefault(); }
+  });
+  if (window.micNote) window.micNote($('note'));
+  init().catch(e => { document.querySelector('main').insertAdjacentHTML('afterbegin', '<p><b>Could not load the frames: ' + e.message + '</b></p>'); });
+})();
+</script>
+</body>
+</html>
