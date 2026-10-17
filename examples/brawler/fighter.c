@@ -851,6 +851,14 @@ static uint8_t is_blitz_node(const fighter_t *f) {               /* P1's node is
                                                                     entry, a normal's blitz entry: BZ_NORMAL) */
     return f->node && (f->node == TREE(f)->dash || f->node == TREE(f)->pad[0]);
 }
+static const int32_t *own_hit(const fighter_t *f) {              /* its node's own launch / recovery [vy, vx, recovery]
+                                                                    (gblitz_hit: a Blitz played as a tree node, roster[].
+                                                                    blitz_hit; a chain finisher, RF_FIN, roster[].finisher_hit,
+                                                                    note 20261017-173520-e03d), 0 = none */
+    if (!f->node || f->ch->id >= BC_COUNT) return 0;
+    if (is_blitz_node(f)) return gblitz_hit[f->ch->id][f->node == TREE(f)->dash ? 0 : 1];
+    return (NODE(f, f->node)->flags & RF_FIN) ? gblitz_hit[f->ch->id][2] : 0;
+}
 static uint8_t blitz_play(fighter_t *f, uint8_t slot, uint8_t how);
 /* a Blitz's slide (Bruno 2026-10-14, note 20261014-192939-5d29: "for the forward-forward A blitz, in addition to this
  * move, add a small sliding forward motion"; game.json roster[].blitz_slide -> {px, frames} -> gblitz_slide[fighter][slot]):
@@ -4823,10 +4831,11 @@ static void update(fighter_t *f, const intent_t *in) {
             uint8_t nx = chain_next(f, c, f->buffered);
             if (nx) { lab_note(f, LE_END, f->node, LH_CANCEL, 1); route_go(f, c, nx, f->buffered, in, LH_CANCEL); break; }
         }
-        if (f->anim_done && is_blitz_node(f) && f->ch->id < BC_COUNT &&   /* its Blitz's extra recovery (roster[].blitz_hit,
-                                                                    note 20261017-141149-e03d): its last pose held that
+        if (f->anim_done && own_hit(f) &&                        /* its Blitz's / finisher's extra recovery (roster[].
+                                                                    blitz_hit, note 20261017-141149-e03d; finisher_hit,
+                                                                    note 20261017-173728-e03d): its last pose held that
                                                                     many frames more before control comes back */
-            f->bsl_rec < (uint8_t)gblitz_hit[f->ch->id][f->node == TREE(f)->dash ? 0 : 1][2]) { f->bsl_rec++; break; }
+            f->bsl_rec < (uint8_t)own_hit(f)[2]) { f->bsl_rec++; break; }
         if (f->anim_done && c->next[RI_THEN]) {                  /* (Kim gold) a finisher of several moves: the next one
                                                                     now, back to back, hit or not (RI_THEN) */
             lab_note(f, LE_END, f->node, LH_AFTER_END, f->landed);
@@ -5182,11 +5191,12 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
             react(v, away, reaction | (same ? REACT_SAME : 0), push);   /* (a node's "air": "same": the grounded reaction
                                                                     on an airborne victim too, note 20261017-141149-e03d) */
         }
-        if (a->state == S_ATTACK && is_blitz_node(a) && a->ch->id < BC_COUNT && v->state == S_KNOCKDOWN &&
+        if (a->state == S_ATTACK && own_hit(a) && v->state == S_KNOCKDOWN &&
             (v->y <= 0 || (NODE(a, a->node)->flags & RF_AIR_SAME)) &&
-            !v->kmode) {                                         /* its Blitz's own launch (roster[].blitz_hit, note
-                                                                    20261017-141149-e03d: Haggar's run + A one size lower) */
-            const int32_t *bh = gblitz_hit[a->ch->id][a->node == TREE(a)->dash ? 0 : 1];
+            !v->kmode) {                                         /* its Blitz's / finisher's own launch (roster[].blitz_hit,
+                                                                    note 20261017-141149-e03d; finisher_hit, note
+                                                                    20261017-173520-e03d: Haggar's low push away) */
+            const int32_t *bh = own_hit(a);
             if (bh[0]) { v->vy = bh[0]; v->vx = dir_mul(away, bh[1]); }
         }
     }

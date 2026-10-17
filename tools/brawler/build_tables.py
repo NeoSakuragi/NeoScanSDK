@@ -459,7 +459,8 @@ def chain_cfg(g, r):
             'air': air, 'specials': r.get('specials') or {},          # (revamp gold: a finisher named as a special input)
             **({'dash': blitz_normal(r)} if blitz_normal(r) else {}),     # (a normal as a Blitz: the tree's blitz entry plays it)
             'damage': r.get('damage', 1), **({'links': own['links']} if 'links' in own else {}),
-            **({'hitstops': own['hitstop']} if 'hitstop' in own else {}), **({'keep': True} if own.get('keep') else {})}
+            **({'hitstops': own['hitstop']} if 'hitstop' in own else {}), **({'keep': True} if own.get('keep') else {}),
+            **({'fin_hit': True} if r.get('finisher_hit') else {})}   # (its finishers' own launch / recovery: RF_FIN)
 
 
 BLITZ_NORMAL = re.compile(r'^(atk_[a-d]{1,2}_(close|far|crouch)|body_toss|cmd_\w+)$')   # a Blitz slot naming a ground normal
@@ -609,23 +610,32 @@ def blitz_hits(g):
     impact add four frames of recovery"): launch = a size of game.json throw_launch.up (small / medium / big) for the
     victim its hit knocks down from the ground (16.16 px a frame up / away; the engine's own knockdown, vy 7 vx 2, is
     throw_launch.up.big), recovery = frames it holds its last pose after its animation, before control comes back
-    (fighter.c fighter_hit / S_ATTACK); [0, 0, 0] = none (the engine's knockdown, no extra recovery)"""
-    up = g['throw_launch']['up']
+    (fighter.c fighter_hit / S_ATTACK); [0, 0, 0] = none (the engine's knockdown, no extra recovery).
+    [2] = its chain's finishers (roster[].finisher_hit {launch, recovery}, note 20261017-173520-e03d / 173728-e03d,
+    Haggar: "the neutral finisher pushes the opponent away and not much in the air", "five frames of recovery"): the
+    tree's finisher nodes carry RF_FIN (routes.chain_tree fin_hit). launch: a size of throw_launch.up ("medium") or
+    "up.<size>" / "away.<size>" (throw_launch.away: low and far, a push away)"""
+    TL = g['throw_launch']
+    def one(where, v):
+        assert set(v) <= {'launch', 'recovery', 'about'}, f"{where}: launch / recovery"
+        L = v.get('launch')
+        d, sz = (L.split('.', 1) if '.' in L else ('up', L)) if L else (None, None)
+        assert L is None or (d in ('up', 'away') and sz in TL[d]), \
+            f"{where}.launch: one of throw_launch.up {' / '.join(TL['up'])} (or up.<size> / away.<size>)"
+        rc = v.get('recovery', 0)
+        assert isinstance(rc, int) and 0 <= rc <= 60, f"{where}.recovery 0-60 frames"
+        return [round(TL[d][sz]['vy'] * 65536) if L else 0, round(TL[d][sz]['vx'] * 65536) if L else 0, rc]
     out = []
     for r in g['roster']:
-        bz = r.get('blitz') or {'ff': 'dash'}; row = [[0, 0, 0], [0, 0, 0]]
+        bz = r.get('blitz') or {'ff': 'dash'}; row = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
         for k, v in (r.get('blitz_hit') or {}).items():
             if k == 'about': continue
             assert k in BLITZ_SLOTS and k in bz, f"roster {r['name']}: blitz_hit.{k}: not one of its Blitz slots"
             sl = bz[k]
             assert sl == 'dash' or (isinstance(sl, str) and BLITZ_NORMAL.match(sl)), \
                 f"roster {r['name']}: blitz_hit.{k}: its Blitz {sl} is a special (blitz_hit: the dash entry or a normal)"
-            assert set(v) <= {'launch', 'recovery', 'about'}, f"roster {r['name']}: blitz_hit.{k}: launch / recovery"
-            L = v.get('launch')
-            assert L is None or L in up, f"roster {r['name']}: blitz_hit.{k}.launch: one of throw_launch.up {' / '.join(up)}"
-            rc = v.get('recovery', 0)
-            assert isinstance(rc, int) and 0 <= rc <= 60, f"roster {r['name']}: blitz_hit.{k}.recovery 0-60 frames"
-            row[0 if sl == 'dash' else 1] = [round(up[L]['vy'] * 65536) if L else 0, round(up[L]['vx'] * 65536) if L else 0, rc]
+            row[0 if sl == 'dash' else 1] = one(f"roster {r['name']}: blitz_hit.{k}", v)
+        if r.get('finisher_hit'): row[2] = one(f"roster {r['name']}: finisher_hit", r['finisher_hit'])
         out.append((r['name'], row))
     return out
 
@@ -2068,7 +2078,7 @@ def tables(g, build):
          'extern const uint8_t gfury_wait[BC_COUNT];   /* 1: the fury (D) holds its first frame through the super flash\'s freeze, its move after (roster[].fury_flash, default wait for a sequence fury: fighter.c flash_pose) */',
          'extern const uint8_t gfury_area[BC_COUNT][3];  /* the fury\'s final hit as an area hit (roster[].fury_final_area; fighter.c fury_area): [front, back, depth] px, 0 = none */',
          'extern const int32_t gwalk_rom[BC_COUNT];       /* its walk (16.16 px a frame, by archetype) */',
-         'extern const int32_t gblitz_hit[BC_COUNT][2][3];   /* per fighter its Blitz played as the dash entry [0] / a normal\'s blitz entry [1]: [vy, vx, recovery] (16.16 px a frame, frames; roster[].blitz_hit; fighter.c fighter_hit, S_ATTACK), vy 0 = the engine\'s knockdown */',
+         'extern const int32_t gblitz_hit[BC_COUNT][3][3];   /* per fighter its Blitz played as the dash entry [0] / a normal\'s blitz entry [1], its chain finishers (RF_FIN) [2]: [vy, vx, recovery] (16.16 px a frame, frames; roster[].blitz_hit; fighter.c fighter_hit, S_ATTACK), vy 0 = the engine\'s knockdown */',
          'extern const int32_t gblitz_slide[BC_COUNT][4][3];   /* per fighter per Blitz slot: its slide [frames, first frame\'s glide, its loss a frame] (16.16 px; roster[].blitz_slide; fighter.c blitz_slide), frames 0 = none */',
          'extern const uint8_t gblitz_can[BC_COUNT][4];   /* per fighter per Blitz slot: the slots it may cancel into on hit (bit BZ_*; roster[].blitz_cancel) */',
          'extern const uint8_t *const grun_bob[BC_COUNT]; /* the run\'s float: [period, px a frame...] (roster[].run.float), 0 = none */',
@@ -2152,7 +2162,7 @@ def tables(g, build):
     c.append('const uint8_t gfury_wait[BC_COUNT] = {\n    ' + ',\n    '.join(fw) + '\n};')
     c.append('const uint8_t gblitz_can[BC_COUNT][4] = {\n' + ',\n'.join(
         '    { ' + ', '.join(f'0x{v:02X}' for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_cancels(g)) + '\n};')
-    c.append('const int32_t gblitz_hit[BC_COUNT][2][3] = {\n' + ',\n'.join(
+    c.append('const int32_t gblitz_hit[BC_COUNT][3][3] = {\n' + ',\n'.join(
         '    { ' + ', '.join('{ %d, %d, %d }' % tuple(v) for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_hits(g)) + '\n};')
     c.append('const int32_t gblitz_slide[BC_COUNT][4][3] = {\n' + ',\n'.join(
         '    { ' + ', '.join('{ %d, %d, %d }' % tuple(v) for v in row) + ' }   /* ' + n + ' */' for n, row in blitz_slides(g)) + '\n};')
