@@ -67,10 +67,44 @@ def lint(elf, verbose=False):
         i = bisect.bisect_right(starts, a) - 1
         return i >= 0 and a < ranges[i][0] + ranges[i][1]
     dis = subprocess.run([OBJDUMP, '-d', '--no-show-raw-insn', elf], capture_output=True, text=True, check=True).stdout
-    ins = []
-    for ln in dis.splitlines():
-        m = re.match(r'\s+([0-9a-f]+):\s+(\S+)\s*(.*)', ln)
-        if m and incode(int(m.group(1), 16)): ins.append((int(m.group(1), 16), m.group(2), m.group(3)))
+    def decode(text):
+        out = []
+        for ln in text.splitlines():
+            m = re.match(r'\s+([0-9a-f]+):\s+(\S+)\s*(.*)', ln)
+            if m and incode(int(m.group(1), 16)): out.append((int(m.group(1), 16), m.group(2), m.group(3)))
+        return out
+    ins = decode(dis)
+    # GCC's switch jump tables (`move.w (T,pc,dN.l),dN; jmp (T,pc,dN.w)`): word offsets from T inline in .text, read
+    # by objdump as instructions (2026-10-17: rf_tick's table decoded as `andi.w #22,(19129,a2)`, a false error that
+    # also hid the real code after it). Each table's words are taken out (T .. T + its smallest offset) and the code
+    # after it decoded again from its end; each case's code an entry (its registers unknown).
+    targets = set()
+    for k, (a, op, args) in enumerate(list(ins)):
+        mj = re.fullmatch(r'%pc@\(([0-9a-f]+) <[^>]*>,%d\d:w\)', args) if op == 'jmp' else None
+        if not mj: continue
+        t = int(mj.group(1), 16)
+        cnt = None                                        # (its size: the bound check before it, `cmpi #K,..; bhi`: K + 1)
+        for _, op2, args2 in reversed(ins[max(0, k - 8):k]):
+            mc = re.match(r'#(\d+),', args2) if op2.startswith(('cmpi', 'cmp')) else None
+            if mc: cnt = int(mc.group(1)) + 1; break
+        hexd = subprocess.run([OBJDUMP, '-s', f'--start-address={t:#x}', f'--stop-address={t + 1024:#x}', elf],
+                              capture_output=True, text=True, check=True).stdout
+        raw = b''
+        for ln in hexd.splitlines():
+            mh = re.match(r'^ ([0-9a-f]+) ((?:[0-9a-f]{2,8} ?){1,4})', ln)
+            if mh: raw += bytes.fromhex(mh.group(2).replace(' ', ''))
+        n, lim = 0, 1024
+        while 2 * n < lim and 2 * n + 2 <= len(raw) and (cnt is None or n < cnt):
+            e = int.from_bytes(raw[2 * n:2 * n + 2], 'big', signed=True)
+            if e > 0: lim = min(lim, e); targets.add(t + e)
+            n += 1
+        end = t + 2 * n
+        old = {x for x, _, _ in ins}
+        re_ = decode(subprocess.run([OBJDUMP, '-d', '--no-show-raw-insn', f'--start-address={end:#x}',
+                                     f'--stop-address={end + 64:#x}', elf], capture_output=True, text=True, check=True).stdout)
+        sync = next((x for x, _, _ in re_ if x in old), end + 64)
+        ins = sorted([i for i in ins if not t <= i[0] < sync] + [i for i in re_ if i[0] < sync])
+    at_sym |= targets
     # the parity of each address register (0 even, 1 odd; absent: unknown) before each instruction: a forward dataflow
     # over the branches to a fixed point (a loop stepping An by an even amount keeps its parity)
     idx = {a: i for i, (a, _, _) in enumerate(ins)}

@@ -822,7 +822,8 @@
   "screen": {"feet": 200, "margin": 40, "pitch": 90},
   "show_next": true,
   "locked_name": "?????",
-  "locked_text": "LOCKED - BEAT THE GAME FIRST"
+  "locked_text": ["LOCKED", "BEAT THE GAME", "FIRST"],
+  "locked_text_about": "note 20261017-114857-e03d (Bruno on 0.10.160: 'put it on three lines over the hidden character: LOCKED / BEAT THE GAME / FIRST, on top of the 1P cursor'): the lines on the fix layer centred over the highlighted silhouette's head, right above its 1P / 2P cursor (main.c sel_locked_text); up to 3 lines of 16 characters; the hint row keeps the controls"
  },
  "cheats": {
   "about": "Bruno's test cheats (obscure on purpose: testers never hold a direction or every button that long). On the character select, either player (main.c select_tick): LADDER = hold UP `hold` ticks, then hold DOWN `hold` ticks: the unlock ladder one rung further, saved exactly as a game clear saves it (save.rungs + 1, the select redrawn: the new rung selectable, the next one as silhouettes); repeatable, nothing at the last rung. POWER = hold LEFT `hold` ticks, then hold RIGHT `hold` ticks: the fury unlocked and the drive bar at its most chunks in every new game, both bars full at each stage's start (save.cheat, saved; was the old all-in-one cheat's side effect, Bruno 2026-10-17: split; it unlocks no fighter). In a campaign stage (main.c stage_cheat): STAGE CLEAR = P1 holds DOWN + A + B + C + D together `stage_clear_hold` ticks: the stage's end sequence at once (every enemy and the boss gone, STAGE CLEAR, the win poses, the map, then the next screen; on the last stage the game clear and its ladder rung, as a real clear); not during the stage intro, a bonus, a drama, the boss's KO or the attract demo.",
@@ -1378,11 +1379,13 @@
   "ladder": {"y": 6, "exit": false},
   "bonus_won": {"y": 58, "pitch": 42},
   "bonus_meter": {"y": 64},
-  "max_cancel": {"y": 40, "still": true}
+  "max_cancel": {"y": 40, "still": true},
+  "map_start": {"y": 32, "exit": false}
  },
  "stages": [
   {
    "name": "STAGE 1",
+   "map": {"name": "SLUM", "district": "SLUM", "label": [4, 4]},
    "background": 1,
    "music": "STAGE_SLUM",
    "power": 0,
@@ -1549,6 +1552,7 @@
   },
   {
    "name": "STAGE 2",
+   "map": {"name": "POLICE", "district": "WEST SIDE", "label": [10, 2]},
    "background": 3,
    "music": "THEME_KIM",
    "power": 1,
@@ -1651,6 +1655,7 @@
   },
   {
    "name": "STAGE 3",
+   "map": {"name": "GEESE TOWER", "district": "UP TOWN", "label": [17, 4]},
    "background": 4,
    "music": "STAGE_HIGHWAY",
    "power": 1,
@@ -1881,7 +1886,7 @@
   "bosses_about": "Bruno 2026-10-17 (three stages, Geese last; was two: RUGAL, GEESE): STAGE 1 (background 1, the slum) fights MR_BIG (his own block), STAGE 2 (background 3, the old STAGE 3) fights KRAUSER (his block in GARAGE, off: song BOSS_KRAUSER, minions, drama krauser_intro), STAGE 3 = the final stage (background 4, from 672 px in, Geese's AOF2 backdrop at its end) fights GEESE, then in the same stage the finale (his block's finale: RUGAL with MR_BIG and KRAUSER greyed out); GARAGE / STAGE 4 off (their data kept), GOENITZ out of the run, RUGAL's own block (stage 2's) unused; Rugal beaten = the game clear (the ending)"
  },
  "map": {
-  "about": "The campaign map (Bruno 2026-10-17; study canneji /brawler-admin/reports/ffmap/, tools/ffight/map_ff.py): Final Fight's between-rounds city map from FF's ROM (tools/brawler/make_map.py: FF's map copy 0, its place names and red route dots wiped, the ATLANTIC OCEAN banner cut; 16 sprite columns x 6 tiles, 74 tiles; its own palettes MAP_PAL 240 + 0 the base, + 1 + k stop k), shown over the stage (main.c 'the map'): (a) at the start of each campaign stage, over its fade-in (the stage intro's title and walk-in wait for it), and (b) at the stage clear, after the win poses and the win drama (FF: over the cleared stage), before the next screen (the bonus, the next stage, the ending). Never in the attract demo, the Lab or a continue. stops = the trip in order, each a stage in play (kind stage, its n-th) or a bonus stop (kind bonus, after stage n: bonus.after): name = our name on the fix layer in our font (1-14 characters A-Z 0-9 space . ! - '), sub = a line under it (the Geese stop: FINALE, the run's finale there: stages[].boss.finale), label = its [column, row] in 8 px cells from the map's top left, district = the FF district it lights (SLUM, PARK, WEST SIDE, INDUSTRIAL AREA, BAY AREA, UP TOWN: FF's per-cell progress, each 16 x 16 tile taking the district of most of its cells). Grey = not reached, FF's green = reached, the current stop blinking grey / green every `blink` ticks (FF's 6-frame page flip), its name blinking the same way (reached names white, the others grey). x / y = the map's top left on screen (8 px steps); start_ticks / clear_ticks = how long it shows; any button (A-D, START) of a player in skips it after skip_after ticks. Texts ({n} = the stage's number in play, {name} = the next stop's name): start_text over the map at the start, clear_text at the clear, next_text under it at the clear (next_bonus when the next stop is a bonus, final_text after the last stage).",
+  "about": "The campaign map (Bruno 2026-10-17; study canneji /brawler-admin/reports/ffmap/, tools/ffight/map_ff.py): Final Fight's between-rounds city map from FF's ROM (tools/brawler/make_map.py: FF's map copy 0, its place names and red route dots wiped, the ATLANTIC OCEAN banner cut; 16 sprite columns x 6 tiles, 74 tiles; its own palettes MAP_PAL 240 + 0 the base, + 1 + k stop k), shown over the stage (main.c 'the map'): (a) at the start of each campaign stage, over its fade-in (the stage intro's title and walk-in wait for it), and (b) at the stage clear, after the win poses and the win drama (FF: over the cleared stage), before the next screen (the bonus, the next stage, the ending). Never in the attract demo, the Lab or a continue. the stops = the campaign's stages in play, in order (stops_about), each from its own stages[].map: name = our name on the fix layer in our font (1-14 characters A-Z 0-9 space . ! - '), label = its [column, row] in 8 px cells from the map's top left, district = the FF district it colours (SLUM, PARK, WEST SIDE, INDUSTRIAL AREA, BAY AREA, UP TOWN: FF's per-cell progress, each 16 x 16 tile taking the district of most of its cells). Colours: colours_about (not cleared = FF's green, cleared = grey, the stage in play blinking every `blink` ticks: FF's 6-frame page flip). x / y = the map's top left on screen (8 px steps); start_ticks / clear_ticks = how long it shows; any button (A-D, START) of a player in skips it after skip_after ticks. Texts ({n} = the stage's number in play, {name} = the next stop's name): start_text over the map at the start, clear_text at the clear, next_text under it at the clear (next_bonus when the next stop is a bonus, final_text after the last stage).",
   "x": 32,
   "y": 88,
   "start_ticks": 210,
@@ -1893,14 +1898,9 @@
   "next_text": "NEXT  {name}",
   "next_bonus": "NEXT  BONUS GAME",
   "final_text": "ALL CLEAR!",
-  "stops": [
-   {"name": "SLUM", "kind": "stage", "n": 1, "district": "SLUM", "label": [4, 4]},
-   {"name": "PARK", "kind": "bonus", "n": 1, "district": "PARK", "label": [12, 6]},
-   {"name": "POLICE HQ", "kind": "stage", "n": 2, "district": "WEST SIDE", "label": [10, 2]},
-   {"name": "FACTORY", "kind": "bonus", "n": 2, "district": "INDUSTRIAL AREA", "label": [18, 7]},
-   {"name": "GEESE TOWER", "kind": "stage", "n": 3, "district": "UP TOWN", "label": [17, 4], "sub": "FINALE"}
-  ],
-  "stops_about": "Bruno 2026-10-17: SLUM (stage 1, FF's first round too) -> PARK (bonus 1: trees and trunks) -> POLICE HQ on the West Side (stage 2, background 3: the police garage) -> FACTORY in the Industrial Area (bonus 2) -> GEESE TOWER on Up Town's skyscrapers (stage 3, Geese: FF's own last round is Up Town); the Bay Area unused (grey)"
+  "stops_about": "note 20261017-114940-e03d (Bruno on 0.10.160: 'we only have three stages; on the map I only want to see the levels of the campaign: three levels, not more; call them Slum, then Police or Park, and Geese Tower, not Finale'): the stops are the campaign's stages in play, in order, each from its stages[].map {name, district, label} (build_tables.map_tables; no bonus stop, no sub line): SLUM (stage 1, FF's first round too), POLICE (stage 2, background 3: the police garage, on FF's West Side; POLICE over PARK: the stage's art is the police garage, PARK was the old bonus stop's), GEESE TOWER (stage 3, Up Town's skyscrapers); FF's Park, Industrial Area and Bay Area unused (always grey)",
+  "colours_about": "note 20261017-114940-e03d ('colour all the levels not cleared yet, so we know the ones left; the one in play blinking'): a stage not cleared yet = FF's green (map_lit) with its name white, a cleared one = FF's grey (map_grey) with its name grey, the stage in play (at the start: this stage; at the clear: the next one) blinking green / grey every `blink` ticks, its name too (main.c map_show_pal)",
+  "start_text_about": "note 20261017-114940-e03d ('the STAGE 1 label: the Savage Reign big font with its blinking'): with big_text.map_start the start text is the big font's headline (slides in, Savage Reign's blink, then held until the map closes: exit false), else the fix layer's line"
  },
  "bonus": {
   "about": "The bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; analysis /data/neogeo_dict/aof/bonus.md): after each stage listed in `after` (1-based) a pick screen offers every game of `games` (AOF2's SELECT BONUS GAME: stick + A, `pick.seconds` on the clock, the cursor's game at 0). A game is a level type the engine reads (main.c 'bonus stages', build_tables.py bonus_tables): scene = an AOF2 scene of tools/brawler/make_bonus.py (tree, posts); kind gauge = one press on a sweeping gauge (power 0-127, + step a frame, wrapping; grade k = the power reached grades[k - 1], AOF2 Spirit Training's table $17EF8 at its default row: 36 68 92 108 120), reward chunks[grade] = drive chunks added to both players' bars for the credit (up to 4); win_grade = the lowest grade that passes (AOF2: only the top, 5; note 20261014-133606-5d29): a pass breaks the tree (AOF2's fall, make_bonus.py fall_seq) and plays win_music (AOF2's $2D), a lower grade fails (the tree stands, TRAINING FAILED, over_music $2E); blows = the blow per grade 0-5 (Bruno results-1014: a jab when the tree holds, the forward finisher when it breaks): jab = his chain's first link (neutral A), finisher = its neutral finisher, forward = its forward finisher (fighter.c fighter_blow; the tree's reaction and timing stay AOF2's); kind break = break `count` objects before `seconds` run out, one at a time, with the move class `breaks_with` (any: every regular strike, `hp` hits an object, the fury staying locked while it plays, note bonus-pillars-normals; fury: only the fury's or the MAX's body or its objects, any other hit only shakes it), `lesson` = the lesson box's 3 lines, all broken = reward unlock (fury: Fury and Fury MAX on D; the first win shows `won_text`'s 3 lines for `won_ticks`). fury_lock true: D's fury and MAX locked from a new game until a game with unlock fury is won; a fail keeps it locked for the credit (a continue keeps it); the attract demo and the Lab are never locked. Before the pick and the game, AOF2's own screens (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14: AOF2's original select screen; tools/brawler/make_bonus.py screens, tools/aof/bonus_rip.py): `intro` = AOF2's BONUS GAME screen (`music` + the announcer `voice`, a songs.json sfx name, at tick `at`; `ticks` long); the pick screen is AOF2's SELECT BONUS GAME (its three pictures; a game takes AOF2's slot `slot`: 0 Spirit Training, 2 Super Death Blow; a slot without a game, 1 Strength Training here, is greyed and the cursor skips it, and so is a game with unlock fury while the fury is free (won this credit, or the select cheat; note 20261016-132535-e03d); `pick.seconds` 3-9 on its clock); then the game's title card (its slot's kanji and name, `card.ticks` long, the game's `voice` + `card.sound`). A game already won shows its bonus only (the game has no score).",
@@ -1918,6 +1918,7 @@
     "won_text": ["FURY UNLOCKED!", "WHEN YOU BLINK", "PRESS D!"], "won_ticks": 480,
     "layout": "pile",
     "pile": {"about": "note 20261017-063200-e03d (Bruno: 'a mountain of trunks: a bottom layer of three, on top of that two, on top of that one; physically held on top of each other, so when the trunks under one are destroyed the trunk on top falls one layer, a bit like the bonus game in Street Fighter 2'): layout pile = every trunk stands at once (main.c 'the pile'), trunks = [x, layer]: x = the screen x of AOF2's post object (its wood x + 8 .. + 56, 48 px), layer 0 = on the floor, layer n rests on the layer n - 1 trunks under it (less than 48 px across); a trunk with nothing left under it falls and lands on what is left under it or the floor, and stays a target; trunk_h = a trunk's drawn height (AOF2's 128 px post shrunk vertically: 3 layers of 64 = 192 px, the top at screen y 32); reach = a strike up to this many px over a trunk's top still hits it (the genre's lane rule, Final Fight's drums: a 64 px stump on the floor sits under a standing punch); hp / damage_at = a trunk's (6 trunks x 6 hits = 36, the drop's 4 x 10 = 40, same 30 s clock); count / hp / damage_at at the game's top level stay the drop's (layout drop = AOF2's posts one at a time, for a compare)",
+     "lift": 16, "lift_about": "note 20261017-063200-e03d reopen (Bruno on 0.10.160: 'almost there, make the trunks sit 16 pixels higher'): the pile's floor 16 px over AOF2's (the bottom trunks' feet at screen y 208, the top trunk's top at 16, behind the fix layer's HUD); drawn, hit boxes and landings all move with it (main.c bn_trunk_top)",
      "trunk_h": 64, "reach": 40, "hp": 6, "damage_at": [2, 3, 5],
      "trunks": [[128, 0], [192, 0], [256, 0], [160, 1], [224, 1], [192, 2]],
      "spacing_about": "Bruno 2026-10-17 (he likes the pile; two changes): the trunks of a layer 16 px apart (a third of the 48 px wood: 64 px pitch, they never touch), each upper trunk centred over the gap of its two supports (32 px off each: it rests on both), the pile moved left to stay on the screen (wood 136..312, was 170..314); a hit lands only on the trunk it touches: reach is cut at the bottom of the trunk above (main.c bn_reach), so it works only over a trunk with nothing on it and no two boxes overlap"},

@@ -169,10 +169,12 @@ def unlocks(g):
     the rungs' size when they are all one size, else None."""
     u = g.get('unlocks')
     if not u: return None
-    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'rungs', 'screen', 'show_next', 'locked_name', 'locked_text'), f'unlocks: unknown field {k}'
-    for k in ('locked_name', 'locked_text'):             # (Bruno 2026-10-17: the next rung as silhouettes on the select)
-        v = u.get(k, '')
-        assert isinstance(v, str) and len(v) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in v), f'unlocks.{k}: ASCII, 38 characters at most'
+    for k in u: assert k in ('about', 'starters', 'ladder', 'rung_size', 'rungs', 'screen', 'show_next', 'locked_name', 'locked_text', 'locked_text_about'), f'unlocks: unknown field {k}'
+    v = u.get('locked_name', '')                         # (Bruno 2026-10-17: the next rung as silhouettes on the select)
+    assert isinstance(v, str) and len(v) <= 38 and all(0x20 <= ord(ch) < 0x7F for ch in v), 'unlocks.locked_name: ASCII, 38 characters at most'
+    v = u.get('locked_text', [])                         # (note 20261017-114857-e03d: lines over the silhouette, above its cursor)
+    assert isinstance(v, list) and len(v) <= 3 and all(isinstance(t, str) and 1 <= len(t) <= 16 and all(0x20 <= ord(ch) < 0x7F for ch in t) for t in v), \
+        'unlocks.locked_text: up to 3 lines, ASCII, 16 characters at most each'
     assert isinstance(u.get('show_next', False), bool), 'unlocks.show_next: true | false'
     names = [r['name'] for r in g['roster'] if r.get('selectable', True)]
     st = list(u.get('starters') or [])
@@ -1583,7 +1585,7 @@ BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge ga
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 GB_TRUNKS = 8                                           # gamedata.h GB_TRUNKS: a break game's pile (4 sprites a trunk)
-PILE_KEYS = ('about', 'spacing_about', 'trunk_h', 'reach', 'hp', 'damage_at', 'trunks')
+PILE_KEYS = ('about', 'spacing_about', 'lift', 'lift_about', 'trunk_h', 'reach', 'hp', 'damage_at', 'trunks')
 TRUNK_W = 48                                            # main.c BN_SOLID_W: a post's wood (x + 8 .. + 56 of its 64 px)
 GB_PASS_N = 4                                          # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
@@ -1681,7 +1683,9 @@ def bonus_check(g, songs_known, sfx_names=None):
                 assert 1 <= len(tr) <= GB_TRUNKS and all(isinstance(t, list) and len(t) == 2 and isinstance(t[0], int) and isinstance(t[1], int)
                                                          and -8 <= t[0] <= 264 and 0 <= t[1] <= 3 for t in tr), \
                     f"bonus game {x['id']}: pile.trunks: 1-{GB_TRUNKS} [x -8..264 (the post's left edge on screen), layer 0-3]"
-                assert 224 - (max(t[1] for t in tr) + 1) * th >= 16, f"bonus game {x['id']}: pile: its top layer off the screen's top (layers x trunk_h)"
+                lift = pl.get('lift', 0)
+                assert isinstance(lift, int) and 0 <= lift <= 64, f"bonus game {x['id']}: pile.lift 0-64 px"
+                assert 224 - lift - (max(t[1] for t in tr) + 1) * th >= 16, f"bonus game {x['id']}: pile: its top layer off the screen's top (lift + layers x trunk_h)"
                 for i, (tx, tl) in enumerate(tr):
                     assert all(abs(tx - ux) >= TRUNK_W for j, (ux, ul) in enumerate(tr) if j != i and ul == tl), \
                         f"bonus game {x['id']}: pile.trunks[{i}]: overlaps another trunk of layer {tl} (x {TRUNK_W} px apart at least)"
@@ -1739,7 +1743,7 @@ def bonus_tables(g, songs_known, sfx_names):
                 pl = x['pile']; tr = pl['trunks']; php = pl.get('hp', x.get('hp', 1))
                 f = [v for v in f if not v.startswith(('.count =', '.hp =', '.dmg_at ='))]
                 f += [f".count = {len(tr)}", f".hp = {php}", '.dmg_at = { ' + ', '.join(str(v) for v in (pl.get('damage_at', []) + [255] * POST_DMG)[:POST_DMG]) + ' }',
-                      '.layout = BL_PILE', f".trunk_h = {pl.get('trunk_h', 64)}", f".trunk_reach = {pl.get('reach', 32)}",
+                      '.layout = BL_PILE', f".trunk_h = {pl.get('trunk_h', 64)}", f".trunk_reach = {pl.get('reach', 32)}", f".trunk_lift = {pl.get('lift', 0)}",
                       '.trunk_x = { ' + ', '.join(str(t[0]) for t in tr) + ' }', '.trunk_layer = { ' + ', '.join(str(t[1]) for t in tr) + ' }']
         f.append(f".show_name = {1 if x.get('show_name', True) else 0}")
         rows.append('{ ' + ', '.join(f) + ' }')
@@ -1777,7 +1781,13 @@ def bonus_tables(g, songs_known, sfx_names):
 MAP_DISTRICTS = ('SLUM', 'PARK', 'WEST SIDE', 'INDUSTRIAL AREA', 'BAY AREA', 'UP TOWN')   # make_map.DISTRICTS
 GM_STOPS = 6                                             # gamedata.h GM_STOPS
 MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'skip_after', 'blink', 'start_text', 'clear_text', 'next_text',
-            'next_bonus', 'final_text', 'stops', 'stops_about')
+            'next_bonus', 'final_text', 'stops_about', 'colours_about', 'start_text_about')
+
+
+def map_stops(g):
+    """the map's stops = the campaign's stages in play, in order (note 20261017-114940-e03d: 'only the levels of the
+    campaign'), each from its stages[].map {name, district, label}; g['stages'] already the campaign (load)"""
+    return [s.get('map') for s in g['stages']]
 
 
 def map_tables(g):
@@ -1785,7 +1795,7 @@ def map_tables(g):
     m = g.get('map')
     n = len(g['stages']); bo = g.get('bonus') or {}; after = bo.get('after', []) if bo.get('games') else []
     if not m:
-        return ['#define GMAP_ON 0', 'extern const uint8_t gmap_stage[GS_COUNT], gmap_bonus[GS_COUNT];'], ['const gmap_t gmap = { 0 };', 'const uint8_t gmap_stage[GS_COUNT] = { 0 }, gmap_bonus[GS_COUNT] = { 0 };']
+        return ['#define GMAP_ON 0'], ['const gmap_t gmap = { 0 };']
     for k in m: assert k in MAP_KEYS, f'map: unknown field {k}'
     ok = lambda s, k: isinstance(s, str) and len(s) <= k and all(0x20 <= ord(ch) < 0x7F for ch in s)
     for k in ('start_text', 'clear_text', 'next_text', 'next_bonus', 'final_text'):
@@ -1794,33 +1804,22 @@ def map_tables(g):
         'map.x / y: the top left in 8 px steps (x 0-64: the 256 px map on the 320 px screen; y 16-120)'
     for k in ('start_ticks', 'clear_ticks'): assert isinstance(m[k], int) and 0 <= m[k] <= 900, f'map.{k}: 0-900 ticks (0: not shown then)'
     assert isinstance(m.get('skip_after', 30), int) and 0 <= m.get('skip_after', 30) <= 600 and 2 <= m.get('blink', 6) <= 60, 'map: skip_after 0-600, blink 2-60'
-    st = m['stops']
-    assert 1 <= len(st) <= GM_STOPS, f'map.stops: 1-{GM_STOPS}'
-    stg, bon = [0xFF] * n, [0xFF] * n
+    assert 'stops' not in m, 'map.stops: gone (note 20261017-114940-e03d): each stage in play carries its stop (stages[].map)'
+    st = map_stops(g)
+    assert 1 <= len(st) <= GM_STOPS, f'map: 1-{GM_STOPS} stages in play (a stop each)'
     for k, s in enumerate(st):
-        for f in s: assert f in ('name', 'kind', 'n', 'district', 'label', 'sub'), f'map stop {k}: unknown field {f}'
-        assert re.fullmatch(r"[A-Z0-9 .!'+-]{0,14}", s.get('sub', '')), f'map stop {k}: sub 0-14 characters'
-        assert re.fullmatch(r"[A-Z0-9 .!'-]{1,14}", s['name']), f'map stop {k}: name 1-14 characters A-Z 0-9 space . ! \' -'
+        assert isinstance(s, dict), f'stage {k + 1} (in play): no map stop (stages[].map {{name, district, label}})'
+        for f in s: assert f in ('name', 'district', 'label'), f'stage {k + 1}: map: unknown field {f}'
+        assert re.fullmatch(r"[A-Z0-9 .!'-]{1,14}", s['name']), f'stage {k + 1}: map.name 1-14 characters A-Z 0-9 space . ! \' -'
         assert s['district'] in MAP_DISTRICTS, f'map stop {s["name"]}: district {s["district"]!r} ({" | ".join(MAP_DISTRICTS)})'
         lc, lr = s['label']
         assert 0 <= lc and lc + len(s['name']) <= 32 and 0 <= lr <= 10, f'map stop {s["name"]}: label [column, row] inside the 32 x 11 cell map'
-        assert s['kind'] in ('stage', 'bonus') and isinstance(s['n'], int) and 1 <= s['n'] <= n, f'map stop {s["name"]}: kind stage | bonus, n 1-{n}'
-        tab = stg if s['kind'] == 'stage' else bon
-        assert tab[s['n'] - 1] == 0xFF, f'map stop {s["name"]}: {s["kind"]} {s["n"]} twice'
-        tab[s['n'] - 1] = k
-    assert all(v != 0xFF for v in stg), f'map.stops: one stop per stage in play ({n})'
-    for a in after: assert bon[a - 1] != 0xFF, f'map.stops: no bonus stop after stage {a} (bonus.after)'
-    for i, v in enumerate(bon): assert v == 0xFF or i + 1 in after, f'map.stops: a bonus stop after stage {i + 1}, which has no bonus (bonus.after)'
-    order = sorted(range(len(st)), key=lambda k: (st[k]['n'], st[k]['kind'] == 'bonus'))
-    assert order == list(range(len(st))), 'map.stops: in trip order (stage 1, its bonus, stage 2, ...)'
-    rows = ', '.join(f'{{ {c_str(s["name"])}, {s["label"][0]}, {s["label"][1]}, {c_str(s.get("sub", ""))} }}' for s in st)
+    rows = ', '.join(f'{{ {c_str(s["name"])}, {s["label"][0]}, {s["label"][1]} }}' for s in st)
     c = [f'const gmap_t gmap = {{ .x = {m["x"]}, .y = {m["y"]}, .start_ticks = {m["start_ticks"]}, .clear_ticks = {m["clear_ticks"]}, '
          f'.skip_after = {m.get("skip_after", 30)}, .blink = {m.get("blink", 6)}, .nstops = {len(st)}, '
          f'.start_text = {c_str(m.get("start_text", ""))}, .clear_text = {c_str(m.get("clear_text", ""))}, .next_text = {c_str(m.get("next_text", ""))}, '
-         f'.next_bonus = {c_str(m.get("next_bonus", ""))}, .final_text = {c_str(m.get("final_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map */',
-         'const uint8_t gmap_stage[GS_COUNT] = { ' + ', '.join(map(str, stg)) + ' };   /* the stop of each stage in play */',
-         'const uint8_t gmap_bonus[GS_COUNT] = { ' + ', '.join(map(str, bon)) + ' };   /* the bonus stop after each stage (0xFF none) */']
-    return ['#define GMAP_ON 1', 'extern const uint8_t gmap_stage[GS_COUNT], gmap_bonus[GS_COUNT];'], c
+         f'.next_bonus = {c_str(m.get("next_bonus", ""))}, .final_text = {c_str(m.get("final_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map; stop k = stage k in play */']
+    return ['#define GMAP_ON 1'], c
 
 
 def cheat_tables(g):
@@ -1833,7 +1832,8 @@ def cheat_tables(g):
             f'#define CHEAT_STAGE_HOLD {ch.get("stage_clear_hold", 180)}   /* cheats.stage_clear_hold */',
             f'#define UNL_SHOW_NEXT {1 if U.get("show_next") else 0}   /* unlocks.show_next: the next rung as silhouettes on the select */',
             f'#define UNL_LOCKED_NAME {c_str(U.get("locked_name", ""))}',
-            f'#define UNL_LOCKED_TEXT {c_str(U.get("locked_text", ""))}']
+            f'#define UNL_LOCKED_LINES {len(U.get("locked_text", []))}   /* unlocks.locked_text: lines over a highlighted silhouette */',
+            '#define UNL_LOCKED_TEXT { ' + ', '.join(c_str(t) for t in U.get('locked_text', [])) + (' ' if U.get('locked_text') else '0 ') + '}']
 
 
 def tint_lut(tints):
@@ -1904,6 +1904,7 @@ BIG_USES = {                                   # game.json big_text: the screens
     'ladder': 'NEW CHALLENGERS!',              # the unlock ladder screen after a game clear that unlocked a rung
     'bonus_meter': None,                       # a gauge game's pass: the chunks it gave (note 20261016-135212-e03d)
     'max_cancel': 'MAX CANCEL',                # the fury -> MAX cancel's freeze (game.json max_cancel, note 20261016-133443-e03d)
+    'map_start': None,                         # the map's start_text (STAGE {n}) at a stage's start (note 20261017-114940-e03d)
 }
 BIG_KEYS = ('y', 'pitch', 'text', 'exit', 'still')
 BIG_CYCLE = {'shown': 0, 'hidden': 1, 'white': 2}   # main.c BT_SHOWN / BT_HIDDEN / BT_WHITE
@@ -1934,7 +1935,8 @@ def big_tables(g):
     gauge = [x for x in (g.get('bonus') or {}).get('games', []) if x.get('pass_reward')]
     texts = {'stage_intro': [intro_of(g, si)['title'] for si in range(len(g['stages']))],
              'bonus_won': [b['won_text'][0] for b in (g.get('bonus') or {}).get('games', []) if b.get('won_text')],
-             'bonus_meter': [t for x in gauge for t in x['pass_reward']['text']]}
+             'bonus_meter': [t for x in gauge for t in x['pass_reward']['text']],
+             'map_start': [(g.get('map') or {}).get('start_text', '').replace('{n}', str(k + 1)) for k in range(len(g['stages']))]}
     assert not gauge or 'bonus_meter' in B, 'big_text.bonus_meter: a gauge game with pass_reward draws its result in the big font'
     assert not (g.get('max_cancel') or {}).get('on', True) or not g.get('max_cancel') or 'max_cancel' in B, 'big_text.max_cancel: the MAX cancel draws its text in the big font'
     rows = []

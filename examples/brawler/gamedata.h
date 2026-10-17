@@ -484,10 +484,11 @@ typedef struct {
                                      no message at the start, just go) */
     uint8_t referee;              /* BK_BREAK won the first time: SS2's referee delivers won_text (games[].won_by "referee",
                                      main.c "the referee") instead of CONGRATULATIONS + the message box */
-    uint8_t layout, trunk_h, trunk_reach;   /* BK_BREAK: BL_DROP / BL_PILE (games[].layout); BL_PILE: a trunk's drawn height in px
+    uint8_t layout, trunk_h, trunk_reach, trunk_lift;   /* BK_BREAK: BL_DROP / BL_PILE (games[].layout); BL_PILE: a trunk's drawn height in px
                                      (AOF2's 128 px post shrunk to it: SCB2's vertical shrink), count = the pile's trunks,
                                      hp / dmg_at the pile's (games[].pile); trunk_reach: a strike up to this many px over a
-                                     trunk's top still hits it (pile.reach) */
+                                     trunk's top still hits it (pile.reach); trunk_lift: the pile's floor this many px over
+                                     AOF2's (pile.lift: the whole pile drawn, hit and landing that much higher) */
     int16_t trunk_x[GB_TRUNKS];   /* BL_PILE: each trunk's screen x (AOF2's post object's left edge, its wood x + 8 .. + 56) */
     uint8_t trunk_layer[GB_TRUNKS];   /* BL_PILE: its layer at the start (0 = on the floor; layer n rests on layer n - 1) */
 } gbonus_game_t;
@@ -520,11 +521,11 @@ typedef struct {
     uint16_t delay;               /* ticks after the speech starts before he starts walking in (note 20261016-180759-e03d) */
 } gref_t;
 extern const gref_t gref;
-/* the campaign map (game.json "map", main.c "the map", tools/brawler/make_map.py: Final Fight's city map): the stops of
- * the trip in order, our names on the fix layer at label (8 px cells from the map's top left); gmap_stage[s] = stage s's
- * stop, gmap_bonus[s] = the bonus stop after stage s (0xFF none) */
+/* the campaign map (game.json "map", main.c "the map", tools/brawler/make_map.py: Final Fight's city map): stop k =
+ * the campaign's stage k in play (stages[].map, note 20261017-114940-e03d), our names on the fix layer at label (8 px
+ * cells from the map's top left) */
 #define GM_STOPS 6
-typedef struct { const char *name; uint8_t col, row; const char *sub; } gmap_stop_t;   /* sub: a line under the name ("" none) */
+typedef struct { const char *name; uint8_t col, row; } gmap_stop_t;
 typedef struct {
     int16_t x, y;                 /* the map's top left on screen (8 px steps) */
     uint16_t start_ticks, clear_ticks, skip_after;   /* shown at a stage's start / clear (0: not then); a button skips it after */

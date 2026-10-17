@@ -5,7 +5,8 @@ chain of 16 px sprite columns on the Neo Geo.
 
 - the picture: FF's map copy 0 (nothing visited), its place names wiped (map_ff.erase_labels: their pixels filled from
   their neighbours), FF's red route dots wiped the same way; the banner rows ("THE ATLANTIC OCEAN") cut off (cell rows
-  0 .. ROWS - 1 kept); our names go on the fix layer in our font (main.c, game.json map.stops[].name / label)
+  0 .. ROWS - 1 kept); our names go on the fix layer in our font (main.c, game.json stages[].map name / label: the stops
+  are the campaign's stages in play, build_tables.map_stops)
 - the districts: FF's per-8x8-cell progress (the cells each round turns green, map_ff step k) + Up Town (never green in
   FF: its last round), named as FF names them (DISTRICTS below). A Neo Geo sprite tile picks its palette per 16 x 16
   tile: each tile goes to the stop whose district holds most of its 8 x 8 cells (the districts drawn on the 16 px grid;
@@ -78,8 +79,9 @@ def pen_map():
 
 
 def build(game_json, bd):
-    G = json.load(open(game_json)); mp = G.get('map')
-    stops = mp['stops'] if mp else []
+    import build_tables
+    G = build_tables.load(game_json); mp = G.get('map')
+    stops = build_tables.map_stops(G) if mp else []
     assert len(stops) <= MAX_STOPS, f'map.stops: at most {MAX_STOPS}'
     for s in stops: assert s['district'] in DISTRICTS, f'map stop {s["name"]}: district {s["district"]!r} not one of {DISTRICTS}'
     px = pen_map(); H, W = px.shape

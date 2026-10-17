@@ -1,6 +1,28 @@
 {
+ "20261017-114940-e03d": {
+  "title": "Map at the stage start: STAGE 1 in the big blinking font, only SLUM / POLICE / GEESE TOWER",
+  "setup": {
+   "mode": "select",
+   "cursor": "terry"
+  },
+  "do": "Pick Terry (A) and watch the map that opens over the stage's fade-in, without touching anything.",
+  "expect": "STAGE 1 slides in at the top in the big Savage Reign letters, blinks (white flashes), then stays until the map closes. The map shows only the campaign's three stages: SLUM, POLICE and GEESE TOWER (no PARK, no FACTORY, no FINALE). Not cleared yet = coloured (green, white names): POLICE and GEESE TOWER; SLUM, the stage in play, blinks. After a stage clear the cleared ones turn grey and the next stage blinks.",
+  "do_keys": "30:-,3:a,330:-",
+  "proof": 120
+ },
+ "20261017-114857-e03d": {
+  "title": "Select: LOCKED / BEAT THE GAME / FIRST on three lines over the locked silhouette",
+  "setup": {
+   "mode": "select",
+   "cursor": "haggar"
+  },
+  "do": "The select screen, the cursor on the dark silhouette (the next fighter to unlock). Look above it, then move the cursor left onto Robert and back.",
+  "expect": "Over the silhouette, right above the 1P cursor: LOCKED, BEAT THE GAME, FIRST on three lines, centred on it. The name at the top shows ?????. The bottom line keeps STICK MOVES / A B C D PICK COLOURS. On Robert the three lines disappear; back on the silhouette they come back.",
+  "do_keys": "40:-,4:L,40:-,4:R,40:-",
+  "proof": 60
+ },
  "20261017-063200-e03d": {
-  "title": "Super Death Blow bonus: a 3-2-1 pile of trunks that fall when the trunks under them break",
+  "title": "Super Death Blow bonus: the 3-2-1 trunk pile, now sitting 16 px higher",
   "setup": {
    "mode": "bonus",
    "fighter": "terry",
@@ -8,7 +30,7 @@
    "after": 1
   },
   "do": "Walk right to the pile and keep attacking (A, B, C, low or high). Break the lower trunks and watch the ones above them.",
-  "expect": "Six trunks stand at once on the right: three on the floor, two on them, one on top. A hit shakes a trunk and chips it (cracks after 2, 3 and 5 hits, broken at 6). A trunk whose supports are all broken falls and lands on what is left under it or on the floor, and you can still break it. POSTS counts 6 down to 0, then the referee announces the fury unlock.",
+  "expect": "Six trunks stand at once on the right: three on the bottom row, two on them, one on top, the whole pile 16 pixels higher than on 0.10.160 (the bottom trunks no longer reach the screen's bottom edge; the top trunk still under the HUD). Your hits land on the trunk you touch. A hit shakes a trunk and chips it (cracks after 2, 3 and 5 hits, broken at 6). A trunk whose supports are all broken falls and lands on what is left under it or on the bottom row, and you can still break it. POSTS counts 6 down to 0, then the referee announces the fury unlock.",
   "do_keys": "60:R,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-",
   "proof": 240
  },
@@ -2915,7 +2937,7 @@
    "wave": 0
   },
   "do": "Stage 2 from its start. Listen to the music while the first wave walks in.",
-  "expect": "Kizuna Encounter's highway stage music (高速道路, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
+  "expect": "Kizuna Encounter's highway stage music (\u9ad8\u901f\u9053\u8def, its broken elevated expressway stage) plays instead of Fatal Fury 3's stage music; stage 1 keeps Fatal Fury 3's.",
   "do_keys": "",
   "proof": 900
  },
@@ -3268,7 +3290,7 @@
    "wave": 0
   },
   "do": "Stage 3 from its start. Listen to the music while the first wave walks in.",
-  "expect": "Kizuna Encounter's harbour-market stage music (裏水路 Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
+  "expect": "Kizuna Encounter's harbour-market stage music (\u88cf\u6c34\u8def Ura Suiro, \"Rear Waterway\" on its soundtrack; the brawler's THEME KIM) plays instead of Fatal Fury 3's stage music; stage 2 keeps the highway music.",
   "do_keys": "",
   "proof": 900
  },
@@ -3281,7 +3303,7 @@
    "wave": 0
   },
   "do": "Stage 1 from its start with Robert. Listen to the music while the first wave walks in. Then try stage 1 with Rosa or Cheng-Fu (no theme).",
-  "expect": "KOF96's Art of Fighting team stage music (カミキリムシ Kamikirimushi) plays instead of Fatal Fury 3's stage music. With a fighter who has no theme (Rosa, Cheng-Fu, Billy Lee, WHP Hanzo, Rugal, Goenitz), stage 1 keeps Fatal Fury 3's music.",
+  "expect": "KOF96's Art of Fighting team stage music (\u30ab\u30df\u30ad\u30ea\u30e0\u30b7 Kamikirimushi) plays instead of Fatal Fury 3's stage music. With a fighter who has no theme (Rosa, Cheng-Fu, Billy Lee, WHP Hanzo, Rugal, Goenitz), stage 1 keeps Fatal Fury 3's music.",
   "do_keys": "",
   "proof": 900
  },
@@ -3904,7 +3926,7 @@
    "after": 1
   },
   "do": "After the BONUS GAME screen, pick a bonus game with A.",
-  "expect": "A white card with the game's kanji and English name (気力鍛錬の行 / 超必殺技伝授), the announcer reads it, then the gong.",
+  "expect": "A white card with the game's kanji and English name (\u6c17\u529b\u935b\u932c\u306e\u884c / \u8d85\u5fc5\u6bba\u6280\u4f1d\u6388), the announcer reads it, then the gong.",
   "do_keys": "140:-,4:a",
   "proof": 360
  },

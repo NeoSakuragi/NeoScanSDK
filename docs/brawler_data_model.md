@@ -199,7 +199,7 @@ the block out: every selectable fighter from the start (the bosses' own locks ba
 again (the full one before the beta: `benched.select_layout_full`). Proof: `tools/brawler/unlock_proof.py`.
 `show_next` (Bruno 2026-10-17, replacing the 2026-10-15 "no silhouettes" rule): the select screen also shows the NEXT rung
 (the layer for rungs + 1) as silhouettes; the cursor may stand on them (main.c `hoverable`), the name row shows
-`locked_name` and the hint row `locked_text`, A-D buzzes (SSG CANCEL); never selectable (`selectable`, the time limit's
+`locked_name` and `locked_text`'s lines (up to 3 of 16 characters: LOCKED / BEAT THE GAME / FIRST, note 20261017-114857-e03d) stand on the fix layer over the silhouette, right above its cursor (main.c `sel_locked_text`; the hint row keeps the controls), A-D buzzes (SSG CANCEL); never selectable (`selectable`, the time limit's
 pick, P2's join skip them). Only that rung. Cheats on the select (`cheats`, CHEAT_HOLD ticks each hold): LADDER = UP then
 DOWN, one rung, saved as a game clear (save.rungs + 1, repeatable); POWER = LEFT then RIGHT, save.cheat (the fury free,
 the bar full); the old all-in-one (DOWN + UP = every rung + save.cheat) is gone. Proof: `tools/brawler/stages2_proof.py`.

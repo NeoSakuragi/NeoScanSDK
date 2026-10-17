@@ -7,8 +7,8 @@ of 0.10.159 (its name kept: the gates and the docs call it).
     stages2_proof.py GAME_DIR OUT [--quick]
       run      ONE credit played through (coin, START, Terry; every wave cleared by poke, each boss KO'd by poke):
                stage 1 (the map over its fade-in: SLUM blinking; the boss = boss_order[0]; the clear's map: SLUM lit,
-               PARK blinking, NEXT BONUS GAME) -> bonus stop 1 (the pick: both games offered; the posts picked and WON)
-               -> stage 2 (its map: POLICE HQ blinking; camera 0; boss_order[1]; its clear's map) -> bonus stop 2 (the
+               POLICE blinking, NEXT BONUS GAME) -> bonus stop 1 (the pick: both games offered; the posts picked and WON)
+               -> stage 2 (its map: POLICE blinking; camera 0; boss_order[1]; its clear's map) -> bonus stop 2 (the
                pick: the posts GREYED (won), the Ki training offered; passed) -> stage 3 (from stages[].start; GEESE;
                then the finale: RUGAL with the two greyed bosses, all three on screen; RUGAL down) -> the clear's map
                (all lit, ALL CLEAR) -> the ending                                                        -> run_*.png
@@ -120,21 +120,21 @@ class P(bonus_proof.Proof):
 
     def run_all(self, G):
         b = self.b; st = [s for s in G['stages'] if not s.get('off')]; bo = G['boss_order']['bosses']; M = G['map']
-        stops = M['stops']
+        stops = st                                     # (the map's stops = the stages in play: note 20261017-114940-e03d)
         b.core.retro_reset(); b.seq('600:-,4:o,100:-,4:s,100:-,4:a')
         # ---- stage 1
         n = self.map_shots(MAP_START, 'run_s1_map', 'stage 1 start: the map over the fade-in')
         self.check(self.r('camp') == 0 and self.r('in_ph') == 1 and abs(n - M['start_ticks']) <= 12,
                    f'stage 1: the map at its start, over the fade-in (IN_FADE), up {n} ticks (map.start_ticks {M["start_ticks"]})')
-        self.check(self.r('map_reached') == 0 and self.r('map_cur') == 0, f'stage 1 start: nothing lit, SLUM blinking (reached {self.r("map_reached")}, current {self.r("map_cur")})')
+        self.check(self.r('map_reached') == 0 and self.r('map_cur') == 0, f'stage 1 start: SLUM blinking, the rest lit (not cleared) (reached {self.r("map_reached")}, current {self.r("map_cur")})')
         b.run(30); self.shot('run_s1_title', 'stage 1: after the map, the title, then the walk-in')
         self.until(lambda: self.r('in_ph') == 0, 900)
         self.clear_waves('run_s1')
         name = self.boss_ko('run_s1', 'stage 1 boss')
         self.check(name == bo[0].lower(), f'stage 1 boss: {name} (want {bo[0]})')
-        n = self.map_shots(MAP_CLEAR, 'run_s1_clear', 'stage 1 clear: the map (SLUM lit, PARK next)')
+        n = self.map_shots(MAP_CLEAR, 'run_s1_clear', 'stage 1 clear: the map (SLUM grey, POLICE blinking, NEXT BONUS GAME)')
         self.check(self.r('map_reached') == 1 and self.r('map_cur') == 1 and abs(n - M['clear_ticks']) <= 12,
-                   f'stage 1 clear: SLUM lit, PARK blinking (reached {self.r("map_reached")}, current {self.r("map_cur")}), up {n} ticks')
+                   f'stage 1 clear: SLUM cleared (grey), POLICE blinking (reached {self.r("map_reached")}, current {self.r("map_cur")}), up {n} ticks')
         # ---- bonus stop 1
         off = self.pick_and_play('posts', 'run_b1', 'bonus stop 1')
         self.check(sorted(off) == sorted(x['id'] for x in self.G['games']), f'bonus stop 1: both games offered ({off})')
@@ -143,8 +143,8 @@ class P(bonus_proof.Proof):
         self.check(left == 0 and self.r('fury_lock') == 0, f'bonus 1: the posts won (trunks left {left}, fury_lock {self.r("fury_lock")})')
         self.check(self.end_bonus(), 'bonus 1 -> stage 2')
         # ---- stage 2
-        n = self.map_shots(MAP_START, 'run_s2_map', 'stage 2 start: SLUM + PARK lit, POLICE HQ blinking')
-        self.check(self.r('camp') == 1 and self.r('map_reached') == 2 and self.r('map_cur') == 2, f'stage 2 start: the map (reached {self.r("map_reached")}, current {self.r("map_cur")})')
+        n = self.map_shots(MAP_START, 'run_s2_map', 'stage 2 start: SLUM grey, POLICE blinking, GEESE TOWER lit')
+        self.check(self.r('camp') == 1 and self.r('map_reached') == 1 and self.r('map_cur') == 1, f'stage 2 start: the map (reached {self.r("map_reached")}, current {self.r("map_cur")})')
         self.until(lambda: self.r('in_ph') == 0, 900)
         b.run(20); self.shot('run_s2_start', f'stage 2 (background {st[1]["background"]}): cam {self.s16("cam_x")}')
         self.check(self.s16('cam_x') == st[1].get('start', 0), f'stage 2: the camera at {self.s16("cam_x")} (want {st[1].get("start", 0)})')
@@ -152,8 +152,8 @@ class P(bonus_proof.Proof):
         lock = self.s16('lock_x')
         name = self.boss_ko('run_s2', 'stage 2 boss')
         self.check(name == bo[1].lower() and lock == st[1]['boss']['lock'], f'stage 2 boss: {name} at the lock {lock} (want {bo[1]}, {st[1]["boss"]["lock"]})')
-        self.map_shots(MAP_CLEAR, 'run_s2_clear', 'stage 2 clear: the map (FACTORY next)')
-        self.check(self.r('map_reached') == 3 and self.r('map_cur') == 3, f'stage 2 clear: POLICE HQ lit, FACTORY blinking ({self.r("map_reached")}, {self.r("map_cur")})')
+        self.map_shots(MAP_CLEAR, 'run_s2_clear', 'stage 2 clear: the map (POLICE grey, GEESE TOWER blinking)')
+        self.check(self.r('map_reached') == 2 and self.r('map_cur') == 2, f'stage 2 clear: POLICE cleared, GEESE TOWER blinking ({self.r("map_reached")}, {self.r("map_cur")})')
         # ---- bonus stop 2: the posts won = greyed
         off = self.pick_and_play('ki', 'run_b2', 'bonus stop 2 (the posts greyed: won)')
         self.check(off == ['ki'], f'bonus stop 2: only the game not won yet offered ({off}; the posts greyed)')
@@ -163,7 +163,7 @@ class P(bonus_proof.Proof):
         self.check(self.end_bonus(), 'bonus 2 -> stage 3')
         # ---- stage 3: Geese, then the finale
         self.map_shots(MAP_START, 'run_s3_map', 'stage 3 start: GEESE TOWER blinking (FINALE)')
-        self.check(self.r('camp') == 2 and self.r('map_reached') == 4 and self.r('map_cur') == 4, f'stage 3 start: the map ({self.r("map_reached")}, {self.r("map_cur")})')
+        self.check(self.r('camp') == 2 and self.r('map_reached') == 2 and self.r('map_cur') == 2, f'stage 3 start: the map ({self.r("map_reached")}, {self.r("map_cur")})')
         self.until(lambda: self.r('in_ph') == 0, 900)
         self.check(self.s16('cam_x') == st[2].get('start', 0), f'stage 3: the camera at {self.s16("cam_x")} (want {st[2].get("start", 0)})')
         self.clear_waves('run_s3')
@@ -188,7 +188,7 @@ class P(bonus_proof.Proof):
         b.fset(2, 'hp', 0); b.fset(2, 'state', b.states.index('DEAD')); b.fset(2, 'state_t', 0)
         b.run(60); self.shot('run_fin_ko', f'{fz["enemy"]} KO\'d: the others knocked down with him')
         n = self.map_shots(MAP_CLEAR, 'run_s3_clear', 'the game clear: every stop lit, ALL CLEAR')
-        self.check(self.r('map_reached') == len(stops) and self.r('map_cur') == 0xFF, f'stage 3 clear: all lit ({self.r("map_reached")}), none blinking')
+        self.check(self.r('map_reached') == len(stops) and self.r('map_cur') == 0xFF, f'stage 3 clear: all cleared ({self.r("map_reached")}), none blinking')
         k = self.until(lambda: self.r('mode') == 4, 3000)
         b.run(60); self.shot('run_ending', 'the ending')
         self.check(k >= 0, f'the ending after {fz["enemy"]} ({k} ticks after the map)')
@@ -277,11 +277,11 @@ class P(bonus_proof.Proof):
             out.append({'x': s16(b.r(o, 2)), 'h': s16(b.r(o + 2, 2)), 'st': b.r(o + 6, 1), 'reach': s16(b.r(b.syms['bn_reach'] + 2 * k, 2))})
         return out
 
-    def boxes(self, tr, th):
+    def boxes(self, tr, th, lift=0):
         r = []
         for k, t in enumerate(tr):
             if t['st'] == BT_GONE: continue
-            top = 224 - (t['h'] >> 4) - th
+            top = 224 - lift - (t['h'] >> 4) - th
             r.append((k, t['x'] + 8, t['x'] + 56, top + 4 - t['reach'], top + th))
         return r
 
@@ -293,13 +293,13 @@ class P(bonus_proof.Proof):
         posts = next(x for x in self.G['games'] if x['kind'] == 'break'); pl = posts['pile']; th = pl['trunk_h']
         self.setup(game=posts['id']); b.run(40)
         self.shot('pile_start', 'the pile at its start')
-        self.check(not self.overlap(self.boxes(self.trunks(), th)), 'pile: no two boxes overlapping at the start')
+        self.check(not self.overlap(self.boxes(self.trunks(), th, pl.get('lift', 0))), 'pile: no two boxes overlapping at the start')
         run0 = b.run; worst = []; fell = [False]
         def run(*a, **k):
             r = run0(*a, **k)
             if self.r('bonus_on') == BN_PLAY:
                 if self.r('bn_clock', 2) < 600: b.w(b.syms['bn_clock'], 2, 99 * 60)
-                tr_ = self.trunks(); o = self.overlap(self.boxes(tr_, th))
+                tr_ = self.trunks(); o = self.overlap(self.boxes(tr_, th, pl.get('lift', 0)))
                 if o: worst.append(o)
                 if not fell[0] and any(t['st'] == BT_FALL for t in tr_): fell[0] = True
             return r

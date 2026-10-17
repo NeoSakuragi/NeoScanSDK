@@ -2377,6 +2377,34 @@ static uint8_t sel_move(uint8_t s, uint16_t pr) {
     }
     return s;
 }
+/* the locked text (note 20261017-114857-e03d, Bruno: "put it on three lines over the hidden character: LOCKED / BEAT
+ * THE GAME / FIRST, on top of the 1P cursor"): unlocks.locked_text's lines on the fix layer, each centred on the
+ * cursor's column, the last one right above its "1P" (the arrow's row - 2 up); cleared when the cursor leaves */
+static const char *const sel_lk_text[UNL_LOCKED_LINES + 1] = UNL_LOCKED_TEXT;
+static uint8_t sel_lk_col[UNL_LOCKED_LINES + 1], sel_lk_row = 0xFF, sel_lk_ch[2] = { 0xFF, 0xFF };
+static void sel_locked_clear(void) {
+    uint8_t i, n;
+    if (sel_lk_row == 0xFF) return;
+    for (i = 0; i < UNL_LOCKED_LINES; i++) {
+        for (n = 0; sel_lk_text[i][n]; n++) ;
+        FIX_print(sel_lk_col[i], sel_lk_row + i, "                " + (16 - n), 0);   /* (n <= 16: build_tables) */
+    }
+    sel_lk_row = 0xFF;
+}
+static void sel_locked_text(uint8_t col, uint8_t row) {   /* col / row: the arrow's cell */
+    uint8_t i, n;
+    if (!UNL_LOCKED_LINES) return;
+    sel_lk_row = row >= UNL_LOCKED_LINES + 4 ? row - 1 - UNL_LOCKED_LINES : 3;   /* (under the name row 2 at worst) */
+    for (i = 0; i < UNL_LOCKED_LINES; i++) {
+        int16_t c;
+        for (n = 0; sel_lk_text[i][n]; n++) ;
+        c = (int16_t)col - (n >> 1);                       /* (centred on the arrow's cell; inside columns 1 .. 38) */
+        if (c < 1) c = 1;
+        if (c + n > 39) c = 39 - n;
+        sel_lk_col[i] = (uint8_t)c;
+        FIX_print(sel_lk_col[i], sel_lk_row + i, sel_lk_text[i], 0);
+    }
+}
 static void select_arrows(void) {                           /* "1P" / "2P" + arrow over the selected head */
     uint8_t p, col[2], row[2];
     for (p = 0; p < 2; p++) {
@@ -2393,25 +2421,30 @@ static void select_arrows(void) {                           /* "1P" / "2P" + arr
             row[p] = sy < 32 ? 4 : (uint8_t)((sy + 4) >> 3);       /* (rows 1-2: the title and the name; "1P" one row above) */
         }
     }
-    if (col[0] == arrow_col[0] && row[0] == arrow_row[0] && col[1] == arrow_col[1] && row[1] == arrow_row[1]) return;
+    if (col[0] == arrow_col[0] && row[0] == arrow_row[0] && col[1] == arrow_col[1] && row[1] == arrow_row[1]
+        && (cursor[0] == 0xFF ? 0xFF : slot_ch[cursor[0]]) == sel_lk_ch[0] && (cursor[1] == 0xFF ? 0xFF : slot_ch[cursor[1]]) == sel_lk_ch[1]) return;
+    sel_locked_clear();
     for (p = 0; p < 2; p++)
         if (arrow_col[p] != 0xFF) { FIX_print(arrow_col[p], arrow_row[p] - 1, "  ", 0); FIX_print(arrow_col[p], arrow_row[p], " ", 0); }
     for (p = 0; p < 2; p++) {
         if (col[p] != 0xFF) { FIX_print(col[p], row[p] - 1, p ? "2P" : "1P", 0); FIX_setTile(col[p], row[p], ARROW_TILE, 0); }
         arrow_col[p] = col[p]; arrow_row[p] = row[p];
+        sel_lk_ch[p] = cursor[p] == 0xFF ? 0xFF : slot_ch[cursor[p]];
     }
+    for (p = 0; p < 2; p++)                      /* the locked text over P1's silhouette (else P2's): one block */
+        if (col[p] != 0xFF && char_locked(slot_ch[cursor[p]])) { sel_locked_text(col[p], row[p]); break; }
 }
 static const char *sel_name_of(uint8_t s) {      /* a locked one's: unlocks.locked_name (only its silhouette shows) */
     return char_locked(slot_ch[s]) ? UNL_LOCKED_NAME : bm_chars[slot_ch[s]].name;
 }
 static void centre(uint8_t row, const char *t);
-static uint8_t sel_hint_lk = 0xFF;               /* the hint row shows the locked text (1) or the controls (0) */
-static void sel_hint(void) {                     /* the hint row: the controls, or unlocks.locked_text while a cursor is on a locked one */
-    uint8_t lk = (cursor[0] != 0xFF && char_locked(slot_ch[cursor[0]])) || (cursor[1] != 0xFF && char_locked(slot_ch[cursor[1]]));
-    if (lk == sel_hint_lk) return;
-    sel_hint_lk = lk;
+static uint8_t sel_hint_lk = 0xFF;               /* the hint row drawn (1) */
+static void sel_hint(void) {                     /* the hint row: the controls (the locked text: over the silhouette,
+                                                    sel_locked_text, note 20261017-114857-e03d) */
+    if (sel_hint_lk == 1) return;
+    sel_hint_lk = 1;
     FIX_print(0, 26, "                                        ", 0);
-    if (lk) centre(26, UNL_LOCKED_TEXT); else FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);
+    FIX_print(3, 26, "STICK MOVES   A B C D PICK COLOURS", 0);
 }
 static void name_at(uint8_t col, uint8_t row, uint8_t right, uint8_t s) {
     const char *n = s == 0xFF ? "" : sel_name_of(s);
@@ -2458,7 +2491,8 @@ static void select_start(void) {
     FIX_print(10, 1, "SELECT YOUR FIGHTER", 0);           /* FIX_print row r = screen y r * 8 (rows 0-27) */
     sel_hint_lk = 0xFF;                                      /* the hint row: select_name -> sel_hint (the controls, under the
                                                                 front row's feet, y 206; or the locked text) */
-    for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; }
+    for (p = 0; p < 2; p++) { picked[p] = 0; pick_set[p] = 0; arrow_col[p] = 0xFF; sel_lk_ch[p] = 0xFF; }
+    sel_lk_row = 0xFF;                                       /* (FIX_clear above: nothing to clear) */
     sel_lay = LAD_N ? (rungs_now() < LAD_RUNGS ? rungs_now() + UNL_SHOW_NEXT : LAD_RUNGS) : 0;   /* (LAD_RUNGS + 1 layers:
                                                                 select_layers; show_next: the next rung's layer, its
                                                                 fighters as silhouettes, hoverable, never selectable) */
@@ -3071,13 +3105,16 @@ static uint8_t stage_song(uint8_t s) {
  * Fight's between-rounds city map (its ROM's picture, FF's place names wiped) over the stage, our stops' names on the
  * fix layer in our font. One sticky chain of MAP_COLS sprites x MAP_ROWS tiles on the super flash's rays' sprites
  * (MAP_SPR: never on screen together, sf_reset when it opens), counted by the line guard on every band (map_on). Each
- * 16 x 16 tile carries its stop's palette (MAP_PAL + 1 + k; + 0 the base, always grey): a stop reached = FF's green
- * (map_lit), not reached = FF's grey (map_grey), the current stop blinking between the two every gmap.blink ticks
- * (FF's page flip), its name too (reached names palette 0, the others MAP_FIX_GREY, the blinking one 1 / grey).
- *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over its fade-in, its stop blinking; the
- *              intro's title and walk-in wait for it (intro_fade_tick)
- *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, after the win poses and the win drama): the stage's stop lit, the
- *              next stop blinking (the bonus when one will be played, else the next stage; none after the last)
+ * 16 x 16 tile carries its stop's palette (MAP_PAL + 1 + k; + 0 the base, always grey). Stop k = the campaign's
+ * stage k in play (stages[].map; no bonus stop: note 20261017-114940-e03d). Bruno's colours (same note: "colour the
+ * levels not cleared yet, so we know the ones left; the one in play blinking"): a stage not cleared = FF's green
+ * (map_lit), name palette 0; a cleared one = FF's grey (map_grey), name MAP_FIX_GREY; the stage in play blinking between
+ * the two every gmap.blink ticks (FF's page flip), its name too (1 / grey).
+ *   MAP_START  a campaign stage's start (stage_begin, the stage intro): over its fade-in, its stop blinking, STAGE n in
+ *              the big font when big_text.map_start (Savage Reign's blink, held to the map's end); the intro's title
+ *              and walk-in wait for it (intro_fade_tick)
+ *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, after the win poses and the win drama): the stage's stop grey, the
+ *              next stage blinking (none after the last); NEXT BONUS GAME under it when a bonus comes first
  * Up gmap.start_ticks / clear_ticks; A-D of either player skips it after gmap.skip_after (START is the box viewer's).
  * Never in the attract demo, the Lab or a continue. ---- */
 #define MAP_SPR SF_RAYS_SPR                      /* 348-363 */
@@ -3086,7 +3123,8 @@ _Static_assert(MAP_COLS <= 16 && MAP_SPR + MAP_COLS <= SPARK_SPR, "the map: on t
 _Static_assert(MAP_NSTOPS <= GM_STOPS, "map.h's stops: gamedata.h GM_STOPS");
 _Static_assert(GS_COUNT <= 9, "the map texts: {n} one digit");
 enum { MAP_OFF, MAP_START, MAP_CLEAR };
-static uint8_t map_cur, map_reached, map_blink_lit, map_bt, map_skipped, map_stage;
+static uint8_t map_cur, map_reached, map_blink_lit, map_bt, map_skipped, map_stage;   /* map_reached: the stops cleared
+                                                    (0 .. map_reached - 1); map_cur: the one in play (0xFF none) */
 static uint16_t map_t, map_len;
 static uint8_t bonus_open(void);
 static uint8_t bn_offered(uint8_t i);
@@ -3097,10 +3135,8 @@ static uint8_t map_foot_row(void) { return map_row0() + (MAP_H_PX >> 3) + 1; }
 static void map_name(uint8_t k, uint8_t pal) {
     const gmap_stop_t *s = &gmap.stops[k];
     FIX_print((uint8_t)((gmap.x >> 3) + s->col), map_row0() + s->row, s->name, pal);
-    if (s->sub && s->sub[0]) FIX_print((uint8_t)((gmap.x >> 3) + s->col), map_row0() + s->row + 1, s->sub, pal);
 }
-static void map_text(uint8_t row, const char *t, const char *name) {   /* centred; {n} = the stage's number, {name} */
-    char b[40];
+static uint8_t map_fmt(char *b, const char *t, const char *name) {   /* b[40] = t with {n} = the stage's number, {name} */
     uint8_t n = 0;
     while (*t && n < 39) {
         if (t[0] == '{' && t[1] == 'n' && t[2] == '}') { b[n++] = '0' + map_stage + 1; t += 3; continue; }   /* (GS_COUNT <= 9) */
@@ -3111,12 +3147,17 @@ static void map_text(uint8_t row, const char *t, const char *name) {   /* centre
         b[n++] = *t++;
     }
     b[n] = 0;
-    if (n) centre(row, b);
+    return n;
 }
-static void map_show_pal(uint8_t k) {            /* stop k's palette and name as it stands */
-    uint8_t lit = k == map_cur ? map_blink_lit : k < map_reached;
+static void map_text(uint8_t row, const char *t, const char *name) {   /* centred on the fix layer */
+    char b[40];
+    if (map_fmt(b, t, name)) centre(row, b);
+}
+static void map_show_pal(uint8_t k) {            /* stop k's palette and name as it stands: not cleared = lit, cleared =
+                                                    grey, the one in play blinking (note 20261017-114940-e03d) */
+    uint8_t lit = k == map_cur ? map_blink_lit : k >= map_reached;
     PAL_setPalette(MAP_PAL + 1 + k, lit ? map_lit : map_grey);
-    map_name(k, k == map_cur ? (lit ? 1 : MAP_FIX_GREY) : k < map_reached ? 0 : MAP_FIX_GREY);
+    map_name(k, k == map_cur ? (lit ? 1 : MAP_FIX_GREY) : lit ? 0 : MAP_FIX_GREY);
 }
 static void map_place(void) {                    /* its chain's SCB3 / SCB4, every tick it is up (blocks_layout clears the
                                                     select's blocks' sprites, 57-356, when a fight's first frame lays its
@@ -3128,15 +3169,16 @@ static void map_place(void) {                    /* its chain's SCB3 / SCB4, eve
     cmd_push(VRAM_SCB4 + MAP_SPR, (uint16_t)(gmap.x & 0x1FF) << 7);
 }
 static void map_open(uint8_t kind) {
-    uint8_t c, r, k, s = gmap_stage[camp], nb = gmap_bonus[camp];
+    uint8_t c, r, k, nb = 0;                     /* (stop k = stage k in play) */
     uint16_t pal[16];
     if (!GMAP_ON || !(kind == MAP_START ? gmap.start_ticks : gmap.clear_ticks)) return;
     sf_reset();                                  /* (the rays' sprites: the map's now) */
     map_on = kind; map_t = 0; map_bt = 0; map_skipped = 0; map_stage = camp; map_blink_lit = 1;
-    if (kind == MAP_START) { map_reached = s; map_cur = s; map_len = gmap.start_ticks; }
+    if (kind == MAP_START) { map_reached = camp; map_cur = camp; map_len = gmap.start_ticks; }
     else {
-        map_reached = s + 1; map_len = gmap.clear_ticks;
-        map_cur = camp + 1 >= GS_COUNT ? 0xFF : nb != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open() ? nb : gmap_stage[camp + 1];
+        map_reached = camp + 1; map_len = gmap.clear_ticks;
+        map_cur = camp + 1 >= GS_COUNT ? 0xFF : camp + 1;
+        nb = map_cur != 0xFF && gbonus.ngames && gbonus.after[camp] && bonus_open();   /* (a bonus before it: NEXT BONUS GAME) */
     }
     for (k = 0; k < 16; k++) pal[k] = TEXT_PAL[k];   /* fix palette 7: the font's gradient in greys */
     pal[2] = RGB(20, 20, 21); pal[3] = RGB(17, 17, 18); pal[4] = RGB(14, 14, 15); pal[5] = RGB(11, 11, 12);
@@ -3149,11 +3191,14 @@ static void map_open(uint8_t kind) {
     }
     map_place();
     for (k = 0; k < gmap.nstops; k++) map_show_pal(k);
-    if (kind == MAP_START) map_text(map_head_row(), gmap.start_text, 0);
-    else {
+    if (kind == MAP_START) {
+        if (gbig[BIG_MAP_START].on) { char b[40]; map_fmt(b, gmap.start_text, 0); bt_show(b, BIG_MAP_START); }   /* (the big
+                                                    font's headline: held until map_close) */
+        else map_text(map_head_row(), gmap.start_text, 0);
+    } else {
         map_text(map_head_row(), gmap.clear_text, 0);
         if (map_cur == 0xFF) map_text(map_foot_row(), gmap.final_text, 0);
-        else if (map_cur == nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[map_cur].name);
+        else if (nb) map_text(map_foot_row(), gmap.next_bonus, gmap.stops[map_cur].name);
         else map_text(map_foot_row(), gmap.next_text, gmap.stops[map_cur].name);
     }
 }
@@ -3162,6 +3207,7 @@ static void map_close(void) {
     if (!map_on) return;
     for (c = 0; c < MAP_COLS; c++) cmd_push(VRAM_SCB3 + MAP_SPR + c, 0);
     for (r = map_head_row(); r <= map_foot_row(); r++) FIX_print(0, r, "                                        ", 0);
+    if (bt_n && bt_s == &gbig[BIG_MAP_START]) bt_hide();   /* (its big STAGE n) */
     map_on = MAP_OFF;
 }
 static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it is gone */
@@ -4058,8 +4104,9 @@ _Static_assert(SPR_BASE + GB_TRUNKS * 4 + 2 * MAX_COLS + PJ_SPRS <= DBG_SPR, "th
 enum { BT_GONE, BT_REST, BT_FALL };
 static struct { int16_t x, h, vy; uint8_t st, hp, img, thud, dirty; } bn_tr[GB_TRUNKS];   /* h: its bottom over the floor, 1/16 px */
 static int16_t bn_reach[GB_TRUNKS];              /* px a strike over a trunk's box still hits it (bn_pile_flow) */
-static int16_t bn_trunk_top(uint8_t k) {         /* its screen y (the floor = the post's bottom, AOF2's 224) */
-    return (int16_t)(bonus_post[0].y + (bonus_post[0].h << 4) - (bn_tr[k].h >> 4) - bn_g->trunk_h);
+static int16_t bn_trunk_top(uint8_t k) {         /* its screen y (the floor = the post's bottom, AOF2's 224, raised by
+                                                    pile.lift: note 20261017-063200-e03d reopen, "make them sit 16 px higher") */
+    return (int16_t)(bonus_post[0].y + (bonus_post[0].h << 4) - bn_g->trunk_lift - (bn_tr[k].h >> 4) - bn_g->trunk_h);
 }
 static void bn_trunk_show(uint8_t k) {
     const bonus_obj_t *o = &bonus_post[bn_tr[k].img];
