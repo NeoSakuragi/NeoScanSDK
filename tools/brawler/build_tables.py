@@ -1811,7 +1811,7 @@ def bonus_tables(g, songs_known, sfx_names):
 
 MAP_DISTRICTS = ('SLUM', 'PARK', 'WEST SIDE', 'INDUSTRIAL AREA', 'BAY AREA', 'UP TOWN')   # make_map.DISTRICTS
 GM_STOPS = 6                                             # gamedata.h GM_STOPS
-MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'clear_at', 'clear_at_about', 'skip_after', 'blink', 'start_text', 'clear_text',
+MAP_KEYS = ('about', 'x', 'y', 'start_ticks', 'clear_ticks', 'clear_at', 'clear_at_about', 'clear_text_at', 'clear_text_at_about', 'skip_after', 'blink', 'start_text', 'clear_text',
             'final_clear_text', 'clear_text_about', 'stops_about', 'colours_about', 'start_text_about')
 # (next_text / next_bonus / final_text, the line under the clear's map: gone, note 20261017-150757-e03d)
 
@@ -1836,6 +1836,8 @@ def map_tables(g):
         'map.x / y: the top left in 8 px steps (x 0-64: the 256 px map on the 320 px screen; y 16-120)'
     for k in ('start_ticks', 'clear_ticks'): assert isinstance(m[k], int) and 0 <= m[k] <= 900, f'map.{k}: 0-900 ticks (0: not shown then)'
     assert isinstance(m.get('clear_at', 0), int) and 0 <= m.get('clear_at', 0) <= 600, 'map.clear_at: 0-600 ticks'
+    assert isinstance(m.get('clear_text_at', 0), int) and 0 <= m.get('clear_text_at', 0) < m['clear_ticks'] or not m['clear_ticks'], \
+        'map.clear_text_at: 0 .. clear_ticks - 1 ticks (the headline inside the map\'s time)'
     assert isinstance(m.get('skip_after', 30), int) and 0 <= m.get('skip_after', 30) <= 600 and 2 <= m.get('blink', 6) <= 60, 'map: skip_after 0-600, blink 2-60'
     assert 'stops' not in m, 'map.stops: gone (note 20261017-114940-e03d): each stage in play carries its stop (stages[].map)'
     st = map_stops(g)
@@ -1849,7 +1851,7 @@ def map_tables(g):
         assert 0 <= lc and lc + len(s['name']) <= 32 and 0 <= lr <= 10, f'map stop {s["name"]}: label [column, row] inside the 32 x 11 cell map'
     rows = ', '.join(f'{{ {c_str(s["name"])}, {s["label"][0]}, {s["label"][1]} }}' for s in st)
     c = [f'const gmap_t gmap = {{ .x = {m["x"]}, .y = {m["y"]}, .start_ticks = {m["start_ticks"]}, .clear_ticks = {m["clear_ticks"]}, '
-         f'.skip_after = {m.get("skip_after", 30)}, .clear_at = {m.get("clear_at", 0)}, .blink = {m.get("blink", 6)}, .nstops = {len(st)}, '
+         f'.skip_after = {m.get("skip_after", 30)}, .clear_at = {m.get("clear_at", 0)}, .clear_text_at = {m.get("clear_text_at", 0)}, .blink = {m.get("blink", 6)}, .nstops = {len(st)}, '
          f'.start_text = {c_str(m.get("start_text", ""))}, .clear_text = {c_str(m.get("clear_text", ""))}, '
          f'.final_clear_text = {c_str(m.get("final_clear_text", ""))}, .stops = {{ {rows} }} }};   /* game.json map; stop k = stage k in play */']
     return ['#define GMAP_ON 1'], c

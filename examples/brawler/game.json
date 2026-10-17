@@ -1909,6 +1909,8 @@
   "clear_ticks": 330,
   "clear_at": 120,
   "clear_at_about": "note 20261017-132838-e03d (Bruno: 'first the win pose of the character, then two seconds after the STAGE CLEAR message plus the Final Fight map with the blink'): the clear's map opens clear_at ticks after the stage clear (the win poses start then), with STAGE CLEAR in the big font (big_text.stage_clear, held until the map closes: exit false; no STAGE CLEAR before it); after the map: the rest of the win poses, the win drama, the clear song's end, the next screen (the bonus, the next stage, the ending). Every stage clear, the stage-clear cheat's too (note 20261017-132400-e03d); the last stage: GEESE TOWER blinking, ALL CLEAR!, then the ending. start_ticks 120 (note 20261017-114940-e03d reopened: the map 2 s on a black stage, then the stage's fade-in; was 210 over the fade)",
+  "clear_text_at": 60,
+  "clear_text_at_about": "note 20261017-131927-e03d reopened on 0.10.169 (Bruno: 'I would start the STAGE n CLEAR slide-in one second later and keep the overall duration the same'): the clear's headline (STAGE n CLEAR / ALL CLEAR, big_text.stage_clear) starts its slide-in clear_text_at ticks after the clear's map opens (0 = with the map; was 0), held until the map closes; the map's own times unchanged (opens clear_at = 120 ticks into the win poses, up clear_ticks = 330: closes at 450), so the whole clear sequence keeps its length: the map at +120, the headline at +180, both gone at +450. A button skip before it: no headline (the map's skip_after 30)",
   "skip_after": 30,
   "blink": 6,
   "start_text": "STAGE {n} START",

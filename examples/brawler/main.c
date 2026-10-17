@@ -3123,7 +3123,8 @@ static uint8_t stage_song(uint8_t s) {
  *              end); then the stage's fade-in under it, the map closing as the fade ends, then the walk-in
  *              (intro_fade_tick; note 20261017-150157-e03d)
  *   MAP_CLEAR  the stage clear (campaign PH_CLEAR, gmap.clear_at ticks into the win poses; the win drama after it):
- *              STAGE n CLEAR (the last stage: ALL CLEAR; clear_head) in the big font (big_text.stage_clear), the stage
+ *              gmap.clear_text_at ticks in, STAGE n CLEAR (the last stage: ALL CLEAR; clear_head) in the big font
+ *              (big_text.stage_clear, held to the map's end), the stage
  *              just cleared blinking, the earlier ones grey, the later ones green; nothing under it (note
  *              20261017-150757-e03d: NEXT BONUS GAME / NEXT name gone, the next screen is not always the one named)
  * Up gmap.start_ticks / clear_ticks; A-D of either player skips it after gmap.skip_after (START is the box viewer's).
@@ -3205,6 +3206,15 @@ static void map_place(void) {                    /* its chain's SCB3 / SCB4, eve
     for (c = 1; c < MAP_COLS; c++) y[c] = 0x40;
     cmd_push(VRAM_SCB4 + MAP_SPR, (uint16_t)(gmap.x & 0x1FF) << 7);
 }
+static void map_clear_head(void) {              /* the clear's headline: STAGE n CLEAR (clear_head) in the big font, held
+                                                    until map_close (note 20261017-132838-e03d, big_text.stage_clear exit
+                                                    false), gmap.clear_text_at ticks after the map opens (note
+                                                    20261017-131927-e03d reopened, Bruno: "start the STAGE n CLEAR slide-in
+                                                    one second later and keep the overall duration the same") */
+    char b[40];
+    clear_head(b);
+    if (gbig[BIG_STAGE_CLEAR].on) bt_show(b, BIG_STAGE_CLEAR); else centre(map_head_row(), b);
+}
 static void map_open(uint8_t kind) {
     uint8_t c, r, k;                             /* (stop k = stage k in play) */
     uint16_t pal[16];
@@ -3235,14 +3245,7 @@ static void map_open(uint8_t kind) {
         if (gbig[BIG_MAP_START].on) { char b[40]; map_fmt(b, gmap.start_text, 0); bt_show(b, BIG_MAP_START); }   /* (the big
                                                     font's headline: held until map_close) */
         else map_text(map_head_row(), gmap.start_text, 0);
-    } else {
-        char b[40];
-        clear_head(b);
-        if (gbig[BIG_STAGE_CLEAR].on) bt_show(b, BIG_STAGE_CLEAR);   /* (STAGE n CLEAR in the big font with the map, note
-                                                    20261017-132838-e03d: held until map_close, big_text.stage_clear exit
-                                                    false) */
-        else centre(map_head_row(), b);
-    }
+    } else if (!gmap.clear_text_at) map_clear_head();   /* (else map_tick: gmap.clear_text_at ticks in) */
 }
 static void map_close(void) {
     uint8_t c, r;
@@ -3256,6 +3259,8 @@ static void map_close(void) {
 static uint8_t map_tick(void) {                  /* a tick of the map; 0 once it is gone */
     if (!map_on) return 0;
     map_t++; map_place();
+    if (map_on == MAP_CLEAR && gmap.clear_text_at && map_t == gmap.clear_text_at + 1) map_clear_head();   /* (map_t 1 = the
+                                                    tick it opened) */
     if (map_cur != 0xFF && ++map_bt >= gmap.blink) { map_bt = 0; map_blink_lit ^= 1; map_show_pal(map_cur); }
     if (map_t >= map_len || (map_t >= gmap.skip_after && ((JOY_pressed(0) | JOY_pressed(1)) & (JOY_A | JOY_B | JOY_C | JOY_D)))) {
         map_skipped = map_t < map_len;
