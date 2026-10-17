@@ -791,3 +791,41 @@ says so under the Sign in button: "Your play sessions are recorded for the devel
   state started its attack at the load instead of at the channel's next prepare: from a loaded state the FM operators
   drifted from the recording (from minute 8 on, every keyframe; 0.0.41's seeks had it too). A load now rebuilds only the
   operator caches. Files: `/data/tmp/sess_key_proof/` (scripts, page shots).
+- **Notes in a session (2026-10-17, `chainlab/sessnotes.js`):** every session row (the Sessions list, the Live wall's
+  tiles, the admin hub's Stats rows) carries a black count badge = the feedback notes recorded during it (server.py
+  `session_notes`: same install id, or the same user for a note without one, sent between the session's first chunk -
+  60 s and its last + 10 min; a note in two spans goes to the session it falls inside, else the nearest). Tap = the
+  list (time in the session, title, status), a note = the tracker (`game.html#fb=<id>`). API: every row of
+  `sessions` has `notes`, `session/<id>` the list, `session/<id>/notes`.
+
+## Replay statistics (token-free, 2026-10-17)
+
+Every finished session (no chunk for 10 min) is replayed on the VPS in our Geolith core and measured, with no Claude
+and no desktop involved: unit **brawler-analysis** (`tools/brawler/analysis/worker.py`; Nice 19, idle IO, batch
+scheduling, CPUQuota 50 %, MemoryMax 700M), one session at a time, newest first, each in its own process
+(`analysis/analyze.py`, harness.py with a build's **analysis pack** instead of a build tree). The admin hub's **Stats**
+tab (`tools/brawler/admin/stats.html`; `/brawler-admin/#stats`) reads it through server.py `api/stats...` (admins only).
+- **Analysis packs** (`analysis/pack.py`): fighter_t's layout, the states, the work-RAM symbols, the select counts, each
+  fighter's special pool + slot table, the HUD names, the stages and their wave counts, the bonus games' names; one
+  JSON per build, `/data/brawler/analysis/builds/<VERSION>/pack.json`, sent by `publish_vps.sh` with every build. The
+  ROM comes from the feedback archive (`/data/brawler/feedback/roms/<sha>.neo.gz`, unpacked once into
+  `/mnt/storagebox/brawler-analysis/roms/`) or the builds dir. Older builds: `analysis/backfill_packs.sh` rebuilds each
+  version's commit in `/data/tmp/bpack/<V>/src`, checks the ROM byte for byte against the played one, sends the pack.
+- **The core** (`analysis/headless_core.sh` + `headless_core.patch`): our Geolith tree + `retro_neoscan_skip_render`
+  (the LSPC draws no scanline; nothing either CPU reads comes from the line buffers): 40 % less time per frame, every
+  chunk-boundary SHA-256 still identical to the phone's. ~2.5× real time on the VPS at the 50 % quota (a 12 min session
+  ~4.75 min), ~130 MB.
+- **Measured** (analyze.py docstring): per session player, device, build, duration, fight / bonus / menu / demo / idle
+  time, fighters, furthest point (reached; last fought), deaths, continues, game overs, coins, kills, damage taken /
+  dealt, specials (role + input), furies, throws, grabs, best combo, how it ended, the drift check; per stage x wave,
+  boss fight and bonus game: start, duration, time per phase, enemies spawned (HUD names) and killed, damage dealt,
+  hits landed, max combo (hits on one enemy before it recovered), per player life and lives at start / end, deaths,
+  damage / hits taken, drive and fury gauge gained / spent, specials, furies, throws, grabs, idle (>= 1 s without input);
+  a bonus game's name and result. Aggregates per player and per build (`worker.aggregate`): play / fight time, per wave
+  the median / min / max duration, deaths, deaths per play, where sessions ended (drop-off), death hotspots, moves used,
+  slots never used, fighters.
+- **Files** (`/data/brawler/analysis`): `stats.db` (runs: status ok / error / nopack / norom / empty / running, the
+  summary and the segments as JSON), `results/<id>.json.gz` (the whole analysis: events, screens, segments, summary),
+  `aggregates.json`, `progress.json` (the session being replayed), `rerun/<id>` (the page's Re-run button).
+  A bump of `analyze.ANALYZER` re-runs every session. Desktop: `tools/brawler/session_moves.py` runs the same code
+  from a built tree.

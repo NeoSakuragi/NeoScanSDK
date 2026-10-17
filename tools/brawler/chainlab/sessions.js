@@ -8,7 +8,8 @@
  * replay's state SHA-256 is compared with the recorded one (the line under the picture: "N chunk boundaries checked:
  * all identical"; a difference or a missing chunk is shown, the replay resyncs at the next keyframe). Link: brawler-lab/game.html#sessions
  * (#sess=<id> opens one; ?user=NAME: that player's sessions only). API: feedback-api/sessions, session/<id>[?after=], session/<id>/inputs[?from=],
- * session/<id>/state/<seq> (tools/feedback/server.py sessions_api). */
+ * session/<id>/state/<seq> (tools/feedback/server.py sessions_api). The badge next to the player = the feedback notes recorded
+ * during the session (sessnotes.js: tap = the list, a note = the tracker). */
 (async function () {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -78,7 +79,7 @@
       return c;
     };
     const row = (r, isLive) => { const c = cells(r); return h('tr', { class: 'srow' + (open && open.id === r.id ? ' on' : ''), onclick: () => watch(r) },
-      isLive ? h('td', { class: 'slive' }, '● LIVE') : null, h('td', {}, r.user), h('td', { class: 'wide' }, r.rom_version + (r.system !== 'mvs-mvs' ? ' (' + r.system + ')' : '')),
+      isLive ? h('td', { class: 'slive' }, '● LIVE') : null, h('td', {}, r.user, window.SessNotes ? SessNotes.badge(r.id, r.notes || 0, API) : null), h('td', { class: 'wide' }, r.rom_version + (r.system !== 'mvs-mvs' ? ' (' + r.system + ')' : '')),
       c.chars, c.where, c.vitals, isLive ? null : h('td', {}, when(r.started) + (r.paused && r.last_ago < 60 ? ' (paused)' : '')), h('td', {}, mmss(r.frames)), h('td', { class: 'dev' }, r.device)); };
     const th = isLive => h('tr', {}, isLive ? h('th', {}, '') : null, h('th', {}, 'Player'), h('th', { class: 'wide' }, 'Build'), h('th', {}, 'Character'), h('th', { class: 'wide' }, 'Screen'),
       h('th', { class: 'wide' }, 'Life · drive'), isLive ? null : h('th', {}, 'Started'), h('th', {}, isLive ? 'So far' : 'Length'), h('th', { class: 'dev' }, 'Device'));

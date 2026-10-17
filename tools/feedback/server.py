@@ -119,7 +119,11 @@ Player admin (the Factory's Players tab, brawler admins; the accounts themselves
 Nightly (Oros tag brawler_nightly): share/latest.json and me give the newest published build, not the assignment.
 Session recording (Player 0.0.41, keyframes 0.0.43, 2 s chunks 0.0.44; docs/feedback.md "Session recording"): POST sessions/chunk = a ~2 s
 chunk of the play session (pads + the state's SHA-256; a keyframe chunk, every ~30 s, the state too), files on the storage box SESSIONS/<session>/, the index in the sessions / session_chunks
-tables; the Lab reads them through /api/sessions, /api/session/<id>[/inputs | /state/<seq>] (sessions_api).
+tables; the Lab reads them through /api/sessions, /api/session/<id>[/inputs | /state/<seq> | /notes] (sessions_api; each
+session row carries `notes`: the feedback notes recorded during it, session_notes).
+Replay statistics (2026-10-17, token-free: tools/brawler/analysis, VPS unit brawler-analysis replays every finished
+session in our core): GET /api/stats, /api/stats/session/<id>, /api/stats/aggregates, POST /api/stats/rerun {id}
+(stats_api; the admin hub's Stats tab, tools/brawler/admin/stats.html).
 Lifecycle (docs/feedback.md): every row's timeline = found + status history + events + tests + replies, oldest first.
 Cost: every transcription's usage as OpenAI returns it (tokens, or seconds for whisper-1) and its USD cost from
 PRICES (prices.json next to this file: the price table with its source and date) go to the transcriptions table,
@@ -1347,6 +1351,60 @@ def session_row(r, t=None):
     return d
 
 
+# Replay statistics (tools/brawler/analysis: the VPS unit brawler-analysis replays every finished session in our core,
+# token-free, and writes ANALYSIS/stats.db + results/<id>.json.gz + aggregates.json); read here for the admin hub's
+# Stats tab (api/stats..., brawler admins only like every api/ call). Re-run = a request file the worker picks up.
+ANALYSIS = os.environ.get('FEEDBACK_ANALYSIS', '/data/brawler/analysis')
+NOTE_BEFORE, NOTE_AFTER = 60, 600          # a note belongs to a session: same install (or user), sent in its span (+ slack)
+
+
+def iso_epoch(s):
+    import calendar
+    try: return calendar.timegm(time.strptime(s, '%Y-%m-%dT%H:%M:%SZ'))
+    except Exception: return None
+
+
+def session_notes(c, sess):
+    """{session id: [{id, title, status, created, t (seconds into the session), category}]} for the session rows given:
+    the feedback notes of the same install id (or, a note without one, the same user) sent between the session's first
+    chunk - NOTE_BEFORE and its last + NOTE_AFTER (a note is uploaded a little after its press); a note in two spans
+    goes to the session it falls inside, else the nearest"""
+    out = {s['id']: [] for s in sess}
+    if not sess: return out
+    want = set(out)                     # the matching sees every session of these installs / users (the same answer for
+    insts = {s.get('install_id') or '' for s in sess}; users = {(s.get('user') or '').lower() for s in sess}   # any subset)
+    sess = [dict(r) for r in c.execute('SELECT id, user, install_id, first_at, last_at FROM sessions')
+            if (r['install_id'] or '') in insts or (r['user'] or '').lower() in users]
+    out.update({s['id']: [] for s in sess})
+    by_inst = {}; by_user = {}
+    for s in sess:
+        by_inst.setdefault(s.get('install_id') or '', []).append(s); by_user.setdefault((s.get('user') or '').lower(), []).append(s)
+    lo = min(s['first_at'] or 0 for s in sess) - NOTE_BEFORE
+    for r in c.execute('SELECT id, created, user, install_id, title, status, category, final_text, raw_transcript FROM feedback'):
+        t = iso_epoch(r['created'] or '')
+        if t is None or t < lo: continue
+        cands = by_inst.get(r['install_id'] or '') if r['install_id'] else by_user.get((r['user'] or '').lower())
+        best = None
+        for s in cands or []:
+            a, b = s['first_at'] or 0, s['last_at'] or 0
+            if a - NOTE_BEFORE <= t <= b + NOTE_AFTER:
+                d = 0 if a <= t <= b else min(abs(t - a), abs(t - b))
+                if best is None or d < best[0]: best = (d, s)
+        if best:
+            s = best[1]; txt = r['title'] or (r['final_text'] or r['raw_transcript'] or '')[:70]
+            out[s['id']].append({'id': r['id'], 'title': txt, 'status': r['status'], 'category': r['category'], 'created': r['created'],
+                                 't': round(t - (s['first_at'] or t), 1)})
+    for v in out.values(): v.sort(key=lambda n: n['t'])
+    return {k: v for k, v in out.items() if k in want}
+
+
+def stats_db():
+    p = os.path.join(ANALYSIS, 'stats.db')
+    if not os.path.exists(p): return None
+    c = sqlite3.connect('file:%s?mode=ro' % p, uri=True, timeout=10); c.row_factory = sqlite3.Row
+    return c
+
+
 class H(http.server.BaseHTTPRequestHandler):
     def reply(self, code, obj=None, body=None, ctype='application/json'):
         b = body if body is not None else (json.dumps(obj, ensure_ascii=False) + '\n').encode()
@@ -1381,6 +1439,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if not u.path.startswith('/api/') or not self.api_ok(): return self.reply(404, {'error': 'not found'})
         parts = u.path.split('/')[2:]
         if parts and parts[0] in ('sessions', 'session'): return self.sessions_api(parts, q)
+        if parts and parts[0] == 'stats': return self.stats_api(parts, q)
         if parts == ['players']: return self.reply(200, admin_players())
         if len(parts) == 2 and parts[0] == 'decisions' and re.match(r'^[a-z0-9_-]{1,40}$', parts[1]):
             p = os.path.join(DATA, 'decisions', parts[1] + '.json')
@@ -1969,6 +2028,7 @@ class H(http.server.BaseHTTPRequestHandler):
         if self.path == '/api/transcribe': return self.lab_transcribe()
         if self.path == '/api/decision': return self.save_decision()
         if self.path == '/api/players/reset_save': return self.reset_save()
+        if self.path == '/api/stats/rerun': return self.stats_rerun()
         self.reply(404, {'error': 'not found'})
 
     def lab_transcribe(self):
@@ -2344,12 +2404,79 @@ class H(http.server.BaseHTTPRequestHandler):
             log('session', sid, 'starts:', user, meta.get('rom_version'), meta['system'], meta.get('device'), meta.get('app_version'))
         self.reply(200, {'ok': True, 'session': sid, 'seq': seq})
 
+    def stats_api(self, parts, q):
+        """the admin hub's Stats tab (brawler admins; the replay worker's results, tools/brawler/analysis)
+          GET stats                    every session newest first: its index row + the analysis (status, summary, drift
+                                       check) + its notes count; the worker's progress; the builds with a pack
+          GET stats/session/<id>       the whole analysis (segments = the wave timeline, events, summary) + its notes
+          GET stats/aggregates         per player and per build (worker.aggregate: medians, hotspots, moves, drop-off)
+          POST stats/rerun {id}        queue a re-run of that session (stats_rerun)"""
+        import gzip
+        t = time.time()
+        if parts == ['stats', 'aggregates']:
+            p = os.path.join(ANALYSIS, 'aggregates.json')
+            return self.reply(200, body=open(p, 'rb').read()) if os.path.exists(p) else self.reply(200, {'players': {}, 'builds': {}, 'all': None})
+        if len(parts) == 3 and parts[1] == 'session' and SESSION_ID.match(parts[2]):
+            p = os.path.join(ANALYSIS, 'results', parts[2] + '.json.gz')
+            res = json.load(gzip.open(p)) if os.path.exists(p) else None
+            if res: res.pop('screens', None)
+            with db() as c:
+                r = c.execute('SELECT * FROM sessions WHERE id=?', (parts[2],)).fetchone()
+                if not r: return self.reply(404, {'error': 'no such session'})
+                row = session_row(r, t); notes = session_notes(c, [row])[row['id']]
+            sc = stats_db(); run = None
+            if sc:
+                with sc: x = sc.execute('SELECT status, analyzer, error, finished, wall_s FROM runs WHERE session=?', (parts[2],)).fetchone()
+                run = row_dict(x) if x else None; sc.close()
+            return self.reply(200, {'session': row, 'run': run, 'analysis': res, 'notes': notes,
+                                    'rerun_pending': os.path.exists(os.path.join(ANALYSIS, 'rerun', parts[2]))})
+        if parts != ['stats']: return self.reply(404, {'error': 'not found'})
+        with db() as c:
+            rows = [session_row(r, t) for r in c.execute('SELECT * FROM sessions ORDER BY last_at DESC LIMIT 1000')]
+            notes = session_notes(c, rows)
+        runs = {}; sc = stats_db()
+        if sc:
+            with sc:
+                for x in sc.execute('SELECT session, status, analyzer, checked, mismatches, error, summary, finished, wall_s FROM runs'):
+                    runs[x['session']] = x
+            sc.close()
+        out = []
+        for r in rows:
+            x = runs.get(r['id'])
+            d = {k: r.get(k) for k in ('id', 'user', 'device', 'rom_version', 'started', 'first_at', 'last_at', 'seconds', 'chunks', 'live')}
+            d['notes'] = len(notes.get(r['id'], []))
+            if x:
+                d.update({'status': x['status'], 'analyzer': x['analyzer'], 'checked': x['checked'], 'finished': x['finished'],
+                          'mismatches': len(json.loads(x['mismatches'] or '[]')), 'error': (x['error'] or '')[-200:] or None,
+                          'summary': json.loads(x['summary']) if x['summary'] else None})
+            else: d['status'] = 'live' if r.get('live') else 'pending'
+            d['rerun_pending'] = os.path.exists(os.path.join(ANALYSIS, 'rerun', r['id']))
+            out.append(d)
+        prog = None
+        try: prog = json.load(open(os.path.join(ANALYSIS, 'progress.json')))
+        except Exception: pass
+        bd = os.path.join(ANALYSIS, 'builds')
+        packs = sorted((v for v in os.listdir(bd) if os.path.exists(os.path.join(bd, v, 'pack.json'))), key=vkey) if os.path.isdir(bd) else []
+        return self.reply(200, {'sessions': out, 'progress': prog, 'packs': packs, 'now': t})
+
+    def stats_rerun(self):
+        """POST stats/rerun {id}: the worker re-runs that session next (ANALYSIS/rerun/<id>, worker.py)"""
+        try: req = json.loads(self.body(4096) or b'{}')
+        except ValueError: return self.reply(400, {'error': 'JSON'})
+        sid = str(req.get('id', ''))
+        if not SESSION_ID.match(sid) or not os.path.isdir(os.path.join(SESSIONS, sid)): return self.reply(404, {'error': 'no such session'})
+        os.makedirs(os.path.join(ANALYSIS, 'rerun'), exist_ok=True)
+        open(os.path.join(ANALYSIS, 'rerun', sid), 'w').write(account(self.headers) or 'ssh')
+        return self.reply(200, {'id': sid, 'queued': True})
+
     def sessions_api(self, parts, q):
         """the Lab's Sessions tab (feedback-api/, brawler admins): every player's sessions
           GET sessions[?limit=N]                    newest first, + the storage totals and the MB per hour
           GET session/<id>[?after=SEQ]              its row + its chunks (seq > after; state 1 = a keyframe) + its keyframes' seqs
           GET session/<id>/inputs[?from=SEQ]        the pads of its chunks from SEQ on: per chunk u32 seq + NSIN v1
-          GET session/<id>/state/<seq>              that chunk's start state (gzip; Content-Encoding gzip)"""
+          GET session/<id>/state/<seq>              that chunk's start state (gzip; Content-Encoding gzip)
+          GET session/<id>/notes                    the feedback notes recorded during it (session_notes); every row of
+                                                    sessions carries their count (notes), session/<id> the list"""
         import struct, zlib
         t = time.time()
         num = lambda k, dflt: int(q[k][0]) if q.get(k) and q[k][0].lstrip('-').isdigit() else dflt
@@ -2360,6 +2487,8 @@ class H(http.server.BaseHTTPRequestHandler):
                                                     c.execute('SELECT * FROM sessions ORDER BY last_at DESC LIMIT ?', (num('limit', 300),)))]
                 tot = c.execute('SELECT COUNT(*) n, COALESCE(SUM(bytes), 0) b, COALESCE(SUM(frames), 0) f FROM session_chunks').fetchone()
                 hours = tot['f'] / FPS / 3600
+                notes = session_notes(c, rows)
+                for r in rows: r['notes'] = len(notes.get(r['id'], []))
                 return self.reply(200, {'sessions': rows, 'now': t, 'live_s': LIVE_S, 'fps': FPS,
                                         'storage': {'chunks': tot['n'], 'bytes': tot['b'], 'hours': round(hours, 3),
                                                     'mb_per_hour': round(tot['b'] / 1e6 / hours, 1) if hours else None}})
@@ -2370,7 +2499,11 @@ class H(http.server.BaseHTTPRequestHandler):
                 ch = [row_dict(x) for x in c.execute('SELECT seq, start_frame, frames, state, state_size, state_sha, bytes, at, paused '
                                                      'FROM session_chunks WHERE session=? AND seq>? ORDER BY seq', (parts[1], num('after', -1)))]
                 keys = [x[0] for x in c.execute('SELECT seq FROM session_chunks WHERE session=? AND state=1 ORDER BY seq', (parts[1],))]
-                return self.reply(200, {'session': session_row(r, t), 'chunks': ch, 'keys': keys, 'now': t})
+                row = session_row(r, t); row['notes'] = session_notes(c, [row])[row['id']]
+                return self.reply(200, {'session': row, 'chunks': ch, 'keys': keys, 'now': t})
+            if len(parts) == 3 and parts[2] == 'notes':                 # the notes recorded during it (session_notes)
+                row = session_row(r, t)
+                return self.reply(200, {'session': parts[1], 'first_at': row['first_at'], 'notes': session_notes(c, [row])[row['id']]})
             if len(parts) == 3 and parts[2] == 'inputs':
                 out = io.BytesIO()
                 for x in c.execute('SELECT seq, start_frame, frames, inputs FROM session_chunks WHERE session=? AND seq>=? ORDER BY seq', (parts[1], num('from', 0))):

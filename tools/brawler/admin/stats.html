@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brawler stats</title>
+<!-- The admin hub's Stats tab (Bruno 2026-10-17: "a tool that analyzes replays token-free"): every recorded session
+     replayed by the VPS worker (tools/brawler/analysis, unit brawler-analysis) and measured; one row per item, details
+     on tap. Data: feedback-api/stats, stats/session/<id>, stats/aggregates, POST stats/rerun (tools/feedback/server.py
+     stats_api, brawler admins only). The badge = the feedback notes recorded during the session (sessnotes.js). -->
+<style>
+  :root { --bg:#fff; --ink:#000; --soft:#444; --line:#000; --hi:#000; --hiink:#fff; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#111; --ink:#eee; --soft:#bbb; --line:#eee; --hi:#eee; --hiink:#111; } }
+  :root[data-theme="dark"] { --bg:#111; --ink:#eee; --soft:#bbb; --line:#eee; --hi:#eee; --hiink:#111; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.35 system-ui, sans-serif; }
+  main { max-width:980px; margin:0 auto; padding:10px 16px 40px; }
+  .bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; }
+  button, select { font:inherit; min-height:36px; padding:0 10px; border:2px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink); }
+  .bar button[aria-current="page"] { background:var(--hi); color:var(--hiink); font-weight:700; }
+  .st { color:var(--soft); font-size:13px; margin:4px 0 8px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th, td { border:1px solid var(--line); padding:5px 6px; text-align:left; vertical-align:top; }
+  th { font-size:12px; letter-spacing:.03em; }
+  td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  tr.row { cursor:pointer; }
+  td.p { white-space:nowrap; }
+  tr.row.on > td { border-width:2px; font-weight:700; }
+  tr.det > td { padding:8px; border-width:2px; }
+  .dw { max-width:calc(100vw - 52px); overflow-x:auto; }
+  .dw table { font-size:13px; }
+  .mono { overflow-wrap:anywhere; }
+  .k { display:flex; flex-wrap:wrap; gap:4px 14px; margin:0 0 8px; }
+  .k span b { font-variant-numeric:tabular-nums; }
+  h3 { font-size:13px; letter-spacing:.06em; margin:12px 0 4px; border-bottom:2px solid var(--line); }
+  .mono { font-family:ui-monospace, monospace; font-size:12px; }
+  .soft { color:var(--soft); }
+  .mark { font-weight:700; }
+  a { color:var(--ink); }
+  @media (max-width:600px) { .wide { display:none; } main { padding:8px 10px 30px; } td, th { padding:4px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="bar" id="tabs"></div>
+  <div class="st" id="st">Loading…</div>
+  <div id="view"></div>
+</main>
+<script src="/brawler-lab/sessnotes.js"></script>
+<script>
+(function () {
+  "use strict";
+  const API = "/brawler-lab/feedback-api/";
+  const FPS = 59.185606;
+  const $ = id => document.getElementById(id);
+  const h = (tag, attrs, ...kids) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) { if (k.startsWith("on")) e[k] = v; else if (v !== null && v !== undefined && v !== false) e.setAttribute(k, v === true ? "" : v); }
+    for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) e.append(c);
+    return e;
+  };
+  const get = async p => { const r = await fetch(API + p, { credentials: "same-origin", cache: "no-store" }); if (!r.ok) throw new Error(p + ": HTTP " + r.status); return r.json(); };
+  const mmss = s => { s = Math.max(0, Math.round(s || 0)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+  const hm = s => s >= 3600 ? Math.floor(s / 3600) + " h " + String(Math.floor(s / 60) % 60).padStart(2, "0") : mmss(s);
+  const when = t => { const d = new Date(t * 1000); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toTimeString().slice(0, 5); };
+  const seg = s => s ? "S" + s.stage + " " + (s.kind === "boss" ? "BOSS" : s.kind === "bonus" ? "BONUS" : "W" + s.wave) : "—";
+  const STATUS = { ok: "✓", running: "…", pending: "wait", live: "LIVE", error: "✗ error", nopack: "no pack", norom: "no ROM", empty: "empty" };
+  const kv = pairs => h("div", { class: "k" }, pairs.filter(Boolean).map(([k, v]) => h("span", {}, k + " ", h("b", {}, String(v)))));
+  const table = (head, rows, nums) => h("table", {}, h("tr", {}, head.map((x, i) => h("th", { class: nums && nums[i] ? "n" : null }, x))),
+    rows.map(r => h("tr", {}, r.map((x, i) => h("td", { class: nums && nums[i] ? "n" : null }, x)))));
+
+  const deep = /^#s=([0-9a-f]{8}-\d{8}-\d{6})/.exec(location.hash);    // #s=<session id>: that session opened (a link)
+  let tab = deep ? "sessions" : (location.hash.slice(1) || "sessions"), data = null, agg = null, who = "", opened = false;
+  const TABS = [["sessions", "Sessions"], ["players", "Players"], ["builds", "Builds"]];
+  function tabs() {
+    $("tabs").textContent = "";
+    for (const [id, label] of TABS) $("tabs").append(h("button", { "aria-current": tab === id ? "page" : null, onclick: () => { tab = id; history.replaceState(null, "", "#" + id); render(); } }, label));
+    $("tabs").append(h("button", { onclick: () => load() }, "Refresh"));
+  }
+  async function load() {
+    try { [data, agg] = await Promise.all([get("stats"), get("stats/aggregates")]); }
+    catch (e) { $("st").textContent = "Stats unavailable: " + e.message; return; }
+    const n = c => data.sessions.filter(s => s.status === c).length;
+    const p = data.progress;
+    $("st").textContent = (p && data.now - p.at < 120 ? `Analysing ${p.session}: ${p.done}/${p.total} chunks. ` : "Worker idle. ") +
+      `${n("ok")} analysed, ${n("pending") + n("running")} waiting, ${n("live")} live, ${n("nopack") + n("norom") + n("error")} not analysable · ` +
+      `packs ${data.packs.length ? data.packs[0] + "–" + data.packs[data.packs.length - 1] + " (" + data.packs.length + ")" : "none"}`;
+    render();
+  }
+  function render() {
+    tabs(); const v = $("view"); v.textContent = "";
+    if (!data) return;
+    if (tab === "sessions") sessions(v); else group(v, tab === "players" ? agg.players : agg.builds, tab === "players" ? "Player" : "Build");
+  }
+
+  // ---- sessions ------------------------------------------------------------------------------------------------------
+  function sessions(v) {
+    const users = [...new Set(data.sessions.map(s => (s.user || "?").toLowerCase()))].sort();
+    const sel = h("select", { onchange: () => { who = sel.value; render(); } }, h("option", { value: "" }, "Every player"), users.map(u => h("option", { value: u, selected: u === who }, u)));
+    v.append(h("div", { class: "bar" }, sel));
+    const rows = data.sessions.filter(s => !who || (s.user || "?").toLowerCase() === who);
+    const t = h("table", {}, h("tr", {}, h("th", {}, "When"), h("th", {}, "Player"), h("th", { class: "wide" }, "Build"), h("th", { class: "n" }, "Length"),
+      h("th", {}, "Reached"), h("th", { class: "n" }, "Deaths"), h("th", {}, "")));
+    for (const s of rows) {
+      const sm = s.summary || {};
+      const tr = h("tr", { class: "row" }, h("td", { class: "n" }, when(s.first_at)),
+        h("td", { class: "p" }, s.user || "?", window.SessNotes ? SessNotes.badge(s.id, s.notes, API) : null),
+        h("td", { class: "wide" }, s.rom_version || ""), h("td", { class: "n" }, mmss(s.seconds)),
+        h("td", {}, s.summary ? (sm.furthest ? seg(sm.furthest) + (sm.fighters && sm.fighters.length ? " · " + sm.fighters.join(", ") : "") : "no fight") : ""),
+        h("td", { class: "n" }, s.summary ? sm.deaths : ""),
+        h("td", { class: "mark" }, (STATUS[s.status] || s.status) + (s.mismatches ? " drift" : "") + (s.rerun_pending ? " (re-run queued)" : "")));
+      tr.onclick = () => toggle(tr, s);
+      t.append(tr);
+      if (deep && deep[1] === s.id && !opened) { opened = true; setTimeout(() => { toggle(tr, s); tr.scrollIntoView(); }); }
+    }
+    v.append(t);
+    if (!rows.length) v.append(h("p", {}, "No session."));
+  }
+  async function toggle(tr, s) {
+    const nx = tr.nextSibling;
+    if (nx && nx.classList && nx.classList.contains("det")) { nx.remove(); tr.classList.remove("on"); return; }
+    tr.classList.add("on");
+    const td = h("td", { colspan: 7 }), cell = h("div", { class: "dw" }, "Loading…"), det = h("tr", { class: "det" }, td);
+    td.append(cell);
+    tr.after(det);
+    let j; try { j = await get("stats/session/" + s.id); } catch (e) { cell.textContent = e.message; return; }
+    cell.textContent = ""; detail(cell, s, j);
+  }
+  function detail(cell, s, j) {
+    const a = j.analysis, sm = a && a.summary;
+    const rerun = h("button", { onclick: async () => {
+      rerun.disabled = true;
+      try { const r = await fetch(API + "stats/rerun", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: s.id }) });
+        rerun.textContent = r.ok ? "Re-run queued" : "Re-run failed: HTTP " + r.status; } catch (e) { rerun.textContent = "Re-run failed"; }
+    } }, j.rerun_pending ? "Re-run queued" : "Re-run analysis");
+    cell.append(h("div", { class: "bar" }, rerun, h("a", { href: "/brawler-lab/game.html#sess=" + s.id }, "Watch the replay"),
+      j.notes.length ? h("button", { onclick: () => SessNotes.open(s.id, API) }, j.notes.length + " note" + (j.notes.length > 1 ? "s" : "")) : null),
+      h("div", { class: "mono soft" }, `${s.id} · ${s.device || ""} · ${s.rom_version}`));
+    if (!a) { cell.append(h("p", {}, j.run ? `Not analysed: ${STATUS[j.run.status] || j.run.status}${j.run.error ? " — " + j.run.error.slice(-300) : ""}` : "Not analysed yet (the worker takes a session 10 minutes after its last chunk).")); return; }
+    cell.append(kv([["Fighter", sm.fighters.join(", ") || "—"], ["Play", mmss(sm.seconds)], ["Fights", mmss(sm.fight_s)], ["Bonus", mmss(sm.bonus_s)],
+      ["Menus", mmss(sm.menu_s)], ["Demo", mmss(sm.attract_s)], ["Idle", mmss(sm.idle_s)], ["Reached", seg(sm.furthest)], ["Last fight", seg(sm.furthest_fought)],
+      ["Deaths", sm.deaths], ["Continues", sm.continues], ["Game overs", sm.gameovers], ["Coins", sm.coins], ["Kills", sm.kills],
+      ["Damage taken", sm.dmg_taken], ["dealt", sm.dmg_dealt], ["Specials", sm.specials], ["Furies", sm.furies], ["Throws", sm.throws], ["Grabs", sm.grabs],
+      ["Best combo", sm.max_combo], ["Ended", sm.end + (sm.end_at ? " (" + seg(sm.end_at) + ")" : "")],
+      ["Replay check", `${a.checked} boundaries, ${a.mismatches.length ? a.mismatches.length + " MISMATCH (chunks " + a.mismatches.join(", ") + ")" : "all identical"}${a.gaps.length ? ", gaps at " + a.gaps.join(", ") : ""}`]]));
+    // the wave timeline: one row per stage x wave / boss / bonus, tap = its numbers
+    cell.append(h("h3", {}, "WAVE TIMELINE"));
+    const t = h("table", {}, h("tr", {}, ["", "At", "Time", "Died", "Hurt", "Dealt", "Foes", "Spec.", "Combo"].map((x, i) => h("th", { class: (i > 0 ? "n" : "") + (i === 1 || i === 8 ? " wide" : "") }, x))));
+    for (const g of a.segments) {
+      const pl = Object.values(g.players);
+      const sum = k => pl.reduce((n, p) => n + (p[k] || 0), 0);
+      const nsp = pl.reduce((n, p) => n + Object.values(p.specials).reduce((x, y) => x + y, 0), 0);
+      const tr = h("tr", { class: "row" }, h("td", {}, seg(g) + (g.kind === "bonus" && g.bonus_game ? ": " + (g.won ? "won" : "lost") : "")),
+        h("td", { class: "n wide" }, mmss(g.start_f / FPS)), h("td", { class: "n" }, mmss(g.seconds)), h("td", { class: "n" }, sum("deaths") || ""),
+        h("td", { class: "n" }, sum("dmg_taken") || ""), h("td", { class: "n" }, g.dmg_dealt || ""), h("td", { class: "n" }, g.kind === "bonus" ? "" : g.kills + "/" + g.enemies),
+        h("td", { class: "n" }, nsp || ""), h("td", { class: "n wide" }, g.max_combo || ""));
+      tr.onclick = () => {
+        const nx = tr.nextSibling;
+        if (nx && nx.classList && nx.classList.contains("det")) { nx.remove(); tr.classList.remove("on"); return; }
+        tr.classList.add("on"); const c = h("td", { colspan: 9 }); tr.after(h("tr", { class: "det" }, c)); segDetail(c, g);
+      };
+      t.append(tr);
+    }
+    cell.append(t);
+    const sp = Object.entries(sm.top_specials || {});
+    cell.append(h("h3", {}, "SPECIALS (FIGHTS)"), sp.length ? table(["Move (role input)", "Uses"], sp, [0, 1]) : h("p", {}, "None."));
+    if (sm.unused && sm.unused.length) cell.append(h("h3", {}, "NEVER USED"), h("p", {}, sm.unused.join(" · ")));
+  }
+  function segDetail(c, g) {
+    if (g.kind === "bonus") c.append(kv([["Bonus game", (g.bonus_game || "?") + (g.won ? " — won" : " — lost")]]));
+    c.append(kv([["Phases", Object.entries(g.phase_s || {}).map(([k, v]) => k + " " + mmss(v)).join(", ")], ["Enemies", Object.entries(g.spawned).map(([k, v]) => v > 1 ? k + " ×" + v : k).join(", ") || "—"],
+      ["Hits landed", g.hits_landed], ["Kills", g.kills]]));
+    for (const [p, d] of Object.entries(g.players)) {
+      c.append(h("div", {}, h("b", {}, "P" + p + " " + (d.fighter || "")), " "),
+        kv([["Life", (d.hp_start ?? "—") + " → " + (d.hp_end ?? "—")], ["Lives", (d.lives_start ?? "—") + " → " + (d.lives_end ?? "—")], ["Deaths", d.deaths],
+          ["Hurt", d.dmg_taken + " (" + d.hits_taken + " hits)"], ["Drive", "+" + d.drive_gain + " / −" + d.drive_spent], ["Fury gauge", "+" + d.fury_gain + " / −" + d.fury_spent],
+          ["Furies", d.furies], ["Throws", d.throws], ["Grabs", d.grabs], ["Idle", mmss(d.idle / FPS)]]));
+      const sp = Object.entries(d.specials);
+      if (sp.length) c.append(table(["Special", "Uses"], sp, [0, 1]));
+    }
+  }
+
+  // ---- players / builds (worker.aggregate) ---------------------------------------------------------------------------
+  function group(v, groups, label) {
+    const keys = Object.keys(groups || {});
+    if (label === "Build") keys.reverse();
+    if (!keys.length) { v.append(h("p", {}, "Nothing analysed yet.")); return; }
+    const t = h("table", {}, h("tr", {}, [label, "Sessions", "Play", "Furthest", "Deaths", "Cont."].map((x, i) => h("th", { class: i ? "n" : null }, x))));
+    for (const k of keys) {
+      const g = groups[k];
+      const tr = h("tr", { class: "row" }, h("td", {}, k), h("td", { class: "n" }, g.sessions), h("td", { class: "n" }, hm(g.play_s)),
+        h("td", { class: "n" }, g.furthest || "—"), h("td", { class: "n" }, g.deaths), h("td", { class: "n" }, g.continues));
+      tr.onclick = () => {
+        const nx = tr.nextSibling;
+        if (nx && nx.classList && nx.classList.contains("det")) { nx.remove(); tr.classList.remove("on"); return; }
+        tr.classList.add("on"); const c = h("div", { class: "dw" }); tr.after(h("tr", { class: "det" }, h("td", { colspan: 6 }, c))); groupDetail(c, g, label);
+      };
+      t.append(tr);
+    }
+    v.append(t);
+  }
+  function groupDetail(c, g, label) {
+    c.append(kv([["Fight time", hm(g.fight_s)], ["Specials", g.specials], ["Furies", g.furies], ["Game overs", g.gameovers], ["Hurt", g.dmg_taken], ["Dealt", g.dmg_dealt],
+      ["Fighters", Object.entries(g.fighters).map(([k, n]) => k + " ×" + n).join(", ") || "—"],
+      [label === "Player" ? "Builds" : "Players", Object.entries(label === "Player" ? g.builds : g.users).map(([k, n]) => k + " ×" + n).join(", ")],
+      ["Session ends", Object.entries(g.ends).map(([k, n]) => k + " ×" + n).join(", ")],
+      g.mismatch_sessions ? ["Replay drift in", g.mismatch_sessions + " sessions"] : null]));
+    c.append(h("h3", {}, "PER WAVE (MEDIAN TIME, DEATHS, WHERE SESSIONS ENDED)"),
+      table(["Wave", "Plays", "Median", "Min–max", "Deaths", "/play", "Hurt", "Ended here"],
+        Object.entries(g.segments).map(([k, s]) => [k + (s.won ? " (won " + s.won + ")" : ""), s.n, mmss(s.median_s), mmss(s.min_s) + "–" + mmss(s.max_s), s.deaths, s.deaths_per_play, s.dmg_taken, s.ended_here || ""]),
+        [0, 1, 1, 1, 1, 1, 1, 1]));
+    if (g.hotspots.length) c.append(h("h3", {}, "DEATH HOTSPOTS"), h("p", {}, g.hotspots.map(([k, n]) => k + ": " + n).join(" · ")));
+    c.append(h("h3", {}, "MOVES USED (FIGHTS)"), g.moves.length ? table(["Fighter: role input", "Uses"], g.moves.slice(0, 30), [0, 1]) : h("p", {}, "None."));
+    if (g.unused.length) c.append(h("h3", {}, "NEVER USED"), h("p", {}, g.unused.join(" · ")));
+  }
+
+  load(); setInterval(() => { if (!document.hidden && !document.querySelector("tr.det")) load(); }, 60000);   // (never while a row is open)
+})();
+</script>
+</body>
+</html>
