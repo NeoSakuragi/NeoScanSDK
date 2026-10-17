@@ -5042,6 +5042,7 @@ static void hit_credit(fighter_t *a, uint8_t hs) {               /* the attacker
     if (a->state == S_SPECIAL) a->shrow = a->srow;               /* the special's row it landed on + 1 (follow-up windows) */
 }
 static uint8_t fury_hit(const fighter_t *a);
+static int16_t box_back(const fighter_t *a);
 void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, int8_t push) {
     uint8_t rk;                                                  /* R_* | 8 when KOF's reaction keeps a hurt box */
     uint8_t caught = 0;                                          /* a ROM special's catch box took it (CATCH_STOP) */
@@ -5145,6 +5146,9 @@ void fighter_hit(fighter_t *a, fighter_t *v, uint8_t damage, uint8_t reaction, i
                                                                     a box centred on the body (a crowd around it) away
                                                                     from the attacker as before */
             if (bx) away = bx < 0 ? a->facing : -a->facing;
+            if (box_back(a) > 0 && (a->facing > 0 ? INT(v->x) < INT(a->x) : INT(v->x) > INT(a->x)))
+                away = -a->facing;                               /* (its box reaching behind him, roster[].box_back: a
+                                                                    victim behind flies away backward, not through him) */
         }
         react(v, away, reaction, push);
     }
@@ -5408,6 +5412,15 @@ static uint8_t fury_hit(const fighter_t *a) {                    /* a fury's bod
     return (a->state == S_SPECIAL && a->spec_id == BS_FURY) || (a->state == S_PROJ && a->pfury) ||
            (a->owner && o->state == S_SPECIAL && o->spec_id == BS_FURY);
 }
+static int16_t box_back(const fighter_t *a) {                    /* how far behind its fighter's x an attack box reaches */
+    const uint8_t *t;                                            /* (strike): 0 = to his x (a roster[].fury_box_back fury),
+                                                                    px = a roster[].box_back special's body, -1 = as is */
+    if (a->ch->id >= BC_COUNT) return -1;
+    if (gfury_back[a->ch->id] && fury_hit(a)) return 0;
+    if (a->state != S_SPECIAL || a->owner || !(t = gbox_back[a->ch->id])) return -1;
+    for (; *t != 0xFF; t += 2) if (t[0] == a->spec_ix) return t[1];
+    return -1;
+}
 static uint8_t blocks(const fighter_t *a, const fighter_t *v) {
     int16_t dx;
     if (v->state != S_GUARD || fury_hit(a)) return 0;
@@ -5491,13 +5504,16 @@ static void strike(fighter_t *a, fighter_t **fs, uint8_t n) {
             uint16_t w = (uint16_t)abox.w * gfury_box[a->ch->id], h = (uint16_t)abox.h * gfury_box[a->ch->id];
             abox.w = w > 255 ? 255 : (uint8_t)w; abox.h = h > 255 ? 255 : (uint8_t)h;
         }
-        if (abox.w && a->ch->id < BC_COUNT && gfury_back[a->ch->id] && fury_hit(a)) {   /* the fury's boxes reach back to
-                                                                    its body (roster[].fury_box_back, note 20261017-012812-
-                                                                    e03d: Mr. Big's blasts land 90 px ahead, a victim at
-                                                                    his side was never hit): the box stretched along x
-                                                                    to the fighter's own place, players and enemies */
+        int16_t back = abox.w ? box_back(a) : -1;                /* the fury's boxes reach back to its body (roster[].
+                                                                    fury_box_back, note 20261017-012812-e03d: Mr. Big's
+                                                                    blasts land 90 px ahead, a victim at his side was never
+                                                                    hit), a special's to px behind it (roster[].box_back,
+                                                                    note 20261017-122233-e03d: Terry's Rising Tackle "so it
+                                                                    also touches the people behind"): the box stretched
+                                                                    along x to that point, players and enemies */
+        if (back >= 0) {
             const fighter_t *o = a->owner ? a->owner : a;
-            int16_t c = box_x(a, abox.x), lo = c - abox.w, hi = c + abox.w, ox = INT(o->x), d;
+            int16_t c = box_x(a, abox.x), lo = c - abox.w, hi = c + abox.w, ox = INT(o->x) + (o->facing > 0 ? -back : back), d;
             if (ox < lo) lo = ox; else if (ox > hi) hi = ox;
             c = (lo + hi) >> 1;
             d = a->facing > 0 ? INT(a->x) - c : c - INT(a->x);  /* (box_x's inverse: sprites face left) */
