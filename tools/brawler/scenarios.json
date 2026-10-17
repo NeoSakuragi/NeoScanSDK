@@ -6223,7 +6223,7 @@
   "proof": 60
  },
  "20261017-131927-e03d": {
-  "title": "Stage clear: STAGE 2 CLEAR slides in 1 s after the map, ALL CLEAR on the last stage",
+  "title": "Stage clear: STAGE 2 CLEAR in the stage number, ALL CLEAR on the last stage",
   "setup": {
    "mode": "stage",
    "fighter": "terry",
@@ -6231,7 +6231,7 @@
    "wave": 1
   },
   "do": "Stage 2. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch without pressing anything.",
-  "expect": "After 3 seconds of DOWN + A + D the stage ends at once: the win pose, then 2 seconds later the map comes up and, one second after the map, STAGE 2 CLEAR slides in, in the big Savage Reign letters (the stage number in it); both go together as before (the whole clear lasts as long as before). On the map POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). On the last stage (GEESE TOWER) the headline reads ALL CLEAR. Nothing written under the map.",
+  "expect": "After 3 seconds of DOWN + A + D the stage ends at once: the win pose, then 3 seconds later the map comes up together with STAGE 2 CLEAR sliding in, in the big Savage Reign letters (the stage number in it); both go together as before (the whole clear lasts as long as before). On the map POLICE (the stage you just cleared) blinks green / grey with its name; SLUM stays grey (cleared before), GEESE TOWER stays green (still to play). On the last stage (GEESE TOWER) the headline reads ALL CLEAR. Nothing written under the map.",
   "do_keys": "190:Dad,330:-",
   "proof": 60
  },
@@ -6354,6 +6354,19 @@
   "do": "Stage 1. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch the map.",
   "expect": "STAGE 1 CLEAR in the big letters above the map, SLUM blinking; under the map no line at all (no NEXT BONUS GAME, no NEXT ...). Then the bonus game or the next stage as before.",
   "do_keys": "190:Dad,330:-",
+  "proof": 60
+ },
+ "20261017-172956-e03d": {
+  "title": "Stage clear: open the map together with the STAGE n CLEAR headline",
+  "setup": {
+   "mode": "stage",
+   "fighter": "terry",
+   "stage": 1,
+   "wave": 1
+  },
+  "do": "Stage 2. Hold down + A + D together for 3 seconds (the stage-clear cheat), then watch without pressing anything.",
+  "expect": "The stage ends at once: Terry's win pose alone for 3 seconds (no map, no message), then the Final Fight map and STAGE 2 CLEAR (the big Savage Reign letters sliding in) come up at the same moment, POLICE blinking; about 4.5 seconds later both go together, as before (the whole clear lasts as long as before). The stage start is unchanged: the map and STAGE n START together.",
+  "do_keys": "190:Dad,480:-",
   "proof": 60
  }
 }
