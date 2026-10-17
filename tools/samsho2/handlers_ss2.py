@@ -474,12 +474,18 @@ def han_6321s(v):
 # P_SPAWN), its parts the fighter's own ROM data. The pattern is KOF98 Terry's MAX Power Geyser's (export: his MAX
 # 21416C's three geysers at 16 / 80 / 144 px ahead, terry_pj19r rows x 128 / 640 / 1152 in 1/8 px: one column a press of
 # the fist, each 64 px further out); the pieces are the fighter's: `pose` the planting animation per button (Hanzo: his
-# Bakuen Ryuu's, anims 206 / 214 / 217, whose step `spawn_step` is the stab into the floor where SS2 spawns the fire),
+# rage move's, anim 292, the sword driven into the floor at step `spawn_step` 6 (its sound $150), planted 7-11 — note
+# reopened on 0.10.156, Bruno: "the sword planting animation is wrong ... look at the regular fury, it has the
+# animation ... make Hanzo plant the sword three times consecutively and each time it's creating one column"; 0.10.156
+# used his Bakuen Ryuu's anims 206 / 214 / 217, a fist to the floor),
 # `column` the column's animation (Hanzo: anim 294, his rage move's flame column, attack steps 1 3 5 7; wftflame), one
 # column object per plant at dx[k] px ahead. The first plant plays the pose from its start; each later one from step
-# `again` (the wind-up skipped: a stab after a stab), the last one to the pose's end. A fighter's entry = data:
-PLANTED = {'hanzo': dict(input='MAX 6321S', pose=(206, 214, 217), spawn_step=6, again=2, stab_last=7, column=294,
-                         dx=(16, 80, 144), results=(38, 39, 40))}
+# `again` (the wind-up skipped: 292's leap and stab, steps 2-6, out of the crouch), each plant but the last held to
+# `stab_last` (292's planted crouch, steps 7-10, without its 32-frame hold at 11), the last one to the pose's end. A
+# fighter's entry = data:
+PLANTED = {'hanzo': dict(input='MAX 6321S', pose=(292, 292, 292), spawn_step=6, again=2, stab_last=10, column=294,
+                         dx=(80, 144, 208), results=(38, 39, 40))}   # dx: Terry's 64 px rhythm, the first column
+                                                  # clear of his body (it is ~90 px wide: at 16 px it hid his 2nd / 3rd plant)
 
 def planted(name):
     d = PLANTED[name]

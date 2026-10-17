@@ -5956,36 +5956,36 @@
   "proof": 60
  },
  "20261017-015547-e03d": {
-  "title": "Hanzo: the hold's B Mozu Otoshi costs one drive chunk",
+  "title": "Hanzo: the run Mozu Otoshi triggers after a 30% shorter run (21 frames)",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
    "dummy": "ryo",
-   "gap": 50,
-   "drive": 1
+   "gap": 160,
+   "drive": "full"
   },
-  "do": "Walk into Ryo to grab him and press B (the Mozu Otoshi). Grab him again with the drive bar now empty and press B.",
-  "expect": "The first Mozu Otoshi comes out and takes one drive chunk (the bar drops by one). With less than a chunk, B does nothing and you keep holding him.",
-  "do_keys": "20:R,4:b,200:-",
+  "do": "Run (forward, forward) into Ryo from this distance (about half the screen), then try again from closer.",
+  "expect": "From here the special Mozu Otoshi (blue flash) triggers on contact: Hanzo now needs a 21-frame run, about 150 px (it was 30 frames, about 214 px). From closer than about 150 px you get the plain hold; hold + B still does the Mozu Otoshi for one drive chunk.",
+  "do_keys": "2:R,3:-,40:R,160:-",
   "proof": 60
  },
  "20261017-015819-e03d": {
-  "title": "Hanzo's MAX: three sword plants, three flame columns",
+  "title": "Hanzo's MAX: his fury's sword plant three times, one flame column each",
   "setup": {
    "mode": "lab",
    "fighter": "hanzo_ss2",
    "dummy": "ryo",
-   "gap": 40,
+   "gap": 70,
    "extra": [
-    100,
-    160
+    130,
+    200
    ],
    "drive": "full",
    "fury": "full",
    "hp": 10
   },
   "do": "Low life, the fury ready: press down + D (the MAX) in front of the three Ryos.",
-  "expect": "Hanzo plants his sword in the ground three times in a row; each stab raises a flame column, one next to the other (about 16, 80 and 144 px ahead), like Terry's triple geyser. The columns knock the Ryos down. D alone still plays his fury.",
+  "expect": "Hanzo drives his sword into the floor with his fury's own planting animation (the D fury's stab), three times in a row; each plant raises one flame column, one after the other further out (about 80, 144 and 208 px ahead), like Terry's triple geyser. The columns knock the Ryos down. D alone still plays his fury.",
   "do_keys": "2:D,2:Dd,160:-",
   "proof": 60
  }

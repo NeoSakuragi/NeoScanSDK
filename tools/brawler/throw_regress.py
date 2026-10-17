@@ -400,7 +400,7 @@ def main():
 
 RUNGRAB_REF = {}
 def rungrab_case(R, pattern):
-    """SS2 Hanzo's run Mozu Otoshi (game.json roster hanzo_ss2 run grab): a run of 30 frames into Ryo grabs into it"""
+    """SS2 Hanzo's run Mozu Otoshi (game.json roster hanzo_ss2 run grab): a run of throws.run.frames (21) into Ryo grabs into it"""
     b = R.b
     R.start('hanzo_ss2', DUMMY); R.settle(); R.place(1, gap=40)
     cam = b.r(b.syms['cam_x'], 2); b.place(0, x=cam + 20); b.place(2, x=cam + 296); meter_full(b)   # (the run grab costs a
