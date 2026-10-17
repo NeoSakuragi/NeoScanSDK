@@ -358,7 +358,8 @@ typedef struct {                  /* per stage, beside gstage_t (whose layout ol
     const gtrigger_t *trig;
     uint8_t ntrig;                /* at most 32 */
     uint8_t drama;                /* played as the boss walks in, before its song (0xFF: none) */
-    uint16_t pad;
+    int16_t start;                /* the camera's x at the stage's start (game.json stages[].start; 0 = the background's left
+                                     end; a pack before it: 0, the old pad) */
 } gstagex_t;
 
 /* ---- drama mode (main.c drama_*): letterbox bars, the action held, a big portrait (portraits_big.h) and text ---- */

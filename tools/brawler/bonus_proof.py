@@ -67,22 +67,25 @@ class Proof:
         last = [0]; k = self.until(lambda: last.__setitem__(0, self.r('bn_t', 2)) if self.r('bonus_on') == BN['intro'] else True, 300)
         self.check(k >= 0 and self.r('bonus_on') == BN['pick'] and last[0] in (it - 1, it), f'pick: the select after the BONUS GAME screen (its clock at {last[0]}, game.json intro.ticks {it})')
         self.b.run(200); self.shot('pick', 'SELECT BONUS GAME (the cursor\'s message)')
-        slots = sorted(x['slot'] for x in self.G['games'])
+        slots = sorted(x['slot'] for x in self.G['games']); last = len(slots) - 1
         self.check(self.r('bn_slot') == slots[0] and self.r('bn_cur') == 0, f'pick: the cursor on the first game\'s slot {slots[0]}')
+        if last:
+            self.b.seq('4:R,30:-')
+            self.check(self.r('bn_cur') == 1 and self.r('bn_slot') == slots[1], f'pick: the stick moves the cursor right, to slot {self.r("bn_slot")} (want {slots[1]}: an empty slot skipped)')
+            self.shot('pick_right', 'cursor right')
         self.b.seq('4:R,30:-')
-        self.check(self.r('bn_cur') == 1 and self.r('bn_slot') == slots[1], f'pick: the stick moves the cursor right, to slot {self.r("bn_slot")} (want {slots[1]}: an empty slot skipped)')
-        self.shot('pick_right', 'cursor right')
-        self.b.seq('4:R,30:-')
-        self.check(self.r('bn_cur') == 1, 'pick: no slot right of the last game')
+        self.check(self.r('bn_cur') == last, f'pick: no slot right of the last game (one game: the stick keeps it, 2026-10-17)')
         k = self.until(lambda: self.r('bonus_on') == BN['card'], self.G['pick']['seconds'] * 60 + 200)
         self.check(k >= 0, f'pick: the clock ran out -> the title card after {k} more ticks')
         self.b.run(60); self.shot('card', 'the title card')
         last = [0]; k = self.until(lambda: last.__setitem__(0, self.r('bn_t', 2)) if self.r('bonus_on') == BN['card'] else True, ct + 10)
-        self.check(k >= 0 and self.r('bonus_on') == BN['play'] and last[0] in (ct - 1, ct) and self.r('bn_game') == 1, f'pick: the card (its clock at {last[0]}, card.ticks {ct}) -> the cursor\'s game ({self.G["games"][1]["id"]})')
+        self.check(k >= 0 and self.r('bonus_on') == BN['play'] and last[0] in (ct - 1, ct) and self.r('bn_game') == len(self.G['games']) - 1, f'pick: the card (its clock at {last[0]}, card.ticks {ct}) -> the cursor\'s game ({self.G["games"][-1]["id"]})')
 
     # ---- the Ki training: one press per grade
     def grades(self):
-        ki = next(x for x in self.G['games'] if x['kind'] == 'gauge'); kk = self.G['games'].index(ki) + 1
+        ki = next((x for x in self.G['games'] if x['kind'] == 'gauge'), None)
+        if ki is None: print('SKIP grades: no gauge game in bonus.games (the Ki training benched, 2026-10-17)'); return
+        kk = self.G['games'].index(ki) + 1
         gr = [0] + ki['grades']
         for g in range(6):
             lo = gr[g]; hi = gr[g + 1] if g < 5 else 128
@@ -142,7 +145,9 @@ class Proof:
         """the same credit's second pass of the gauge game: pass_reward.chunks[1] (bn_clr = 1, as after a first pass); start:
         the bar's chunks before it (note 20261016-152232-e03d: at 4 the pass gives the 5th, meter.max_chunks; at 5 METER
         ALREADY FULL)"""
-        ki = next(x for x in self.G['games'] if x['kind'] == 'gauge'); pr = ki.get('pass_reward')
+        ki = next((x for x in self.G['games'] if x['kind'] == 'gauge'), None)
+        if ki is None: return
+        pr = ki.get('pass_reward')
         if not pr or len(pr['chunks']) < 2: return
         self.setup(game=ki['id']); self.b.run(2)
         self.b.w(self.b.syms['bn_clr'] + self.G['games'].index(ki), 1, 1)   # (one pass of it already this credit)
@@ -249,13 +254,14 @@ class Proof:
     def sweep(self):
         res = {}
         sel = {r['name'] for r in json.load(open(os.path.join(self.game, 'game.json')))['roster'] if r.get('selectable', True)}
+        pi = next(i for i, x in enumerate(self.G['games']) if x['kind'] == 'break')
         for f in [n for n in self.names if n in sel]:          # (a form's target, Super Billy: never picked)
-            try: lock0, t, left = self.play_posts(f, 'a', limit=self.G['games'][1]['seconds'] * 60 + 400)
+            try: lock0, t, left = self.play_posts(f, 'a', limit=self.G['games'][pi]['seconds'] * 60 + 400)
             except Exception as e: res[f] = {'error': str(e)}; print('sweep', f, 'error', e); continue
-            n = self.G['games'][1]['count']; res[f] = {'broken': n - left, 'ticks': t, 'links': self.links, 'stop_ticks': self.stops}
+            n = self.G['games'][pi]['count']; res[f] = {'broken': n - left, 'ticks': t, 'links': self.links, 'stop_ticks': self.stops}
             print(f'sweep {f}: {n - left} / {n} posts in {t} ticks, chain up to {self.links} links, {self.stops} hit-stop ticks', flush=True)
         json.dump(res, open(os.path.join(self.out, 'sweep.json'), 'w'), indent=1)
-        bad = [f for f, v in res.items() if v.get('broken') != self.G['games'][1]['count']]
+        bad = [f for f, v in res.items() if v.get('broken') != self.G['games'][pi]['count']]
         self.check(not bad, f'sweep: every fighter breaks every post with his normals in time (short: {bad})')
         one = [f for f, v in res.items() if v.get('links', 0) < 2]
         self.check(not one, f'sweep: every fighter chains on the posts (A, A, A: 2+ links; stuck at link 1: {one})')

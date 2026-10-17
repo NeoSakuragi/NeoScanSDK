@@ -1987,7 +1987,8 @@ static uint16_t save_sum(const save_t *s) {
 static uint8_t save_ok(save_t *s) {                      /* a format 1 save is upgraded in place (difficulty NORMAL) */
     uint8_t i;
     for (i = 0; i < 3; i++) if (s->magic[i] != SAVE_MAGIC[i]) return 0;
-    if ((s->magic[3] != '1' && s->magic[3] != '2') || s->sum != save_sum(s) || s->furthest >= GS_COUNT) return 0;
+    if ((s->magic[3] != '1' && s->magic[3] != '2') || s->sum != save_sum(s)) return 0;   /* (furthest: unread since 2026-10-15; no
+                                                    longer checked against GS_COUNT, which fell from 4 to 2 on 2026-10-17) */
     if (s->magic[3] == '1') s->difficulty = 1;
     if (s->difficulty > 3) s->difficulty = 1;
     s->magic[3] = '2'; s->sum = save_sum(s);
@@ -3142,6 +3143,8 @@ static void stage_begin(uint8_t s, uint8_t first) {
     FIX_clear(); arcade_line_reset();
     stage_init(attract ? STAGE : gs->bg);             /* stage sprites back, every column rewritten */
     bd_set(stg->backdrop);
+    if (!attract) cam_x = lock_at(gstagex[s].start);       /* (game.json stages[].start: the final stage starts further in;
+                                                                the attract demo from the left end, as before) */
     lock_x = lock_at(gs->waves[0].lock);
     power = gs->power;
     if (first) { ai_rank_reset(); fighter_game_reset(); }    /* a new game: the hidden rank from rank_start (revamp 1B), fighter.c's statics */
@@ -3150,7 +3153,7 @@ static void stage_begin(uint8_t s, uint8_t first) {
     for (i = 0; i < 2; i++) {
         if (!pl_on[i]) { fighters[i].state = S_OFF; if (first) { lives[i] = 0; cont_t[i] = 0; } continue; }   /* out: its
                                                              continue countdown (if any) goes on */
-        fighter_init(&fighters[i], &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, i ? 40 : 60, i ? 10 : 40);
+        fighter_init(&fighters[i], &bm_chars[pl_ch[i]], pl_set[i], 16 + i * MAX_PALS, 0, cam_x + (i ? 40 : 60), i ? 10 : 40);
         fighters[i].idx = i;
         if (CHEAT_GAME) fighter_meter_fill(&fighters[i]);    /* the cheat: both bars full at each stage's start */
         if (first) { lives[i] = 3; cont_t[i] = 0; }
@@ -3865,8 +3868,8 @@ static void bn_fly(void) {                      /* the break game's splinters (t
  * blk_skip). A trunk rests on the floor or on a resting trunk under it (its wood within BN_SOLID_W across, its top at
  * the trunk's bottom); with nothing left under it it falls (BN_GRAV) and lands on the highest resting trunk under it, or
  * the floor. Every trunk standing, resting or falling, is a target as the drop's post is (hit_mask BN_POST_BIT, each
- * hit of a move counts once, on the trunk it touches, or the one under it within trunk_reach px; the lowest of
- * equals); a trunk near the floor (BN_SOLID_H) is solid to
+ * hit of a move counts once, on the trunk it touches, or the one under it within trunk_reach px, never past the bottom
+ * of a trunk above it (bn_reach: the boxes never overlap); the lowest of equals); a trunk near the floor (BN_SOLID_H) is solid to
  * him. bn_post / bn_px tell the front trunk (the floor's nearest him: BP_STAND, else BP_DROP while one falls, BP_NONE
  * when none is left), the TIME / POSTS line and the win as the drop's. ---- */
 #define BN_PILE_SPR SPR_BASE                     /* the pile: bonus_post[0].w sprites a trunk from here (blk_skip) */
@@ -3877,6 +3880,7 @@ static void bn_fly(void) {                      /* the break game's splinters (t
 _Static_assert(SPR_BASE + GB_TRUNKS * 4 + 2 * MAX_COLS + PJ_SPRS <= DBG_SPR, "the pile's trunks, then the bonus's blocks (fighter, the referee's body, the pool)");
 enum { BT_GONE, BT_REST, BT_FALL };
 static struct { int16_t x, h, vy; uint8_t st, hp, img, thud, dirty; } bn_tr[GB_TRUNKS];   /* h: its bottom over the floor, 1/16 px */
+static int16_t bn_reach[GB_TRUNKS];              /* px a strike over a trunk's box still hits it (bn_pile_flow) */
 static int16_t bn_trunk_top(uint8_t k) {         /* its screen y (the floor = the post's bottom, AOF2's 224) */
     return (int16_t)(bonus_post[0].y + (bonus_post[0].h << 4) - (bn_tr[k].h >> 4) - bn_g->trunk_h);
 }
@@ -3956,6 +3960,20 @@ static void bn_pile_flow(fighter_t *f) {
     }
     bn_post = front != 0xFF ? BP_STAND : bn_left ? BP_DROP : BP_NONE;
     if (front != 0xFF) bn_px = bn_tr[front].x;
+    for (k = 0; k < n; k++) {                    /* each trunk's reach over its top: trunk_reach, cut at the bottom of the
+                                                    nearest trunk above it across its wood (Bruno 2026-10-17: a box on its
+                                                    own trunk only, never over a neighbour's; a trunk under another one:
+                                                    none, its body only) */
+        int16_t top = bn_trunk_top(k), r = bn_g->trunk_reach;
+        if (bn_tr[k].st == BT_GONE) continue;
+        for (j = 0; j < n; j++) {
+            int16_t d = bn_tr[j].x - bn_tr[k].x, gap;
+            if (j == k || bn_tr[j].st == BT_GONE || bn_tr[j].h <= bn_tr[k].h || d >= BN_SOLID_W || d <= -BN_SOLID_W) continue;
+            gap = top + 4 - (bn_trunk_top(j) + bn_g->trunk_h);   /* (its box starts 4 px under its top) */
+            if (gap < r) r = gap < 0 ? 0 : gap;
+        }
+        bn_reach[k] = r;
+    }
     for (i = 0; i < nf; i++) {                   /* the fighter and his objects: what strikes a trunk now */
         int16_t x0, x1, y0, y1, px0 = 0, px1 = 0, py0 = 0, near = 0x7FFF;
         uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1), t = 0xFF;
@@ -3966,7 +3984,7 @@ static void bn_pile_flow(fighter_t *f) {
             int16_t a0 = bn_tr[k].x + cam_x + BN_SOLID_X, a1 = a0 + BN_SOLID_W, b0 = bn_trunk_top(k) + 4, b1 = b0 - 4 + bn_g->trunk_h, d;
             if (bn_tr[k].st == BT_GONE || x1 <= a0 || x0 >= a1 || y0 >= b1) continue;
             d = y1 > b0 ? 0 : b0 - y1;           /* (screen y: the strike over its top by d) */
-            if (d > bn_g->trunk_reach || d > near || (d == near && t != 0xFF && bn_tr[k].h >= bn_tr[t].h)) continue;
+            if (d > bn_reach[k] || d > near || (d == near && t != 0xFF && bn_tr[k].h >= bn_tr[t].h)) continue;
             near = d; t = k; px0 = a0; px1 = a1; py0 = b0;
         }
         if (t == 0xFF) continue;
@@ -4174,9 +4192,17 @@ static void bonus_flow(void) {                   /* the fight tick's flow() for 
 }
 static void unlock_start(uint8_t k);
 static void ending_start(void);
+static uint8_t bonus_open(void) {                /* a game the pick screen would offer (bonus_start's rule: a game whose
+                                                    reward is the fury, the fury already free, is greyed); none: no
+                                                    bonus (Bruno 2026-10-17: the posts alone after stage 1, the fury
+                                                    free by the select cheat = nothing to play) */
+    uint8_t i;
+    for (i = 0; i < gbonus.ngames; i++) if (!(gbonus.games[i].unlock == BU_FURY && !fury_lock)) return 1;
+    return 0;
+}
 static void stage_next(void) {                   /* the stage after camp: a bonus first when the data has one there */
     bt_hide();                                   /* (STAGE CLEAR) */
-    if (!attract && !lab.active && gbonus.ngames && gbonus.after[camp] && bonus_on == BN_OFF) bonus_start();
+    if (!attract && !lab.active && gbonus.ngames && gbonus.after[camp] && bonus_on == BN_OFF && bonus_open()) bonus_start();
     else stage_begin(camp + 1, 0);
 }
 static void campaign(uint8_t left) {

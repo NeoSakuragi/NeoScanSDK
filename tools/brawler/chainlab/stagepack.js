@@ -88,6 +88,8 @@
         w.spawns.forEach((d, k) => sp.push(spawn(d, `${W} spawn ${k + 1}`)));
       });
       const b = s.boss, nb = sp.length;
+      const start = s.start === undefined ? 0 : s.start;   // the camera's x at the stage's start (build_tables.model)
+      if (!isInt(start, 0, ww ? ww - 320 : 32767) || (s.waves.length && start > s.waves[0].lock)) err(`${S}: start ${s.start}: 0..width - 320, at most the first wave's lock`);
       if (b.minions.length > D.max_enemies - 1) err(`${S}: at most ${D.max_enemies - 1} minions with the boss`);
       if (ww && b.lock > ww - 320) err(`${S}: boss lock ${b.lock} past the end (${ww - 320})`);
       if (s.waves.length && b.lock < s.waves[s.waves.length - 1].lock) err(`${S}: the boss's lock point is before the last wave's`);
@@ -107,7 +109,7 @@
       if (drama < 0) err(`${S}: no drama ${b.drama}`);
       out.push({ bg: s.background, music: D.songs[s.music], power, waves: wv, spawns: sp, boss: bi, boss_song: D.songs[b.song],
                  unlock: D.enemies[bi] && D.enemies[bi].unlock_of === si + 1 ? 1 : 0, boss_lock: b.lock, boss_x: b.x, boss_z: b.z,
-                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length, triggers: trig, drama: Math.max(0, drama) });
+                 boss_seed: bseed, boss_first: nb, nmin: b.minions.length, triggers: trig, drama: Math.max(0, drama), start });
     });
     return { stages: out, errors };
   }
@@ -140,7 +142,7 @@
     const roo = put(sm.concat(Array(2 * vt.length).fill(0)));   // version 3: + per fighter its voice table's offset
     vt.forEach((t, i) => { if (t) { const o = put(t, 1); out[roo + sm.length + 2 * i] = o >> 8; out[roo + sm.length + 2 * i + 1] = o & 0xFF; } });
     const tro = M.stages.map(s => s.triggers.length ? put(s.triggers.flatMap(trigBytes)) : 0);   // version 4: the triggers
-    const sxo = put(M.stages.flatMap((s, i) => [0, 0, ...be16(tro[i]), s.triggers.length, s.drama, 0, 0]));
+    const sxo = put(M.stages.flatMap((s, i) => [0, 0, ...be16(tro[i]), s.triggers.length, s.drama, ...be16(s.start & 0xFFFF)]));
     while (out.length % 2) out.push(0);
     if (out.length > D.gd_max) return { bytes: null, errors: [`pack: ${out.length} bytes (at most ${D.gd_max})`] };
     const head = [71, 68, GD_VERSION, M.stages.length, D.enemies.length, D.nai, ...be16(out.length), ...be16(sto), ...be16(D.en_o),

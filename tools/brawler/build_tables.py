@@ -897,6 +897,9 @@ def model(g, build):
         assert re.fullmatch(STAGE_NAME, s['name']), f'stage {si + 1}: name {s["name"]!r}: 1-12 characters (A-Z 0-9 space . ! -)'
         ww = widths[s['background']] if widths else None
         sp, wv = [], []
+        st0 = s.get('start', 0)                          # (Bruno 2026-10-17: the final stage starts further into its background)
+        assert isinstance(st0, int) and 0 <= st0 <= (ww - 320 if ww else 32767) and (not s['waves'] or st0 <= s['waves'][0]['lock']), \
+            f'stage {si + 1}: start {st0}: 0..width - 320, at most the first wave\'s lock'
         for wi, w in enumerate(s['waves']):
             assert 1 <= len(w['spawns']) <= MAX_ENEMIES, f'stage {si + 1} wave {wi + 1}: 1-{MAX_ENEMIES} spawns'
             assert ww is None or 0 <= w['lock'] <= ww - 320, f'stage {si + 1} wave {wi + 1}: lock {w["lock"]} outside 0-{ww - 320}'
@@ -918,7 +921,7 @@ def model(g, build):
                             'spawns': sp, 'boss': en_idx[b['enemy']], 'boss_song': b['song'], 'unlock': unl, 'boss_lock': b['lock'],
                             'boss_x': b['x'], 'boss_z': b['z'], 'boss_seed': int(str(b['seed']), 0), 'boss_first': nb, 'nmin': len(b['minions']),
                             'music_n': mus.get(s['music']), 'boss_song_n': mus.get(b['song']), 'triggers': trig,
-                            'drama': dr_idx[b['drama']] if b.get('drama') else 0xFF})
+                            'drama': dr_idx[b['drama']] if b.get('drama') else 0xFF, 'start': st0})
     return M
 
 
@@ -1464,7 +1467,7 @@ def ai_rules(g):
     rd, wu, rk = r['ready'], r['windup'], r['rank']
     for k in rd: assert k in ('about', 'pose', 'fallback', 'by_fighter', 'pulse', 'wait'), f'ai.rules.ready: unknown field {k}'
     for k in wu: assert k in ('about', 'light', 'heavy', 'heavy_from', 'special_hold'), f'ai.rules.windup: unknown field {k}'
-    for k in rk: assert k in ('about', 'start', 'max', 'death', 'fast', 'clean', 'fast_clear', 'every', 'wait', 'rest', 'damage'), f'ai.rules.rank: unknown field {k}'
+    for k in rk: assert k in ('about', 'easing_about', 'start', 'max', 'death', 'fast', 'clean', 'fast_clear', 'every', 'wait', 'rest', 'damage'), f'ai.rules.rank: unknown field {k}'
     names = roster_names(g)
     ba = lambda m: 'BA_' + m.upper()
     def pose(p, where):
@@ -1557,15 +1560,15 @@ def ending_tables(g):
 
 BONUS_SCENES = ('tree', 'posts')                         # make_bonus.py SCENES, in its order (bonus.h BONUS_*)
 BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
-BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
+BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games', 'games_benched', 'after_about')
 MAXC_N = 6                                               # roster[].max_chain: at most this many throws
 BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'pass_reward', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
-                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at', 'layout', 'pile')}
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'seconds_about', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at', 'layout', 'pile')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
 GB_TRUNKS = 8                                           # gamedata.h GB_TRUNKS: a break game's pile (4 sprites a trunk)
-PILE_KEYS = ('about', 'trunk_h', 'reach', 'hp', 'damage_at', 'trunks')
+PILE_KEYS = ('about', 'spacing_about', 'trunk_h', 'reach', 'hp', 'damage_at', 'trunks')
 TRUNK_W = 48                                            # main.c BN_SOLID_W: a post's wood (x + 8 .. + 56 of its 64 px)
 GB_PASS_N = 4                                          # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
@@ -1685,8 +1688,8 @@ def bonus_check(g, songs_known, sfx_names=None):
 def bonus_tables(g, songs_known, sfx_names):
     """game.json "bonus" -> gbonus (gamedata.h gbonus_t, main.c "bonus stages"); sfx_names: songs.json sfx name -> code"""
     b = bonus_check(g, songs_known, sfx_names)
-    assert not b['games'] or any(x.get('unlock') != 'fury' for x in b['games']), \
-        'bonus.games: a game without unlock fury (the fury free, the unlock games are greyed: main.c bonus_start)'
+    # (a game with unlock fury alone is fine: the fury free (the select cheat), nothing to pick, main.c stage_next skips
+    #  the bonus: bonus_open; Bruno 2026-10-17, the posts alone after stage 1)
     code = lambda v: sfx_names[v.upper()] if v else 0
     c = ['static const uint8_t gbonus_after[GS_COUNT] = { ' + ', '.join('1' if s + 1 in b['after'] else '0' for s in range(len(g['stages']))) + ' };   /* bonus.after */']
     rows = []
@@ -2256,7 +2259,7 @@ def tables(g, build):
                 f'.arg = {"MUS_" + t["music"] if t["music"] else t["arg"]}, .delay = {t["delay"]}, .sp = {{ .enemy = {t["sp"]["enemy"]}, '
                 f'.pick = {t["sp"]["pick"]}, .set = {t["sp"]["set"]}, .tint = {t["sp"]["tint"]}, .x = 0, .z = {t["sp"]["z"]}, .flags = 0x{t["sp"]["flags"]:02X} }} }}'
                 for t in s['triggers']) + '\n};')
-        xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]} }},   /* {s["name"]} */')
+        xrows.append(f'    {{ .trig = {f"stage{si}_triggers" if s["triggers"] else 0}, .ntrig = {len(s["triggers"])}, .drama = {s["drama"]}, .start = {s["start"]} }},   /* {s["name"]} */')
     c.append('const gstagex_t gstagex_rom[GS_COUNT] = {\n' + '\n'.join(xrows) + '\n};')
     drows = []
     for di, (dn, scenes) in enumerate(M['dramas']):
@@ -2436,7 +2439,7 @@ def pack_stages(M, out, en_o, ai_o, spmap, vtabs=None):
     for i, t in enumerate(vtabs or []):                 # version 3: + per fighter its voice table's offset (0: the ROM's)
         if t is not None: struct.pack_into('>H', out, ro_o + len(spmap) + 2 * i, put(t, 1))
     tro = [put(b''.join(trig_bytes(t) for t in s['triggers'])) if s['triggers'] else 0 for s in M['stages']]   # version 4
-    sx_o = put(b''.join(struct.pack('>IBBH', o, len(s['triggers']), s['drama'], 0) for o, s in zip(tro, M['stages'])))
+    sx_o = put(b''.join(struct.pack('>IBBh', o, len(s['triggers']), s['drama'], s['start']) for o, s in zip(tro, M['stages'])))
     while len(out) % 2: out.append(0)
     assert len(out) <= GD_MAX, f'pack: {len(out)} bytes (at most {GD_MAX})'
     struct.pack_into('>2sBBBBHHHHHHH', out, 0, b'GD', GD_VERSION, len(sts), len(M['enemies']), len(M['ai']), len(out), st_o, en_o, ai_o, nsp, ro_o, sx_o)

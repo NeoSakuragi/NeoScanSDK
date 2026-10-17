@@ -17,7 +17,8 @@ FPGA / MVS crashes in a day came from that:
    uni-aes (UniBIOS as an AES) at once: power on, 3 attract loops, coin, START, the select, EVERY stage (a wave the bot
    has not finished in --wave-limit frames cleared by poke, the boss KO'd after --boss-limit), the posts bonus WON
    (walk, A, A, A), SS2's referee's whole speech, the D quirk in his held message (the fury on his body, his
-   HORRIBLE ATMOSPHERE), the Ki training after stage 3 passed, the ending's screens, back to the title.
+   HORRIBLE ATMOSPHERE), the Ki training passed when bonus.games has it (benched since 2026-10-17: the run is stage 1,
+   the posts, stage 2 = the final stage), the ending's screens, back to the title.
 ALL OK = on both: zero odd-address word / long accesses (a 68000's ADDRESS ERROR); zero CPU exceptions (bus /
 address error, illegal instruction, zero divide, CHK, TRAPV, privilege, line A / F, TRAP); zero WATCHDOG resets and
 the longest stretch without a $300001 kick under half the watchdog's 8 frames (Geolith = MAME = the boards); no reset
@@ -36,6 +37,8 @@ ap.add_argument('--build', default='build'); ap.add_argument('--out', default='/
 ap.add_argument('--attract', type=int, default=8100); ap.add_argument('--max', type=int, default=60000)
 ap.add_argument('--wave-limit', type=int, default=600); ap.add_argument('--boss-limit', type=int, default=900)
 a = ap.parse_args()
+KI_IN = any(x.get('kind') == 'gauge' for x in json.load(open(os.path.join(a.game, 'game.json'))).get('bonus', {}).get('games', []))
+                                                         # (2026-10-17: the posts alone in the run, the Ki training benched: not required)
 WD_MAX = 4.0                                             # frames: half the watchdog's 8
 STACK_MIN = 1024                                         # bytes above .bss's end
 
@@ -86,7 +89,7 @@ for sys_, p in procs.items():
         ((st.get('headroom') or 0) >= STACK_MIN, f'stack: lowest {st.get("lowest")}, {st.get("headroom")} bytes above .bss ({st.get("bss_end")})'),
         (not faults, f'faults past the boot (resets, hangs, PC off the map, BIOS screens): {faults[:5]}'),
         (play and rc_.get('posts_won') and {'WALK', 'HOLD', 'WAIT'} <= set(refs) and rc_.get('quirk_hit')
-         and rc_.get('ki_played') and rc_.get('ending') and rc_.get('title_after_ending'),
+         and (rc_.get('ki_played') or not KI_IN) and rc_.get('ending') and rc_.get('title_after_ending'),
          f'went through: stages {rc_.get("stages")}, bonus games {rc_.get("bonus_games")}, posts won {rc_.get("posts_won")}, '
          f'the referee {"/".join(refs)}, hit {rc_.get("quirk_hit")}, the Ki game {rc_.get("ki_played")}, '
          f'the ending {rc_.get("ending")}, the title after it {rc_.get("title_after_ending")}'),

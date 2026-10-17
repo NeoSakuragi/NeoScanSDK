@@ -872,8 +872,10 @@ P1 Terry 110 px away, LEVEL-4).
 ## Layer 3: stages
 
 The campaign = `stages[]` in order without the ones switched off (`"off": true`; build_tables.py `campaign`, every build
-reads the stages through it): the beta (Bruno 2026-10-15) plays 4, stage 2 (the garage, background 0) off.
-`boss_order.bosses` (`["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]`): the n-th stage in play fights the boss block (of any
+reads the stages through it): since Bruno 2026-10-17 TWO are played, STAGE 1 (background 1, 4 waves, its end 30 % earlier:
+boss lock 1568) and STAGE 2 = the final stage (background 4, 4 waves, `start` 672: the same end, Geese's backdrop); the
+garage, STAGE 3 and STAGE 4 off (data kept). The beta (2026-10-15) played 4, the garage off.
+`boss_order.bosses` (`["RUGAL", "GEESE"]`; was `["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]`): the n-th stage in play fights the boss block (of any
 stage, on or off) whose `enemy` is bosses[n] (its song, minions, drama, seed, z), at that stage's own boss `lock` / `x`
 (its length); one boss a stage in play; absent: each stage its own boss. The last stage in play's boss = the game clear
 (the ending, the unlock ladder). Kept out of the build but in game.json: `roster_benched` (Goenitz, Lab-only), `benched`
@@ -883,6 +885,7 @@ STAGE_HIGHWAY).
 | field | example | meaning |
 |---|---|---|
 | `name` | `"STAGE 1"` | |
+| `start` | `672` (STAGE 2) | the camera's x at the stage's start (default 0; at most the first wave's lock, width - 320): the players walk in there and the stage scrolls from it (gamedata.h gstagex_t.start, the pack's stagex pad; main.c stage_begin). The attract demo starts at 0 |
 | `off` | `true` (absent = in play) | out of the campaign (its data kept); the Factory's Levels shows it as "off", no number |
 | `background` | `0` | stages[] of make_stage_ra.py (Robo Army's parts today) |
 | `music` | `"FIGHT"` | songs.json name, started at the stage start (stage 1: the selected fighter's roster `music` first, when he has one) |
@@ -980,12 +983,13 @@ texts baked into sprites, 43 KB of C ROM; the 4 AOF2 sounds 66 816 bytes of V RO
 
 | field | today | meaning |
 |---|---|---|
-| `after` | `[1, 3]` | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
+| `after` | `[1]` (was `[1, 3]`) | stage numbers followed by the bonus pick screen (after the stage clear / BOSS UNLOCKED) |
 | `intro` | `{"music": "BONUS_INTRO", "voice": "AOF2 BONUS GAME", "at": 7, "ticks": 122}` | AOF2's own BONUS GAME screen (notes 20261014-085447 / -085507-5d29): the text zooming in as AOF2's, at tick `at` its jingle ($33) + the announcer (`voice`: a songs.json sfx name, AOF2's $1C $AE), `ticks` long |
 | `pick` | `{"seconds": 9, "music": "BONUS_SELECT"}` | AOF2's original SELECT BONUS GAME (its 3 pictures, title, TIME, message box and texts; song $4E): stick + A, the cursor's frame flickering as AOF2's, the general message until the stick moves or 3 s pass, then the cursor's game's; TIME `seconds` (3-9) counting down, 1 s at 0, then the cursor's game; a pick: the frame steady 1 s |
 | `card` | `{"ticks": 186, "sound": "AOF2 GONG"}` | the picked game's AOF2 title card (white, its kanji + English name), the music off, the game's `voice` + `sound` (AOF2's $1A $20), `ticks` long |
 | games[] `slot` / `voice` | ki 0 / `AOF2 SPIRIT CARD`, posts 2 / `AOF2 SDB CARD` | the game's AOF2 select slot (0 Spirit Training, 2 Super Death Blow: its picture, message, title card); a slot without a game (1 Strength Training) is greyed and the cursor skips it; `voice` = the announcer reading the card (AOF2's $1C $CD / $CE) |
 | `fury_lock` | `true` | Fury and Fury MAX (D, down+D) locked for the players from a new credit until a game with `unlock: fury` is won; a fail keeps the lock, a continue too; the attract demo and the Lab never locked |
+| `games_benched` | the Ki training | games kept as data, out of the build and the pick screen (2026-10-17: the posts alone after stage 1). A pick with no game to offer (the fury already free: the select cheat) skips the bonus (main.c bonus_open) |
 | `over_music` | `"BONUS_OVER"` | the result's jingle |
 | games[] `kind` `gauge` | Ki training, scene `tree` | one press on a gauge sweeping 0-127 (`step` a tick, wrapping, `seconds` to press); grade = how many of `grades` it reached (AOF2 Spirit Training's table $17EF8, default row 36 68 92 108 120); `chunks[grade]` drive chunks added to both players' bars for the credit (max 4; today [0,0,0,0,0,2]: AOF2's rule, only the top grade rewards) |
 | games[] `kind` `break` | Super Death Blow, scene `posts` | `count` (3) wooden posts, one at a time, in `seconds` (30; the clock holds during a super flash). `breaks_with` `any` (Bruno 2026-10-14, "bonus-pillars-normals"): any regular strike (normals, chain, specials, their objects; fighter.c `fighter_strike_box`) counts a hit each time one starts touching the post, `hp` (4) hits break it: each hit before the last shakes it and a chip flies off, the last splinters it; the fury stays locked while it plays (it is the prize). `fury` (the former rule): only the fury's / MAX's body or its objects break one (class 2), the lock lifted for the game, anything else shakes it. `lesson`: the lesson box's 3 lines (fix rows 20 / 22 / 24, the first highlighted). All broken: `unlock`; the first win shows `won_text` (3 lines: FURY UNLOCKED! PRESS D, the MAX line) under CONGRATULATIONS for `won_ticks` (480; a button ends it after half); a fail: TIME OVER, THE FURY STAYS LOCKED. Factory Levels: Posts + Hits per post. `damage_at` ([3, 6, 9], note 20261015-221208-e03d round 2): the hits taken from which the post shows AOF2's own cracked pictures 1 / 2 / 3 (make_bonus.py post 1-3, AOF2's frames 558 / 840 / 1116); today 4 posts of 12 hits. `won_by` `referee`: SS2's referee says `won_text` (top-level `referee`: mark / from / hold; `hit_text` / `fury_dx` / `fighter` / `life` = the D quirk: D while his message is held runs the fighter to fury_dx px (onto his lane) and fires his fury; as it fires the referee becomes his body, the roster fighter `fighter` (Kuroko, samsho2:kuroko; selectable false) with `life`, a victim that never acts: the whole fury lands on him as on any enemy, his own reactions and get-up, then hit_text, SS2's HORRIBLE ATMOSPHERE. (note 20261016-045652-e03d); proof referee_proof.py GAME OUT FIGHTER auto d: his hits = the same fury's on the practice dummy). Clock fairness: bonus_proof.py --sweep, 4 hits a post, every selectable fighter with A alone: 573 (Hanzo) to 833 ticks (Rugal, 13.9 s) of the 30 s |

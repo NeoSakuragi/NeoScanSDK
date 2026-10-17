@@ -877,9 +877,10 @@
    "attackers": 3,
    "approach_max": 150,
    "ready": {"pose": ["atk_c_close", 0], "fallback": ["atk_a_close", 0], "by_fighter": {"yamazaki": ["atk_c_close", 1], "krauser": ["atk_c_far", 0], "geese": ["atk_c_close", 1], "rugal": ["atk_c_close", 1], "mr_big": ["atk_c_far", 0]}, "pulse": 12,
-             "wait": [1, 1, 10, 10, 10, 10, 20, 20, 20, 20, 20, 20, 30, 30, 30, 30, 30, 30, 30, 30, 40, 40, 40, 40, 40, 40, 50, 50, 50, 50, 60, 60]},
-   "windup": {"light": [3, 6], "heavy": [12, 15], "heavy_from": 5, "special_hold": [12, 15]},
-   "rank": {"start": 8, "max": 31, "every": 600, "fast_clear": 1200, "fast": 1, "clean": 1, "death": 4, "wait": 16, "rest": 16, "damage": 11},
+             "wait": [1, 1, 11, 11, 11, 11, 22, 22, 22, 22, 22, 22, 34, 34, 34, 34, 34, 34, 34, 34, 45, 45, 45, 45, 45, 45, 56, 56, 56, 56, 67, 67]},
+   "windup": {"light": [3, 7], "heavy": [13, 17], "heavy_from": 5, "special_hold": [13, 17]},
+   "rank": {"start": 8, "max": 31, "every": 600, "fast_clear": 1200, "fast": 1, "clean": 1, "death": 4, "wait": 16, "rest": 16, "damage": 12,
+            "easing_about": "Bruno 2026-10-17: the AI about 12 % easier, one factor on every attack knob (the ramp, the rank, the group and wake-up rules of 0.10.156 untouched): ready.wait x 1.12 (mean 30.1 -> 33.7 frames), windup x 1.12 (light 3-6 -> 3-7, heavy 12-15 -> 13-17, special_hold 12-15 -> 13-17), rank.damage 11 -> 12 (the rank's extra damage a step later), the presets minion / wave_t3-t6 / boss: every rest x 1.12, aa / punish reaction frames x 1.12, aa / punish / rush / jump chances x 0.88 (minion_attract, the attract demo, unchanged)"},
    "group": {"about": "note 20261017-013009-e03d (Bruno: 'the enemies are often running bunched up together ... make the AI work almost like a group, so that the enemies are not walking on the same line'; gamedata.h gairules_t, ai.c): a token holder farther than attack_dx + lane_near px walks in on its own depth lane (slot i: 0, +lane_dz, -lane_dz px off the player's line), then onto his line to attack; an enemy walking with another closer than spacing_dx px in x and spacing_dz px in depth steps away from it in depth", "lane_dz": 16, "lane_near": 40, "spacing_dx": 36, "spacing_dz": 10},
    "variety": {"about": "same note ('when AI enemies are getting ejected ... a bit of random also on the depth axis ... a bit of random on the time it takes for waking up'; fighter.c S_KNOCKDOWN / S_DOWN, enemies only, the AI's deterministic random: replays stay exact): a knocked-down enemy drifts in depth during its flight, up to knockdown_dz / 32 px a frame either way (about knockdown_dz px over a 32-frame flight); it lies 0..getup_frames frames longer than the 40 before it gets up", "knockdown_dz": 12, "getup_frames": 30}
   },
@@ -890,10 +891,10 @@
     "rest_shift": 0,
     "rest_random": 127,
     "rest_add": 0,
-    "rest_start": 30,
-    "rest_attack": 120,
-    "rest_special": 180,
-    "rest_throw": 60,
+    "rest_start": 34,
+    "rest_attack": 134,
+    "rest_special": 202,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -939,10 +940,10 @@
     "rest_shift": 0,
     "rest_random": 31,
     "rest_add": 0,
-    "rest_start": 30,
-    "rest_attack": 72,
-    "rest_special": 150,
-    "rest_throw": 60,
+    "rest_start": 34,
+    "rest_attack": 81,
+    "rest_special": 168,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -962,17 +963,17 @@
     "jump_max": 120,
     "jump_dz": 6,
     "jump_chance": 3,
-    "rest_jump": 110,
+    "rest_jump": 123,
     "air_b_dx": 50,
     "hop_dx": 40,
     "hop_chance": 2,
     "aa_dx": 64,
     "aa_dz": 12,
-    "aa_chance": 64,
-    "aa_react": 12,
-    "rest_rev": 120,
-    "punish_chance": 64,
-    "punish_react": 12,
+    "aa_chance": 56,
+    "aa_react": 13,
+    "rest_rev": 134,
+    "punish_chance": 56,
+    "punish_react": 13,
     "rush_min": 70,
     "rush_max": 130,
     "rush_chance": 3
@@ -983,10 +984,10 @@
     "rest_shift": 0,
     "rest_random": 31,
     "rest_add": 0,
-    "rest_start": 30,
-    "rest_attack": 64,
-    "rest_special": 150,
-    "rest_throw": 60,
+    "rest_start": 34,
+    "rest_attack": 72,
+    "rest_special": 168,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -1006,17 +1007,17 @@
     "jump_max": 120,
     "jump_dz": 6,
     "jump_chance": 4,
-    "rest_jump": 100,
+    "rest_jump": 112,
     "air_b_dx": 50,
     "hop_dx": 40,
     "hop_chance": 3,
     "aa_dx": 64,
     "aa_dz": 12,
-    "aa_chance": 96,
-    "aa_react": 10,
-    "rest_rev": 110,
-    "punish_chance": 96,
-    "punish_react": 10,
+    "aa_chance": 84,
+    "aa_react": 11,
+    "rest_rev": 123,
+    "punish_chance": 84,
+    "punish_react": 11,
     "rush_min": 70,
     "rush_max": 130,
     "rush_chance": 4
@@ -1027,10 +1028,10 @@
     "rest_shift": 1,
     "rest_random": 31,
     "rest_add": 0,
-    "rest_start": 30,
-    "rest_attack": 80,
-    "rest_special": 150,
-    "rest_throw": 60,
+    "rest_start": 34,
+    "rest_attack": 90,
+    "rest_special": 168,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -1050,20 +1051,20 @@
     "jump_max": 120,
     "jump_dz": 6,
     "jump_chance": 3,
-    "rest_jump": 90,
+    "rest_jump": 101,
     "air_b_dx": 50,
     "hop_dx": 40,
     "hop_chance": 3,
     "aa_dx": 64,
     "aa_dz": 12,
-    "aa_chance": 128,
-    "aa_react": 8,
-    "rest_rev": 100,
-    "punish_chance": 128,
-    "punish_react": 8,
+    "aa_chance": 113,
+    "aa_react": 9,
+    "rest_rev": 112,
+    "punish_chance": 113,
+    "punish_react": 9,
     "rush_min": 70,
     "rush_max": 130,
-    "rush_chance": 5
+    "rush_chance": 4
    },
    "wave_t6": {
     "flags": ["grab", "projectile", "jump_in"],
@@ -1071,10 +1072,10 @@
     "rest_shift": 1,
     "rest_random": 31,
     "rest_add": 0,
-    "rest_start": 30,
-    "rest_attack": 96,
-    "rest_special": 150,
-    "rest_throw": 60,
+    "rest_start": 34,
+    "rest_attack": 108,
+    "rest_special": 168,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -1094,30 +1095,30 @@
     "jump_max": 120,
     "jump_dz": 6,
     "jump_chance": 4,
-    "rest_jump": 80,
+    "rest_jump": 90,
     "air_b_dx": 50,
     "hop_dx": 40,
     "hop_chance": 4,
     "aa_dx": 64,
     "aa_dz": 12,
-    "aa_chance": 150,
-    "aa_react": 8,
-    "rest_rev": 90,
-    "punish_chance": 144,
-    "punish_react": 8,
+    "aa_chance": 132,
+    "aa_react": 9,
+    "rest_rev": 101,
+    "punish_chance": 127,
+    "punish_react": 9,
     "rush_min": 70,
     "rush_max": 130,
-    "rush_chance": 6
+    "rush_chance": 5
    },
    "boss": {
     "flags": ["token", "grab", "projectile", "boss_moves"],
     "rest_shift": 2,
     "rest_random": 31,
     "rest_add": 0,
-    "rest_start": 60,
-    "rest_attack": 120,
-    "rest_special": 180,
-    "rest_throw": 60,
+    "rest_start": 67,
+    "rest_attack": 134,
+    "rest_special": 202,
+    "rest_throw": 67,
     "grab_plan": 1,
     "attack_dx": 36,
     "hover_dx": 90,
@@ -1135,18 +1136,18 @@
     "rev_dx": 56,
     "rev_dz": 12,
     "rev_chance": 4,
-    "rest_rev": 160,
+    "rest_rev": 179,
     "bspec_min": 20,
     "bspec_max": 160,
     "bspec_dz": 10,
     "bspec_chance": 4,
     "rush_dx": 110,
-    "rest_bspec": 180,
+    "rest_bspec": 202,
     "jump_min": 24,
     "jump_max": 140,
     "jump_dz": 8,
-    "jump_chance": 64,
-    "rest_jump": 140,
+    "jump_chance": 56,
+    "rest_jump": 157,
     "air_b_dx": 56
    }
   }
@@ -1344,6 +1345,7 @@
    "background": 1,
    "music": "STAGE_SLUM",
    "power": 0,
+   "length_about": "Bruno 2026-10-17 (two stages, ~30 % less scroll): ends 30 % earlier (the boss lock 2240 -> 1568, its x 2544 -> 1872: lock + 304 as before), 4 waves 392 px apart (THUG's wave, the second MINION-AI pair, dropped: MINION, BRAWLER, VETERAN, ELITE), the boss RUGAL (boss_order)",
    "waves": [
     {
      "lock": 0,
@@ -1354,15 +1356,7 @@
      ]
     },
     {
-     "lock": 448,
-     "seed": "0x1D2C",
-     "spawns": [
-      {"enemy": "THUG", "pick": 3, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "THUG", "pick": 4, "set": 2, "walk_in": {"side": "left", "rank": 0}, "z": 17}
-     ]
-    },
-    {
-     "lock": 896,
+     "lock": 392,
      "seed": "0x1D2D",
      "spawns": [
       {"enemy": "BRAWLER", "pick": 6, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1371,7 +1365,7 @@
      ]
     },
     {
-     "lock": 1344,
+     "lock": 784,
      "seed": "0x1D2E",
      "spawns": [
       {"enemy": "VETERAN", "pick": 9, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1380,7 +1374,7 @@
      ]
     },
     {
-     "lock": 1792,
+     "lock": 1176,
      "seed": "0x1D2F",
      "spawns": [
       {"enemy": "ELITE", "pick": 12, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1392,8 +1386,8 @@
    "boss": {
     "enemy": "MR_BIG",
     "song": "BOSS_MR_BIG",
-    "lock": 2240,
-    "x": 2544,
+    "lock": 1568,
+    "x": 1872,
     "z": 30,
     "seed": "0x5B05",
     "minions": [
@@ -1517,9 +1511,12 @@
    "background": 4,
    "music": "STAGE_HIGHWAY",
    "power": 1,
+   "start": 672,
+   "start_about": "Bruno 2026-10-17 (two stages, ~30 % less scroll): the final stage starts 672 px into its background (30 % of the old 0-2240 run), so its end, Geese's AOF2 backdrop, is unchanged; the first wave's lock at the start (build_tables.model: start <= the first lock), 4 waves (the second ELITE wave dropped) 392 px apart, the boss at 2240 as before",
+   "intro": {"title": "FINAL STAGE"},
    "waves": [
     {
-     "lock": 0,
+     "lock": 672,
      "seed": "0x1D3B",
      "spawns": [
       {"enemy": "BRAWLER", "pick": 2, "set": 0, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1528,7 +1525,7 @@
      ]
     },
     {
-     "lock": 448,
+     "lock": 1064,
      "seed": "0x1D3C",
      "spawns": [
       {"enemy": "VETERAN", "pick": 5, "set": 1, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1537,7 +1534,7 @@
      ]
     },
     {
-     "lock": 896,
+     "lock": 1456,
      "seed": "0x1D3D",
      "spawns": [
       {"enemy": "ELITE", "pick": 8, "set": 2, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1547,17 +1544,7 @@
      ]
     },
     {
-     "lock": 1344,
-     "seed": "0x1D3E",
-     "spawns": [
-      {"enemy": "ELITE", "pick": 11, "set": 3, "walk_in": {"side": "right", "rank": 0}, "z": 6},
-      {"enemy": "ELITE", "pick": 12, "set": 4, "walk_in": {"side": "left", "rank": 0}, "z": 17},
-      {"enemy": "ELITE", "pick": 13, "set": 5, "walk_in": {"side": "right", "rank": 1}, "z": 28},
-      {"enemy": "ELITE", "pick": 14, "set": 6, "walk_in": {"side": "left", "rank": 1}, "z": 39}
-     ]
-    },
-    {
-     "lock": 1792,
+     "lock": 1848,
      "seed": "0x1D3F",
      "spawns": [
       {"enemy": "CHAMPION", "pick": 14, "set": 4, "walk_in": {"side": "right", "rank": 0}, "z": 6},
@@ -1617,6 +1604,7 @@
   },
   {
    "name": "STAGE 3",
+   "off": true,
    "background": 3,
    "music": "THEME_KIM",
    "power": 2,
@@ -1730,6 +1718,7 @@
   },
   {
    "name": "STAGE 4",
+   "off": true,
    "intro": {"title": "FINAL STAGE"},
    "background": 5,
    "music": "STAGE_SKYSCRAPER",
@@ -1846,11 +1835,13 @@
  ],
  "boss_order": {
   "about": "The campaign's bosses in play order (Bruno 2026-10-15, beta: 4 stages, stage 2 the garage off): the n-th stage in play (stages[] without \"off\": true) fights the boss of the stage boss block whose enemy is bosses[n] (enemy, song, minions, drama, seed, z from that block, whichever stage holds it; lock and x from the stage's own boss block: its length). One boss per stage in play; the last one's stage clear = the game clear (unlocks).",
-  "bosses": ["MR_BIG", "KRAUSER", "GEESE", "RUGAL"]
+  "bosses": ["RUGAL", "GEESE"],
+  "bosses_about": "Bruno 2026-10-17: two stages in play, STAGE 1 (background 1) fights RUGAL (his block in STAGE 3, off: song, minions, drama), STAGE 2 = the final stage (background 4) fights GEESE; STAGE 3 / STAGE 4 off (their data kept), MR_BIG and KRAUSER out of the run; Geese beaten = the game clear (the ending)"
  },
  "bonus": {
   "about": "The bonus stages (TODO T7, Bruno 2026-10-14, decision sets bonus-game + bonus-followup; analysis /data/neogeo_dict/aof/bonus.md): after each stage listed in `after` (1-based) a pick screen offers every game of `games` (AOF2's SELECT BONUS GAME: stick + A, `pick.seconds` on the clock, the cursor's game at 0). A game is a level type the engine reads (main.c 'bonus stages', build_tables.py bonus_tables): scene = an AOF2 scene of tools/brawler/make_bonus.py (tree, posts); kind gauge = one press on a sweeping gauge (power 0-127, + step a frame, wrapping; grade k = the power reached grades[k - 1], AOF2 Spirit Training's table $17EF8 at its default row: 36 68 92 108 120), reward chunks[grade] = drive chunks added to both players' bars for the credit (up to 4); win_grade = the lowest grade that passes (AOF2: only the top, 5; note 20261014-133606-5d29): a pass breaks the tree (AOF2's fall, make_bonus.py fall_seq) and plays win_music (AOF2's $2D), a lower grade fails (the tree stands, TRAINING FAILED, over_music $2E); blows = the blow per grade 0-5 (Bruno results-1014: a jab when the tree holds, the forward finisher when it breaks): jab = his chain's first link (neutral A), finisher = its neutral finisher, forward = its forward finisher (fighter.c fighter_blow; the tree's reaction and timing stay AOF2's); kind break = break `count` objects before `seconds` run out, one at a time, with the move class `breaks_with` (any: every regular strike, `hp` hits an object, the fury staying locked while it plays, note bonus-pillars-normals; fury: only the fury's or the MAX's body or its objects, any other hit only shakes it), `lesson` = the lesson box's 3 lines, all broken = reward unlock (fury: Fury and Fury MAX on D; the first win shows `won_text`'s 3 lines for `won_ticks`). fury_lock true: D's fury and MAX locked from a new game until a game with unlock fury is won; a fail keeps it locked for the credit (a continue keeps it); the attract demo and the Lab are never locked. Before the pick and the game, AOF2's own screens (notes 20261014-085447-5d29 / -085507-5d29, Bruno 2026-10-14: AOF2's original select screen; tools/brawler/make_bonus.py screens, tools/aof/bonus_rip.py): `intro` = AOF2's BONUS GAME screen (`music` + the announcer `voice`, a songs.json sfx name, at tick `at`; `ticks` long); the pick screen is AOF2's SELECT BONUS GAME (its three pictures; a game takes AOF2's slot `slot`: 0 Spirit Training, 2 Super Death Blow; a slot without a game, 1 Strength Training here, is greyed and the cursor skips it, and so is a game with unlock fury while the fury is free (won this credit, or the select cheat; note 20261016-132535-e03d); `pick.seconds` 3-9 on its clock); then the game's title card (its slot's kanji and name, `card.ticks` long, the game's `voice` + `card.sound`). A game already won shows its bonus only (the game has no score).",
-  "after": [1, 3],
+  "after": [1],
+  "after_about": "Bruno 2026-10-17: ONE bonus in the run, between stage 1 and stage 2: the posts (the fury unlock) alone on the pick screen; the Ki training benched (games_benched, its data kept, not built). The fury already free (the select cheat): nothing to pick, no bonus (main.c bonus_open)",
   "intro": {"music": "BONUS_INTRO", "voice": "AOF2 BONUS GAME", "at": 7, "ticks": 122},
   "pick": {"seconds": 9, "music": "BONUS_SELECT"},
   "card": {"ticks": 186, "sound": "AOF2 GONG"},
@@ -1858,16 +1849,19 @@
   "over_music": "BONUS_OVER",
   "win_music": "BONUS_WIN",
   "games": [
-   {"id": "ki", "name": "KI TRAINING", "kind": "gauge", "scene": "tree", "slot": 0, "voice": "AOF2 SPIRIT CARD", "music": "BONUS_KI", "seconds": 10, "step": 2,
-    "grades": [36, 64, 80, 90, 96], "grades_about": "note 20261015-144120-e03d (tester: 'too hard; if you are in the top quarter, you succeed'): the top grade (PERFECT, the pass) from 96 = the gauge's top quarter (0-127); the lower grades spread under it (was AOF2's 36 68 92 108 120)", "chunks": [0, 0, 0, 0, 0, 0], "pass_reward": {"chunks": [2, 1], "text": ["METER ALREADY FULL", "1 METER GAINED!", "2 METERS GAINED!"], "about": "notes 20261016-133045-e03d (tester: 'the bonus game with the big tree gives you two extra meter the first time and one extra meter the second time') and 20261016-135212-e03d ('on success a message in the big Savage Reign font saying meter has been gained ... the BONUS 10,000 is useless, the power bar can be removed ... display nothing else'): a pass (grade >= win_grade) adds chunks[k] drive chunks on the credit's (k + 1)-th pass of this game (past the list: none; the bar up to meter.max_chunks, 5: note 20261016-152232-e03d), and its result is text[n] alone (n = the chunks really added: 0 when the bar was already full) in the big font (big_text.bonus_meter, the standard headline), no grade / BONUS line, the gauge bar gone (main.c bn_gauge_flow); a failed grade keeps chunks[grade] and its TRAINING FAILED screen"}, "win_grade": 5, "blows": ["jab", "jab", "jab", "jab", "jab", "forward"],"fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]], "charge": {"about": "AOF2 measured (note 20261014-133606-5d29, tools/aof/ki_fail.py): Ryo stands 7 frames after the press, holds his concentration, punches; his punch lands 99 frames after the press on a failed grade, 159 on the pass: our blow starts 11 ticks before it lands", "stand": 7, "fail": 88, "pass": 148}, "punch_sound": "AOF2 PUNCH", "fail_sounds": [[67, "VOICE HIT"], [71, "AOF2 LEAF A"], [74, "AOF2 LEAF B"], [78, "AOF2 LEAF A"], [81, "AOF2 LEAF A"], [83, "AOF2 LEAF A"], [85, "AOF2 LEAF B"], [87, "AOF2 LEAF B"], [89, "AOF2 LEAF A"], [93, "AOF2 LEAF A"], [95, "AOF2 LEAF A"], [103, "AOF2 LEAF B"], [107, "AOF2 LEAF B"], [119, "AOF2 LEAF B"], [131, "AOF2 LEAF B"]], "fail_result": 239},
-   {"id": "posts", "name": "SUPER DEATH BLOW", "kind": "break", "scene": "posts", "slot": 2, "voice": "AOF2 SDB CARD", "music": "BONUS_POSTS", "seconds": 30, "count": 4,
+   {"id": "posts", "name": "SUPER DEATH BLOW", "kind": "break", "scene": "posts", "slot": 2, "voice": "AOF2 SDB CARD", "music": "BONUS_POSTS", "seconds": 40, "seconds_about": "Bruno 2026-10-17 (testers Wael and Asenka timed out; the fury unlock depends on it): 40 s (was 30)", "count": 4,
     "breaks_with": "any", "hp": 10, "damage_at": [3, 5, 8], "unlock": "fury", "show_name": false, "lesson": [], "won_by": "referee",
     "won_text": ["FURY UNLOCKED!", "WHEN YOU BLINK", "PRESS D!"], "won_ticks": 480,
     "layout": "pile",
     "pile": {"about": "note 20261017-063200-e03d (Bruno: 'a mountain of trunks: a bottom layer of three, on top of that two, on top of that one; physically held on top of each other, so when the trunks under one are destroyed the trunk on top falls one layer, a bit like the bonus game in Street Fighter 2'): layout pile = every trunk stands at once (main.c 'the pile'), trunks = [x, layer]: x = the screen x of AOF2's post object (its wood x + 8 .. + 56, 48 px), layer 0 = on the floor, layer n rests on the layer n - 1 trunks under it (less than 48 px across); a trunk with nothing left under it falls and lands on what is left under it or the floor, and stays a target; trunk_h = a trunk's drawn height (AOF2's 128 px post shrunk vertically: 3 layers of 64 = 192 px, the top at screen y 32); reach = a strike up to this many px over a trunk's top still hits it (the genre's lane rule, Final Fight's drums: a 64 px stump on the floor sits under a standing punch); hp / damage_at = a trunk's (6 trunks x 6 hits = 36, the drop's 4 x 10 = 40, same 30 s clock); count / hp / damage_at at the game's top level stay the drop's (layout drop = AOF2's posts one at a time, for a compare)",
      "trunk_h": 64, "reach": 40, "hp": 6, "damage_at": [2, 3, 5],
-     "trunks": [[162, 0], [210, 0], [258, 0], [186, 1], [234, 1], [210, 2]]},
+     "trunks": [[128, 0], [192, 0], [256, 0], [160, 1], [224, 1], [192, 2]],
+     "spacing_about": "Bruno 2026-10-17 (he likes the pile; two changes): the trunks of a layer 16 px apart (a third of the 48 px wood: 64 px pitch, they never touch), each upper trunk centred over the gap of its two supports (32 px off each: it rests on both), the pile moved left to stay on the screen (wood 136..312, was 170..314); a hit lands only on the trunk it touches: reach is cut at the bottom of the trunk above (main.c bn_reach), so it works only over a trunk with nothing on it and no two boxes overlap"},
     "bonus_about": "note 20261015-221208-e03d (tester: 'too many messages'): no name / lesson at the start (just go, the HUD's TIME and POSTS only), posts of 12 hits (were 3 of 4), the win told by SS2's referee (won_by referee: won_text = his speech; the fighter blinks when his fury gauge is full). Round 2 (Bruno: 'let's go with four, easier'): 4 posts (were 5); damage_at = the hits taken at which AOF2's own cracked pictures of the post show (make_bonus.py post 1-3: AOF2's frames 558 / 840 / 1116, the crack growing across the trunk). Note 20261016-101200-e03d ('make the tree trunks 20% easier to destroy'): 10 hits a post (were 12), damage_at kept proportional (3 / 6 / 9 of 12 -> 3 / 5 / 8 of 10)"}
+  ],
+  "games_benched": [
+   {"id": "ki", "name": "KI TRAINING", "kind": "gauge", "scene": "tree", "slot": 0, "voice": "AOF2 SPIRIT CARD", "music": "BONUS_KI", "seconds": 10, "step": 2,
+    "grades": [36, 64, 80, 90, 96], "grades_about": "note 20261015-144120-e03d (tester: 'too hard; if you are in the top quarter, you succeed'): the top grade (PERFECT, the pass) from 96 = the gauge's top quarter (0-127); the lower grades spread under it (was AOF2's 36 68 92 108 120)", "chunks": [0, 0, 0, 0, 0, 0], "pass_reward": {"chunks": [2, 1], "text": ["METER ALREADY FULL", "1 METER GAINED!", "2 METERS GAINED!"], "about": "notes 20261016-133045-e03d (tester: 'the bonus game with the big tree gives you two extra meter the first time and one extra meter the second time') and 20261016-135212-e03d ('on success a message in the big Savage Reign font saying meter has been gained ... the BONUS 10,000 is useless, the power bar can be removed ... display nothing else'): a pass (grade >= win_grade) adds chunks[k] drive chunks on the credit's (k + 1)-th pass of this game (past the list: none; the bar up to meter.max_chunks, 5: note 20261016-152232-e03d), and its result is text[n] alone (n = the chunks really added: 0 when the bar was already full) in the big font (big_text.bonus_meter, the standard headline), no grade / BONUS line, the gauge bar gone (main.c bn_gauge_flow); a failed grade keeps chunks[grade] and its TRAINING FAILED screen"}, "win_grade": 5, "blows": ["jab", "jab", "jab", "jab", "jab", "forward"],"fall_sounds": [[28, "AOF2 TREE CRACK"], [58, "AOF2 TREE CRACK"], [88, "AOF2 TREE FALL"], [172, "AOF2 TREE FALL"]], "charge": {"about": "AOF2 measured (note 20261014-133606-5d29, tools/aof/ki_fail.py): Ryo stands 7 frames after the press, holds his concentration, punches; his punch lands 99 frames after the press on a failed grade, 159 on the pass: our blow starts 11 ticks before it lands", "stand": 7, "fail": 88, "pass": 148}, "punch_sound": "AOF2 PUNCH", "fail_sounds": [[67, "VOICE HIT"], [71, "AOF2 LEAF A"], [74, "AOF2 LEAF B"], [78, "AOF2 LEAF A"], [81, "AOF2 LEAF A"], [83, "AOF2 LEAF A"], [85, "AOF2 LEAF B"], [87, "AOF2 LEAF B"], [89, "AOF2 LEAF A"], [93, "AOF2 LEAF A"], [95, "AOF2 LEAF A"], [103, "AOF2 LEAF B"], [107, "AOF2 LEAF B"], [119, "AOF2 LEAF B"], [131, "AOF2 LEAF B"]], "fail_result": 239}
   ]
  },
  "referee": {
@@ -1968,7 +1962,7 @@
      "A new legend has been born."
     ],
     "terry": [
-     "Rugal falls, and the wind over the city goes still.",
+     "Geese falls, and the wind over the city goes still.",
      "Terry tips his cap and walks away without a word.",
      "Rock is waiting for him back in South Town.",
      "The Lone Wolf has a promise to keep.",
