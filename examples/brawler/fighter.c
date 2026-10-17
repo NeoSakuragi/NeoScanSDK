@@ -1860,7 +1860,9 @@ static void ev_impact(fighter_t *v, fighter_t *by, int16_t sx, int16_t sy, uint8
         if (v->thr_by) gauge_add(v->thr_by, (uint16_t)d * gmeter.fury_dealt);   /* (the fury gauge, "the meter") */
         gauge_add(v, (uint16_t)d * gmeter.fury_taken);
     }
-    if (v->hv) { v->hv = 0; hurt_voice(v, HV_LAND); } else hurt_voice(v, HV_HIT);
+    if (e->ifl[k] & EVF_SOUND) {                                 /* its hurt voice: with its sound (sound false: a */
+        if (v->hv) { v->hv = 0; hurt_voice(v, HV_LAND); } else hurt_voice(v, HV_HIT);   /* silent impact, as a throw's */
+    }                                                            /* damage-only row without events) */
     if (by && by != v) {
         uint8_t t = by->throw_id == BT_XTHROW ? 0 : by->throw_id < BT_COUNT ? by->throw_id : 0;
         snd = by->ch->sfx[SX_THROW_C + t] ? by->ch->sfx[SX_THROW_C + t] : SFX_HIT_CD;
@@ -1868,20 +1870,29 @@ static void ev_impact(fighter_t *v, fighter_t *by, int16_t sx, int16_t sy, uint8
     }
     ev_fx(by && by != v ? by : 0, e, k, sx, sy, v->throw_face, snd);
 }
-static void ev_launch(fighter_t *v, fighter_t *by, const gthrev_t *e) {
+static void ev_launch(fighter_t *v, fighter_t *by, const gthrev_t *e, uint16_t row) {   /* row: TE_LAND's script row
+                                                                    (a paired throw's; 0xFFFF: a grab special's, none) */
     int8_t away = by && by != v ? (v->x >= by->x ? 1 : -1) : -v->facing;
     if (by && by->held == v) by->held = 0;
+    if (e->dir == TE_LAND && v->thr && row != 0xFFFF) {          /* the landing hand-off at that row (thrown_land: the */
+        v->vfly = 0;                                             /* knockdown's floor bounce there, as a throw without */
+        thrown_land(v, v->thr, row);                             /* events lands at its landing row) */
+        v->tev = 0;
+        if (by && by != v && !by->team) by->tbnc |= TB_ARMED;
+        return;
+    }
     if (v->thr) throw_due(v);                                    /* (nothing left: the impact dealt it) */
     v->held = 0; v->thr = 0; v->zfront = 0; v->vfly = 0; v->frame_ovr = 0xFFFF;
     if (v->y < 0) v->y = 0;                                      /* (a script's row below the floor, Kim's: from the floor) */
-    if (e->dir == TE_NONE && v->y <= 0) {                        /* left on the floor: down where it lies */
+    if ((e->dir == TE_NONE || e->dir == TE_LAND) && v->y <= 0) { /* left on the floor: down where it lies (TE_LAND
+                                                                    without a script row: a grab special's) */
         v->vx = v->vy = 0; v->y = 0; clamp(v);
         enter(v, S_DOWN); play(v, BA_DOWN);
         v->tb_by = 0; v->tb_fl = 0x80;
     } else {
         enter(v, S_KNOCKDOWN);
         v->kfloor = 0; v->kslam = 0; v->kmode = 0; v->kvfr = 0; v->kdelay = 0;
-        if (e->dir == TE_NONE) { v->vx = v->vy = 0; play(v, BA_KNOCKDOWN_FLIGHT); }   /* (in the air: it falls) */
+        if (e->dir == TE_NONE || e->dir == TE_LAND) { v->vx = v->vy = 0; play(v, BA_KNOCKDOWN_FLIGHT); }   /* (in the air: it falls) */
         else {
             v->vy = (int32_t)e->vy << 8; v->vx = dir_mul(e->dir == TE_BACK ? -away : away, (int32_t)e->vx << 8);   /* (8.8 -> 16.16) */
             play(v, e->dir == TE_UP ? BA_BLOWBACK_N : BA_BLOWBACK);
@@ -1899,8 +1910,11 @@ static uint8_t ev_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i,
     const gthrev_t *e = v->tev;
     fighter_t *by = v->thr_by;
     uint8_t hit = 0;
+    uint16_t hr = hand_row(th), lr;
     bthrow_row_t tmp;
     if (i >= th->nrows) i = th->nrows - 1;                       /* (past its script: its last row held) */
+    lr = hr != 0xFFFF && hr >= j && hr <= i ? hr : i;            /* TE_LAND's row: the landing row when this frame passes
+                                                                    it (the old rule's clamp), else the row reached */
     v->evf = n;
     if (n <= e->held) {                                          /* in the grip: the script's postures */
         for (; j <= i; j++) { const bthrow_row_t *r = vrow(v, th, j, &tmp); if (r->vpose != 0xFF) show_pose(v, r); }
@@ -1912,7 +1926,7 @@ static uint8_t ev_rows(fighter_t *v, const bthrow_t *th, uint16_t j, uint16_t i,
         else ev_impact(v, by, INT(v->x), floor_top + INT(v->z) - INT(v->y) - 40, v->evd);
         v->evd++; hit = 1;
     }
-    if (n >= e->lch) { ev_launch(v, by, e); hit |= 2; }
+    if (n >= e->lch) { ev_launch(v, by, e, n <= e->held ? lr : (v->srow ? v->srow - 1 : 0)); hit |= 2; }
     return hit;
 }
 static uint8_t ev_gripped(const fighter_t *v) {                  /* its place is still the script's (events: up to held) */
@@ -4358,7 +4372,7 @@ static void sg_release(fighter_t *f) {
     t->frame_ovr = 0xFFFF; t->zfront = 0; t->vfly = 0;
     if (t->hp <= 0 || t->state == S_DEAD) return;                /* (the impact killed it: its death plays) */
     t->tb_kind = TBK_SPECIAL; t->hit_mask = 0;
-    ev_launch(t, f, f->tev);
+    ev_launch(t, f, f->tev, 0xFFFF);
 }
 static void sg_events(fighter_t *f) {
     const gthrev_t *e = f->tev;

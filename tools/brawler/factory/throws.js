@@ -15,9 +15,9 @@
   const h = (t, a, ...kids) => { const e = document.createElement(t); for (const [k, v] of Object.entries(a || {})) { if (k === 'text') e.textContent = v; else if (k.startsWith('on')) e[k] = v; else if (v != null && v !== false) e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c); return e; };
   const P = document.getElementById('pThrows');
   const FX = ['spark', 'sound', 'shake'];
-  const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·']];
+  const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·'], ['land', 'LAND ↓']];
   const SIZES = [['small', 'S'], ['medium', 'M'], ['big', 'B']];
-  const ARROW = { up: '↑', away: '→', back: '←', none: '·' };
+  const ARROW = { up: '↑', away: '→', back: '←', none: '·', land: '↓' };
   document.head.append(h('style', { text: `
 #pThrows { color: #000; }
 #pThrows .tcard { background: #fff; border: 2px solid #000; border-radius: 0; padding: 6px 8px; }
@@ -191,6 +191,8 @@
           num(() => x.frame, v => { x.frame = v; sortI(); }, 'Impact ' + (j + 1)),
           j + 1 < n ? h('label', {}, 'share ', h('input', { type: 'number', min: '0', max: '100', step: '1', value: String(x.damage || 0), 'aria-label': 'Impact ' + (j + 1) + ' damage share %',
             onchange: e => { x.damage = Math.round(+e.target.value) || 0; changed(); } }), ' %') : h('span', { text: ' damage: ' + (100 - tot) + ' % (the rest)' }),
+          FX.map(f => h('button', { type: 'button', 'data-fx': f, 'aria-pressed': String(x[f] !== false), text: (x[f] === false ? '✗ ' : '✓ ') + f, 'aria-label': 'Impact ' + (j + 1) + ' ' + f + (x[f] === false ? ' off' : ' on'),
+            onclick: () => { if (x[f] === false) delete x[f]; else x[f] = false; changed(); } })),
           h('button', { type: 'button', text: '✕', 'aria-label': 'Remove impact ' + (j + 1), onclick: () => { E.impacts.splice(j, 1); changed(); } }))),
         h('div', { class: 'mk' }, addBtn = h('button', { type: 'button', 'data-add': 'impact', onclick: () => { E.impacts.push({ frame: k + 1 }); sortI(); changed(); } }), n >= 3 ? h('span', { text: '3 at most' }) : null),
         h('div', { class: 'mk', 'data-mark': 'held' }, h('b', { text: 'Held until' }), num(() => E.held, v => { E.held = v; }, 'Held'),
@@ -217,7 +219,7 @@
     const el = h('div', { class: 'ted' },
       cv, fl, cap ? slider : null, h('div', { class: 'ctl' }, step(-10), step(-1), cap ? bPlay : null, step(1), step(10)), cap ? strip : null,
       h('p', { class: 'msg', text: 'In game ' + ((G() && G().version) || '?') + ': ' + evTxt(ge) + (row.timing ? ' (old timing rule: saving events replaces it)' : '') +
-        (cap ? ' · frames: capture of ' + (IX.game_version || '?').split(' ')[0] : '') }),
+        (cap ? ' · frames: capture of ' + (cap.game_version || IX.game_version || '?').split(' ')[0] : '') + (row.boss ? ' · the boss throws Terry (its AI: forward + A from its hold)' : '') }),
       marks, errs, okEl,
       h('div', { class: 'btns' }, bSave, back, h('button', { type: 'button', text: 'Close', onclick: () => { stop(); open = null; draw(); } })));
     return { el, stop };
@@ -225,14 +227,22 @@
 
   function draw() {
     if (!G() || !G().rows) { P.replaceChildren(h('div', { class: 'tcard' }, h('p', { class: 'msg', text: 'The game\'s throws are not known yet: the build daemon reports them when it starts and after each ship.' }))); return; }
-    if (!IX && !ixTried) { ixTried = true; fetch('review/throws2/index.json', { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(x => { IX = x; draw(); }, () => {}); }
+    if (!IX && !ixTried) {                              // the captures: the players' throw review and the boss throw review
+      ixTried = true;
+      const one = u => fetch(u, { cache: 'no-store', credentials: 'same-origin' }).then(r => r.ok ? r.json() : null, () => null);
+      Promise.all([one('review/throws2/index.json'), one('review/bossthrows/index.json')]).then(([a, b]) => {
+        if (!a && !b) return;
+        const fix = x => x ? x.rows.map(r => Object.assign({ game_version: x.game_version }, r)) : [];
+        IX = Object.assign({}, a || b, { rows: fix(a).concat(fix(b)) }); draw();
+      });
+    }
     if (want0) { open = want0; want0 = null; }
     const o = openShip(), pend = G().rows.filter(r => differs(r.id));
     let cur = null;
     const list = h('div', {}, G().rows.map(r => {
       const isOpen = open === r.id, d = differs(r.id);
       const b = h('button', { type: 'button', class: 'trw', id: 'tr-' + r.id, 'aria-expanded': String(isOpen), onclick: () => { if (cur) cur.stop(); open = isOpen ? null : r.id; draw(); } },
-        h('span', {}, h('b', { text: r.display }), ' ' + r.label),
+        h('span', {}, h('b', { text: r.display }), ' ' + r.label, r.boss ? h('span', { class: 'tag', text: 'boss: ' + r.boss.join(', ') }) : null),
         h('span', { class: 'ev', text: wantEv(r.id) ? evTxt(wantEv(r.id)) : r.timing ? 'old timing' : evTxt(null) }),
         d ? h('span', { class: 'sub' }, h('span', { class: 'tag ' + (o ? 'ship' : 'edit'), text: o ? (o.status === 'building' ? 'building' : 'queued') : 'unshipped' }), ' in game: ' + evTxt(gameEv(r.id))) : null);
       if (!isOpen) return b;
@@ -244,7 +254,7 @@
     P.replaceChildren(h('div', { class: 'card tcard' },
       h('h2', {}, 'Throws', h('span', { class: 'sp' }), h('span', { text: (pend.length ? pend.length + ' unshipped · ' : '') + 'in game ' + (G().version || '?') })),
       h('div', { class: 'btns' }, bShip, msg),
-      h('p', { class: 'msg', text: 'I impact (share %), H held until, L launch frame ↑ up → away ← back (away\'s flight the other way) · none, s / m / b size. Frame 1 = the throw\'s first frame.' }),
+      h('p', { class: 'msg', text: 'I impact (share %), H held until, L launch frame ↑ up → away ← back (away\'s flight the other way) · none ↓ land (the knockdown\'s floor bounce where the throw lays it), s / m / b size. Frame 1 = the throw\'s first frame. Boss rows: the throw their AI plays on a player.' }),
       list));
     if (open) { const el = document.getElementById('tr-' + open); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start' }); }
   }

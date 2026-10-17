@@ -15,7 +15,11 @@ the enemy thrower and Haggar's MAX chain. One rule is checked (fighter.c "THE TH
     fury starts), and a lone A press after the slam: on the floor after a slam that bounced its victim (the jab, for the
     juggle), in the air in a throw that keeps its air attack (SS2 Hanzo's forward throw's leap: the jump's A).
 Also: SS2 Hanzo's run Mozu Otoshi (the run grab), Haggar's MAX chain (5 throws, each one's damage once, the last played
-whole), an enemy thrower (the dummy Terry, intents written here, throwing Robert: AI throws never follow up).
+whole), an enemy thrower (the dummy Terry, intents written here, throwing Robert: AI throws never follow up), and THE
+BOSS THROWS (2026-10-17): each boss fighter (game.json enemies with ai "boss", throwcfg.bosses) as the dummy throws Terry
+the AI's way (forward + A one frame from its hold), P1 none / mashA / stick toward / away while thrown, both facings,
+one entry per game tick: its events (every impact, spark, shake, sound, held, the launch: land = the knockdown's floor
+bounce) or the old rule (damage once on the slam row), the script played whole, the same end for every pattern.
 
 Patterns (from the throw's first frame; "after" = 8 frames after the damage frame):
   none     nothing after the throw input              fwd / back  the stick held forward / back throughout
@@ -55,6 +59,8 @@ TM_KEY = {'fwd': 'forward', 'back': 'back', 'holdb': 'hold_b'}
 MAXF = 400
 LAUNCH_WATCH = 6              # frames after the launch its direction is read over
 LAUNCH_MIN = 4                # px the victim must go its way in them
+LAND_BOUNCE = 3               # land: the knockdown's floor bounce stays this low (px) over them
+LAND_VMAX = 6                 # land: px a frame at most sideways (fighter.c LAND_VMAX)
 
 
 def beta(G):
@@ -72,8 +78,15 @@ class Run:
         METER.update(self.G['meter'])
         self.L = Lab(game=game); self.b = self.L.b; self.ST = self.b.states
         import throw_review
+        self.game = game
         self.scripts = {n: throw_review.scripts(game, n) for n in beta(self.G)}
         self.blob = {}
+
+    def boss_scripts(self, n):
+        if n not in self.scripts:
+            import throw_review
+            self.scripts[n] = throw_review.scripts(self.game, n)
+        return self.scripts[n]
 
     def st(self, i): return self.ST[self.b.fget(i, 'state')]
 
@@ -298,6 +311,8 @@ def events_check(rec, ev, special=False):
         dx = (z['vx'] - a['vx']) * away; dy = z['vyp'] - a['vyp']
         how = 'up' if dy >= LAUNCH_MIN and abs(dx) <= dy else 'away' if dx >= LAUNCH_MIN and dx > dy else \
               'back' if -dx >= LAUNCH_MIN and -dx > dy else 'none' if dy <= 1 else 'other'
+        if d == 'land' and a['v'] == 'KNOCKDOWN' and max(r['vyp'] for r in rec[left - 1:left + LAUNCH_WATCH]) <= LAND_BOUNCE and \
+           abs(dx) <= LAND_VMAX * LAUNCH_WATCH: how = 'land'   # (the landing hand-off: the knockdown's floor bounce, low)
         tf = a.get('tf', 0); tf = 1 if 0 < tf < 128 else -1   # (the thrower's facing at the launch: 1 right, -1 left)
         side = 'his front' if (z['vx'] - a['vx']) * tf > 0 else 'his back' if (z['vx'] - a['vx']) * tf < 0 else 'straight'
         did.append(f'then {how} (dx {dx:+.0f}, dy {dy:+.0f} px in {LAUNCH_WATCH} frames, toward {side})')
@@ -341,7 +356,7 @@ def main():
         extra = f"  [{V['frames']} frames, damage row {V['dmg'][0][1] if V['dmg'] else '-'} at +{V['dmg'][0][0] if V['dmg'] else '-'}, end +{V['tail']} after it, last row {V['last_srow']}, exit {V['exit']}]" if a.v or bad else ''
         print(f"{'PASS' if not bad else 'FAIL'} {label}{': ' + '; '.join(bad) if bad else ''}{extra}", flush=True)
     if a.events_only:
-        for n in names:
+        for n in [x for x in names if x in beta(R.G)]:
             for kind in throws_of(R, n):
                 ev = events_of(R, n, kind, EV)
                 if not ev: print(f'---- {n} {kind}: no events'); continue
@@ -351,9 +366,18 @@ def main():
                     did, bad = events_check(rec, ev, rec[0]['th'] == 'SPECIAL')
                     n_all += 1; n_ok += not bad
                     print(f"{'OK   ' if not bad else 'WRONG'} {n} {kind} {'right' if face > 0 else 'left '} | his: {his} | build: {did}" + (f" | {'; '.join(bad)}" if bad else ''), flush=True)
+        import throwcfg
+        for n in throwcfg.bosses(R.G):                   # the boss throws (set "bossthrows" answers: <boss>-fwd)
+            if a.only and n not in names: continue
+            ev = events_of(R, n, 'fwd', EV)
+            if not ev: print(f'---- boss {n} fwd: no events'); continue
+            for face in (1, -1):
+                V, bad = boss_case(R, n, 'none', face, EV)
+                n_all += 1; n_ok += not bad
+                print(f"{'OK   ' if not bad else 'WRONG'} boss {n} fwd {'right' if face > 0 else 'left '}" + (f" | {'; '.join(bad)}" if bad else ''), flush=True)
         print(f"{'ALL OK' if n_ok == n_all else 'FAILED %d /' % (n_all - n_ok)} ({n_all} cases, {time.time() - t0:.0f} s)")
         sys.exit(0 if n_ok == n_all else 1)
-    for n in names:
+    for n in [x for x in names if x in beta(R.G)]:   # (a boss: its own cases below)
         for kind in throws_of(R, n):
             ev = events_of(R, n, kind, EV)
             for face in (1, -1):
@@ -394,6 +418,14 @@ def main():
         for pattern in ('none', 'mashA', 'fwd'):
             V, bad = enemy_case(R, kind, pattern)
             report(f"enemy thrower (terry on robert) {kind} {pattern}", bad, V)
+    import throwcfg
+    for n, users in throwcfg.bosses(R.G).items():        # THE BOSS THROWS: each boss's forward throw on Terry
+        if a.only and n not in names: continue
+        ev = events_of(R, n, "fwd", EV)
+        for face in (1, -1):
+            for pattern in BOSS_PATTERNS:
+                V, bad = boss_case(R, n, pattern, face, EV)
+                report(f"boss thrower {n} ({', '.join(users)}) on terry fwd {'right' if face > 0 else 'left'} {pattern} [{'events' if ev else 'old rule'}]", bad, V)
     print(f"{'ALL OK' if n_ok == n_all else 'FAILED %d /' % (n_all - n_ok)} ({n_all} cases, {time.time() - t0:.0f} s)")
     sys.exit(0 if n_ok == n_all else 1)
 
@@ -456,6 +488,70 @@ def max_chain_case(R, pattern):
     if pattern == 'none': MAX_REF['v'] = V
     elif MAX_REF.get('v') and (V['frames'], V['last_srow']) != (MAX_REF['v']['frames'], MAX_REF['v']['last_srow']):
         bad.append(f"last throw: {V['frames']} frames to row {V['last_srow']} (none: {MAX_REF['v']['frames']} to row {MAX_REF['v']['last_srow']})")
+    return V, bad
+
+
+BOSS_PATTERNS = ('none', 'mashA', 'toward', 'away')   # the victim's (P1's) inputs while thrown: none of them changes the throw
+BOSS_REF = {}
+def boss_case(R, n, pattern, face, EV=None):
+    """THE BOSS THROWS (2026-10-17): boss fighter n (the dummy, slot 2, intents written here: the AI's own throw, forward +
+    A one frame from its hold, ai.c) throws Terry (P1); face -1: the boss on the right facing left, 1: on the left facing
+    right. P1's pattern while thrown (mashA, the stick toward / away from the boss) changes nothing. One entry per game
+    tick (a lag frame is no frame of the throw's clock: the events' frames are ticks). -> (V, bad)"""
+    b = R.b
+    R.start('terry', n); R.settle()
+    cam = b.r(b.syms['cam_x'], 2); x0 = cam + 160
+    b.place(0, x=x0, z=30); b.place(2, x=x0 - face * 60, z=30); b.fset(0, 'facing', (-face) & 0xFF); b.fset(2, 'facing', face & 0xFF)
+    b.fset(0, 'hp', 60); b.run(2)
+    ia = b.syms['in'] + 2 * b.syms['sizeof_intent']
+    def intent(dx=0, press=0, grab=0):
+        for off, v in ((0, dx & 0xFF), (1, 0), (2, press), (5, grab), (6, 1)): b.w(ia + off, 1, v)
+    for _ in range(90):
+        intent(face, 0, 1); b.run(1)
+        if R.st(2) == 'GRAB': break
+    else: raise RuntimeError(f'boss {n}: no hold: ' + b.brief((0, 2)))
+    for _ in range(30):
+        intent(); b.run(1)
+        if not b.fget(2, 'freeze') and not b.fget(0, 'freeze'): break
+    tf = -1 if b.fget(2, 'facing') < 0 else 1
+    pk = {'mashA': lambda t: 'a' if t % 4 < 2 else '', 'toward': lambda t: 'R' if tf < 0 else 'L', 'away': lambda t: 'L' if tf < 0 else 'R'}.get(pattern, lambda t: '')
+    FX = Fx(b); gt = b.syms['game_ticks']
+    rec = []; started = None; prev_td = 0
+    for t in range(MAXF + 60):
+        intent(tf if t == 0 else 0, 1 if t == 0 else 0)
+        tk = b.r(gt, 4)
+        b.run(1, pk(t)); fx = FX.frame()
+        if b.r(gt, 4) == tk: continue                    # (a lag frame: no tick)
+        s2, s0 = R.st(2), R.st(0); td = b.fget(0, 'throw_dealt')
+        if started is None:
+            if s2 != 'THROW':
+                if t > 20: raise RuntimeError(f'boss {n}: no throw: ' + b.brief((0, 2)))
+                continue
+            started = t
+        rec.append({'t': t, 'th': s2, 'srow': b.fget(2, 'srow'), 'tid': b.fget(2, 'throw_id'), 'v': s0, 'vsrow': b.fget(0, 'srow'),
+                    'hp_drop': max(0, td - prev_td), 'slam': b.fget(0, 'slam'), 'eject': b.fget(0, 'eject'), 'ty': b.fget(2, 'y'),
+                    'vx': b.fget(0, 'x'), 'vyp': b.fget(0, 'y'), 'vheld': 1 if b.fget(0, 'held') or (s0 == 'THROWN' and s2 != 'THROW') else 0, 'tx': b.fget(2, 'x'),
+                    'tf': b.fget(2, 'facing') & 0xFF, **fx})
+        prev_td = td
+        if s2 != 'THROW' and len(rec) > 8 and s0 not in ('THROWN', 'KNOCKDOWN'): break
+    V = verdict(rec)
+    ev = events_of(R, n, "fwd", EV)
+    bad = []
+    dmg = [k + 1 for k, r in enumerate(rec) if r['hp_drop']]       # (the whole record: a victim the thrower let go plays its
+    if len(dmg) != (len(ev['dmg_frames']) if ev else 1): bad.append(f"damage {len(dmg)} times, frames {dmg}")   # rows alone, Geese's)
+    if ev: bad += events_check(rec, ev)[1]
+    else:                                                # (no events: the old rule, its damage on the slam row)
+        if V['dmg'] and V['dmg'][0][1] != V['slam']: bad.append(f"damage on row {V['dmg'][0][1]}, the slam row {V['slam']}")
+    sname = {0: 'throw_c', 1: 'throw_d', 4: 'throw_x'}.get(V['tid'])
+    sc = R.boss_scripts(n).get(sname)
+    if sc and V['last_srow'] is not None and V['last_srow'] + 2 < sc['ret']: bad.append(f"cut at row {V['last_srow'] - 1} of {sc['ret']} ({V['exit']})")
+    key = (n, face)
+    if pattern == 'none': BOSS_REF[key] = V
+    elif (V['tail'], V['last_srow'], V['frames']) != (BOSS_REF[key]['tail'], BOSS_REF[key]['last_srow'], BOSS_REF[key]['frames']):
+        bad.append(f"end {V['tail']} / row {V['last_srow']} / {V['frames']} frames (none: {BOSS_REF[key]['tail']} / row {BOSS_REF[key]['last_srow']} / {BOSS_REF[key]['frames']})")
+    if face < 0 and pattern == 'none' and (n, 1) in BOSS_REF:
+        o = BOSS_REF[(n, 1)]
+        if (V['tail'], V['last_srow'], V['frames']) != (o['tail'], o['last_srow'], o['frames']): bad.append(f"facing left ends {V['tail']} / row {V['last_srow']}, right {o['tail']} / row {o['last_srow']}")
     return V, bad
 
 

@@ -14,6 +14,13 @@ opposite horizontal way, toward the thrower's side); frame 1 = the throw's first
                                              events replace throws.timing for that throw: one path): "throws: ..." change
                                              lines, "throws: no change", or REFUSED: <reason> (exit 1)
     throwcfg.py pull [OUT.json]              the live draft from the VPS (labcfg.py's ssh), for a dry run on the desktop
+    throwcfg.py defaults GAME INDEX.json [--dry-run]
+                                             THE BOSS THROWS (2026-10-17): the events that play each boss throw as it
+                                             played before (INDEX: throw_review.py --set bossthrows_legacy on a build
+                                             without them, rows' "proposed") written for the rows without events (merge's
+                                             checks; the old rule kept where the events cannot hold it)
+Rows: the playable fighters' throws, then the bosses' (game.json enemies with ai "boss": their base fighter's forward
+throw, the only one their AI plays; state "boss": the enemies on it).
 
 The ship service (labcfg.py ship-worker, SECTIONS "throws") runs `merge` for a ship with throws: true (the Factory's
 "Ship throws to testers" / "Ship pending changes"), then builds, runs throw_regress.py (ALL OK) with the other checks,
@@ -43,15 +50,30 @@ def scripts(game, n):
     except (OSError, AttributeError, TypeError): return {}
 
 
+def bosses(g):
+    """{fighter: [enemy names]}: the base fighters of the enemies with the boss AI (game.json enemies ai "boss"), each with
+    every enemy on that base (the finale's grey ghosts play the same data); throw_review.boss_fighters' rule"""
+    out = {}
+    for e in g.get('enemies') or []:
+        if e.get('ai') == 'boss' and e.get('base') not in (None, 'pool'): out.setdefault(e['base'], [])
+    for e in g.get('enemies') or []:
+        if e.get('base') in out: out[e['base']].append(e['name'])
+    return out
+
+
 def rows(game, g):
-    """[(row id, fighter, suffix, events key, kind, grab special or None, length in frames or None)]"""
+    """[(row id, fighter, suffix, events key, kind, grab special or None, length in frames or None)]: every playable
+    fighter's throws, then the bosses' (the boss throws, 2026-10-17: the one throw their AI plays on a player, forward + A
+    from its hold, ai.c; a boss that is also playable listed once, with all its throws)"""
     out = []
-    for n in beta(g):
+    B = bosses(g)
+    for n in beta(g) + [b for b in B if b not in beta(g)]:
         r = next((x for x in g['roster'] if x['name'] == n), None)
         if not r: continue
         t = r.get('throws') or {}
         sc = scripts(game, n)
         ks = ['fwd', 'back'] + (['holdb'] if t.get('b') or (t.get('extra') or {}).get('b') else []) + (['run'] if (t.get('run') or {}).get('special') else [])
+        if n in B and n not in beta(g): ks = ['fwd']
         for s in ks:
             k = KEYS[s]; sp = BT.event_special(r, k)
             h = sc.get(SCRIPT.get(s)) if not sp else None
@@ -73,6 +95,7 @@ def norm(e, w='throw'):
 def state(game):
     g = json.load(open(os.path.join(game, 'game.json')))
     out = []
+    B = bosses(g)
     for rid, n, s, k, kind, sp, ln in rows(game, g):
         r = next(x for x in g['roster'] if x['name'] == n)
         t = r.get('throws') or {}
@@ -80,8 +103,9 @@ def state(game):
         old = k in (t.get('timing') or {}) or bool(sp and sp in (r.get('special_grab_timing') or {}))
         out.append({'id': rid, 'fighter': n, 'display': r.get('display') or n.upper().replace('_', ' '), 'throw': s, 'key': k,
                     'label': LABEL[s] + (f' (special {sp})' if sp else ''), 'kind': kind, 'frames': ln,
-                    'events': {x: y for x, y in e.items() if x not in ('from', 'about')} if e else None, 'timing': old})
-    return {'version': open(os.path.join(game, 'VERSION')).read().strip(), 'rows': out,
+                    'events': {x: y for x, y in e.items() if x not in ('from', 'about')} if e else None, 'timing': old,
+                    **({'boss': B[n]} if n in B else {})})
+    return {'version': open(os.path.join(game, 'VERSION')).read().strip(), 'rows': out, 'dirs': list(BT.EVENT_DIRS),
             'launch': {d: g.get('throw_launch', {}).get(BT.LAUNCH_TABLE.get(d, d)) for d in ('up', 'away', 'back')}, 'max_impacts': BT.EVENT_IMPS}
 
 
@@ -106,15 +130,16 @@ def clean_entry(rid, e):
     return out
 
 
-def check(game, draft, who=''):
-    """the draft against the game -> (the new game.json text or None, change lines); raises ValueError(reason)"""
+def check(game, draft, who='', stamp=None):
+    """the draft against the game -> (the new game.json text or None, change lines); raises ValueError(reason). stamp: the
+    written entries' "from" (default: the Factory's Throws tab and its draft rev)"""
     path = os.path.join(game, 'game.json')
     text = open(path).read(); g = json.loads(text)
     want = draft.get('throws') if isinstance(draft, dict) else None
     if not isinstance(want, dict): raise ValueError('the throws draft has no throws')
     R = {x[0]: x for x in rows(game, g)}
     out, ch, touched = text, [], {}
-    stamp = f"the Factory's Throws tab {datetime.date.today()}" + (f" (draft rev {draft['rev']}" + (f" by {draft['by']}" if draft.get('by') else '') + ')' if draft.get('rev') else '')
+    stamp = stamp or f"the Factory's Throws tab {datetime.date.today()}" + (f" (draft rev {draft['rev']}" + (f" by {draft['by']}" if draft.get('by') else '') + ')' if draft.get('rev') else '')
     for rid in sorted(want):
         if rid not in R: raise ValueError(f'{rid}: no such throw in this game (the playable fighters: {", ".join(beta(g))})')
         _, n, s, k, kind, sp, ln = R[rid]
@@ -142,7 +167,7 @@ def check(game, draft, who=''):
         touched.setdefault(n, set()).add('throws')
         try: BT.throw_events(r, g)                                 # the data model's own checks, on the result
         except AssertionError as x: raise ValueError(str(x))
-        f = lambda v: 'I' + '+'.join(str(i['frame']) + (f" ({i['damage']} %)" if 'damage' in i else '') for i in v['impacts']) + \
+        f = lambda v: 'I' + '+'.join(str(i['frame']) + (f" ({i['damage']} %)" if 'damage' in i else '') + ''.join(f' -{x}' for x in BT.IMPACT_FX if i.get(x) is False) for i in v['impacts']) + \
             f" H{v['held']} L{v['launch']['frame']} {v['launch']['dir']} {v['launch']['size']}"
         ch.append(f'throws: {w} ' + (f'{f(norm(cur))} -> ' if cur else '(no events: the engine\'s rule) -> ') + f(new))
     for n, fields in touched.items():
@@ -157,6 +182,21 @@ def main():
     if len(a) == 2 and a[0] == 'state': return print(json.dumps(state(a[1]), ensure_ascii=False))
     if len(a) in (3, 4) and a[0] == 'merge' and (len(a) == 3 or a[3] == '--dry-run'):
         try: new, ch = check(a[1], json.load(open(a[2])))
+        except ValueError as e: print('REFUSED:', e); sys.exit(1)
+        if new and len(a) == 3: open(os.path.join(a[1], 'game.json'), 'w').write(new)
+        print('\n'.join(ch) or 'throws: no change')
+        return
+    if len(a) in (3, 4) and a[0] == 'defaults' and (len(a) == 3 or a[3] == '--dry-run'):
+        IX = json.load(open(a[2]))                         # throw_review.py --set bossthrows*: today's play of each throw
+        g = json.load(open(os.path.join(a[1], 'game.json')))
+        have = {x[0] for x in rows(a[1], g)}
+        draft = {'throws': {r['id']: r['proposed'] for r in IX['rows'] if r.get('applies') and r.get('proposed') and r['id'] in have
+                            and not r.get('game_events')}}
+        for r in IX['rows']:
+            if r['id'] not in draft['throws']: print(f"{r['id']}: kept as it plays ({'events already' if r.get('game_events') else 'not on the events model: ' + ('a command grab' if not r.get('applies') else 'today\'s play needs more than 3 impacts / no hand-off')})")
+        try: new, ch = check(a[1], draft, stamp=f"defaulted {datetime.date.today()} from the play of build {IX['game_version']} without events "
+                                                 f"(throw_review.py --set {IX['set']}: impact rows, damage frame, landing hand-off), "
+                                                 "for the boss throw review (review.html?q=bossthrows)")
         except ValueError as e: print('REFUSED:', e); sys.exit(1)
         if new and len(a) == 3: open(os.path.join(a[1], 'game.json'), 'w').write(new)
         print('\n'.join(ch) or 'throws: no change')

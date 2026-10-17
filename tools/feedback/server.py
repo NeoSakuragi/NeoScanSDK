@@ -883,9 +883,9 @@ def throws_clean(req):
                 return None, '%s: an impact {frame 1-400, damage 0-100 %%?, spark? sound? shake?: true | false}' % k
             imps.append(dict(x))
         L = e.get('launch')
-        if not isinstance(L, dict) or not set(L) <= {'frame', 'dir', 'size'} or not fr(L.get('frame')) or L.get('dir') not in ('up', 'away', 'none') or \
+        if not isinstance(L, dict) or not set(L) <= {'frame', 'dir', 'size'} or not fr(L.get('frame')) or L.get('dir') not in ('up', 'away', 'back', 'none', 'land') or \
            L.get('size', 'medium') not in ('small', 'medium', 'big'):
-            return None, '%s: launch {frame 1-400, dir up | away | none, size? small | medium | big}' % k
+            return None, '%s: launch {frame 1-400, dir up | away | back | none | land, size? small | medium | big}' % k
         if 'held' in e and e['held'] is not None and not fr(e['held']): return None, '%s: held: a frame 1-400' % k
         out[k] = {'impacts': imps, 'launch': dict(L), **({'held': e['held']} if e.get('held') is not None else {})}
     return {'throws': out}, None

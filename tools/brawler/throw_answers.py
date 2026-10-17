@@ -30,6 +30,9 @@ throw's throws.timing entry (and for SS2 Hanzo's hold + B, special_grab_timing "
     python3 tools/brawler/throw_answers.py propose [OUT.json]           round 1 -> round 2's proposal (as the page
         pre-fills it: damage -> impact; an IMPACT's eject (else damage) / a SLAM's glue (else damage) -> launch; IMPACT
         -> away, SLAM -> up), in set "throws2"'s format (throw_regress.py --events reads it)
+    python3 tools/brawler/throw_answers.py pull2 --boss / apply2 GAME_DIR [ANSWERS2.json] --boss [--dry]
+        THE BOSS THROWS' answers (set "bossthrows", review.html?q=bossthrows: the bosses' forward throws, the same flags,
+        dir-land too: the landing hand-off; their command grabs' answers are listed, not written)
     python3 tools/brawler/throw_answers.py apply2 GAME_DIR [ANSWERS2.json] [--dry]
         every answer of set "throws2" (pulled now, or ANSWERS2.json) into GAME_DIR/game.json: incremental and idempotent
         (an answer already applied changes nothing; run it again after each new answer), then rebuild. Flags read:
@@ -145,17 +148,23 @@ def apply(game, answers, site, dry=False):
 
 # ---- round 2: the events ----
 SET2 = 'throws2'
+SOURCE = ['throw review round 2', 'throws2']         # an answer's "from": the page it came from (--boss: the boss throw review)
+SET2B = 'bossthrows'                                 # THE BOSS THROWS (2026-10-17, review.html?q=bossthrows): the same answers,
+                                                     # row ids <boss fighter>-fwd (its forward throw: the AI's only throw);
+                                                     # <boss>-fury / -max (a command grab) are judged, not applied (below)
 MIC_PROMPT = 'Neo Geo brawler game feedback, in English or French.'   # the mic's transcription prompt (micnote.js), not his
                                                                      # words: a note that is only that is no note
 
 
 def parse2(a):
     """an answer's flags -> {impacts: [frames], shares: {frame: %}, launch, held?, dir, size?} (impact-N once per impact,
-    share-N-P: the impact on frame N takes P % of the throw's damage)"""
-    o = {'impacts': [], 'shares': {}}
+    share-N-P: the impact on frame N takes P % of the throw's damage, nofx-N-spark | sound | shake: that impact without it)"""
+    o = {'impacts': [], 'shares': {}, 'nofx': {}}
     for f in a.get('flags') or []:
         m = re.match(r'^impact-(\d+)$', f)
         if m: o['impacts'].append(int(m.group(1))); continue
+        m = re.match(r'^nofx-(\d+)-(spark|sound|shake)$', f)          # (the impact on frame N without its spark / sound / shake)
+        if m: o['nofx'].setdefault(int(m.group(1)), set()).add(m.group(2)); continue
         m = re.match(r'^share-(\d+)-(\d+)$', f)
         if m: o['shares'][int(m.group(1))] = int(m.group(2)); continue
         m = re.match(r'^(launch|held)-(\d+)$', f)
@@ -195,11 +204,13 @@ def events_of_answer(a):
     for k, fr in enumerate(p['impacts']):
         x = {'frame': fr}
         if fr in p['shares'] and k + 1 < len(p['impacts']): x['damage'] = p['shares'][fr]
+        for f in BT.IMPACT_FX:
+            if f in p['nofx'].get(fr, ()): x[f] = False
         imps.append(x)
     e = {'impacts': imps}
     if p.get('held'): e['held'] = p['held']
     e['launch'] = dict({'frame': p['launch'], 'dir': p['dir']}, **({'size': p['size']} if p.get('size') else {}))
-    e['from'] = (f"throw review round 2 {a.get('at', '')[:10] or datetime.date.today()} (review.html?q=throws2): "
+    e['from'] = (f"{SOURCE[0]} {a.get('at', '')[:10] or datetime.date.today()} (review.html?q={SOURCE[1]}): "
                  + a.get('label', '') + (f"; note: {note_of(a)}" if note_of(a) else ''))
     return e, None
 
@@ -217,7 +228,10 @@ def entries2(answers, g):
     out, skipped = [], []
     for rid, a in sorted(answers.items()):
         row = row_of(g, rid)
-        if not row: skipped.append((rid, 'not a throw of this game')); continue
+        if not row:
+            why = 'a command grab (a fury / MAX that catches): judged on the page, not applied (the events cover a grab ' \
+                  'special on hold + B and the run grab only)' if rid.rpartition('-')[2] in ('fury', 'max') else 'not a throw of this game'
+            skipped.append((rid, why)); continue
         e, why = events_of_answer(a)
         if e is None: skipped.append((rid, why)); continue
         out.append(row + (e, rid))
@@ -262,19 +276,21 @@ def apply2(game, answers, dry=False):
 if __name__ == '__main__':
     a = sys.argv[1:]
     dry = '--dry' in a; a = [x for x in a if x != '--dry']
+    boss = '--boss' in a; a = [x for x in a if x != '--boss']   # the boss throw review's set (review.html?q=bossthrows)
+    if boss: SOURCE[:] = ['boss throw review', SET2B]
     if not a: sys.exit(__doc__)
     if a[0] == 'pull':
         s = json.dumps(pull(), indent=1, ensure_ascii=False)
         if len(a) > 1: open(a[1], 'w').write(s)
         else: print(s)
     elif a[0] in ('pull2', 'propose'):
-        d = pull(SET2) if a[0] == 'pull2' else propose(pull())
+        d = pull(SET2B if boss else SET2) if a[0] == 'pull2' else propose(pull())
         s = json.dumps(d, indent=1, ensure_ascii=False)
         if len(a) > 1: open(a[1], 'w').write(s)
         else: print(s)
     elif a[0] == 'apply2':
         rest = [x for x in a[2:] if not os.path.isdir(x)]   # (a SITE_DIR, as before: no longer needed)
-        ans = json.load(open(rest[0])) if rest else pull(SET2)
+        ans = json.load(open(rest[0])) if rest else pull(SET2B if boss else SET2)
         print(apply2(a[1], ans, dry) or '(no change: every answer already applied)')
     elif a[0] == 'apply':
         ans = json.load(open(a[3])) if len(a) > 3 else pull()

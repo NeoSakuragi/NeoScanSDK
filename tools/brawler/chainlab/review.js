@@ -14,7 +14,8 @@
   const get = async (u, o) => { const r = await fetch(u, Object.assign({ cache: 'no-cache', credentials: 'same-origin' }, o)); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
 
   if (new URLSearchParams(location.search).get('q') === 'throws') { await throwReview(); return; }
-  if (new URLSearchParams(location.search).get('q') === 'throws2') { await throwReview2(); return; }
+  if (new URLSearchParams(location.search).get('q') === 'throws2') { await throwReview2('throws2'); return; }
+  if (new URLSearchParams(location.search).get('q') === 'bossthrows') { await throwReview2('bossthrows'); return; }
 
   let index;
   try { index = await get('review/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No review data (' + e.message + ').' })); return; }
@@ -74,7 +75,12 @@
 #rev.thr .legend { font-size: 13px; margin: 0; }
 #rev.thr .opts { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; font-size: 14px; }
 #rev.thr .prop { border: 2px dashed #000; padding: 6px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-#rev.thr .prop[hidden] { display: none; }`;
+#rev.thr .prop[hidden] { display: none; }
+#rev.thr .picks.rows { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+#rev.thr .picks.rows .pk { display: flex; flex-wrap: wrap; gap: 5px 6px; align-items: center; }
+#rev.thr .picks.rows .pk > span { flex: 1 0 100%; }
+#rev.thr .fxrows { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #000; padding-top: 4px; }
+#rev.thr .fxrows button { padding: 3px 7px; }`;
       document.head.append(st);
     }
   }
@@ -251,33 +257,51 @@
   // "throws2" (choice 0 = these events, 1 = None of these; flags impact-N (one per impact), launch-N, dir-up | dir-away | dir-back | dir-none,
   // size-small | size-medium | size-big, held-N); tools/brawler/throw_answers.py v2 turns them into game.json
   // roster[].throws.events. ----
-  async function throwReview2() {
-    const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·']];
+  // THE BOSS THROWS (review.html?q=bossthrows[&t=<row id>]; Bruno 2026-10-17: "Remember how we adjusted the throws for players -
+  // let's do it for the bosses as well"): the same page on set "bossthrows" (tools/brawler/throw_review.py --set bossthrows):
+  // each boss's throw on Terry (the AI's forward throw from its hold; its red period's command grabs: judged, not applied
+  // yet), the capture before the events (the old rule) as the second capture, pre-filled with what the game plays now
+  // (row.proposed: the events defaulted from the old rule, or for a throw the events cannot hold yet, nothing). Answers:
+  // tools/brawler/throw_answers.py apply2 GAME --boss. Both pages: each impact's share of the damage (flag share-N-P, the
+  // last takes the rest) and its spark / sound / shake (nofx-N-spark | sound | shake when off); launch LAND (the landing
+  // hand-off: the knockdown's floor bounce where the throw lays it, the old rule's end). ----
+  async function throwReview2(Q) {
+    const BOSS = Q === 'bossthrows';
+    const DIRS = [['up', 'UP ↑'], ['away', 'AWAY →'], ['back', 'BACK ←'], ['none', 'NONE ·'], ['land', 'LAND ↓']];
     const SIZES = ['small', 'medium', 'big'];
-    const ARROW = { up: '↑', away: '→', back: '←', none: '·' };
+    const ARROW = { up: '↑', away: '→', back: '←', none: '·', land: '↓' };
+    const FXS = ['spark', 'sound', 'shake'];
     thrCss();
     root.classList.add('thr');
     let IX;
-    try { IX = await get('review/throws2/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No throw review data (' + e.message + ').' })); return; }
-    const SETT = IX.set || 'throws2';
+    try { IX = await get('review/' + Q + '/index.json'); } catch (e) { root.replaceChildren(h('p', { text: 'No throw review data (' + e.message + ').' })); return; }
+    const SETT = IX.set || Q;
     let ans = {}, old = {};
     try { ans = await get(API + 'decisions/' + SETT, { cache: 'no-store' }); } catch (e) { /* offline */ }
-    try { old = await get(API + 'decisions/throws', { cache: 'no-store' }); } catch (e) { /* offline */ }
+    if (!BOSS) try { old = await get(API + 'decisions/throws', { cache: 'no-store' }); } catch (e) { /* offline */ }
     const post = async body => {
       const r = await fetch(API + 'decision', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ set: SETT }, body)) });
       if (!r.ok) throw new Error('HTTP ' + r.status);
     };
     const MAXI = 3;                                            // impacts a throw at most (gamedata.h EV_IMPS)
-    const parse = a => { const o = { imps: [] }; for (const f of (a && a.flags) || []) { let m = /^impact-(\d+)$/.exec(f); if (m) { o.imps.push(+m[1]); continue; }
+    const parse = a => { const o = { imps: [], shares: {}, nofx: {} }; for (const f of (a && a.flags) || []) { let m = /^impact-(\d+)$/.exec(f); if (m) { o.imps.push(+m[1]); continue; }
+      m = /^share-(\d+)-(\d+)$/.exec(f); if (m) { o.shares[+m[1]] = +m[2]; continue; }
+      m = /^nofx-(\d+)-(spark|sound|shake)$/.exec(f); if (m) { (o.nofx[+m[1]] = o.nofx[+m[1]] || {})[m[2]] = true; continue; }
       m = /^(launch|held|dmg|eject|glue)-(\d+)$/.exec(f); if (m) o[m[1]] = +m[2]; m = /^(dir|size)-(\w+)$/.exec(f); if (m) o[m[1]] = m[2]; }
       o.imps = [...new Set(o.imps)].sort((x, y) => x - y); return o; };
+    // the game's events (game.json throws.events: row.proposed on the boss page) -> the page's form
+    const fromEvents = e => { if (!e || !e.launch) return null;
+      const I = e.impacts || (e.impact ? [{ frame: e.impact }] : []), o = { imps: I.map(x => x.frame), shares: {}, nofx: {}, launch: e.launch.frame, dir: e.launch.dir };
+      I.forEach((x, k) => { if (k + 1 < I.length && x.damage) o.shares[x.frame] = x.damage; for (const f of FXS) if (x[f] === false) (o.nofx[x.frame] = o.nofx[x.frame] || {})[f] = true; });
+      if (e.launch.size) o.size = e.launch.size; if (e.held != null && e.held !== e.launch.frame) o.held = e.held; return o; };
     // round 1 -> the proposal: damage -> impact; launch = an IMPACT's eject (else its damage), a SLAM's glue (else its damage)
     const propose = a => {
       if (!a) return null;
       const p = parse(a); if (!p.dmg) return null;
       const impact = a.choice === 0;
-      return { imps: [p.dmg], launch: impact ? (p.eject || p.dmg) : (p.glue || p.dmg), dir: impact ? 'away' : 'up' };
+      return { imps: [p.dmg], shares: {}, nofx: {}, launch: impact ? (p.eject || p.dmg) : (p.glue || p.dmg), dir: impact ? 'away' : 'up' };
     };
+    const proposeRow = r => BOSS ? fromEvents(r.proposed) : propose(old[r.id]);
     const evTxt = e => e ? `I${(e.imps && e.imps.length) ? e.imps.join('+') : '-'} L${e.launch || '-'}${ARROW[e.dir] || ''}${e.size ? ' ' + e.size[0] : ''}${e.held ? ' H' + e.held : ''}` : '';
     const status = h('p', { class: 'sub', role: 'status' });
     const count = () => { status.textContent = `${IX.rows.filter(r => ans[r.id] && ans[r.id].choice != null).length} of ${IX.rows.length} answered`; };
@@ -285,17 +309,28 @@
     const mineTxt = r => { const a = ans[r.id];
       if (a && a.choice === 1) return '✓ None of these';
       if (a && a.choice === 0) return '✓ ' + evTxt(parse(a));
-      const p = propose(old[r.id]); return p ? 'proposed ' + evTxt(p) : '○ to answer'; };
-    const oldTxt = r => { const a = old[r.id]; if (!a) return 'Round 1: no answer.';
+      const p = proposeRow(r); return p ? (BOSS ? 'now ' : 'proposed ') + evTxt(p) : '○ to answer'; };
+    const fr = k => k == null ? '-' : String(k + 1);
+    const oldTxt = r => {
+      if (BOSS) {                                              // what the game plays today, in words
+        const n = r.now, pv = (r.prev && r.prev.game_version) || IX.game_version;
+        const head = `Used by ${(r.enemies || []).join(', ')}. `;
+        if (r.kind === 'special') return head + `Today: a command grab, its catch on frame ${fr(n.catch)}, ${n.damage.length} hit${n.damage.length > 1 ? 's' : ''} of its own lists on frame${n.damage.length > 1 ? 's' : ''} ${n.damage.map(fr).join(', ')}, let go on frame ${fr(n.handoff)}. ` +
+          (n.damage.length > 3 ? 'More hits than the events\' 3 impacts. ' : '') + 'Your answer is recorded; the game applies it once the engine plays a grab fury on events (not yet: the events cover a grab special on hold + B and the run grab only).';
+        if (!r.proposed) return head + `Today (${pv}, the old rule, still played): ${n.impacts.length} impacts (spark + sound) on frames ${n.impacts.map(fr).join(', ')}, the damage on frame ${n.damage.map(fr).join(', ')} where it lands. More impacts than the events' 3: it stays as it is until you answer (pick up to 3).`;
+        return head + `Pre-filled with what the game plays now: the events defaulted from the old rule (${pv}), frame for frame the same (impacts on the script's impact rows, the damage where it lands, no screen shake, LAND). Confirm = keep it as it is.`;
+      }
+      const a = old[r.id]; if (!a) return 'Round 1: no answer.';
       return 'Round 1 (on ' + ((r.prev && r.prev.game_version) || 'the old build') + '): ' + (a.label || (a.flags || []).join(', ')) + (a.note ? ' Note: ' + a.note : ''); };
     let open = null;
 
     function body(r, head) {
       const a = ans[r.id] || {};
       const saved0 = a.choice != null;
-      const E = saved0 ? parse(a) : Object.assign({ imps: [] }, propose(old[r.id]) || {});
+      const E = saved0 ? parse(a) : Object.assign({ imps: [], shares: {}, nofx: {} }, proposeRow(r) || {});
       let choice = saved0 ? a.choice : null;
       let proposed = !saved0 && E.imps.length > 0;
+      if (!E.shares) E.shares = {}; if (!E.nofx) E.nofx = {};
       const caps = { now: r, prev: r.prev || null };
       let which = 'now';
       const sheets = {};
@@ -374,14 +409,17 @@
       const tagTxt = j => [String(j + 1), evAt(j), nowAt(j)].filter(Boolean).join(' ');
       const retag = () => strip.querySelectorAll('small').forEach((s, j) => { s.textContent = tagTxt(j); });
       const wb = Object.keys(caps).filter(x => caps[x]).map(x => h('button', { type: 'button', 'aria-pressed': String(x === which),
-        text: x === 'now' ? 'Build ' + IX.game_version + ' (now)' : (caps.prev.game_version || 'old') + ' (judged in round 1)',
+        text: x === 'now' ? 'Build ' + IX.game_version + (BOSS ? ' (now: the events)' : ' (now)') : (caps.prev.game_version || 'old') + (BOSS ? ' before the events (old rule)' : ' (judged in round 1)'),
         onclick: () => { stop(); which = x; wb.forEach(b => b.setAttribute('aria-pressed', String(b === wbOf(x)))); fillStrip(); draw(); } }));
       const wbOf = x => wb[Object.keys(caps).filter(y => caps[y]).indexOf(x)];
       fillStrip();
       // ---- the answer ----
       const saved = h('div', { class: 'saved', text: saved0 ? 'Saved' : '' });
       const ta = h('textarea', { 'aria-label': `Note for ${r.display}'s ${r.label}`, placeholder: 'Note (type or speak)' }); ta.value = a.note || '';
-      const flags = () => choice === 1 ? [] : [...E.imps.map(n => 'impact-' + n), E.launch && 'launch-' + E.launch, E.dir && 'dir-' + E.dir, E.size && 'size-' + E.size, E.held && 'held-' + E.held].filter(Boolean);
+      const flags = () => choice === 1 ? [] : [...E.imps.map(n => 'impact-' + n),
+        ...E.imps.slice(0, -1).filter(n => E.shares[n]).map(n => 'share-' + n + '-' + E.shares[n]),
+        ...E.imps.flatMap(n => FXS.filter(f => (E.nofx[n] || {})[f]).map(f => 'nofx-' + n + '-' + f)),
+        E.launch && 'launch-' + E.launch, E.dir && 'dir-' + E.dir, E.size && 'size-' + E.size, E.held && 'held-' + E.held].filter(Boolean);
       const label = () => choice === 1 ? 'None of these' : `impact frame${E.imps.length > 1 ? 's' : ''} ${E.imps.join(' + ') || '-'}, launch frame ${E.launch || '-'} ${(E.dir || '-').toUpperCase()}` + (E.size ? ' ' + E.size : '') + (E.held ? ', held until frame ' + E.held : '');
       const question = `${r.display}, ${r.label}: impact frame, launch frame + direction, held until?`;
       const propBox = h('div', { class: 'prop' });
@@ -397,7 +435,7 @@
       };
       let tn; ta.addEventListener('input', () => { clearTimeout(tn); tn = setTimeout(() => save({ note: ta.value }), 700); });
       const val = { impact: h('b'), launch: h('b'), held: h('b') };
-      const setE = (x, v) => { if (x === 'impact') E.imps = v == null ? [] : [v];       // "Impact here": this one impact
+      const setE = (x, v) => { if (x === 'impact') { E.imps = v == null ? [] : [v]; E.shares = {}; }   // "Impact here": this one impact
         else if (x === 'addimpact') { if (!E.imps.includes(v) && E.imps.length < MAXI) E.imps = [...E.imps, v].sort((p, q) => p - q); }   // one more
         else if (v == null) delete E[x]; else E[x] = v;
         if (choice === 1) choice = 0; paint(); retag(); draw(); save(); };
@@ -409,7 +447,19 @@
       const sb = SIZES.map(z => h('button', { type: 'button', 'aria-pressed': String(E.size === z), 'data-size': z, text: z, onclick: () => setE('size', E.size === z ? null : z) }));
       const bNone = h('button', { type: 'button', 'aria-pressed': String(choice === 1), text: NONE, onclick: () => { choice = 1; paint(); retag(); draw(); save(); ta.focus(); } });
       const bConf = h('button', { type: 'button', text: 'Confirm proposed', onclick: () => { choice = 0; save(); } });
+      const fxBox = h('div', { class: 'fxrows', role: 'group', 'aria-label': 'Each impact: its share of the damage, its spark, sound and shake' });
+      const fillFx = () => {
+        const last = E.imps[E.imps.length - 1], tot = E.imps.slice(0, -1).reduce((t, n) => t + (E.shares[n] || 0), 0);
+        fxBox.replaceChildren(...E.imps.map((n, j) => h('div', { class: 'opts' }, h('b', { text: (E.imps.length > 1 ? 'Impact ' + (j + 1) : 'Impact') + ' (frame ' + n + '):' }),
+          n === last ? h('span', { text: (E.imps.length > 1 ? 'damage: the rest, ' + Math.max(0, 100 - tot) + ' %' : 'damage: all of it') }) :
+            h('label', {}, 'damage ', h('input', { type: 'number', min: '0', max: '100', step: '5', value: String(E.shares[n] || 0), style: 'width:4.2em;font:inherit;border:2px solid #000',
+              'aria-label': `Impact ${j + 1}: its share of the damage, %`, onchange: ev => { const v = Math.max(0, Math.min(100, Math.round(+ev.target.value) || 0)); if (v) E.shares[n] = v; else delete E.shares[n]; if (choice === 1) choice = 0; fillFx(); save(); } }), ' %'),
+          ...FXS.map(f => h('button', { type: 'button', 'aria-pressed': String(!(E.nofx[n] || {})[f]), text: ((E.nofx[n] || {})[f] ? '✗ ' : '✓ ') + f, 'aria-label': `Impact ${j + 1}: ${f} ${(E.nofx[n] || {})[f] ? 'off' : 'on'}`,
+            onclick: () => { const o = E.nofx[n] = E.nofx[n] || {}; if (o[f]) delete o[f]; else o[f] = true; if (choice === 1) choice = 0; fillFx(); save(); } })))));
+        if (tot > 100) fxBox.append(h('p', { class: 'legend', text: `The shares before the last impact add up to ${tot} % (100 at most).` }));
+      };
       function paint() {
+        fillFx();
         val.impact.textContent = E.imps.length ? (E.imps.length > 1 ? 'frames ' : 'frame ') + E.imps.join(' + ') : '-';
         val.launch.textContent = E.launch ? 'frame ' + E.launch : '-';
         val.held.textContent = E.held ? 'frame ' + E.held : (E.launch ? 'the launch (frame ' + E.launch + ')' : '-');
@@ -417,14 +467,15 @@
         sb.forEach(b => b.setAttribute('aria-pressed', String(choice !== 1 && b.dataset.size === E.size)));
         bNone.setAttribute('aria-pressed', String(choice === 1));
         propBox.hidden = !proposed;
-        propBox.replaceChildren(h('span', { text: `Proposed from your round-1 answer: ${evTxt(E)}. Not saved yet.` +
+        propBox.replaceChildren(h('span', { text: BOSS ? `Pre-filled with what the game plays now: ${evTxt(E)}. Not saved yet: "Confirm proposed" keeps it as it is.` :
+          `Proposed from your round-1 answer: ${evTxt(E)}. Not saved yet.` +
           (E.dir === 'up' && E.imps.length === 1 && E.launch === E.imps[0] ? ` Launch UP on the impact frame is what ${IX.game_version} does now (the pop at the slam); for the slam first and the launch after, set the launch 4-6 frames later.` : '') }), bConf);
         fillJumps();
       }
-      const picks = h('div', { class: 'picks' },
-        rowOf('impact', 'Impact', 'Impact here', 'Clear', 'Add impact here'),
-        rowOf('launch', 'Launch', 'Launch here', 'Clear'),
-        rowOf('held', 'Held until', 'Held until here', 'Same as launch'));
+      const picks = h('div', { class: 'picks rows' },               // (one line each: the impact's has 4 cells, the grid 3)
+        h('div', { class: 'pk' }, rowOf('impact', 'Impact', 'Impact here', 'Clear', 'Add impact here')),
+        h('div', { class: 'pk' }, rowOf('launch', 'Launch', 'Launch here', 'Clear')),
+        h('div', { class: 'pk' }, rowOf('held', 'Held until', 'Held until here', 'Same as launch')));
       const jump = (t, n) => n ? h('button', { type: 'button', text: t + ' ' + n, onclick: () => { stop(); go(n - 1); } }) : null;
       const jumps = h('div', { class: 'ctl' });
       const fillJumps = () => jumps.replaceChildren(...[h('span', { class: 'legend', text: 'Go to:' }), ...E.imps.map((n, j) => jump(E.imps.length > 1 ? 'impact ' + (j + 1) : 'impact', n)), jump('launch', E.launch),
@@ -432,13 +483,13 @@
       paint();
       const el = h('div', { class: 'tbody' },
         h('p', { class: 'legend', text: `${r.input}; the victim: ${IX.dummy.toUpperCase()}; every game frame (59.18 a second). ` +
-          (r.kind === 'special' ? 'A grab special (Mozu Otoshi): the same three events on its frames.' : '') }),
+          (r.kind === 'special' ? (BOSS ? 'A command grab: frame 1 = the special\'s first frame.' : 'A grab special (Mozu Otoshi): the same three events on its frames.') : '') }),
         h('div', { class: 'ctl', role: 'group', 'aria-label': 'Which capture' }, wb),
         cv, fline, slider, h('div', { class: 'ctl' }, step(-10), step(-1), bPlay, step(1), step(10), bSlow), jumps, strip,
-        h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, ← back, · none), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
+        h('p', { class: 'legend', text: 'Strip letters: I impact, L launch (↑ up, → away, ← back, · none, ↓ land), H held until; d / g: where the shown build deals the damage / lets go. Frame numbers are the same on both captures up to the first change.' }),
         h('p', { class: 'legend', text: oldTxt(r) }),
-        h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the damage (Add impact here: a 2nd / 3rd one, the damage on the last). Launch: the frame the victim is sent (its direction below). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
-        propBox, picks,
+        h('p', { class: 'legend', text: 'Impact: the spark, the sound, the shake and the damage (Add impact here: a 2nd / 3rd one, the damage on the last unless you give an earlier one a share). Launch: the frame the victim is sent (its direction below; LAND: it lands where the throw lays it, in the knockdown\'s floor bounce). Held until: the victim stays in the thrower\'s grip until then (default: the launch).' }),
+        propBox, picks, fxBox,
         h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch direction' }, h('span', { text: 'Launch direction:' }), db),
         h('div', { class: 'opts', role: 'group', 'aria-label': 'Launch height (optional)' }, h('span', { text: 'Height (optional):' }), sb),
         h('div', { class: 'kinds' }, bNone),
@@ -450,7 +501,8 @@
       const li = h('li', { class: 'trow', id: 't-' + r.id });
       const head = h('button', { type: 'button', class: 'thead', 'aria-expanded': 'false' },
         h('b', { text: `${r.display} · ${r.label}` }), h('span', { class: 'mine', text: mineTxt(r) }),
-        h('span', { class: 'now', text: `${IX.game_version}: damage ${r.now.damage.map(fN).join('+') || '-'}` + (r.now.handoff != null ? `, let go ${fN(r.now.handoff)}` : '') }));
+        h('span', { class: 'now', text: `${IX.game_version}: damage ${r.now.damage.length > 4 ? fN(r.now.damage[0]) + '…' + fN(r.now.damage[r.now.damage.length - 1]) + ' (' + r.now.damage.length + ' hits)' : r.now.damage.map(fN).join('+') || '-'}` +
+          (r.now.handoff != null ? `, let go ${fN(r.now.handoff)}` : '') }));
       head.onclick = () => {
         const was = open && open.li === li;
         if (open) { open.stop(); open.el.remove(); open.head.setAttribute('aria-expanded', 'false'); open = null; }
@@ -461,9 +513,11 @@
       li.append(head);
       return li;
     }));
-    root.replaceChildren(h('h1', { text: 'Throw review, round 2' }),
+    root.replaceChildren(...(BOSS ? [h('h1', { text: 'Boss throws' }),
+      h('p', { class: 'sub', text: `The bosses' throws on a player, the same three events as the players' throws: IMPACT (spark, sound, shake, its share of the damage), LAUNCH (when the victim is sent: up, away, back, none or land) and HELD (until when the boss holds it; default the launch). The AI throws only forward + A from its hold; the last cards are their command grabs (red period). Pre-filled with what the game plays now: tap a throw, check, confirm or change.` })] :
+      [h('h1', { text: 'Throw review, round 2' }),
       h('p', { class: 'sub', text: `Each throw as three events: IMPACT (spark, sound, shake, damage), LAUNCH (when the victim is sent: up, away, back or none) and HELD (until when the thrower holds it; default the launch). Pre-filled from your round-1 answers: tap a throw, check, confirm.` }),
-      h('p', { class: 'sub' }, h('a', { href: 'review.html?q=throws' , text: 'Round 1 page (your old answers)' })),
+      h('p', { class: 'sub' }, h('a', { href: 'review.html?q=throws' , text: 'Round 1 page (your old answers)' }))]),
       status, list);
     count();
     const want = new URLSearchParams(location.search).get('t');

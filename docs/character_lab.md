@@ -376,7 +376,10 @@ selectable`, `select: moriya at place 10 of 25 (x 728, y 210)`. C ROM / P bank r
 
 `/brawler-factory/?tab=throws[&t=<fighter>-<fwd|back|holdb|run>]` (`factory/throws.js`, `tools/brawler/throwcfg.py`, the
 fourth shipped draft section `throws`): Bruno edits the throw events himself, no token. One row per playable fighter
-(unlocks: starters + rungs) x throw (forward, back, hold + B, the run grab) with its events as the game plays them
+(unlocks: starters + rungs) x throw (forward, back, hold + B, the run grab), then one per boss fighter (2026-10-17, tagged
+"boss: MR_BIG, GHOST_BIG": the forward throw, the only one their AI plays; its capture from `review/bossthrows/`), each
+impact's spark / sound / shake toggles (✓ / ✗), direction LAND (the landing hand-off) besides UP / AWAY / BACK / NONE,
+with its events as the game plays them
 (`I28(40%)+34 H40 L45→b`: impacts with their share, held, launch frame + direction + size; "old timing" = the throw
 still on `throws.timing` / `special_grab_timing`). Tap a row: the throw review's capture (`review/throws2/<id>.webp`,
 throw_review.py: frame k of the strip = throw frame k) with the marks on the strip and the picture, and the editor:

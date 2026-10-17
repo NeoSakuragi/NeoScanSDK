@@ -1129,7 +1129,10 @@ def slam_bounce(e, dflt, w):
     return (round(b['vy'] * 256), round(b.get('vx', 0) * 256))
 
 
-EVENT_DIRS = ('up', 'away', 'back', 'none')         # back: away's flight the opposite horizontal way (TE_BACK)
+EVENT_DIRS = ('up', 'away', 'back', 'none', 'land')   # back: away's flight the opposite horizontal way (TE_BACK); land:
+                                                    # the landing hand-off (TE_LAND: the knockdown's floor bounce where the
+                                                    # throw's script lays it, what a throw without events does at its
+                                                    # landing row; the boss throws' default, 2026-10-17)
 LAUNCH_TABLE = {'back': 'away'}                         # the throw_launch entry a dir's speeds come from (back = away's)
 ENGINE_PLAYS_EVENTS = True                              # fighter.c plays throws.events (THE THROW EVENTS)
 EVENT_SIZES = ('small', 'medium', 'big')
@@ -1183,7 +1186,9 @@ def throw_events(r, g=None):
       launch   the release and its trajectory: the engine takes the victim over on that frame and sends it: up (a pop),
                away (along the throw's way, from the thrower), back (away's flight the opposite horizontal way, toward the
                thrower's side: notes 20261016-140504-8a04 / 140505-8a05, SS2 Hanzo's throws), none (where it is: on the floor it lies, in the air it
-               falls); size picks game.json throw_launch[dir][size] {vy, vx} px a frame (default medium)
+               falls), land (the landing hand-off: on the floor at the script's row there, in the knockdown's floor
+               bounce, then down: a throw without events at its landing row; a grab special: none's); size picks game.json
+               throw_launch[dir][size] {vy, vx} px a frame (default medium; none / land: no speed)
     The thrower always plays its whole animation (THE THROW'S END). Replaces throws.timing / slam_bounce /
     special_grab_timing for that throw (one path: a throw has events or timing, never both). hold_b = the paired hold + B
     throw (throws.b) or the grab special on hold + B (throws.extra.b); run = the run grab's special (throws.run.special),

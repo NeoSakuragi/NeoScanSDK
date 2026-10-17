@@ -244,12 +244,31 @@
    "specials": {"D": "236C", "fD": "63214C", "dD": "623A", "uD": "63214A", "dfD": "623C", "ufD": "236A"},
    "specials_about": "note 20261015-235142-e03d (tester: the dragon = the 623 Jaeiken, not the Reppuken): down + D = the small 623A, the big 623C on down-forward + D; D back to the Double Reppuken 236C",
    "fury": "1632143C",
-   "throws": {"speed": {"throw_c": 256, "throw_d": 256}, "hold": {"fin": "atk_d_close", "dx": 34}},
+   "throws": {
+    "speed": {"throw_c": 256, "throw_d": 256},
+    "hold": {"fin": "atk_d_close", "dx": 34},
+    "events": {
+     "forward": {
+      "impacts": [{"frame": 35, "shake": false}, {"frame": 65, "shake": false}],
+      "launch": {"frame": 65, "dir": "land"},
+      "from": "defaulted 2026-10-17 from the play of build 0.10.170 without events (throw_review.py --set bossthrows_legacy: impact rows, damage frame, landing hand-off), for the boss throw review (review.html?q=bossthrows)"
+     }
+    }
+   },
    "unlock": {"boss_of_stage": 3},
    "voices": "kof"
   },
   {
    "name": "mr_big",
+   "throws": {
+    "events": {
+     "forward": {
+      "impacts": [{"frame": 31, "shake": false}, {"frame": 51, "spark": false, "sound": false, "shake": false}],
+      "launch": {"frame": 51, "dir": "land"},
+      "from": "defaulted 2026-10-17 from the play of build 0.10.170 without events (throw_review.py --set bossthrows_legacy: impact rows, damage frame, landing hand-off), for the boss throw review (review.html?q=bossthrows)"
+     }
+    }
+   },
    "music": "THEME_BOSS_TEAM",
    "bank": "kof96:mr_big",
    "watch": {"frame": 216, "step": -1},
@@ -285,7 +304,17 @@
    "blitz": {"ff": "623B", "dd": "41236D", "uu": "$A9"},
    "anim_specials": {"$A9": "knockdown"},
    "air": {"forward": "atk_d_jump", "straight": "atk_d_jump", "down": "atk_c_jump"},
-   "throws": {"back": "throw_c", "hold": {"hit": "atk_b_close", "fin": "atk_d_close"}},
+   "throws": {
+    "back": "throw_c",
+    "hold": {"hit": "atk_b_close", "fin": "atk_d_close"},
+    "events": {
+     "forward": {
+      "impacts": [{"frame": 58, "shake": false}, {"frame": 86, "spark": false, "sound": false, "shake": false}],
+      "launch": {"frame": 86, "dir": "land"},
+      "from": "defaulted 2026-10-17 from the play of build 0.10.170 without events (throw_review.py --set bossthrows_legacy: impact rows, damage frame, landing hand-off), for the boss throw review (review.html?q=bossthrows)"
+     }
+    }
+   },
    "fury": "641236C",
    "proj_hits": {"641236C": {"max_hits": 10, "hits_per_target": 2}},
    "unlock": {"boss_of_stage": 2},

@@ -377,8 +377,12 @@ each), scenario.py lint 0.
      pop: vy up, a little vx away), away (away from the thrower: a thrown body until it lands), back (away's flight the
      opposite horizontal way, toward the thrower's side, also a thrown body; notes 20261016-140504-8a04 / 140505-8a05:
      SS2 Hanzo's throws, whose victim ends behind him so `away` flew the way he faces / moves; fighter.c TE_BACK), none
-     (where it is: on the floor it lies down, in the air it falls); `size` picks game.json `throw_launch[dir][size]`
-     {vy, vx} px a frame (default medium; back takes `away`'s speeds). Every impact is on or before it.
+     (where it is: on the floor it lies down, in the air it falls), land (THE BOSS THROWS, 2026-10-17: the landing
+     hand-off, what a throw without events does at its landing row: on the floor at the script's row there, in the
+     knockdown's floor bounce, then down; fighter.c TE_LAND -> thrown_land, the row = the landing row when the launch
+     frame passes it, else the row reached; a grab special: none's); `size` picks game.json `throw_launch[dir][size]`
+     {vy, vx} px a frame (default medium; back takes `away`'s speeds; none / land: no speed). Every impact is on or
+     before it. An impact with `sound` false is silent, its hurt voice too (a damage-only row of the old rule).
   The thrower plays its whole animation (THE THROW'S END); its follow-ups: C / D from its first impact frame, a lone A
   from the launch on. `hold_b` = the paired hold + B throw (`throws.b`) or the grab special on hold + B
   (`throws.extra.b`: SS2 Hanzo's Mozu Otoshi), `run` = the run grab's special (`throws.run.special`), their frames from
@@ -387,10 +391,25 @@ each), scenario.py lint 0.
   build_tables `event_rows` -> `gthrow_ev[fighter][TM_*]` / `gsg_ev[fighter][hold_b, run]` (gamedata.h gthrev_t) ->
   fighter.c "THE THROW EVENTS" (ev_rows / ev_impact / ev_launch; a grab special: sg_events / sg_hit / sg_release).
   `tools/brawler/throw_answers.py apply2 examples/brawler` applies every answer present (incremental, idempotent: run it
-  after each new answer, then build); page flags `impact-N` (one per impact), `share-N-P`, `launch-N`, `dir-*`, `size-*`,
-  `held-N`. `tools/brawler/throw_regress.py` checks every throw with events in every pattern without a follow-up, both
-  facings (each impact's damage, spark, shake and sound on its frame and nowhere else, held, the launch frame and
-  direction), `--events FILE --events-only` measures a build against answers not applied yet.
+  after each new answer, then build); page flags `impact-N` (one per impact), `share-N-P`, `nofx-N-spark | sound |
+  shake` (that impact without it), `launch-N`, `dir-*`, `size-*`, `held-N`. `tools/brawler/throw_regress.py` checks every
+  throw with events in every pattern without a follow-up, both facings (each impact's damage, spark, shake and sound on
+  its frame and nowhere else, held, the launch frame and direction), `--events FILE --events-only` measures a build
+  against answers not applied yet.
+  THE BOSS THROWS (Bruno 2026-10-17: "Remember how we adjusted the throws for players - let's do it for the bosses as
+  well"): the bosses' AI (ai.c) throws only forward + A from its hold (the hold's "after two hits maybe a throw", the
+  grab counter's throw), so a boss's throw is its base fighter's `throws.events.forward`, one path (every enemy on that
+  base plays it: GHOST_BIG = MR_BIG's, GHOST_KRAUSER = KRAUSER's); frames are game ticks (a lag frame is no frame of the
+  clock: Krauser's throw start lags one). Defaulted 2026-10-17 from the play of 0.10.170 without events
+  (`throw_review.py --set bossthrows_legacy` + `throwcfg.py defaults GAME INDEX`: impacts = the script's impact rows +
+  the damage frame, no shake, launch `land` = the landing hand-off; captured again after: every tick identical, RAM and
+  picture): Mr. Big I31+51 (51 silent) L51 land, Krauser I58+86 (86 silent) L86 land, Geese I35+65 L65 land. Rugal's
+  and Omega Rugal's forward throw (11 punch impacts, the damage on landing at 99) stay on the old rule: more impacts
+  than EV_IMPS. Their command grabs (Rugal's fury / MAX 23624C, Omega Rugal's EX 236236C: the red period's furies whose
+  program catches) are judged on the page, not on the events (gsg_ev covers hold + B and the run grab only). Page:
+  brawler-lab/review.html?q=bossthrows (set "bossthrows"), answers `throw_answers.py apply2 GAME --boss`; the Factory's
+  Throws tab lists the boss rows (`throwcfg.py` rows / state `boss`); `throw_regress.py` boss cases: each boss throws
+  Terry, P1 none / mashA / stick toward / away, both facings.
 - `roster[].throws.hold.multi` [k, ...] (Kim: `["fin"]`, note 20261009-011518-5d29): that hold hit plays every hit of
   its move (export_bm hold_rows: an impact row per active step, the tail kept to the last); the finisher's victim reels
   held at each earlier impact (damage / n each) and is knocked down only at the last (the rest: the total unchanged;
