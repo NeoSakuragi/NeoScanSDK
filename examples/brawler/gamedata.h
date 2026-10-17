@@ -437,6 +437,10 @@ enum { BK_GAUGE, BK_BREAK };
 #define GB_FALL_SND 6                /* (build_tables.py GB_FALL_SND) */
 #define GB_FAIL_SND 16               /* (build_tables.py GB_FAIL_SND) */
 #define GB_PASS_N 4                  /* (build_tables.py GB_PASS_N) */
+#define GB_TRUNKS 8                  /* (build_tables.py GB_TRUNKS) a pile's most trunks: 4 sprites each, behind the
+                                        fighter (main.c BN_PILE_SPR: the fight's blocks start after them, blk_skip) */
+enum { BL_DROP, BL_PILE };           /* a BK_BREAK game's layout (games[].layout): AOF2's posts dropping in one at a
+                                        time; a pile of trunks held up by the trunks under them (note 20261017-063200-e03d) */
 #define GB_VOICE_HIT 0xFF             /* a fail_sfx: the fighter's hurt voice */
 enum { BB_FURY, BB_ANY };            /* what breaks a BK_BREAK object: a fury's / MAX's strike only; any strike */
 enum { BU_NONE, BU_FURY };
@@ -479,6 +483,12 @@ typedef struct {
                                      no message at the start, just go) */
     uint8_t referee;              /* BK_BREAK won the first time: SS2's referee delivers won_text (games[].won_by "referee",
                                      main.c "the referee") instead of CONGRATULATIONS + the message box */
+    uint8_t layout, trunk_h, trunk_reach;   /* BK_BREAK: BL_DROP / BL_PILE (games[].layout); BL_PILE: a trunk's drawn height in px
+                                     (AOF2's 128 px post shrunk to it: SCB2's vertical shrink), count = the pile's trunks,
+                                     hp / dmg_at the pile's (games[].pile); trunk_reach: a strike up to this many px over a
+                                     trunk's top still hits it (pile.reach) */
+    int16_t trunk_x[GB_TRUNKS];   /* BL_PILE: each trunk's screen x (AOF2's post object's left edge, its wood x + 8 .. + 56) */
+    uint8_t trunk_layer[GB_TRUNKS];   /* BL_PILE: its layer at the start (0 = on the floor; layer n rests on layer n - 1) */
 } gbonus_game_t;
 #define GB_MAX_GAMES 3
 typedef struct {

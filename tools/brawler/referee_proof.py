@@ -48,7 +48,7 @@ SS2 = {'JUMP': 55, 'LAND': 8, 'OPEN': 7, 'CLOSE': 14}   # SS2's ticks (referee_s
 
 def main(game, out, fighter='terry', side='auto', quirk=''):
     P = Proof(game, out); b = P.b
-    G = json.load(open(os.path.join(game, 'game.json'))); posts = next(x for x in G['bonus']['games'] if x['kind'] == 'break')
+    G = json.load(open(os.path.join(game, 'game.json'))); posts = next(x for x in P.G["games"] if x["kind"] == "break")
     ref = G['referee']; text = posts['won_text']
     P.setup(fighter=fighter, game=posts['id']); b.run(40)
     P.shot('start', 'the posts game at its start: TIME and POSTS only')

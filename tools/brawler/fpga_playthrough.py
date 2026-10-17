@@ -204,8 +204,9 @@ else:
                 if b.r(S['bn_clock'], 2) < 600: poke('clock')   # (its clock kept off its end: the WIN is the point)
                 stn = b.states[b.fget(0, 'state')]
                 if rd('bn_post') == BP_STAND and stn in ('IDLE', 'WALK', 'ATTACK'):
-                    px = b.r(S['bn_px'], 2); px = px - 65536 if px > 32767 else px; right = px > 160
-                    fx = b.fget(0, 'x'); gap = px - fx if right else fx - (px + 64)
+                    px = b.r(S['bn_px'], 2); px = px - 65536 if px > 32767 else px; fx = b.fget(0, 'x')
+                    right = px + 32 > fx                  # (the front post / trunk: on his right or his left; a pile's
+                    gap = px - fx if right else fx - (px + 64)   # bn_px = its floor trunk nearest him, main.c "the pile")
                     if stn != 'ATTACK' and gap > 12: keys = 'R' if right else 'L'
                     elif stn != 'ATTACK' and not facing_ok(right): keys = 'R' if right else 'L'
                     elif f & 7 == 0 and gap <= 12 and facing_ok(right): keys = 'a'

@@ -207,6 +207,8 @@ static uint8_t phase;
 enum { BN_OFF, BN_PICK, BN_PLAY, BN_END, BN_INTRO, BN_CARD };           /* the bonus stages (see "bonus stages"): bonus_on; bn_won = bit per
                                                           game won this credit; sh_n = the entities shadows() handles */
 static uint8_t bonus_on, bn_won, sh_n = NE;
+static uint8_t blk_skip;                         /* a fight's blocks start at SPR_BASE + blk_skip: a bonus pile's trunks take
+                                                    the sprites before them (behind the fighter; main.c BN_PILE_SPR) */
 static uint8_t bn_clr[GB_MAX_GAMES];     /* passes of each bonus game this credit (gbonus_game_t.pass_chunks: the reward by clear) */
 
 /* ---- SNK MVS conventions: the game (not the BIOS) shows "LEVEL-n" and "CREDIT nn" on the bottom line. LEVEL = the
@@ -530,7 +532,7 @@ static void depth_sort(void) {
         }
     }
     {
-        uint16_t s = blk_cols == SEL_COLS ? SEL_SPR : SPR_BASE;   /* blocks back to front, each its entity's width */
+        uint16_t s = blk_cols == SEL_COLS ? SEL_SPR : SPR_BASE + blk_skip;   /* blocks back to front, each its entity's width */
         uint8_t n = nf < NA ? nf : NA;
         for (i = 0; i < n; i++) {
             fighter_t *f = order[i];
@@ -3659,6 +3661,8 @@ static void bn_lesson_show(uint8_t on) {         /* the break game's lesson box:
     bn_text(22, on ? bn_g->lesson[1] : 0, 0);
     bn_text(24, on ? bn_g->lesson[2] : 0, 0);
 }
+static void bn_pile_start(void);
+static void bn_pile_hide(void);
 static void bonus_play(uint8_t k) {
     uint8_t i;
     fighter_t *f = &fighters[bn_lead];
@@ -3692,11 +3696,13 @@ static void bonus_play(uint8_t k) {
         if (bn_g->breaks == BB_FURY) fury_lock = 0;   /* the fury works here (the lesson); BB_ANY: the regular attacks
                                                     break the posts, the fury stays as it is (locked: the prize) */
         if (bn_g->lesson[0][0]) bn_lesson_show(1);   /* (games[].lesson [] : no box at the start) */
+        if (bn_g->layout == BL_PILE) bn_pile_start();   /* (the whole pile at once: games[].pile) */
     }
 }
 static void bonus_off(void) {                    /* out of a bonus: its sprites hidden, the shadows' back */
     if (sh_n != NE) { bn_hide(BN_TREE_SPR, 12); bn_hide(BN_POST_SPR, 4); sh_n = NE; shadow_init(); }
     if (bonus_on) bn_hide(BN_FRONT, 48);
+    bn_pile_hide(); blk_skip = 0;                /* (the pile's sprites: the fight's blocks back to SPR_BASE) */
     bt_hide();                                   /* (TIME OVER, the won headline: on 324-347) */
     if (rf.ph) { rf_text(1); rf.ph = RF_OFF; }   /* (the referee cut short: his sprites went with 47-58 / 300-347) */
     rf.quirk = RQ_NONE; rf_body_off();
@@ -3837,15 +3843,8 @@ static void bn_post_show(uint8_t img, int16_t dx, int16_t dy, uint8_t tiles) {
     const bonus_obj_t *o = &bonus_post[img];
     bn_put(BN_POST_SPR, o, bn_px + o->x - bonus_post[0].x + dx, o->y + dy, 0, 0xF, 0xFF, tiles);
 }
-static void bn_break_flow(fighter_t *f) {
-    uint8_t i, k;
-    int16_t px0 = bn_px + cam_x + 8, px1 = px0 + 48, py0 = bonus_post[0].y + 8, py1 = 224;   /* (world x, screen y) */
-    if (bn_g->breaks == BB_FURY) fighter_meter_fill(f);   /* the fury always payable (its lock lifted: bonus_play) */
-    if (bn_post == BP_STAND || bn_post == BP_DROP || bn_post == BP_HIT) {   /* a solid post: he stops at it (a rush too) */
-        if (bn_px > 160) { int32_t lim = FIX(px0 - 12); if (f->x > lim) f->x = lim; }
-        else { int32_t lim = FIX(px1 + 12); if (f->x < lim) f->x = lim; }
-    }
-    bn_pt++;
+static void bn_fly(void) {                      /* the break game's splinters (the last broken post / trunk) and a hit's chip */
+    uint8_t k;
     if (bn_split) {                              /* the last post's splinters: flying, falling */
         for (k = 0; k < BN_PIECES; k++) {
             bn_pc[k].x += bn_pc[k].vx; bn_pc[k].y += bn_pc[k].vy; bn_pc[k].vy += 4;
@@ -3858,6 +3857,168 @@ static void bn_break_flow(fighter_t *f) {
         if (--bn_chip_t) bn_put(BN_LEAF_SPR, &bonus_piece[bn_hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 0);
         else bn_hide(BN_LEAF_SPR, 2);
     }
+}
+/* ---- the pile (games[].layout "pile", note 20261017-063200-e03d, Bruno: "a mountain of trunks ... physically held on
+ * top of each other, so when the trunks under one are destroyed, the trunk on top falls one layer, a bit like the bonus
+ * game in Street Fighter 2"): the game's trunks (trunk_x / trunk_layer, AOF2's post shrunk to trunk_h px tall by SCB2's
+ * vertical shrink) all stand at once, on BN_PILE_SPR.. behind the fighter (the fight's blocks start after them:
+ * blk_skip). A trunk rests on the floor or on a resting trunk under it (its wood within BN_SOLID_W across, its top at
+ * the trunk's bottom); with nothing left under it it falls (BN_GRAV) and lands on the highest resting trunk under it, or
+ * the floor. Every trunk standing, resting or falling, is a target as the drop's post is (hit_mask BN_POST_BIT, each
+ * hit of a move counts once, on the trunk it touches, or the one under it within trunk_reach px; the lowest of
+ * equals); a trunk near the floor (BN_SOLID_H) is solid to
+ * him. bn_post / bn_px tell the front trunk (the floor's nearest him: BP_STAND, else BP_DROP while one falls, BP_NONE
+ * when none is left), the TIME / POSTS line and the win as the drop's. ---- */
+#define BN_PILE_SPR SPR_BASE                     /* the pile: bonus_post[0].w sprites a trunk from here (blk_skip) */
+#define BN_SOLID_X  8                            /* a post's wood: x + 8 .. + 56 of its 64 px (the drop's px0 / px1) */
+#define BN_SOLID_W  48
+#define BN_SOLID_H  (40 << 4)                    /* a trunk's bottom under this (1/16 px over the floor): solid to him */
+#define BN_GRAV     8                            /* 1/16 px a tick, each tick */
+_Static_assert(SPR_BASE + GB_TRUNKS * 4 + 2 * MAX_COLS + PJ_SPRS <= DBG_SPR, "the pile's trunks, then the bonus's blocks (fighter, the referee's body, the pool)");
+enum { BT_GONE, BT_REST, BT_FALL };
+static struct { int16_t x, h, vy; uint8_t st, hp, img, thud, dirty; } bn_tr[GB_TRUNKS];   /* h: its bottom over the floor, 1/16 px */
+static int16_t bn_trunk_top(uint8_t k) {         /* its screen y (the floor = the post's bottom, AOF2's 224) */
+    return (int16_t)(bonus_post[0].y + (bonus_post[0].h << 4) - (bn_tr[k].h >> 4) - bn_g->trunk_h);
+}
+static void bn_trunk_show(uint8_t k) {
+    const bonus_obj_t *o = &bonus_post[bn_tr[k].img];
+    int16_t dx = bn_tr[k].thud ? ((bn_tr[k].thud & 2) ? 2 : -2) : 0;
+    bn_put(BN_PILE_SPR + k * bonus_post[0].w, o, bn_tr[k].x + o->x - bonus_post[0].x + dx, bn_trunk_top(k), 0, 0xF,
+           (uint8_t)(bn_g->trunk_h * 2 - 1), bn_tr[k].dirty);
+    bn_tr[k].dirty = 0;
+}
+static void bn_pile_start(void) {
+    uint8_t k;
+    for (k = 0; k < bn_g->count; k++) {
+        bn_tr[k].x = bn_g->trunk_x[k]; bn_tr[k].h = (int16_t)(bn_g->trunk_layer[k] * bn_g->trunk_h) << 4; bn_tr[k].vy = 0;
+        bn_tr[k].st = BT_REST; bn_tr[k].hp = bn_g->hp; bn_tr[k].img = 0; bn_tr[k].thud = 0; bn_tr[k].dirty = 1;
+    }
+    blk_skip = (uint8_t)(bn_g->count * bonus_post[0].w);
+    bn_post = BP_STAND; bn_px = bn_tr[0].x;
+}
+static void bn_pile_hide(void) { if (blk_skip) bn_hide(BN_PILE_SPR, blk_skip); }
+static void bn_pile_break(fighter_t *f, uint8_t t) {   /* trunk t broken: gone, its splinters fly away from him */
+    uint8_t k;
+    int16_t top = bn_trunk_top(t), fx = INT(f->x) - cam_x, cx = bn_tr[t].x + BN_SOLID_X + (BN_SOLID_W >> 1);
+    bn_tr[t].st = BT_GONE; bn_hide(BN_PILE_SPR + t * bonus_post[0].w, bonus_post[0].w); bn_left--; bn_split = 48;
+    FIX_print(34, 9, "  ", 0); FIX_printNum(34, 9, bn_left, 1);
+    for (k = 0; k < BN_PIECES; k++) {
+        const bonus_obj_t *o = &bonus_piece[k];
+        int16_t y = top + (int16_t)((int16_t)(o->y - bonus_post[0].y) * (int16_t)bn_g->trunk_h >> 7);
+        bn_pc[k].x = (o->x - bonus_post[0].x + bn_tr[t].x) << 4; bn_pc[k].y = y << 4;
+        bn_pc[k].vx = (int16_t)((k * 13) & 15) + 8 + (k & 1) * 10; bn_pc[k].vy = -(int16_t)(40 + ((k * 7) & 15) * 4);
+        if (cx < fx) bn_pc[k].vx = -bn_pc[k].vx;     /* (away from him) */
+        bn_put(BN_FRONT + 2 * k, o, bn_pc[k].x >> 4, y, 0, 0xF, 0xFF, 1);
+    }
+    snd_sfx(SFX_HIT_CD);
+}
+static void bn_pile_flow(fighter_t *f) {
+    uint8_t i, j, k, n = bn_g->count, front = 0xFF;
+    int16_t H = (int16_t)bn_g->trunk_h << 4, fx = INT(f->x) - cam_x, best = 0x7FFF;
+    for (k = 0; k < n; k++) {                    /* gravity: what is left under each trunk */
+        int16_t rest = 0;
+        if (bn_tr[k].st == BT_GONE) continue;
+        for (j = 0; j < n; j++) {                /* the highest resting top under it, within its wood's width */
+            int16_t d = bn_tr[j].x - bn_tr[k].x, top = bn_tr[j].h + H;
+            if (j == k || bn_tr[j].st != BT_REST || d >= BN_SOLID_W || d <= -BN_SOLID_W) continue;
+            if (top <= bn_tr[k].h && top > rest) rest = top;
+        }
+        if (bn_tr[k].st == BT_REST && bn_tr[k].h > rest) { bn_tr[k].st = BT_FALL; bn_tr[k].vy = 0; }
+        if (bn_tr[k].st == BT_FALL) {
+            bn_tr[k].vy += BN_GRAV; bn_tr[k].h -= bn_tr[k].vy;
+            if (bn_tr[k].h <= rest) { bn_tr[k].h = rest; bn_tr[k].st = BT_REST; bn_tr[k].thud = 8; snd_sfx(ghitsnd.bounce); }
+        }
+    }
+    {   /* the trunks near the floor: solid (he stops at them, a rush too). His x (12 px either side of his centre) is
+           kept out of each one's wood; inside one (a trunk landed on him, two side by side) he goes out of the whole
+           row it belongs to (its touching neighbours merged) on its nearer end that leaves him on the screen */
+        int16_t lo = 0x7FFF, hi = -0x7FFF;
+        uint8_t grow = 1, pass = 0;
+        for (k = 0; k < n; k++) {
+            int16_t x0 = bn_tr[k].x + BN_SOLID_X, cx = x0 + (BN_SOLID_W >> 1), d = cx > fx ? cx - fx : fx - cx;
+            if (bn_tr[k].st == BT_GONE || bn_tr[k].h >= BN_SOLID_H) continue;
+            if (fx > x0 - 12 && fx < x0 + BN_SOLID_W + 12) { if (x0 - 12 < lo) lo = x0 - 12; if (x0 + BN_SOLID_W + 12 > hi) hi = x0 + BN_SOLID_W + 12; }
+            if (bn_tr[k].st == BT_REST && !bn_tr[k].h && d < best) { best = d; front = k; }
+        }
+        while (lo < hi && grow && pass++ < GB_TRUNKS) {   /* (at most GB_TRUNKS passes: a few compares each) */
+            grow = 0;
+            for (k = 0; k < n; k++) {
+                int16_t x0 = bn_tr[k].x + BN_SOLID_X;
+                if (bn_tr[k].st == BT_GONE || bn_tr[k].h >= BN_SOLID_H || x0 - 12 > hi || x0 + BN_SOLID_W + 12 < lo) continue;
+                if (x0 - 12 < lo) { lo = x0 - 12; grow = 1; }
+                if (x0 + BN_SOLID_W + 12 > hi) { hi = x0 + BN_SOLID_W + 12; grow = 1; }
+            }
+        }
+        if (lo < hi) {                           /* inside: out on the nearer end with room (the screen 16 .. 304) */
+            uint8_t left = (fx - lo <= hi - fx || hi > 304) && lo >= 16;
+            f->x = FIX((left ? lo : hi) + cam_x);
+        }
+    }
+    bn_post = front != 0xFF ? BP_STAND : bn_left ? BP_DROP : BP_NONE;
+    if (front != 0xFF) bn_px = bn_tr[front].x;
+    for (i = 0; i < nf; i++) {                   /* the fighter and his objects: what strikes a trunk now */
+        int16_t x0, x1, y0, y1, px0 = 0, px1 = 0, py0 = 0, near = 0x7FFF;
+        uint8_t cls = fighter_strike_box(order[i], &x0, &x1, &y0, &y1), t = 0xFF;
+        if (!cls || order[i]->team) continue;
+        for (k = 0; k < n; k++) {                /* the trunk across its x nearest it in height: touched (0), or under it
+                                                    by up to trunk_reach px (the genre's lane rule: Final Fight's drums
+                                                    take a standing punch; a lone stump on the floor is under his fist) */
+            int16_t a0 = bn_tr[k].x + cam_x + BN_SOLID_X, a1 = a0 + BN_SOLID_W, b0 = bn_trunk_top(k) + 4, b1 = b0 - 4 + bn_g->trunk_h, d;
+            if (bn_tr[k].st == BT_GONE || x1 <= a0 || x0 >= a1 || y0 >= b1) continue;
+            d = y1 > b0 ? 0 : b0 - y1;           /* (screen y: the strike over its top by d) */
+            if (d > bn_g->trunk_reach || d > near || (d == near && t != 0xFF && bn_tr[k].h >= bn_tr[t].h)) continue;
+            near = d; t = k; px0 = a0; px1 = a1; py0 = b0;
+        }
+        if (t == 0xFF) continue;
+        if (bn_g->breaks == BB_ANY) {            /* each hit of a move counts once (the drop's rule) */
+            if (order[i]->hit_mask & BN_POST_BIT) continue;
+            order[i]->hit_mask |= BN_POST_BIT;
+            spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 8, 0, f->facing);
+            fighter_prop_hit(order[i], bn_tr[t].hp > 1);
+            if (bn_tr[t].hp > 1) {               /* it holds: it shakes, a chip flies off, its damage shown */
+                uint8_t d = 0, taken;
+                bn_tr[t].hp--; bn_tr[t].thud = 16; bn_hp = bn_tr[t].hp;   /* (bn_hp: the chip's picture) */
+                taken = bn_g->hp - bn_tr[t].hp;
+                while (d < 3 && taken >= bn_g->dmg_at[d]) d++;
+                if (d != bn_tr[t].img) { bn_tr[t].img = d; bn_tr[t].dirty = 1; }
+                bn_chip_t = 30; bn_pc[BN_PIECES].x = (bn_tr[t].x + 24) << 4;
+                bn_pc[BN_PIECES].y = (bn_trunk_top(t) + (bn_g->trunk_h >> 2) + 4 * (bn_tr[t].hp & 3)) << 4;
+                bn_pc[BN_PIECES].vx = px0 + 24 - cam_x < fx ? -24 : 24; bn_pc[BN_PIECES].vy = -48;
+                bn_put(BN_LEAF_SPR, &bonus_piece[bn_tr[t].hp % BN_PIECES], bn_pc[BN_PIECES].x >> 4, bn_pc[BN_PIECES].y >> 4, 0, 0xF, 0xFF, 1);
+            } else bn_pile_break(f, t);
+            break;
+        }
+        if (cls == 2) {                          /* BB_FURY: a fury breaks it at once */
+            spark_hit(x0 > px0 ? (x0 + px1) >> 1 : (px0 + x1) >> 1, (y0 > py0 ? y0 : py0) + 8, 1, f->facing);
+            bn_pile_break(f, t);
+            break;
+        }
+        if (!bn_tr[t].thud) { bn_tr[t].thud = 16; fighter_guard_sound(); if (!bn_lesson) bn_lesson_show(1); bn_pt = 0; }
+    }
+    if (bn_g->breaks == BB_FURY && bn_lesson && bn_t > 150 && bn_pt > 120) bn_lesson_show(0);
+    for (k = 0; k < n; k++) {                    /* drawn: every tick its place (a block moving off these sprites
+                                                    clears them once: draw()), its tiles when its picture changed */
+        if (bn_tr[k].st == BT_GONE) continue;
+        if (bn_tr[k].thud) bn_tr[k].thud--;
+        bn_trunk_show(k);
+    }
+}
+static void bn_break_flow(fighter_t *f) {
+    uint8_t i, k;
+    int16_t px0 = bn_px + cam_x + 8, px1 = px0 + 48, py0 = bonus_post[0].y + 8, py1 = 224;   /* (world x, screen y) */
+    if (bn_g->breaks == BB_FURY) fighter_meter_fill(f);   /* the fury always payable (its lock lifted: bonus_play) */
+    if (bn_g->layout == BL_PILE) {               /* (the shared splinters / chip, then the pile, then the clock) */
+        bn_pt++;
+        bn_fly();
+        bn_pile_flow(f);
+        goto clock;
+    }
+    if (bn_post == BP_STAND || bn_post == BP_DROP || bn_post == BP_HIT) {   /* a solid post: he stops at it (a rush too) */
+        if (bn_px > 160) { int32_t lim = FIX(px0 - 12); if (f->x > lim) f->x = lim; }
+        else { int32_t lim = FIX(px1 + 12); if (f->x < lim) f->x = lim; }
+    }
+    bn_pt++;
+    bn_fly();
     switch (bn_post) {
     case BP_NONE:                                /* the next post drops in */
         if (bn_left && bn_pt >= (bn_t < 100 ? 60 : 24)) {
@@ -3932,6 +4093,7 @@ static void bn_break_flow(fighter_t *f) {
         }
         break;
     }
+clock:
     {   uint16_t s = div16(bn_clock + 59, 60);       /* the clock, the posts left (AOF2: top right) */
         if (s != bn_shown_clock) { bn_shown_clock = s; FIX_print(17, 9, "TIME   ", 0); FIX_printNum(22, 9, s, 1); FIX_print(28, 9, "POSTS   ", 0); FIX_printNum(34, 9, bn_left, 1); }
     }
@@ -3964,6 +4126,7 @@ static void bn_break_flow(fighter_t *f) {
         }
     } else if (!bn_clock) {                      /* time over: as it was (locked stays locked) */
         fury_lock = bn_lock0; bn_lesson_show(0); bn_hide(BN_POST_SPR, 4); bn_hide(BN_FRONT, 2 * BN_PIECES); bn_split = 0;
+        if (bn_g->layout == BL_PILE) { for (k = 0; k < bn_g->count; k++) bn_tr[k].st = BT_GONE; bn_pile_hide(); }   /* (the pile gone with the result) */
         bn_result("TIME OVER", fury_lock ? "THE FURY STAYS LOCKED" : 0, (uint16_t)(bn_g->count - bn_left) * 1000, 0, BIG_TIME_OVER);
     }
 }

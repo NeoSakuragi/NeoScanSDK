@@ -1,4 +1,17 @@
 {
+ "20261017-063200-e03d": {
+  "title": "Super Death Blow bonus: a 3-2-1 pile of trunks that fall when the trunks under them break",
+  "setup": {
+   "mode": "bonus",
+   "fighter": "terry",
+   "game": "posts",
+   "after": 1
+  },
+  "do": "Walk right to the pile and keep attacking (A, B, C, low or high). Break the lower trunks and watch the ones above them.",
+  "expect": "Six trunks stand at once on the right: three on the floor, two on them, one on top. A hit shakes a trunk and chips it (cracks after 2, 3 and 5 hits, broken at 6). A trunk whose supports are all broken falls and lands on what is left under it or on the floor, and you can still break it. POSTS counts 6 down to 0, then the referee announces the fury unlock.",
+  "do_keys": "60:R,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-,8:a,8:-",
+  "proof": 240
+ },
  "20261016-043416-e03d": {
   "title": "Hanzo (SS2) Mozu Otoshi: B in the grab, no longer up + A",
   "setup": {

@@ -1560,11 +1560,14 @@ BONUS_KINDS = {'gauge': 'BK_GAUGE', 'break': 'BK_BREAK'}
 BONUS_KEYS = ('about', 'after', 'intro', 'pick', 'card', 'fury_lock', 'over_music', 'win_music', 'games')
 MAXC_N = 6                                               # roster[].max_chain: at most this many throws
 BONUS_GAME_KEYS = {'gauge': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'step', 'grades', 'grades_about', 'chunks', 'pass_reward', 'win_grade', 'fall_sounds', 'blows', 'charge', 'punch_sound', 'fail_sounds', 'fail_result', 'show_name'),
-                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at')}
+                   'break': ('id', 'name', 'kind', 'scene', 'slot', 'voice', 'music', 'seconds', 'count', 'breaks_with', 'unlock', 'hp', 'lesson', 'won_text', 'won_ticks', 'show_name', 'won_by', 'bonus_about', 'damage_at', 'layout', 'pile')}
 BONUS_BLOWS = {'jab': 'JAB', 'finisher': 'FIN', 'forward': 'FWD'}   # a gauge game's blows: fighter.h BL_* (fighter_blow)
 GB_FALL_SND = 6                                         # gamedata.h GB_FALL_SND: a gauge game's fall_sounds
 GB_FAIL_SND = 16                                        # gamedata.h GB_FAIL_SND: its fail_sounds ('VOICE HIT': GB_VOICE_HIT)
-GB_PASS_N = 4                                           # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
+GB_TRUNKS = 8                                           # gamedata.h GB_TRUNKS: a break game's pile (4 sprites a trunk)
+PILE_KEYS = ('about', 'trunk_h', 'reach', 'hp', 'damage_at', 'trunks')
+TRUNK_W = 48                                            # main.c BN_SOLID_W: a post's wood (x + 8 .. + 56 of its 64 px)
+GB_PASS_N = 4                                          # gamedata.h GB_PASS_N: a gauge game's pass_reward.chunks (clears)
 REF_LINE = 20                                            # the referee's window: letters a line (main.c "the referee", REF_TXT_MID: 6 px to its border; 13 columns, referee_ss2.py WIN_EXTRA)
 REF_KEYS = ('about', 'delay', 'delay_about', 'mark', 'from', 'hold', 'hit_text', 'fury_dx', 'fighter', 'life', 'hit_about', 'jump_sound', 'land_sound', 'sound_about')
 POST_DMG = 3                                             # make_bonus.py post: AOF2's intact post + its 3 cracked pictures
@@ -1644,6 +1647,26 @@ def bonus_check(g, songs_known, sfx_names=None):
             da = x.get('damage_at', [])
             assert isinstance(da, list) and len(da) <= POST_DMG and all(isinstance(v, int) and 1 <= v < x.get('hp', 1) for v in da) and da == sorted(set(da)), \
                 f"bonus game {x['id']}: damage_at: up to {POST_DMG} rising hit counts 1..hp-1 (the post's cracked pictures 1-{POST_DMG})"
+            assert x.get('layout', 'drop') in ('drop', 'pile'), f"bonus game {x['id']}: layout drop | pile"
+            if x.get('layout') == 'pile':                 # (note 20261017-063200-e03d: a pile held up by the trunks under it)
+                pl = x.get('pile') or {}
+                for k in pl: assert k in PILE_KEYS, f"bonus game {x['id']}: pile: unknown field {k}"
+                tr, th, php = pl.get('trunks') or [], pl.get('trunk_h', 64), pl.get('hp', x.get('hp', 1))
+                assert isinstance(th, int) and 32 <= th <= 128 and th % 2 == 0, f"bonus game {x['id']}: pile.trunk_h 32-128, even (SCB2's shrink th * 2 - 1)"
+                assert isinstance(php, int) and 1 <= php <= 30, f"bonus game {x['id']}: pile.hp 1-30"
+                assert isinstance(pl.get('reach', 32), int) and 0 <= pl.get('reach', 32) <= 96, f"bonus game {x['id']}: pile.reach 0-96 px"
+                pda = pl.get('damage_at', [])
+                assert isinstance(pda, list) and len(pda) <= POST_DMG and all(isinstance(v, int) and 1 <= v < php for v in pda) and pda == sorted(set(pda)), \
+                    f"bonus game {x['id']}: pile.damage_at: up to {POST_DMG} rising hit counts 1..hp-1"
+                assert 1 <= len(tr) <= GB_TRUNKS and all(isinstance(t, list) and len(t) == 2 and isinstance(t[0], int) and isinstance(t[1], int)
+                                                         and -8 <= t[0] <= 264 and 0 <= t[1] <= 3 for t in tr), \
+                    f"bonus game {x['id']}: pile.trunks: 1-{GB_TRUNKS} [x -8..264 (the post's left edge on screen), layer 0-3]"
+                assert 224 - (max(t[1] for t in tr) + 1) * th >= 16, f"bonus game {x['id']}: pile: its top layer off the screen's top (layers x trunk_h)"
+                for i, (tx, tl) in enumerate(tr):
+                    assert all(abs(tx - ux) >= TRUNK_W for j, (ux, ul) in enumerate(tr) if j != i and ul == tl), \
+                        f"bonus game {x['id']}: pile.trunks[{i}]: overlaps another trunk of layer {tl} (x {TRUNK_W} px apart at least)"
+                    assert tl == 0 or any(ul == tl - 1 and abs(tx - ux) < TRUNK_W for ux, ul in tr), \
+                        f"bonus game {x['id']}: pile.trunks[{i}]: nothing under it in layer {tl - 1} (it rests on a trunk less than {TRUNK_W} px across)"
             assert isinstance(x.get('won_ticks', 300), int) and 120 <= x.get('won_ticks', 300) <= 1200, f"bonus game {x['id']}: won_ticks 120-1200"
             for k in ('lesson', 'won_text'):
                 t = x.get(k, [])
@@ -1692,6 +1715,12 @@ def bonus_tables(g, songs_known, sfx_names):
                   f".hp = {x.get('hp', 1)}", '.dmg_at = { ' + ', '.join(str(v) for v in (x.get('damage_at', []) + [255] * POST_DMG)[:POST_DMG]) + ' }', f".won_ticks = {x.get('won_ticks', 300)}",
                   '.lesson = ' + ln('lesson', ['ONLY YOUR FURY BREAKS THE POSTS!', 'FURY  =  D', 'MAX  =  DOWN + D  AT LOW LIFE']),
                   '.won_text = ' + ln('won_text', ['FURY + FURY MAX UNLOCKED ON D']), f".referee = {1 if x.get('won_by') == 'referee' else 0}"]
+            if x.get('layout') == 'pile':                # (the pile's own count / hp / damage: the drop's kept for a compare)
+                pl = x['pile']; tr = pl['trunks']; php = pl.get('hp', x.get('hp', 1))
+                f = [v for v in f if not v.startswith(('.count =', '.hp =', '.dmg_at ='))]
+                f += [f".count = {len(tr)}", f".hp = {php}", '.dmg_at = { ' + ', '.join(str(v) for v in (pl.get('damage_at', []) + [255] * POST_DMG)[:POST_DMG]) + ' }',
+                      '.layout = BL_PILE', f".trunk_h = {pl.get('trunk_h', 64)}", f".trunk_reach = {pl.get('reach', 32)}",
+                      '.trunk_x = { ' + ', '.join(str(t[0]) for t in tr) + ' }', '.trunk_layer = { ' + ', '.join(str(t[1]) for t in tr) + ' }']
         f.append(f".show_name = {1 if x.get('show_name', True) else 0}")
         rows.append('{ ' + ', '.join(f) + ' }')
     c.append(f"const gbonus_t gbonus = {{ .ngames = {len(b['games']) if b['after'] else 0}, .pick_seconds = {b['pick']['seconds']}, "

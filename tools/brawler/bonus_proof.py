@@ -33,6 +33,8 @@ class Proof:
         self.b = H.Brawler(game=game); self.b.game = game
         self.names = scenario.roster(game); self.fails = 0; self.shots = []
         self.G = json.load(open(os.path.join(game, 'game.json')))['bonus']
+        for x in self.G['games']:                       # (a pile's own count / hp: game.json games[].pile, main.c "the pile")
+            if x.get('layout') == 'pile': x['count'] = len(x['pile']['trunks']); x['hp'] = x['pile'].get('hp', x.get('hp', 1))
         import re
         self.mus = {n: int(v, 16) for n, v in re.findall(r'#define MUS_(\w+) +0x([0-9A-F]+)', open(os.path.join(game, 'build', 'snd', 'songs.h')).read())}
 
@@ -167,7 +169,7 @@ class Proof:
             st = self.b.states[self.b.fget(0, 'state')]; fx = self.b.fget(0, 'x'); post = self.r('bn_post')
             keys = ''
             if post == BP_STAND and st in ('IDLE', 'WALK'):
-                px = self.r('bn_px', 2); right = px > 160          # (the post: right, or left after a rush past it)
+                px = self.r('bn_px', 2); right = px + 32 > fx      # (the post / the pile's front trunk: his right or his left)
                 gap = px - fx if right else fx - (px + 64)
                 face = self.b.fget(0, 'facing'); face = face - 256 if face > 127 else face
                 if not key: keys = ''
@@ -175,7 +177,7 @@ class Proof:
                 elif (face > 0) != right: keys = 'R' if right else 'L'   # (turned to it first)
                 elif t & (15 if use_d else 7) == 0: keys = key
             elif key == 'a' and post == BP_STAND and st == 'ATTACK' and t & 7 == 0:   # A, A, A: the chain (on a post in
-                px = self.r('bn_px', 2); right = px > 160                                # front of him, near: else he
+                px = self.r('bn_px', 2); right = px + 32 > fx                             # front of him, near: else he
                 gap = px - fx if right else fx - (px + 64)                               # lets it end, then turns / walks)
                 face = self.b.fget(0, 'facing'); face = face - 256 if face > 127 else face
                 if gap <= 12 and (face > 0) == right: keys = key
