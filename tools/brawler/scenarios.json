@@ -6176,5 +6176,33 @@
   "expect": "SLUM (cleared) is all grey: no green squares at its top edge next to POLICE, whatever POLICE's blink shows; each district's green stops at its own outline, as in Final Fight.",
   "do_keys": "190:Dabcd,330:-",
   "proof": 60
+ },
+ "20261017-133338-e03d": {
+  "title": "Robert: a special out of the ff + A Blitz starts from the ground",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 56,
+   "drive": "full"
+  },
+  "do": "Press forward, forward + A (the hop kick) and, as it hits Ryo, C (the dragon punch).",
+  "expect": "The dragon punch cancels the kick but starts with Robert's feet on the floor (he drops out of the hop at once) and rises from there, as from any ground move; it never starts in the air.",
+  "do_keys": "1:R,1:-,1:R,1:Ra,8:-,1:c,6:-,1:c,120:-",
+  "proof": 60
+ },
+ "20261017-133543-e03d": {
+  "title": "Robert's fireball knocks the victim back, low, away from him",
+  "setup": {
+   "mode": "lab",
+   "fighter": "robert",
+   "dummy": "ryo",
+   "gap": 120,
+   "drive": "full"
+  },
+  "do": "Press down + C (the Ryuugeki Ken fireball) at Ryo.",
+  "expect": "On impact Ryo is knocked back away from Robert on a low-to-mid arc (the regular fireball knockdown), lands further from Robert and gets up; he no longer flies high back over Robert.",
+  "do_keys": "1:Dc,150:-",
+  "proof": 60
  }
 }

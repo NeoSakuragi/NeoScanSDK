@@ -3134,6 +3134,16 @@ static void start_special(fighter_t *f, uint8_t k) {   /* k: the role (BS_*), sp
                                                                     the fury's rule, from its first frame to its end */
     f->spart = 0; f->sarm = 0; f->shrow = 0; f->spend = f->plink = f->phl = f->spbuf = 0; f->spage = 0xFF;   /* its first part, no follow-up armed, no hit */
     f->scancel = 0; f->fury_buf = 0;                             /* nothing landed yet: no fury cancel ("cancels") */
+    if (f->state == S_ATTACK) { f->y = 0; f->vy = 0; }           /* out of a ground normal: on the floor (note
+                                                                    20261017-133338-e03d, Robert's ff + A Blitz = KOF98's
+                                                                    forward + A hop kick: "anything triggered during the
+                                                                    forward blitz is on the ground"). S_ATTACK is a ground
+                                                                    move (its air nodes play S_AIR_ATTACK): a hop's height
+                                                                    is its steps' hy (step_move), drawn, never a jump, so
+                                                                    the special / fury / Blitz special it cancels into
+                                                                    starts from the floor, as from any ground normal (it
+                                                                    started mid-air, a ground special in the air). A
+                                                                    special's own cancels already wait for y == 0 */
     f->fpose = seq_piece(f) && f->ch->nfpose ? 0xFF : 0;                      /* a fury's flash pose: not yet ("flash pose"; a sequence's
                                                                     later piece: done, its first showed it) */
     enter(f, S_SPECIAL); f->srow = 0; f->speed = 0x100;          /* a route ender: its node's speed (S_ATTACK) */
