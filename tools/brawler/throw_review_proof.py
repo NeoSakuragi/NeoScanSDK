@@ -10,6 +10,10 @@
      DATA/decisions/throws.json; the file removed when the test made it). Skipped when ROW is answered already.
 
     python3 tools/brawler/throw_review_proof.py SITE_DIR OUT_DIR [--set throws2] [--answer [ROW]]
+--set bossthrows: THE BOSS THROWS (review.html?q=bossthrows): every row links the capture before the events (the old rule),
+the open row shows both, pre-filled with the game's events (LAND, the impacts' effect buttons); --answer ROW (e.g.
+mr_big-fwd) presses "Confirm proposed": the stored answer must turn back into the game's own events (throw_answers.py
+events_of_answer), then it is deleted as above.
 --set throws2: round 2 (review.html?q=throws2: impact / launch / held): every row links the capture judged in round 1
 (served next to it), the open row shows both captures (now / judged) and, with --answer (the store reachable), its
 proposal from the round-1 answer (set "throws"); --answer presses "Confirm proposed" on ROW (the store must hold choice 0
@@ -35,7 +39,7 @@ def check_data(site):
         im = Image.open(os.path.join(site, r['sheet'])); d = json.load(open(os.path.join(site, r['data'])))
         rows_needed = -(-r['frames'] // r['cols'])
         good = im.size == (r['cols'] * r['w'], rows_needed * r['h']) and len(d['rows']) == len(d['states']) == len(d['hp']) == r['frames']
-        if SET == 'throws2':                                       # (the judged capture it links: served next to it)
+        if SET in ('throws2', 'bossthrows'):                       # (the judged / old-rule capture it links: served next to it)
             good &= 'prev' in r and os.path.exists(os.path.join(site, r['prev']['sheet'])) and os.path.exists(os.path.join(site, r['prev']['data']))
         ok &= good
         print(f"{r['id']:16s} {r['frames']:3d} frames, sheet {im.size[0]}x{im.size[1]}: {'OK' if good else 'MISMATCH'}")
@@ -50,7 +54,9 @@ def check_page(site, out, base, IX):
                "return JSON.stringify({ink, strip: document.querySelectorAll('.tstrip button').length, w: document.documentElement.scrollWidth,"
                " line: document.querySelector('.fline').textContent, mic: document.querySelectorAll('.micbtn').length,"
                " prop: (document.querySelector('.prop:not([hidden])') || {}).textContent || '',"
-               " caps: document.querySelectorAll('.tbody [aria-label=\"Which capture\"] button').length});})()")
+               " caps: document.querySelectorAll('.tbody [aria-label=\"Which capture\"] button').length,"
+               " fx: document.querySelectorAll('.tbody .fxrows button').length,"
+               " land: (document.querySelector('.tbody button[data-dir=\"land\"]') || {getAttribute: () => null}).getAttribute('aria-pressed')});})()")
     steps = [{'width': 360, 'height': 640, 'mobile': True}, {'wait': 2500},
              {'eval': "JSON.stringify({ready: !!window.reviewReady, rows: document.querySelectorAll('li.trow').length, w: document.documentElement.scrollWidth, status: document.querySelector('.sub[role=status]').textContent})", 'save': f'{out}/list.json'},
              {'shot': f'{out}/phone_list.png'},
@@ -63,6 +69,9 @@ def check_page(site, out, base, IX):
     if SET == 'throws2':
         ok &= O['caps'] == 2 and (O['prop'].startswith('Proposed') or not API_ON)
         print(f"round 2: {O['caps']} captures shown, proposal '{O['prop']}'")
+    if SET == 'bossthrows':                                        # (the first row: pre-filled with the game's events,
+        ok &= O['caps'] == 2 and O['prop'].startswith('Pre-filled') and O['fx'] >= 3 and O['land'] == 'true'   # LAND)
+        print(f"boss throws: {O['caps']} captures shown (now / the old rule), '{O['prop']}', {O['fx']} impact effect buttons, LAND pressed {O['land']}")
     print(f"page: {'OK' if ok else 'FAIL'}: {L['rows']} rows ({n}), phone width {L['w']} / {O['w']} (360), {L['status']}; "
           f"{first['id']} open: frame drawn ({O['ink']} ink px), {O['strip']} strip frames ({first['frames']}), mic {O['mic']}; '{O['line']}'")
     return ok
@@ -99,9 +108,19 @@ def check_answer2(site, out, base, api, IX, rid):
     headless(f'{base}/review.html?q={st}', steps, out, 'answer')
     saved = json.loads(json.load(open(f'{out}/answer_saved.json'))); back = json.loads(json.load(open(f'{out}/answer_back.json')))
     stored = api_get(api, st).get(rid, {})
-    old = api_get(api, 'throws').get(rid, {})
-    dmg = next((int(f[4:]) for f in old.get('flags') or [] if f.startswith('dmg-')), None)
-    ok = saved['saved'] == 'Saved' and stored.get('choice') == 0 and f'impact-{dmg}' in (stored.get('flags') or []) and back['prop_hidden'] and back['mine'].startswith('✓')
+    if st == 'bossthrows':                                         # the confirmed proposal = the game's events, flag for flag:
+        import throw_answers                                       # applied, it changes nothing but the entry's "from"
+        e, why = throw_answers.events_of_answer(stored)
+        g = json.load(open(os.path.join(HERE, '..', '..', 'examples', 'brawler', 'game.json')))
+        f, _, k = rid.rpartition('-')
+        cur = (next(r for r in g['roster'] if r['name'] == f).get('throws') or {}).get('events', {}).get(throw_answers.KEY[k])
+        same = e is not None and cur is not None and {x: y for x, y in e.items() if x != 'from'} == {x: y for x, y in cur.items() if x != 'from'}
+        print(f"answer -> events {json.dumps({x: y for x, y in (e or {}).items() if x != 'from'})}: {'the game\'s own' if same else 'DIFFERS from the game: ' + json.dumps(cur)}")
+        ok = saved['saved'] == 'Saved' and stored.get('choice') == 0 and same and back['prop_hidden'] and back['mine'].startswith('✓')
+    else:
+        old = api_get(api, 'throws').get(rid, {})
+        dmg = next((int(f[4:]) for f in old.get('flags') or [] if f.startswith('dmg-')), None)
+        ok = saved['saved'] == 'Saved' and stored.get('choice') == 0 and f'impact-{dmg}' in (stored.get('flags') or []) and back['prop_hidden'] and back['mine'].startswith('✓')
     print(f"answer: {st}/{rid} '{saved['prop']}' confirmed -> '{saved['saved']}'; store: choice {stored.get('choice')}, flags {stored.get('flags')}, "
           f"label '{stored.get('label')}'; after reload: '{back['mine']}' ({back['status']})")
     json.dump({rid: stored}, open(f'{out}/answer_stored.json', 'w'), indent=1)   # (throw_answers.py apply --dry reads it)
@@ -109,7 +128,7 @@ def check_answer2(site, out, base, api, IX, rid):
 
 
 def check_answer(site, out, base, api, IX, rid):
-    if SET == 'throws2': return check_answer2(site, out, base, api, IX, rid)
+    if SET in ('throws2', 'bossthrows'): return check_answer2(site, out, base, api, IX, rid)
     r = next(x for x in IX['rows'] if x['id'] == rid)
     st = IX['set']
     before = api_get(api, st)

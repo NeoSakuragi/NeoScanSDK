@@ -99,6 +99,29 @@ srv.listen(0, async () => {
     const sp = posts.find(x => x.path === 'lab/ship_batch');
     check('ship_batch {throws: true} queued', sp && sp.body.throws === true, sp && sp.body);
     check('the row says queued', /queued/.test(await rowTxt('terry-back')), await rowTxt('terry-back'));
+    // THE BOSS THROWS (2026-10-17): the bosses' rows (throwcfg.py state "boss"), their captures from SITE/review/bossthrows/
+    const bossRows = STATE.rows.filter(r => r.boss);
+    if (bossRows.length) {
+      const mb = bossRows.find(r => r.id === 'mr_big-fwd') || bossRows[0];
+      check('boss rows listed, tagged boss', /boss: /.test(await rowTxt(mb.id)), await rowTxt(mb.id));
+      await pg.click('#tr-' + mb.id); await sleep(600);
+      const bs = await pg.$$('#pThrows .strip button');
+      check('a boss row: the boss throw review\'s frame strip', bs.length > 40, bs.length);
+      if (mb.id === 'mr_big-fwd') {
+        check('Mr. Big: impacts 31 + 51, launch LAND on 51 (the old rule\'s landing)', await pg.$eval('#pThrows .strip', s => s.children[30].textContent === '31 I1' && s.children[50].textContent === '51 I2 L↓'),
+          await pg.$eval('#pThrows .strip', s => [s.children[30].textContent, s.children[50].textContent]));
+        check('LAND pressed; impact 2 silent (spark / sound / shake off), impact 1 without shake', await pg.evaluate(() => {
+          const q = s => document.querySelector('#pThrows ' + s);
+          const fx = j => [...document.querySelectorAll('#pThrows [data-mark="impact' + j + '"] button[data-fx]')].map(b => b.getAttribute('aria-pressed')).join();
+          return q('button[data-dir="land"]').getAttribute('aria-pressed') === 'true' && fx(1) === 'true,true,false' && fx(2) === 'false,false,false'; }));
+        await btn('[data-mark="impact1"] button[data-fx="shake"]');
+        check('a boss edit (impact 1 shake on): Save on', !(await errsShown()).length && !(await saveOff()));
+        await btn('.ted button.primary'); await sleep(600);
+        const lb = (posts.filter(x => x.path === 'lab/throws').pop() || {}).body;
+        check('the boss edit saved into the draft beside Terry\'s', lb && lb.throws['terry-back'] && JSON.stringify(lb.throws['mr_big-fwd']) ===
+          JSON.stringify({ impacts: [{ frame: 31 }, { frame: 51, spark: false, sound: false, shake: false }], launch: { frame: 51, dir: 'land' } }), lb && lb.throws);
+      }
+    }
     check('no horizontal scroll at 390 px', await pg.evaluate(() => document.documentElement.scrollWidth <= 390), await pg.evaluate(() => document.documentElement.scrollWidth));
     check('no page errors', !errs.length, errs);
     await shot('throws_3_shipped');
